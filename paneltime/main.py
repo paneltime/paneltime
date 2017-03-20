@@ -41,7 +41,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 	print ("Analyzing variables ...")
 	X,x_names,Y,y_name,groups,groups_name,W,w_names,has_intercept=ptf.get_variables(dataframe,model_string,groups_name,w_names,add_intercept,sort_name)
 	N,cols=X.shape
-	if N*(cols**0.5)>200000 and os.cpu_count()>1:#paralell computing will not increase computation time for 'small' data sets
+	if N*(cols**0.5)>200000 and os.cpu_count()>1 or  True:#paralell computing will not increase computation time for 'small' data sets
 		master=multi_core.master('regprocs','rp')#for paralell computing
 	else:
 		master=None
