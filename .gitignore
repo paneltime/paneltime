@@ -6,3 +6,4 @@
 *.wpr
 *.txt
 *.pyc
+*.egg-info
