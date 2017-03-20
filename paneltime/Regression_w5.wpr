@@ -1,0 +1,26 @@
+#!wing
+#!version=5.0
+##################################################################
+# Wing IDE project file                                          #
+##################################################################
+[project attributes]
+proj.file-list = [loc('calculus.py'),
+                  loc('date_time.py'),
+                  loc('debug.py'),
+                  loc('functions.py'),
+                  loc('loaddata.py'),
+                  loc('main.py'),
+                  loc('maximize.py'),
+                  loc('multi_core.py'),
+                  loc('paneltime_functions.py'),
+                  loc('regobj.py'),
+                  loc('regprocs.py'),
+                  loc('regstats.py'),
+                  loc('sample_project.py'),
+                  loc('simulation.py'),
+                  loc('slave.py'),
+                  loc('statproc.py'),
+                  loc('__init__.py'),
+                  loc('../README.rst'),
+                  loc('../setup.py')]
+proj.file-type = 'shared'
