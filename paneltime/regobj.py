@@ -259,13 +259,13 @@ class LL:
 		if args is None:
 			args=panel.args.args
 		self.LL_const=-0.5*np.pi*panel.NT_afterloss
-		self.args_v=self.args_vector(panel,args)
-		self.args_d=self.args_dict(panel,args)
+		self.args_v=panel.args.conv_to_vector(panel,args)
+		self.args_d=panel.args.conv_to_dict(panel,args)
 		self.LL=self.LL_calc(panel,center_e)
 		
 	def update(self,panel,args):
-		self.args_v=self.args_vector(panel,args)
-		self.args_d=self.args_dict(panel,args)
+		self.args_v=panel.args.conv_to_vector(panel,args)
+		self.args_d=panel.args.conv_to_dict(panel,args)
 		self.LL=self.LL_calc(panel)
 		
 
@@ -311,22 +311,6 @@ class LL:
 		self.e_st=e_RE*v_inv
 		return LL
 
-	def args_dict(self,panel,args):
-		"""Converts a vector argument args to a dictionary argument. If args is a dict, it is returned unchanged"""
-		if type(args)==dict:
-			return args
-		else:
-			d=dict()
-			k=0
-			for i in panel.args.categories:
-				n=len(panel.args.positions[i])
-				rng=range(k,k+n)
-				d[i]=args[rng]
-				if i=='beta' or i=='omega':
-					d[i]=d[i].reshape((n,1))
-				k+=n
-		return d
-	
 	def standardize(self,panel):
 		"""Adds X and Y and error terms after ARIMA-E-GARCH transformation and random effects to self"""
 		v_inv=self.v_inv**0.5
@@ -343,21 +327,6 @@ class LL:
 		self.Y_st_long=panel.de_arrayize(self.Y_st,m)
 		self.X_st_long=panel.de_arrayize(self.X_st,m)
 
-
-	def args_vector(self,panel,args):
-		"""Converts a dict argument args to vector argument. if args is a vector, it is returned unchanged"""
-		if type(args)==dict:
-			v=np.array([])
-			for i in panel.args.categories:
-				s=args[i]
-				if type(s)==np.ndarray:
-					s=s.flatten()
-				
-				v=np.concatenate((v,s))
-			return v
-		else:
-			return args
-
 class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
 	def __init__(self,p, d, q, m, k, panel, args,has_intercept):
@@ -365,7 +334,7 @@ class arguments:
 		self.set_init_args(p, d, q, m, k,panel, args,has_intercept)
 		self.position_defs()
 
-	def make_arg_dict(self,p,d,q,m,k,panel):
+	def initargs(self,p,d,q,m,k,panel):
 		args=dict()
 		args['beta']=np.zeros((panel.X.shape[2],1))
 		args['omega']=np.zeros((panel.W.shape[2],1))
@@ -383,7 +352,7 @@ class arguments:
 
 	def set_init_args(self,p,d,q,m,k,panel,args_old,has_intercept):
 		
-		args=self.make_arg_dict(p, d, q, m, k, panel)
+		args=self.initargs(p, d, q, m, k, panel)
 		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
 		if args_old is None: 
 			args['beta']=beta
@@ -403,11 +372,25 @@ class arguments:
 		self.args=args
 		self.set_restricted_args(p, d, q, m, k,panel,e,beta)
 		
-		
+	def new_args(self,beta,rho=[],lmbda=[],psi=[],gamma=[],omega=[],mu=[],z=[]):
+		args=dict()
+		args['beta']=np.array(beta)
+		args['omega']=np.array(omega)
+		args['rho']=np.array(rho)
+		args['lambda']=np.array(lmbda)
+		args['psi']=np.array(psi)
+		args['gamma']=np.array(gamma)
+		if m>0:
+			args['mu']=np.array(mu)
+			args['z']=np.array(z)	
+		else:
+			args['mu']=np.array(mu)
+			args['z']=np.array(z)			
+		return args
 
 	def set_restricted_args(self,p, d, q, m, k, panel,e,beta):
-		self.args_restricted=self.make_arg_dict(p, d, q, m, k, panel)
-		self.args_OLS=self.make_arg_dict(p, d, q, m, k, panel)		
+		self.args_restricted=self.initargs(p, d, q, m, k, panel)
+		self.args_OLS=self.initargs(p, d, q, m, k, panel)		
 		self.args_restricted['beta'][0][0]=np.mean(panel.Y)
 		self.args_restricted['omega'][0][0]=np.log(np.var(panel.Y))
 		self.args_OLS['beta']=beta
@@ -426,6 +409,38 @@ class arguments:
 			for j in rng:
 				self.map_to_categories[j]=i
 			k+=n
+	
+	def conv_to_dict(self,panel,args):
+		"""Converts a vector argument args to a dictionary argument. If args is a dict, it is returned unchanged"""
+		if type(args)==dict:
+			return args
+		else:
+			d=dict()
+			k=0
+			for i in panel.args.categories:
+				n=len(panel.args.positions[i])
+				rng=range(k,k+n)
+				d[i]=args[rng]
+				if i=='beta' or i=='omega':
+					d[i]=d[i].reshape((n,1))
+				k+=n
+		return d
+
+
+	def conv_to_vector(self,panel,args):
+		"""Converts a dict argument args to vector argument. if args is a vector, it is returned unchanged"""
+		if type(args)==dict:
+			v=np.array([])
+			for i in panel.args.categories:
+				s=args[i]
+				if type(s)==np.ndarray:
+					s=s.flatten()
+
+				v=np.concatenate((v,s))
+			return v
+		else:
+			return args
+		
 			
 def insert_arg(arg,add):
 	n=min((len(arg),len(add)))
