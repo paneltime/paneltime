@@ -85,7 +85,7 @@ class slave():
 	def __init__(self,module,alias,slave_id):
 		"""Starts local worker"""
 		cwdr=os.curdir
-		os.chdir(os.path.realpath('/paneltime/paneltime/'))
+		os.chdir(__file__.replace(__name__+'.py',''))
 		self.p = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		os.chdir(cwdr)
 		self.t=transact(self.p.stdout,self.p.stdin)

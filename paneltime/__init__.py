@@ -11,7 +11,7 @@
 
 import sys
 import os
-sys.path.append(os.path.realpath('/paneltime/paneltime'))
+sys.path.append(__file__.replace("__init__.py",''))
 import main
 
 

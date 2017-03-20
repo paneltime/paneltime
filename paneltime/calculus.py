@@ -388,7 +388,6 @@ class ll_light():
 	def __init__(self,ll):
 		"""A minimalistic version of LL object for multiprocessing. Reduces the amount of information 
 			transfered to the nodes"""
-		self.eFE			=	ll.eFE
 		if hasattr(ll,'vLSDV'):
 			self.vLSDV			=	ll.vLSDV
 			self.theta			=	ll.theta
@@ -423,7 +422,6 @@ class ll_light():
 class panel_light:
 	def __init__(self,panel):
 		self.NT_afterloss	=	panel.NT_afterloss
-		self.grp_v			=	panel.grp_v
 		self.n_i			=	panel.n_i
 		self.included		=	panel.included
 		self.T_arr			=	panel.T_arr
