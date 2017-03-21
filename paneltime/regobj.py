@@ -148,37 +148,38 @@ class panel:
 		if not ll.LL is None:
 			return ll
 
-	def get_direction(self,ll,mc_limit,add_one_constr,dx_conv,has_problems,k):
+	def get_direction(self,ll,mc_limit,add_one_constr,dx_conv,has_problems,k,hcorrel=False):
 
 		g,G=self.gradient.get(ll,return_G=True)
 		hessian=self.hessian.get(ll)
 
-		dc,constrained=self.solve(add_one_constr, G, g, hessian, ll, mc_limit, 
-				                     dx_conv, has_problems,k)
+		dc,constrained,reset,out,constr=self.solve(add_one_constr, G, g, hessian, ll, mc_limit, 
+				                     dx_conv, has_problems,k,hcorrel)
 		
 		#fixing positive definit hessian (convexity problem) by using robust sandwich estimator
-		if np.sum(dc*(constrained==0)*g)<0 or k>=len(ll.args_v)-np.sum(constrained)-2:
+		if np.sum(dc*(constrained==0)*g)<0:
 			#print("Warning: negative slope. Using robust sandwich hessian matrix to ensure positivity")
 			hessin=rp.sandwich(hessian,G,0)
 			for i in range(len(hessin)):
 				hessin[i,i]=hessin[i,i]+(hessin[i,i]==0)
 			hessian=-np.linalg.inv(hessin)
-			dc,constrained=self.solve(add_one_constr, G, g, hessian, ll, mc_limit, 
-						              dx_conv, has_problems,k)			
+			dc,constrained,reset,out,constr=self.solve(add_one_constr, G, g, hessian, ll, mc_limit, 
+						              dx_conv, has_problems,k,hcorrel)			
 			
-		
-		return dc,g,G,hessian,constrained
+		if len(constr.constraints)>0:
+			out.print()		
+		return dc,g,G,hessian,constrained,reset
 	
-	def solve(self,add_one_constr,G,g,hessian,ll,mc_limit,dx_conv,has_problems,k):
+	def solve(self,add_one_constr,G,g,hessian,ll,mc_limit,dx_conv,has_problems,k,hcorrel):
 		if not hasattr(self,'constr'):
 			self.constr=None		
 		constr=constraints(self.args,self.constr,add_one_constr)
 		self.constr=constr
 		if len(self.args.positions['z'])>0:
-			constr.add(self.args.positions['z'][0],1e-15)	
-		hessian=rp.handle_multicoll(G,self,ll.args_v,self.name_vector,constr,mc_limit,dx_conv,hessian,has_problems,k)
+			constr.add(self.args.positions['z'][0],1e-15,10000)	
+		hessian,reset,out=rp.handle_multicoll(G,self,ll.args_v,self.name_vector,constr,mc_limit,dx_conv,hessian,has_problems,k,hcorrel)
 		dc,constrained=rp.solve(constr,hessian, g, ll.args_v)	
-		return dc,constrained
+		return dc,constrained,reset,out,constr
 		
 	
 

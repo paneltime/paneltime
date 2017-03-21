@@ -527,6 +527,33 @@ def correl_groups(p):
 	return g
 		
 	
+def remove_one_multicoll(G,panel,args,names,include,out,constr,limit):
+	n=len(include)
+	T,N,k=G.shape
+	c_index,var_prop=stat.var_decomposition(X=G[:,:,include])
+	zeros=np.zeros((len(c_index),1))
+	c_index=c_index.flatten()
+	for i in range(k):
+		if not include[i]:
+			c_index=np.insert(c_index,i,0)
+			var_prop=np.insert(var_prop,i,zeros,1)
+	
+	if c_index[-1]>limit:
+		if np.sum(var_prop[-1]>0.5)>1:
+			j=np.argsort(var_prop[-1])[-1]
+			assc=np.argsort(var_prop[-1])[-1]
+			remvd=remove(j, assc,args, include, out,constr,names,'collinear')
+			return True
+	return False
+
+def remove_all_multicoll(G,panel,args,names,include,out,constr,limit):
+	T,N,k=G.shape
+	for i in range(k):
+		remvd=remove_one_multicoll(G,panel,args,names,include,out,constr,limit)
+		if not remvd:
+			return
+		
+
 def remove_multicoll(G,panel,args,names,include,out,constr,limit):
 	n=len(include)
 	c_index,var_prop=stat.var_decomposition(X=G)
@@ -568,24 +595,28 @@ def remove(d,assoc,args,include,out,constr,names,r_type):
 		out.add(names[d],args[d],'NA',r_type)	
 	return True
 
-def handle_multicoll(G,panel,args,names,constr,mc_limit,dx_conv,hessian,has_problems,k):
+def handle_multicoll(G,panel,args,names,constr,mc_limit,dx_conv,hessian,has_problems,k,hcorrel):
 	N,T,h=G.shape
 	include=np.ones(h,dtype=bool)
 	out=output()
 	remove_constants(panel, G, include,constr,out,names)	
-	principal_factors=remove_multicoll(G,panel,args,names,include,out,constr,mc_limit)
-	hessian=remove_H_correl(panel, hessian, include, constr, args, out, names)
+	#principal_factors=remove_multicoll(G,panel,args,names,include,out,constr,mc_limit)
+	remove_all_multicoll(G, panel, args, names, include, out, constr, mc_limit)
+	if hcorrel and False:
+		hessian=remove_H_correl(panel, hessian, include, constr, args, out, names)
+	reset=False
 	if mc_limit<30:
 		srt=np.argsort(dx_conv)
 		for i in range(min((k,len(srt)-2))):
 			j=srt[-i-1]
-			remvd=remove(j,None,args, include, out,constr,names,'dir cap')
+			if dx_conv[j]<0.05:
+				reset=True
+			else:
+				reset=remove(j,None,args, include, out,constr,names,'dir cap')==False
+			
 		
 		#remove_correl(panel, G, include, constr, args, out, names)
-		
-	if len(constr.constraints)>0:
-		out.print()
-	return hessian
+	return hessian, reset,out
 		
 
 class output:

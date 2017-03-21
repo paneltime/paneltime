@@ -4,7 +4,7 @@
 import numpy as np
 import statproc as stat
 
-digits_precision=5
+digits_precision=7
 
 
 def lnsrch(f0, g, dx, panel):
@@ -61,7 +61,7 @@ def maximize(panel,args=None,_print=True):
 	"""Maxmizes panel.LL"""
 	ll=panel.LL(args) 
 	its=0
-	mc_limit_init=30
+	mc_limit_init=300
 	mc_limit_min=0
 	mc_limit=mc_limit_init
 	convergence_limit=0.01
@@ -70,7 +70,9 @@ def maximize(panel,args=None,_print=True):
 	dx_conv=None
 	while 1:  
 		its+=1
-		dx,g,G,H,constrained=panel.get_direction(ll,mc_limit,mc_limit!=mc_limit_init,dx_conv,has_problems,k)
+		dx,g,G,H,constrained,reset=panel.get_direction(ll,mc_limit,mc_limit!=mc_limit_init,dx_conv,has_problems,k,hcorrel=its<5)
+		if reset:
+			k=0
 		f0=ll
 		LL0=round_sign(f0.LL,digits_precision)
 		dx_conv=(ll.args_v!=0)*np.abs(dx)*(constrained==0)/(np.abs(ll.args_v)+(ll.args_v==0))
