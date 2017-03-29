@@ -224,7 +224,7 @@ class hessian:
 		#for debugging:
 		#Hn=debug.hess_debug(panel,ll.args_v,0.000001)#debugging
 		#debug.LL_debug_detail(self,ll,0.0000001)
-		print (time.clock()-tic)
+		#print (time.clock()-tic)
 		self.its+=1
 		return H 
 	

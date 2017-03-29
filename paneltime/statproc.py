@@ -107,13 +107,14 @@ def find_singulars(panel,X):
 	keep[0]=True#allways keep the first constant term
 	return keep,XXCorrel
 
-def adf_test(panel,p):
+def adf_test(panel,ll,p):
 	"""Returns the augmented dickey fuller test statistic and critical value"""
 	N,T,k=panel.X.shape
-	beta,y=OLS(panel,panel.X,panel.Y,return_e=True)
+	beta,y=OLS(panel,panel.X*panel.included,panel.Y*panel.included,return_e=True)
 	y=rp.FE(panel,y)
 	y_dev=deviation(panel,y)
-	y=y/std(panel,y_dev,True)
+	s=std(panel,y_dev,True)
+	y=y/(s+(s==0)*1e-17)
 	yl1=shift_arr(y,-1,axis=1)
 	dy=y-yl1
 	date_var=np.arange(T).reshape((T,1))*panel.included	#date count
@@ -126,11 +127,15 @@ def adf_test(panel,p):
 	X=np.concatenate((X,dyL),2)
 	X=X*date_var
 	dy=dy*date_var
+	X[:,0:panel.lost_obs+10]=0
 	keep,c_ix=singular_elim(panel,X)
+	if not np.all(keep[0:3]):
+		return 'NA'
 	beta,se=OLS(panel,X[:,:,keep],dy,return_se=True,c=date_var)
 	adf_stat=beta[2]/se[2]
 	critval=adf_crit_values(panel.NT,True)
-	return np.append(adf_stat,critval)
+	res=np.append(adf_stat,critval)
+	return 
 
 def goodness_of_fit(panel,ll):
 	v0=std(panel,ll.e_st,total=True)**2
@@ -224,8 +229,8 @@ def correl(X,panel=None):
 	cov=cov-(mean.T*mean)
 	stdx=(np.diag(cov)**0.5).reshape((1,k))
 	stdx=(stdx.T*stdx)
-	corr=cov/(stdx+(stdx==0)*1e-100)
-
+	corr=(stdx>0)*cov/(stdx+(stdx==0)*1e-100)
+	
 	return corr
 
 def deviation(panel,X):
@@ -375,31 +380,31 @@ def shift_arr(array,elements,empty_val=0,axis=0):
 		ret[n-elements:]=empty_val
 	ret[v]=empty_val
 			
-	
-	if len(s)==2:
-		T,k=s
-		fill=np.ones((abs(elements),k),dtype=arr2.dtype)*empty_val		
-		if elements<0:
-			ret2= np.append(fill,arr2[0:T+elements],0)
-		else:
-			ret2= np.append(arr2[elements:],fill,0)		
-	elif len(s)==3:
-		N,T,k=s
-		fill=np.ones((N,abs(elements),k),dtype=arr2.dtype)*empty_val
-		if elements<0:
-			ret2= np.append(fill,arr2[:,0:T+elements],1)
-		else:
-			ret2= np.append(arr2[:,elements:],fill,1)		
-	elif len(s)==1:
-		T=s[0]
-		fill=np.ones(abs(elements),dtype=arr2.dtype)*empty_val
-		if elements<0:
-			ret2= np.append(fill,arr2[0:T+elements],0)
-		else:
-			ret2= np.append(arr2[elements:],fill,0)	
-			
-	if not np.all(ret==ret2):
-		raise RuntimeError('Check that the calling procedure has specified the "axis" argument')
+	if False:#for debugging
+		if len(s)==2:
+			T,k=s
+			fill=np.ones((abs(elements),k),dtype=arr2.dtype)*empty_val		
+			if elements<0:
+				ret2= np.append(fill,arr2[0:T+elements],0)
+			else:
+				ret2= np.append(arr2[elements:],fill,0)		
+		elif len(s)==3:
+			N,T,k=s
+			fill=np.ones((N,abs(elements),k),dtype=arr2.dtype)*empty_val
+			if elements<0:
+				ret2= np.append(fill,arr2[:,0:T+elements],1)
+			else:
+				ret2= np.append(arr2[:,elements:],fill,1)		
+		elif len(s)==1:
+			T=s[0]
+			fill=np.ones(abs(elements),dtype=arr2.dtype)*empty_val
+			if elements<0:
+				ret2= np.append(fill,arr2[0:T+elements],0)
+			else:
+				ret2= np.append(arr2[elements:],fill,0)	
+				
+		if not np.all(ret==ret2):
+			raise RuntimeError('Check that the calling procedure has specified the "axis" argument')
 	return ret
 
 

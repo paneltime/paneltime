@@ -40,17 +40,6 @@ def dot(a,b,reduce_dims=True):
 			return np.moveaxis(x,0,2)	
 	else:
 		raise RuntimeError("this multiplication is not supported by dot")
-	
-	
-	
-def cond_test(X):
-	try:
-		c=np.linalg.cond(X[0:10,0:10])
-	except RuntimeWarning: 
-		return False
-	if c>10:
-		return False
-	return True
 
 
 def clean(string,split='',cleanchrs=['\n','\t',' ']):

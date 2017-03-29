@@ -12,24 +12,22 @@ def lnsrch(f0, g, dx, panel):
 	s=g*dx
 	slope=np.sum(s)					#ensuring positive slope (should not be negative unless errors in gradient and/or hessian)
 	if slope <= 0.0:
-		#print("Warning: Roundoff problem in lnsrch")
+		print("Warning: Roundoff problem in lnsrch")
 		sel=dx*np.sign(g)==max(dx*np.sign(g))
 		g=sel*g
 		dx=sel*dx
 		slope=np.sum(g*dx)
 	if slope<=0:
 		return f0
-	x=f0.args_v+1e-12*dx
-	f1=panel.LL(x) 
-	
-	for i in range(15+len(x)):#Setting lmda so that the largest step is valid. Set panel.LL to return None when input is invalid
+	for i in range(15+len(dx)):#Setting lmda so that the largest step is valid. Set panel.LL to return None when input is invalid
 		lmda=0.5**i #Always try full Newton step first.
 		if i>14:
 			dx=dx*(np.abs(dx)<max(np.abs(dx)))
 		x=f0.args_v+lmda*dx
 		f1=panel.LL(x)
 		if f1 is not None:
-			if f1.LL is not None: break
+			if f1.LL is not None: 
+				break
 	if i==14+len(x):
 		return f0
 	f05=panel.LL(f0.args_v+lmda*0.5*dx) 
@@ -48,7 +46,8 @@ def lnsrch(f0, g, dx, panel):
 		for j in range(1,6):
 			lmda=lmda_pred*(0.05**j)
 			ll=panel.LL(f0.args_v+lmda*dx) 
-			if ll is None:break
+			if ll is None:
+				break
 			if ll.LL>f0.LL:
 				return ll
 	else:
@@ -70,7 +69,7 @@ def maximize(panel,args=None,_print=True):
 	dx_conv=None
 	while 1:  
 		its+=1
-		dx,g,G,H,constrained,reset=panel.get_direction(ll,mc_limit,mc_limit!=mc_limit_init,dx_conv,has_problems,k,hcorrel=its<5)
+		dx,g,G,H,constrained,reset=panel.get_direction(ll,mc_limit,mc_limit!=mc_limit_init,dx_conv,has_problems,k,its)
 		if reset:
 			k=0
 		f0=ll

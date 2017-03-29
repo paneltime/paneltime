@@ -51,6 +51,7 @@ class panel:
 		self.args=arguments(p, d, q, m, k, self, args,self.has_intercept)
 		self.LL_restricted=LL(self.args.args_restricted, self).LL
 		self.LL_OLS=LL(self.args.args_OLS, self).LL		
+
 		
 		
 
@@ -84,8 +85,8 @@ class panel:
 	def final_defs(self,p,d,q,m,k,X):
 		self.W_a=self.W*self.a
 		self.tot_lost_obs=self.lost_obs*self.N
-		self.NT=len(X)
-		self.NT_afterloss=self.NT-self.tot_lost_obs				
+		self.NT_afterloss=np.sum(self.included)
+		self.NT=self.NT_afterloss+self.tot_lost_obs				
 		self.len_args=p+d+q+m+k+self.W.shape[2]+self.X.shape[2]+2*(m==0)
 		self.number_of_RE_coef=self.N
 		self.number_of_FE_coef_in_variance=self.N
@@ -148,13 +149,13 @@ class panel:
 		if not ll.LL is None:
 			return ll
 
-	def get_direction(self,ll,mc_limit,add_one_constr,dx_conv,has_problems,k,hcorrel=False):
+	def get_direction(self,ll,mc_limit,add_one_constr,dx_conv,has_problems,k,its):
 
 		g,G=self.gradient.get(ll,return_G=True)
 		hessian=self.hessian.get(ll)
 
 		dc,constrained,reset,out,constr=self.solve(add_one_constr, G, g, hessian, ll, mc_limit, 
-				                     dx_conv, has_problems,k,hcorrel)
+				                     dx_conv, has_problems,k,its)
 		
 		#fixing positive definit hessian (convexity problem) by using robust sandwich estimator
 		if np.sum(dc*(constrained==0)*g)<0:
@@ -164,25 +165,74 @@ class panel:
 				hessin[i,i]=hessin[i,i]+(hessin[i,i]==0)
 			hessian=-np.linalg.inv(hessin)
 			dc,constrained,reset,out,constr=self.solve(add_one_constr, G, g, hessian, ll, mc_limit, 
-						              dx_conv, has_problems,k,hcorrel)			
+						              dx_conv, has_problems,k,its)			
 			
 		if len(constr.constraints)>0:
 			out.print()		
 		return dc,g,G,hessian,constrained,reset
 	
-	def solve(self,add_one_constr,G,g,hessian,ll,mc_limit,dx_conv,has_problems,k,hcorrel):
+	def solve(self,add_one_constr,G,g,hessian,ll,mc_limit,dx_conv,has_problems,k,its):
 		if not hasattr(self,'constr'):
 			self.constr=None		
 		constr=constraints(self.args,self.constr,add_one_constr)
 		self.constr=constr
 		if len(self.args.positions['z'])>0:
 			constr.add(self.args.positions['z'][0],1e-15,10000)	
-		hessian,reset,out=rp.handle_multicoll(G,self,ll.args_v,self.name_vector,constr,mc_limit,dx_conv,hessian,has_problems,k,hcorrel)
-		dc,constrained=rp.solve(constr,hessian, g, ll.args_v)	
+		hessian,reset,out=rp.handle_multicoll(G,self,ll.args_v,self.name_vector,constr,mc_limit,dx_conv,hessian,has_problems,k,its)
+		dc,constrained=rp.solve(constr,hessian, g, ll.args_v)
+		#constr_added=self.cond_testing(ll.args_v+dc,constr, 'lambda')
+		#constr_added=constr_added or self.cond_testing(ll.args_v+dc,constr, 'gamma')
+		#if constr_added:
+		#	dc,constrained=rp.solve(constr,hessian, g, ll.args_v)
 		return dc,constrained,reset,out,constr
-		
 	
-
+	def cond_testing(self,args,constr,varname):
+		c_added=False
+		v=args[self.args.positions[varname]]
+		k=len(v)
+		m=9+k
+		rows,cols=np.indices((m,m))
+		if varname=='gamma':
+			s=-1
+		else:
+			s=1
+		X=self.I[0:m,0:m]
+		if np.all(v<20) and np.all(v>-20):
+			for i in range(k):
+				X=X+np.diag(np.ones(m-i-1),-i-1)*v[i]*s
+			c=np.linalg.cond(X)
+			if c<=m:
+				return False
+		for i in range(1,k):
+			constr.add(self.args.positions[varname][i],0)
+			c_added=True
+		row_vals=np.diag(rows,-1)
+		col_vals=np.diag(rows,-1)
+		d=v[0]
+		z=np.sign(d)
+		X=self.I[0:m,0:m]
+		if k>1:
+			X[row_vals,col_vals]=s*d
+			c=np.linalg.cond(X)
+			if c<=m: 
+				return c_added
+		if abs(d)>1.4:
+			d=z*1.4
+			X[row_vals,col_vals]=s*d
+			c=np.linalg.cond(X)
+			if c<=m: 
+				constr.add(self.args.positions[varname][0],0,d)
+				return True		
+		while 1:
+			d=d-z*0.05
+			if z*d<0:
+				raise RuntimeError('This should not happen')
+			X[row_vals,col_vals]=s*d
+			c=np.linalg.cond(X)
+			if c<m:
+				constr.add(self.args.positions[varname][0],0,d)
+				return True
+		raise RuntimeError('This should not happen')
 
 	def params_ok(self,args):
 		a=self.q_sel,self.p_sel,self.M_sel,self.K_sel
@@ -192,21 +242,22 @@ class panel:
 					return False
 		return True
 
-	def set_garch_arch(self,args):
+	def set_garch_arch(self,args,LL):
 		p,q,m,k,nW=self.p,self.q,self.m,self.k,self.nW
 		X=self.I+self.lag_matr(q,args['lambda'])
-		if not fu.cond_test(X):
+		try:
+			AMA_1=np.linalg.inv(X)
+		except:
 			return None
-		AMA_1=np.linalg.inv(X)
 		AAR=self.I-self.lag_matr(p,args['rho'])
 		AMA_1AR=fu.dot(AMA_1,AAR)
 		X=self.I-self.lag_matr(k,args['gamma'])
-		if not fu.cond_test(X):
+		try:
+			GAR_1=np.linalg.inv(X)
+		except:
 			return None
-		GAR_1=np.linalg.inv(X)
 		GMA=self.lag_matr(m,args['psi'])	
 		GAR_1MA=fu.dot(GAR_1,GMA)
-
 		return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
 
 	def lag_matr(self,k,args):
@@ -233,7 +284,7 @@ class panel:
 		if groups is None:
 			Xarr=X.reshape((1,NT,k))
 			Yarr=Y.reshape((1,NT,1))
-			NT,k=W.shape
+			NTW,k=W.shape
 			Warr=W.reshape((1,NT,k))
 			N=1
 			max_T=NT
@@ -247,10 +298,20 @@ class panel:
 			Xarr=[]
 			Yarr=[]
 			Warr=[]
+			k=0
+			T_used=[]
 			for i in sel:
-				Xarr.append(rp.fillmatr(X[i],max_T))
-				Yarr.append(rp.fillmatr(Y[i],max_T))
-				Warr.append(rp.fillmatr(W[i],max_T))
+				obs_count=np.sum(i)
+				if obs_count>self.lost_obs+5:
+					T_used.append(obs_count)
+					Xarr.append(rp.fillmatr(X[i],max_T))
+					Yarr.append(rp.fillmatr(Y[i],max_T))
+					Warr.append(rp.fillmatr(W[i],max_T))
+				else:
+					print("Warning: group %s deleted because of too few observations" %(k))
+				k+=1
+			T=np.array(T_used)
+			N=len(T)
 		return np.array(Xarr),np.array(Yarr),np.array(Warr),max_T,T.reshape((N,1)),N
 
 class LL:
@@ -262,7 +323,16 @@ class LL:
 		self.LL_const=-0.5*np.pi*panel.NT_afterloss
 		self.args_v=panel.args.conv_to_vector(panel,args)
 		self.args_d=panel.args.conv_to_dict(panel,args)
-		self.LL=self.LL_calc(panel,center_e)
+		try:
+			self.LL=self.LL_calc(panel,center_e)
+		except Exception as e:
+			self.LL=None
+			#print(str(e))
+		if not self.LL is None:
+			if np.isnan(self.LL):
+				self.LL=None
+			
+		
 		
 	def update(self,panel,args):
 		self.args_v=panel.args.conv_to_vector(panel,args)
@@ -272,7 +342,7 @@ class LL:
 
 	def LL_calc(self,panel,center_e=False):
 		args=self.args_d#using dictionary arguments
-		matrices=panel.set_garch_arch(args)
+		matrices=panel.set_garch_arch(args,self)
 		if matrices is None:
 			return None		
 		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
@@ -283,7 +353,8 @@ class LL:
 
 		if panel.m>0:
 			h_res=rp.h_func(e, args['z'][0])
-			if h_res==None:return None
+			if h_res==None:
+				return None
 			(h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val)=[i*panel.included for i in h_res]
 			lnv_ARMA=fu.dot(GAR_1MA,h_val)
 		else:
@@ -294,7 +365,6 @@ class LL:
 		if panel.m>0:
 			avg_h=(np.sum(h_val,1)/panel.T_arr).reshape((N,1,1))*panel.a
 			lnv=lnv+args['mu'][0]*avg_h
-		if np.any(np.abs(lnv)>700): return None
 		v=np.exp(lnv)*panel.a
 		v_inv=np.exp(-lnv)*panel.a	
 		e_RE=rp.RE(self,panel,e)
@@ -302,9 +372,8 @@ class LL:
 		if center_e:
 			e=e-np.mean(e)
 		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
-		if abs(LL)>1e+100: return None
-
-
+		if abs(LL)>1e+100: 
+			return None
 		self.AMA_1,self.AAR,self.AMA_1AR,self.GAR_1,self.GMA,self.GAR_1MA=matrices
 		self.u,self.e,self.h_e_val,self.h_val, self.lnv_ARMA        = u,e,h_e_val,h_val, lnv_ARMA
 		self.lnv,self.avg_h,self.v,self.v_inv,self.e_RE,self.e_REsq = lnv,avg_h,v,v_inv,e_RE,e_REsq
@@ -478,7 +547,10 @@ class constraints:
 				if maximum==None:
 					self.constraints[i]=[minimum_or_value]
 				else:
-					self.constraints[i]=[minimum_or_value,maximum]
+					if minimum_or_value<maximum:
+						self.constraints[i]=[minimum_or_value,maximum]
+					else:
+						self.constraints[i]=[maximum,minimum_or_value]
 			category=self.args.map_to_categories[i]
 			if not category in self.categories:
 				self.categories.append(category)

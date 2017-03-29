@@ -84,7 +84,7 @@ class slave():
 
 	def __init__(self,module,alias,slave_id):
 		"""Starts local worker"""
-		cwdr=os.curdir
+		cwdr=os.getcwd()
 		os.chdir(__file__.replace(__name__+'.py',''))
 		self.p = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		os.chdir(cwdr)

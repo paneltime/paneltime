@@ -425,6 +425,108 @@ def remove_constants(panel,G,include,constr,out,names):
 			include[i]=False
 			constr.add(i,0)
 			out.add(names[i],0,'NA','constant')	
+			
+			
+def remove_H_correl(panel,hessian,include,constr,args,out,names):
+	k,k=hessian.shape
+	hessian_abs=np.abs(hessian)
+	x=(np.diag(hessian_abs)**0.5).reshape((1,k))
+	x=(x.T*x)
+	corr=hessian_abs/(x+(x==0)*1e-100)	
+	for i in range(k):
+		m=np.max(corr[i])
+		if m>2*corr[i,i]:
+			j=np.nonzero(corr[i]==m)[0][0]
+			corr[:,j]=0
+			corr[j,:]=0
+			corr[j,j]=1	
+	for i in range(k):
+		corr[i,i:]=0
+
+	p=np.arange(k).reshape((1,k))*np.ones((k,1))
+	p=np.concatenate((corr.reshape((k,k,1)),p.T.reshape((k,k,1)),p.reshape((k,k,1))),2)
+	p=p.reshape((k*k,3))
+	srt=np.argsort(p[:,0],0)
+	p=p[srt][::-1]
+	p=p[np.nonzero(p[:,0]>=1.0)[0]]
+	principal_factors=[]
+	groups=correl_groups(p)
+	acc=None
+	for i in groups:
+		for j in range(len(i)):
+			if not i[j] in constr.constraints:
+				acc=i.pop(j)
+				break
+		if not acc is None:
+			for j in i:
+				remvd=remove(j,acc,args,include,out,constr,names,'h-correl')	
+	return hessian
+
+def remove_correl(panel,G,include,constr,args,out,names):
+	N,T,k=G.shape
+	corr=np.abs(stat.correl(G,panel))
+	for i in range(k):
+		corr[i,i:]=0
+
+	p=np.arange(k).reshape((1,k))*np.ones((k,1))
+	p=np.concatenate((corr.reshape((k,k,1)),p.T.reshape((k,k,1)),p.reshape((k,k,1))),2)
+	p=p.reshape((k*k,3))
+	srt=np.argsort(p[:,0],0)
+	p=p[srt][::-1]
+	p=p[np.nonzero(p[:,0]>0.8)[0]]
+	principal_factors=[]
+	groups=correl_groups(p)
+	for i in groups:
+		for j in range(len(i)):
+			if not i[j] in constr.constraints:
+				acc=i.pop(j)
+				break
+		for j in i:
+			remvd=remove(j,acc,args,include,out,constr,names,'correl')	
+
+
+def append_to_group(group,intlist):
+	ingroup=False
+	for i in intlist:
+		if i in group:
+			ingroup=True
+			break
+	if ingroup:
+		for j in intlist:
+			if not j in group:
+				group.append(j)
+		return True
+	else:
+		return False
+	
+def correl_groups(p):
+	groups=[]
+	appended=False
+	x=np.array(p[:,1:3],dtype=int)
+	for i,j in x:
+		for k in range(len(groups)):
+			appended=append_to_group(groups[k],[i,j])
+			if appended:
+				break
+		if not appended:
+			groups.append([i,j])
+	g=len(groups)
+	keep=g*[True]
+	for k in range(g):
+		if keep[k]:
+			for h in range(k+1,len(groups)):
+				appended=False
+				for m in range(len(groups[h])):
+					if groups[h][m] in groups[k]:
+						appended=append_to_group(groups[k],  groups[h])
+						keep[h]=False
+						break
+	g=[]
+	for i in range(len(groups)):
+		if keep[i]:
+			g.append(groups[i])
+	return g
+		
 	
 def remove_one_multicoll(G,panel,args,names,include,out,constr,limit):
 	n=len(include)
@@ -464,13 +566,14 @@ def remove(d,assoc,args,include,out,constr,names,r_type):
 		out.add(names[d],args[d],'NA',r_type)	
 	return True
 
-def handle_multicoll(G,panel,args,names,constr,mc_limit,dx_conv,hessian,has_problems,k,hcorrel):
+def handle_multicoll(G,panel,args,names,constr,mc_limit,dx_conv,hessian,has_problems,k,its):
 	N,T,h=G.shape
 	include=np.ones(h,dtype=bool)
 	out=output()
 	remove_constants(panel, G, include,constr,out,names)	
-	remove_all_multicoll(G, panel, args, names, include, out, constr, mc_limit)
+	remove_all_multicoll(G, panel, args, names, include, out, constr, 300)
 	reset=False
+	remove_H_correl(panel,hessian,include,constr,args,out,names)
 	if mc_limit<30:
 		srt=np.argsort(dx_conv)
 		for i in range(min((k,len(srt)-2))):

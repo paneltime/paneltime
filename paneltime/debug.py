@@ -7,6 +7,7 @@ import statproc as stat
 import regprocs as rp
 import time
 import functions as fu
+import os
 
 def LL_debug_detail(ll,panel,d):
 	"""Calcuates LL after some variable change with d. Used for debugging. Which variable is affected must be specified manually below"""
@@ -681,26 +682,11 @@ def savevar(variable,name='tmp'):
 def savevars(varlist):
 	"""takes a tuple of (var,name) pairs and saves numpy array var 
 	with <name>.csv. Use double brackets for single variable."""	
+	if not os.path.exists('/output'):
+		os.makedirs('/output')	
 	for var,name in varlist:
 		name=name.replace('.csv','')
-		if type(var)==list:
-			#print(('Saves as list'))
-			WriteCSVMatrixFile(name,var)
-			return
-		if type(var)==np.ndarray:
-			if len(var.shape)==1:
-				if  type(var[0])==np.string_:
-					WriteCSVMatrixFile(name,var)
-					return
-			if len(var.shape)==2:
-				if  type(var[0][0])==np.string_:
-					WriteCSVMatrixFile(name,var)
-					return
-			#print(('Saves as numpy'))
-			if "../Input/" in name:
-				np.savetxt("%s.csv" %(name),var,delimiter=";")
-			else:
-				np.savetxt("../Output/%s.csv" %(name),var,delimiter=";")
+		np.savetxt("%s\\output\\%s.csv" %(os.getcwd(),name),var,delimiter=";")
 
 
 def T(x):

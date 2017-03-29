@@ -39,7 +39,7 @@ class diagnostics:
 
 		print ( 'LL: %s' %(ll.LL,))
 	
-		self.adf_test=stat.adf_test(panel,10)
+		self.adf_test=stat.adf_test(panel,ll,10)
 		self.get_var_stats()
 		self.save_stats(ll)
 	

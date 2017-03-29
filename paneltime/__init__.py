@@ -66,7 +66,7 @@ def load(fname,sep=None,filters=None,transforms=None):
 	If sep is not supplied, the method will try to find it."""
 	dataframe=main.loaddata.load(fname,sep)
 	main.ptf.modify_dataframe(dataframe,transforms,filters)
-	print ("The following variables were loaded:")
+	print ("The following variables were loaded:"+str(list(dataframe.keys()))[1:-1])
 	return dataframe
 
 def from_matrix(numpy_matrix,headings,filters=None,transforms=None):
