@@ -41,6 +41,7 @@ class diagnostics:
 		self.multicollinearity_check(G)
 
 		self.data_correlations=self.correl()
+		print("trying scatterplots")
 		try:
 			scatterplots(panel,self.savedir)
 		except Exception as e:
