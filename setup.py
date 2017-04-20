@@ -73,7 +73,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
-    install_requires=['numpy','scipy','csv','matplotlib',],
+    install_requires=['numpy','scipy','matplotlib',],
     #**************************************************************************<REMOVED
 
     # List additional groups of dependencies here (e.g. development
