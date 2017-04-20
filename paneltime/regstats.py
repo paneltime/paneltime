@@ -12,6 +12,7 @@ from scipy import stats as scstats
 import csv
 import os
 import sys
+import matplotlib
 from matplotlib import pyplot  as plt
 
 if 'win' in sys.platform:
