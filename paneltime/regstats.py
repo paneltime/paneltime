@@ -98,7 +98,7 @@ class diagnostics:
 		sign_codes=get_sign_codes(tsign)
 		output.append(['sign codes:',sign_codes])
 		
-		output=fix_savelist(output)
+		output=fix_savelist(output,True)
 		
 		return output,names,args,se,tstat,tsign,sign_codes
 	
@@ -216,7 +216,7 @@ class diagnostics:
 		
 		pass
 	
-def fix_savelist(save_list):
+def fix_savelist(save_list,transpose=False):
 	new_savelist=[]
 	for i in range(len(save_list)):
 		d=get_list_dim(save_list[i])
@@ -241,7 +241,14 @@ def fix_savelist(save_list):
 		elif d==2:
 			for k in save_list[i]:
 				new_savelist.append(k)
-		
+	if transpose:#requires a matrix
+		n=len(new_savelist)
+		k=len(new_savelist[0])
+		t_savelist=[n*[None] for i in range(k)]
+		for i in range(n):
+			for j in range(k):
+				t_savelist[j][i]=new_savelist[i][j]
+		new_savelist=t_savelist
 	return new_savelist
 
 def get_list_dim(lst):
