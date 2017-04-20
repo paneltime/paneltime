@@ -42,8 +42,16 @@ class diagnostics:
 
 		self.data_correlations=self.correl()
 		
-		scatterplots(panel,self.savedir)
-
+		try:
+			scatterplots(panel,self.savedir)
+		except Exception as e:
+			print ("""Warning: Plots cannot be generated. If you are using paneltime on 
+			a linux system, a likely cause is that
+			matplotlib is not installed properly. 
+			matplotlib is by default installed by pip when you pip install paneltime, 
+			but in linux systems matplotlib should not be installed with pip 
+			(see documentation for matplotlib). Install
+			matplot with apt-get or yum to resolve the issue. """)
 		print ( 'LL: %s' %(ll.LL,))
 	
 		self.adf_test=stat.adf_test(panel,ll,10)
@@ -82,11 +90,6 @@ class diagnostics:
 
 		T=len(se)
 		output=[]
-		
-		
-		frstrw=['Dependent:',panel.y_name]
-		frstrw.extend(['Rsq: ',str(self.Rsq),'Adjusted Rsq: ',str(self.Rsqadj),'LL-ratio: ',str(self.LL_ratio)])
-		output.append(frstrw)		
 
 		output.append(['Regressors:',names])
 		output.append(['coef:',args])
@@ -191,6 +194,7 @@ class diagnostics:
 		save_list.append(['norm prob:',self.norm_prob])
 		save_list.append(['ADF (dicky fuller):',self.adf_test, "1% and 5 % lower limit of confidence intervals, respectively"])
 		save_list.append([''])
+		save_list.append(['Dependent:',panel.y_name])
 		save_list.append(['Regression:',self.reg_output])
 		
 		save_list.append([''])
@@ -241,12 +245,12 @@ def fix_savelist(save_list,transpose=False):
 		elif d==2:
 			for k in save_list[i]:
 				new_savelist.append(k)
-	if transpose:#requires a matrix
+	if transpose:
 		n=len(new_savelist)
-		k=len(new_savelist[0])
+		k=max([len(i) for i in new_savelist])
 		t_savelist=[n*[None] for i in range(k)]
 		for i in range(n):
-			for j in range(k):
+			for j in range(len(new_savelist[i])):
 				t_savelist[j][i]=new_savelist[i][j]
 		new_savelist=t_savelist
 	return new_savelist
