@@ -64,7 +64,10 @@ def load(fname,sep=None,filters=None,transforms=None):
 	"""Loads dataframe from file <fname>, asuming column separator <sep>.\n
 	Returns a dataframe (a dictionary of numpy column matrices).\n
 	If sep is not supplied, the method will try to find it."""
-	dataframe=main.loaddata.load(fname,sep)
+	try:
+		dataframe=main.loaddata.load(fname,sep)
+	except FileNotFoundError:
+		raise RuntimeError("File %s not found" %(fname))
 	main.ptf.modify_dataframe(dataframe,transforms,filters)
 	print ("The following variables were loaded:"+str(list(dataframe.keys()))[1:-1])
 	return dataframe

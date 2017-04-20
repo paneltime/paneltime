@@ -12,15 +12,19 @@ from scipy import stats as scstats
 import csv
 import os
 import sys
+from matplotlib import pyplot  as plt
 
-
+if 'win' in sys.platform:
+	slash='\\'
+else:
+	slash='/'
 
 class diagnostics:
 	def __init__(self,panel,g,G,H,robustcov_lags,ll,simple_diagnostics=False):
 		"""This class calculates, stores and prints statistics and diagnostics"""
 		self.panel=panel
 		ll.standardize(panel)
-		
+		self.savedir=get_savedir()
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(panel,ll)
 		
 		if simple_diagnostics:
@@ -36,6 +40,8 @@ class diagnostics:
 		self.multicollinearity_check(G)
 
 		self.data_correlations=self.correl()
+		
+		scatterplots(panel,self.savedir)
 
 		print ( 'LL: %s' %(ll.LL,))
 	
@@ -205,7 +211,7 @@ class diagnostics:
 		save_list=fix_savelist(save_list)
 
 
-		write_csv_matrix_file(panel.descr+strappend,save_list)
+		write_csv_matrix_file(panel.descr+strappend,save_list,self.savedir)
 		
 		pass
 	
@@ -271,19 +277,48 @@ def get_sign_codes(tsign):
 	return sc
 
 
-def write_csv_matrix_file(filename,Variable):
+def write_csv_matrix_file(filename,Variable,savedir):
 	"""stores the contents of Variable to a file named filename"""
 	filename=filename.replace('.csv','')+'.csv'
-	if 'win' in sys.platform:
-		d='\\'
-	else:
-		d='/'
-	savedir=os.getcwd()+d+'output'
-	if not os.path.exists(savedir):
-		os.makedirs(savedir)	
-	savedir=savedir +d+ filename
+	savedir=savedir +slash+ filename
 	print ( 'saves to %s' %(savedir,))
 	file = open(savedir,'w',newline='')
 	writer = csv.writer(file,delimiter=';')
 	writer.writerows(Variable)
 	file.close()
+	
+def get_savedir():
+	savedir=os.getcwd()+slash+'output'
+	if not os.path.exists(savedir):
+		os.makedirs(savedir)
+	return savedir
+	
+	
+def scatterplots(panel,savedir):
+	
+	x_names=panel.x_names
+	y_name=panel.y_name
+	X=panel.raw_X
+	Y=panel.raw_Y
+	N,k=X.shape
+	for i in range(k):
+		plt.cla()
+		plt.scatter(X[:,i],Y[:,0], alpha=.1, s=10)
+		plt.ylabel(y_name)
+		plt.xlabel(x_names[i])
+		fgr=plt.figure(0)
+		xname=remove_illegal_signs(x_names[i])
+		fgr.savefig(savedir+slash+'%s-%s.png' %(y_name,xname))
+	
+	
+def remove_illegal_signs(name):
+	illegals=['#', 	'<', 	'$', 	'+', 
+	          '%', 	'>', 	'!', 	'`', 
+	          '&', 	'*', 	'‘', 	'|', 
+	          '{', 	'?', 	'“', 	'=', 
+	          '}', 	'/', 	':', 	
+	          '\\', 	'b']
+	for i in illegals:
+		if i in name:
+			name=name.replace(i,'_')
+	return name

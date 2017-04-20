@@ -46,7 +46,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 	else:
 		master=None
 
-	model_key=ptf.get_model_key(X, Y, p, d, q, m, k, groups, fixed_random_eff, W)
+	model_key=ptf.get_model_key(X, Y, groups, W)
 	session_db,args_d,conv,not_in_use1,not_in_use2 = ptf.load(model_key,loadargs)
 	print ("Creating panel")
 	panel=regobj.panel(p, d, q, m, k, X, Y, groups,x_names,y_name,groups_name,fixed_random_eff,args_d,W,w_names,master,descr,dataframe,h,has_intercept)

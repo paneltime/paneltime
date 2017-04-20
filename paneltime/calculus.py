@@ -33,7 +33,7 @@ class gradient:
 		return x
 
 	def garch_arima_grad(self,ll,d):
-		if self.panel.m>0:
+		if self.panel.m>0 and not d is None:
 			((N,T,k))=d.shape
 			x=rp.prod((ll.h_e_val,d))
 			dlnv_e_G=fu.dot(ll.GAR_1MA,x)			

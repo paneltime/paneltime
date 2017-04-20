@@ -30,7 +30,11 @@ def lnsrch(f0, g, dx, panel):
 				break
 	if i==14+len(x):
 		return f0
-	f05=panel.LL(f0.args_v+lmda*0.5*dx) 
+	f05=None
+	i=0
+	while f05 is None:
+		i+=1
+		f05=panel.LL(f0.args_v+lmda*(0.5**i)*dx)
 	d={f1.LL:f1,f05.LL:f05}
 	if f1.LL>f05.LL and f1.LL>f0.LL:
 		return f1
@@ -58,7 +62,13 @@ def lnsrch(f0, g, dx, panel):
 
 def maximize(panel,args=None,_print=True):
 	"""Maxmizes panel.LL"""
-	ll=panel.LL(args) 
+	ll=panel.LL(args)
+	if ll is None:
+		print("""You requested stored arguments from a previous session 
+		to be used as initial arguments (loadargs=True) but these failed to 
+		return a valid log likelihood with the new parameters. Default inital 
+		arguments will be used. """)
+		ll=panel.LL(panel.args.start_args)
 	its=0
 	mc_limit_init=300
 	mc_limit_min=0

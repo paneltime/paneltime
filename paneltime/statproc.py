@@ -152,7 +152,7 @@ def goodness_of_fit(panel,ll):
 
 def breusch_godfrey_test(panel,ll, lags):
 	"""returns the probability that err_vec are not auto correlated""" 
-	e=ll.e
+	e=ll.e_st
 	X=ll.X_st
 	N,T,K=X.shape	
 	X_u=X[:,lags:T]
@@ -321,8 +321,8 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_
 			v0=np.var(e)
 			v1=np.var(Y)
 			Rsq=1-v0/v1
-			Rsqadj=1-(v0/v1)*(NT-1)/(NT-k-1)
-			return beta,Rsqadj
+			#Rsqadj=1-(v0/v1)*(NT-1)/(NT-k-1)
+			return beta,Rsq
 		elif return_e:
 			return beta,e
 		elif return_se:

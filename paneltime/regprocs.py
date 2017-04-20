@@ -532,7 +532,7 @@ def remove_one_multicoll(G,panel,args,names,include,out,constr,limit):
 	n=len(include)
 	T,N,k=G.shape
 	c_index,var_prop=stat.var_decomposition(X=G[:,:,include])
-	zeros=np.zeros((len(c_index),1))
+	zeros=np.zeros(len(c_index))
 	c_index=c_index.flatten()
 	for i in range(k):
 		if not include[i]:
@@ -542,7 +542,7 @@ def remove_one_multicoll(G,panel,args,names,include,out,constr,limit):
 	if c_index[-1]>limit:
 		if np.sum(var_prop[-1]>0.5)>1:
 			j=np.argsort(var_prop[-1])[-1]
-			assc=np.argsort(var_prop[-1])[-1]
+			assc=np.argsort(var_prop[-1])[-2]
 			remvd=remove(j, assc,args, include, out,constr,names,'collinear')
 			return True
 	return False

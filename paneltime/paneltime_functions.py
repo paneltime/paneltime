@@ -57,7 +57,7 @@ def load_obj():
 	return u 
 
 
-def get_model_key(X,Y,p, d, q, m, k, groups,fixed_random_eff,W):
+def get_model_key(X,Y, groups,W):
 	"""Creates a string that is unique for the dataframe and arguments. Used to load starting values for regressions that
 	have been run before"""
 	s="%s%s%s%s" %(l(X),l(X**2),l(Y),l(Y**2))
@@ -65,7 +65,6 @@ def get_model_key(X,Y,p, d, q, m, k, groups,fixed_random_eff,W):
 		s+="%s%s" %(l(groups),l(groups**2))
 	if not W is None:
 		s+="%s%s" %(l(W),l(W**2))
-	s+="%s%s%s%s%s" %( d, q, m, k,fixed_random_eff)
 	return s
 
 def l(x):

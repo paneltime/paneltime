@@ -15,6 +15,7 @@ import debug
 import regprocs as rp
 import functions as fu
 import calculus
+import copy
 
 
 min_AC=0.000001
@@ -34,7 +35,7 @@ class panel:
 		if groups_name is None:
 			fixed_random_eff=0
 
-		self.initial_defs(h,X,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,master,descr,fixed_random_eff)
+		self.initial_defs(h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,master,descr,fixed_random_eff)
 		
 		self.X,self.Y,self.W,self.max_T,self.T_arr,self.N=self.arrayize(X, Y, W, groups)
 
@@ -66,13 +67,15 @@ class panel:
 		self.n_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
 		self.n_i=self.n_i+(self.n_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		
-	def initial_defs(self,h,X,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,master,descr,fixed_random_eff):
+	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,master,descr,fixed_random_eff):
 		rp.redefine_h_func(h)
 		self.has_intercept=has_intercept
 		self.data=data
 		self.lost_obs=np.max((p,q))+max((m,k))+d+3
 		self.x_names=x_names
 		self.y_name=y_name
+		self.raw_X=X
+		self.raw_Y=Y
 		self.groups_name=groups_name
 		self.w_names=w_names		
 		self.p,self.d,self.q,self.m,self.k,self.nW,self.n_beta=p,d,q,m,k,W.shape[1],X.shape[1]
@@ -80,7 +83,7 @@ class panel:
 		self.descr=descr
 		self.its_reg=0
 		self.FE_RE=fixed_random_eff
-		self.groups=groups		
+		self.groups=groups	
 		
 	def final_defs(self,p,d,q,m,k,X):
 		self.W_a=self.W*self.a
@@ -308,7 +311,7 @@ class panel:
 					Yarr.append(rp.fillmatr(Y[i],max_T))
 					Warr.append(rp.fillmatr(W[i],max_T))
 				else:
-					print("Warning: group %s deleted because of too few observations" %(k))
+					print("Warning: group %s removed because of too few observations" %(k))
 				k+=1
 			T=np.array(T_used)
 			N=len(T)
@@ -317,14 +320,14 @@ class panel:
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and store all 
 	associated dynamic variables needed outside this scope"""
-	def __init__(self,args,panel,center_e=False):
+	def __init__(self,args,panel):
 		if args is None:
 			args=panel.args.args
 		self.LL_const=-0.5*np.pi*panel.NT_afterloss
 		self.args_v=panel.args.conv_to_vector(panel,args)
 		self.args_d=panel.args.conv_to_dict(panel,args)
 		try:
-			self.LL=self.LL_calc(panel,center_e)
+			self.LL=self.LL_calc(panel)
 		except Exception as e:
 			self.LL=None
 			#print(str(e))
@@ -340,7 +343,7 @@ class LL:
 		self.LL=self.LL_calc(panel)
 		
 
-	def LL_calc(self,panel,center_e=False):
+	def LL_calc(self,panel):
 		args=self.args_d#using dictionary arguments
 		matrices=panel.set_garch_arch(args,self)
 		if matrices is None:
@@ -369,8 +372,6 @@ class LL:
 		v_inv=np.exp(-lnv)*panel.a	
 		e_RE=rp.RE(self,panel,e)
 		e_REsq=e_RE**2
-		if center_e:
-			e=e-np.mean(e)
 		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
 		if abs(LL)>1e+100: 
 			return None
@@ -390,7 +391,7 @@ class LL:
 		Y=rp.RE(self,panel,Y,False)*v_inv
 		X=fu.dot(self.AMA_1AR,panel.X)
 		X=rp.RE(self,panel,X,False)*v_inv
-		self.e_st=self.e*v_inv
+		self.e_st=self.e_RE*v_inv
 		self.Y_st=Y
 		self.X_st=X
 		self.e_st_long=panel.de_arrayize(self.e_st,m)
@@ -424,13 +425,13 @@ class arguments:
 		
 		args=self.initargs(p, d, q, m, k, panel)
 		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
-		if args_old is None: 
-			args['beta']=beta
-			args['omega'][0][0]=np.log(np.var(e))
-			if m>0:
-				args['mu']=np.array([0.0])
-				args['z']=np.array([1.0])		
-		else:
+		args['beta']=beta
+		args['omega'][0][0]=np.log(np.var(e))
+		if m>0:
+			args['mu']=np.array([0.0])
+			args['z']=np.array([1.0])	
+		self.start_args=copy.deepcopy(args)
+		if not args_old is None: 
 			args['beta']=insert_arg(args['beta'],args_old['beta'])
 			args['omega']=insert_arg(args['omega'],args_old['omega'])
 			args['rho']=insert_arg(args['rho'],args_old['rho'])
