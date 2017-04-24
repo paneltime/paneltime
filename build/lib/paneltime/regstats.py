@@ -275,7 +275,7 @@ def scatterplots(panel,savedir):
 		plt.xlabel(x_names[i])
 		xname=remove_illegal_signs(x_names[i])
 		fgr.savefig(savedir+slash+'%s-%s.png' %(y_name,xname))
-		fgr.close()
+		plt.close()
 		
 	
 	
