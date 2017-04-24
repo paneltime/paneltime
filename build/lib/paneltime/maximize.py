@@ -118,7 +118,7 @@ def round_sign(x,n):
 
 def printout(_print,ll,dx_conv,panel):
 	ll.standardize(panel)
-	norm_prob=stat.JB_normality_test(ll.e_st,panel.df)	
+	norm_prob=stat.JB_normality_test(ll.e_st,panel)	
 	if _print: 
 		print("LL: %s Normality probability: %s " %(ll.LL,norm_prob))
 		print("New direction in %% of argument: \n%s" %(np.round(dx_conv*100,2),))	
