@@ -133,7 +133,6 @@ class diagnostics:
 			prstr+=tsign[i].ljust(rndlen)[:rndlen]+sep
 			prstr+=sign_codes[i]
 			prstr+='\n'
-			print (prstr)
 		prstr+='\n'+"Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001"
 		print(prstr)
 
