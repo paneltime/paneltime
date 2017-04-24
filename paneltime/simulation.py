@@ -45,12 +45,11 @@ def generate_dataset(panel,N,T,beta,rho=[],lmbda=[],psi=[],gamma=[],omega=[],mu=
 	v_inv=np.exp(-lnv)*panel.a	
 	e_RE=rp.RE(self,panel,e)
 	e_REsq=e_RE**2
-	if center_e:
-		e=e-np.mean(e)
+
 	LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
 	
 	
-	
+def v():
 	
 	
 def RE_errors(N,T,e,residual_var,group_var=None):
