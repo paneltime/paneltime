@@ -43,16 +43,8 @@ class diagnostics:
 
 		self.data_correlations,self.data_statistics=self.correl_and_statistics()
 		
-		try:
-			scatterplots(panel,self.savedir)
-		except Exception as e:
-			print ("""Warning: Plots cannot be generated. If you are using paneltime on 
-			a linux system, a likely cause is that
-			matplotlib is not installed properly. 
-			matplotlib is by default installed by pip when you pip install paneltime, 
-			but in linux systems matplotlib should not be installed with pip 
-			(see documentation for matplotlib). Install
-			matplot with apt-get or yum to resolve the issue. """)
+		scatterplots(panel,self.savedir)
+
 		print ( 'LL: %s' %(ll.LL,))
 	
 		self.adf_test=stat.adf_test(panel,ll,10)
@@ -277,12 +269,13 @@ def scatterplots(panel,savedir):
 	Y=panel.raw_Y
 	N,k=X.shape
 	for i in range(k):
+		fgr=plt.figure()
 		plt.scatter(X[:,i],Y[:,0], alpha=.1, s=10)
 		plt.ylabel(y_name)
 		plt.xlabel(x_names[i])
-		fgr=plt.figure(0)
 		xname=remove_illegal_signs(x_names[i])
 		fgr.savefig(savedir+slash+'%s-%s.png' %(y_name,xname))
+		fgr.close()
 		
 	
 	
