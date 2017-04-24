@@ -119,7 +119,7 @@ class diagnostics:
 		prstr+='SE'.ljust(rndlen)[:rndlen]+sep
 		prstr+='t-stat.'.ljust(rndlen)[:rndlen]+sep
 		prstr+='sign.'.ljust(rndlen)[:rndlen]+sep
-		prstr+='\r'
+		prstr+='\n'
 		for i in range(T):
 			b=str(args[i])
 			t=str(tstat[i])
@@ -132,9 +132,9 @@ class diagnostics:
 			prstr+=t.ljust(rndlen)[:rndlen]+sep
 			prstr+=tsign[i].ljust(rndlen)[:rndlen]+sep
 			prstr+=sign_codes[i]
-			prstr+='\r'
+			prstr+='\n'
 			print (prstr)
-		prstr+='\r'+"Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001"
+		prstr+='\n'+"Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001"
 		print(prstr)
 
 
