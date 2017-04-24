@@ -179,7 +179,7 @@ class panel:
 			self.constr=None		
 		constr=constraints(self.args,self.constr,add_one_constr)
 		self.constr=constr
-		if len(self.args.positions['z'])>0:
+		if len(self.args.positions['z']) and False>0:
 			constr.add(self.args.positions['z'][0],1e-15,10000)	
 		hessian,reset,out=rp.handle_multicoll(G,self,ll.args_v,self.name_vector,constr,mc_limit,dx_conv,hessian,has_problems,k,its)
 		dc,constrained=rp.solve(constr,hessian, g, ll.args_v)

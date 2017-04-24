@@ -13,6 +13,7 @@ import csv
 import os
 import sys
 import matplotlib
+matplotlib.use('Agg')
 from matplotlib import pyplot  as plt
 
 if 'win' in sys.platform:
@@ -36,11 +37,11 @@ class diagnostics:
 		self.coeficient_printout(names,args,se,tstat,tsign,sign_codes)
 		
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(panel,ll,10)
-		self.norm_prob=stat.JB_normality_test(ll.e_st,panel.df)		
+		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)		
 
 		self.multicollinearity_check(G)
 
-		self.data_correlations=self.correl()
+		self.data_correlations,self.data_statistics=self.correl_and_statistics()
 		
 		try:
 			scatterplots(panel,self.savedir)
@@ -55,10 +56,9 @@ class diagnostics:
 		print ( 'LL: %s' %(ll.LL,))
 	
 		self.adf_test=stat.adf_test(panel,ll,10)
-		self.get_var_stats()
 		self.save_stats(ll)
 	
-	def correl(self):
+	def correl_and_statistics(self):
 		panel=self.panel
 		x_names=[]
 		X=[]
@@ -71,40 +71,43 @@ class diagnostics:
 		X=np.concatenate(X,1)
 		x_names=np.array(x_names).reshape((1,n))
 		c=stat.correl(X)
-		c=np.round(c,3)
 		c=np.concatenate((x_names,c),0)
-		x_names=np.append([[0]],x_names,1).T
+		vstat=np.concatenate((np.mean(X,0).reshape((n,1)),
+		                      np.std(X,0).reshape((n,1)),
+		                      np.min(X,0).reshape((n,1)),
+		                      np.max(X,0).reshape((n,1))),1)
+		vstat=np.concatenate((x_names.T,vstat),1)
+		vstat=np.concatenate(([['','Mean','SD','min','max']],vstat),0)
+		x_names=np.append([['']],x_names,1).T
 		c=np.concatenate((x_names,c),1)
-		return c
+
+		return c,vstat
 		
-		
-		
-	
 	
 	def coeficient_output(self,H,G,robustcov_lags,ll):
 		panel=self.panel
 		args=ll.args_v
 		robust_cov_matrix=rp.sandwich(H,G,robustcov_lags)
-		se=np.diag(robust_cov_matrix).flatten()**0.5
-		names=panel.name_vector
+		se=np.maximum(np.diag(robust_cov_matrix).flatten(),1e-200)**0.5
+		names=np.array(panel.name_vector)
 
 		T=len(se)
 		output=[]
-
-		output.append(['Regressors:',names])
-		output.append(['coef:',args])
-		output.append(['SE:',se])
 		tstat=np.maximum(np.minimum((args)/((se<=0)*args*1e-15+se),3000),-3000)
-		output.append(['t-value:',tstat])	
 		tsign=1-scstats.t.cdf(np.abs(tstat),panel.df)
-		output.append(['t-sign:',tsign])
 		sign_codes=get_sign_codes(tsign)
-		output.append(['sign codes:',sign_codes])
 		
-		output=fix_savelist(output,True)
+		output=np.concatenate((names.reshape((T,1)),
+		                      args.reshape((T,1)),
+		                      se.reshape((T,1)),
+		                      tstat.reshape((T,1)),
+		                      tsign.reshape((T,1)),
+		                      sign_codes.reshape((T,1))),1)
+		output=np.concatenate(([['Regressors:','coef:','SE:','t-value:','t-sign:','sign codes:']],output),0)
+		
 		
 		return output,names,args,se,tstat,tsign,sign_codes
-	
+
 	def coeficient_printout(self,names,args,se,tstat,tsign,sign_codes):
 		T=len(se)
 		printout=np.zeros((T,6),dtype='<U24')
@@ -154,106 +157,66 @@ class diagnostics:
 		matr=np.concatenate(([vNames],matr))
 		self.MultiColl=matr
 
-	def get_var_stats(self):
-		"""Assigns some statistics on the variabels to self"""
-		panel=self.panel
-		X=panel.X
-		N,T,k=X.shape
-		X_dev=stat.deviation(panel,X)
-		avgs=stat.avg(panel,X)
-		std=stat.std(panel,X_dev)
-		vstat=np.concatenate((avgs,std,panel.xmin,panel.xmax))
-		vstat=np.array(vstat,dtype='<U100')
-		x_names=np.array(panel.x_names).reshape(1,k)
-		self.var_stats=np.concatenate((x_names,vstat))
-
-
 
 	def save_stats(self,ll,strappend=''):
 		"""Saves the various statistics assigned to self"""
 		panel=self.panel
 		N,T,k=panel.X.shape
-		save_list=[]
-		save_list.append(['Type:',panel.descr])
-		save_list.append(['LL:',ll.LL])
-		save_list.append(['Number of groups:',N])
-		save_list.append(['Maximum number of dates:',T])
-		save_list.append(['Number of dates in each group:',panel.T_arr.reshape(N)])
-		save_list.append(['(A) Total number of observations:',panel.NT])
-		save_list.append(['(B) Observations lost to GARCH/ARIMA',panel.tot_lost_obs])		
-		save_list.append(['    Total after loss of observations (A-B):',panel.NT_afterloss])
-		save_list.append(['(C) Number of Random Effects coefficients:',N])
-		save_list.append(['(D) Number of Fixed Effects coefficients in the variance process:',N])
-		save_list.append(['(E) Number of coefficients:',panel.len_args])
-		save_list.append(['DF (A-B-C-D-E):',panel.df])
-
-		save_list.append(['RSq:',self.Rsq])
-		save_list.append(['RSq Adj:',self.Rsqadj])
-		save_list.append(['LL-ratio:',self.LL_ratio])
-		save_list.append(['no ac_prob:',self.no_ac_prob])
-		save_list.append(['norm prob:',self.norm_prob])
-		save_list.append(['ADF (dicky fuller):',self.adf_test, "1% and 5 % lower limit of confidence intervals, respectively"])
-		save_list.append([''])
-		save_list.append(['Dependent:',panel.y_name])
-		save_list.append(['Regression:',self.reg_output])
+		output=dict()
+		name_list=[]
+		add_output(output,name_list,'Information',[
+		    ['Description:',panel.descr],
+		    ['LL:',ll.LL],
+		    ['Number of groups:',N],
+		    ['Maximum number of dates:',T],
+		    ['(A, Total number of observations:',panel.NT],
+		    ['(B, Observations lost to GARCH/ARIMA',panel.tot_lost_obs],		
+		    ['    Total after loss of observations (A-B,:',panel.NT_afterloss],
+		    ['(C, Number of Random Effects coefficients:',N],
+		    ['(D, Number of Fixed Effects coefficients in the variance process:',N],
+		    ['(E, Number of coefficients:',panel.len_args],
+		    ['DF (A-B-C-D-E):',panel.df],
+		    ['RSq:',self.Rsq],
+		    ['RSq Adj:',self.Rsqadj],
+		    ['LL-ratio:',self.LL_ratio],
+		    ['no ac_prob:',self.no_ac_prob],
+		    ['norm prob:',self.norm_prob],
+		    ['ADF (dicky fuller):',self.adf_test, "1% and 5 % lower limit of confidence intervals, respectively"],
+		    ['Dependent:',panel.y_name]
+		    ])
 		
-		save_list.append([''])
-		save_list.append(['Correlation Matrix:'])
-		save_list.extend(self.data_correlations)
-		save_list.append([''])
-		save_list.append([''])
-		save_list.append(['Multicollinearity test - condition matrix:'])		
-		save_list.extend(self.MultiColl)
-		save_list.append([''])
-		save_list.append([''])
-		save_list.append(['Variable statistics:'])
-		save_list.append(['',self.var_stats[0]])
-		save_list.append(['Means:',self.var_stats[1]])
-		save_list.append(['SEs:',self.var_stats[2]])
-		save_list.append(['Min:',self.var_stats[3]])
-		save_list.append(['Max:',self.var_stats[4]])
-		
-		save_list=fix_savelist(save_list)
+		add_output(output,name_list,'Regression',self.reg_output)
+		add_output(output,name_list,'Correlation Matrix',self.data_correlations)
+		add_output(output,name_list,'Multicollinearity',self.MultiColl)
 
-
-		write_csv_matrix_file(panel.descr+strappend,save_list,self.savedir)
+		add_output(output,name_list,'Descriptive statistics',self.data_statistics)
 		
-		pass
+		add_output(output,name_list,'Number of dates in each group',panel.T_arr.reshape((N,1)))
+		
+		output_table=[['']]
+		output_positions=['']
+		for i in name_list:
+			if i!='Statistics':
+				output_table.extend([[''],['']])
+			pos=len(output_table)+1
+			output_table.extend([[i+':']])
+			output_table.extend(output[i])
+			output_positions.append('%s~%s~%s~%s' %(i,pos,len(output[i]),len(output[i][0])))
+		output_table[0]=output_positions
+		write_csv_matrix_file(panel.descr+strappend,output_table,self.savedir)
+		
+		self.output=output
+
 	
-def fix_savelist(save_list,transpose=False):
-	new_savelist=[]
-	for i in range(len(save_list)):
-		d=get_list_dim(save_list[i])
-		if d==0:
-			new_savelist.append([save_list[i]])
-		elif d==1:
-			lst=[]
-			for j in range(len(save_list[i])):
-				s=save_list[i][j]
-				d=get_list_dim(s)
-				if d==0:
-					lst.append(s)
-				elif d==1:
-					lst.extend(s)
-				else:
-					new_savelist.append(lst)
-					lst=[]
-					for k in s:
-						new_savelist.append(k)
-					break
-			new_savelist.append(lst)
-		elif d==2:
-			for k in save_list[i]:
-				new_savelist.append(k)
-	if transpose:
-		n=len(new_savelist)
-		k=max([len(i) for i in new_savelist])
-		t_savelist=[n*[None] for i in range(k)]
-		for i in range(n):
-			for j in range(len(new_savelist[i])):
-				t_savelist[j][i]=new_savelist[i][j]
-		new_savelist=t_savelist
-	return new_savelist
+def add_output(output_dict,name_list,name,table):
+	if type(table)==np.ndarray:
+		table=np.concatenate(([[''] for i in range(len(table))],table),1)
+	else:
+		for i in range(len(table)):
+			table[i]=['']+table[i]
+	output_dict[name]=table
+	name_list.append(name)
+	
 
 def get_list_dim(lst):
 	"""Returns 0 if not list, 1 if one dim and 2 if two or more dim. If higher than
@@ -314,13 +277,13 @@ def scatterplots(panel,savedir):
 	Y=panel.raw_Y
 	N,k=X.shape
 	for i in range(k):
-		plt.cla()
 		plt.scatter(X[:,i],Y[:,0], alpha=.1, s=10)
 		plt.ylabel(y_name)
 		plt.xlabel(x_names[i])
 		fgr=plt.figure(0)
 		xname=remove_illegal_signs(x_names[i])
 		fgr.savefig(savedir+slash+'%s-%s.png' %(y_name,xname))
+		
 	
 	
 def remove_illegal_signs(name):

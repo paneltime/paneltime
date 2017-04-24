@@ -227,21 +227,35 @@ def concat_marray(matrix_array):
 h_err=""
 
 def redefine_h_func(h_definition):
-
-	if not h_definition is None:
-		try:
-			exec(h_definition)	
-		except IndentationError:
-			h_list=h_definition.split('\n')
-			n=h_list[0].find('def h(')
-			if n<0:
-				raise RuntimeError('The h-funtion must be defined as  "def h(..."')
-			if n>0:
-				for i in range(len(h_list)):
-					h_list[i]=h_list[i][n:]
-			h_definition='\n'.join(h_list)
-			exec(h_definition,globals(),globals())
-			pass
+	global h
+	if h_definition is None:
+		h_definition="""
+def h(e,z):
+	e2=e**2+z
+	i=np.abs(e2)<1e-100
+	h_val		=	 np.log(e2+i)	
+	h_e_val		=	 2*e/(e2+i)
+	h_2e_val	=	 2*(z-e**2)/((e2+i)**2)
+	h_z_val		=	 1/(e2+i)
+	h_2z_val	=	-1/(e2+i)**2
+	h_ez_val	=	-2*e/(e2+i)**2
+	return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
+"""	
+	d=dict()
+	try:
+		exec(h_definition,globals(),locals())
+	except IndentationError:
+		h_list=h_definition.split('\n')
+		n=h_list[0].find('def h(')
+		if n<0:
+			raise RuntimeError('The h-funtion must be defined as  "def h(..."')
+		if n>0:
+			for i in range(len(h_list)):
+				h_list[i]=h_list[i][n:]
+		h_definition='\n'.join(h_list)
+		exec(h_definition,globals(),locals())
+		pass
+	h=locals()['h']
 
 def h_func(e,z):
 	global h_err
@@ -253,18 +267,6 @@ def h_func(e,z):
 		h_err=str(e)
 	else:
 		h_err="none"
-		
-
-def h(e,z):
-	e2=e**2+z
-	i=np.abs(e2)<1e-100
-	h_val		=	 np.log(e2+i)	
-	h_e_val		=	 2*e/(e2+i)
-	h_2e_val	=	 2*(z-e**2)/((e2+i)**2)
-	h_z_val		=	 1/(e2+i)
-	h_2z_val	=	-1/(e2+i)**2
-	h_ez_val	=	-2*e/(e2+i)**2
-	return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
 
 def format_args_array(arg_array,master):
 	for i in range(len(arg_array)):
