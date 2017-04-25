@@ -13,6 +13,7 @@ import sys
 import os
 sys.path.append(__file__.replace("__init__.py",''))
 import main
+import simulation
 
 
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, sort_name=None,
@@ -84,3 +85,7 @@ def from_matrix(numpy_matrix,headings,filters=None,transforms=None):
 		dataframe[headings[i]]=numpy_matrix[:,i:i+1]
 	main.ptf.modify_dataframe(dataframe,transforms,filters)
 	return dataframe
+
+
+def simulation(self,N,T,beta,rho=[0.5],lmbda=[0.5],psi=[0.5],gamma=[0.5],omega=1,mu=1,z=1,residual_sd=1,group_sd=1):
+	return simulation.simulation(self,N,T,beta,rho,lmbda,psi,gamma,omega,mu,z,residual_sd,group_sd)

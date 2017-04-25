@@ -247,31 +247,23 @@ class panel:
 
 	def set_garch_arch(self,args,LL):
 		p,q,m,k,nW=self.p,self.q,self.m,self.k,self.nW
-		X=self.I+self.lag_matr(q,args['lambda'])
+		X=self.I+rp.lag_matr(self.L,self.zero,q,args['lambda'])
 		try:
 			AMA_1=np.linalg.inv(X)
 		except:
 			return None
-		AAR=self.I-self.lag_matr(p,args['rho'])
+		AAR=self.I-rp.lag_matr(self.L,self.zero,p,args['rho'])
 		AMA_1AR=fu.dot(AMA_1,AAR)
-		X=self.I-self.lag_matr(k,args['gamma'])
+		X=self.I-rp.lag_matr(self.L,self.zero,k,args['gamma'])
 		try:
 			GAR_1=np.linalg.inv(X)
 		except:
 			return None
-		GMA=self.lag_matr(m,args['psi'])	
+		GMA=rp.lag_matr(self.L,self.zero,m,args['psi'])	
 		GAR_1MA=fu.dot(GAR_1,GMA)
 		return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
 
-	def lag_matr(self,k,args):
-		L=self.L
-		if k==0:
-			return self.zero
-		a=[]
-		for i in range(k):
-			a.append(args[i]*L[i])
-		a=np.sum(a,0)
-		return a
+
 
 	def de_arrayize(self,X,init_obs):
 		"""X is N x T x k"""
@@ -442,22 +434,6 @@ class arguments:
 			args['z']=insert_arg(args['z'],args_old['z'])
 		self.args=args
 		self.set_restricted_args(p, d, q, m, k,panel,e,beta)
-		
-	def new_args(self,beta,rho=[],lmbda=[],psi=[],gamma=[],omega=[],mu=[],z=[]):
-		args=dict()
-		args['beta']=np.array(beta)
-		args['omega']=np.array(omega)
-		args['rho']=np.array(rho)
-		args['lambda']=np.array(lmbda)
-		args['psi']=np.array(psi)
-		args['gamma']=np.array(gamma)
-		if m>0:
-			args['mu']=np.array(mu)
-			args['z']=np.array(z)	
-		else:
-			args['mu']=np.array(mu)
-			args['z']=np.array(z)			
-		return args
 
 	def set_restricted_args(self,p, d, q, m, k, panel,e,beta):
 		self.args_restricted=self.initargs(p, d, q, m, k, panel)

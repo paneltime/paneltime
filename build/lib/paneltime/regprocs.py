@@ -6,6 +6,14 @@ import time
 import statproc as stat
 import functions as fu
 
+def lag_matr(L,zero,k,args):
+	if k==0:
+		return zero
+	a=[]
+	for i in range(k):
+		a.append(args[i]*L[i])
+	a=np.sum(a,0)
+	return a
 
 def dd_func_lags_mult(panel,ll,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de_zeta_u=None):
 	#de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"

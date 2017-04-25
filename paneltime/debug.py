@@ -253,17 +253,17 @@ def set_garch_arch_debug(self,args,d):
 	beta,rho,lambda_,gamma,psi,Wbeta=args['beta'],args['rho'],args['lambda'],args['gamma'],args['psi'],args['omega']
 	beta_=beta.reshape((len(beta),1))
 	Wbeta_=Wbeta.reshape((len(Wbeta),1))
-	X=self.I+self.lag_matr(q,lambda_)
+	X=self.I+rp.lag_matr(self.L,self.zeros,q,lambda_)
 	if not fu.cond_test(X):
 		return None
 	AMA_1=np.linalg.inv(X)
-	AAR=self.I-self.lag_matr(p,rho+d)
+	AAR=self.I-rp.lag_matr(self.L,self.zeros,p,rho+d)
 	AMA_1AR=fu.dot(AMA_1,AAR)
-	X=self.I-self.lag_matr(k,gamma)
+	X=self.I-rp.lag_matr(self.L,self.zeros,k,gamma)
 	if not fu.cond_test(X):
 		return None
 	GAR_1=np.linalg.inv(X)
-	GMA=self.lag_matr(m,psi)	
+	GMA=rp.lag_matr(self.L,self.zeros,m,psi)	
 	GAR_1MA=fu.dot(GAR_1,GMA)
 
 	return beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
