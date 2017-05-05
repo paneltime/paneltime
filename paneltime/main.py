@@ -46,19 +46,13 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 	else:
 		master=None
 
-	model_key=ptf.get_model_key(X, Y, groups, W)
-	session_db,args_d,conv,not_in_use1,not_in_use2 = ptf.load(model_key,loadargs)
 	print ("Creating panel")
-	panel=regobj.panel(p, d, q, m, k, X, Y, groups,x_names,y_name,groups_name,fixed_random_eff,args_d,W,w_names,master,descr,dataframe,h,has_intercept)
+	panel=regobj.panel(p, d, q, m, k, X, Y, groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,master,descr,dataframe,h,has_intercept,loadargs)
 	print ("Maximizing")
-	if args_d is None or conv==False or True:
-		ll,g,G,H, conv = maximize.maximize(panel,_print=True)
-		ptf.save(model_key,session_db,ll.args_d,conv,not_in_use1,not_in_use2) 		
-	else:
-		ll=panel.LL(panel.args.args)
-		g,G=panel.gradient.get(ll,return_G=True)
-		H=panel.hessian.get(ll)
-		return panel,g,G,H,ll
+
+	ll,g,G,H, conv = maximize.maximize(panel,_print=True)	
+	panel.args_bank.save(ll.args_d, conv)
+
 	return panel,g,G,H,ll
 
 

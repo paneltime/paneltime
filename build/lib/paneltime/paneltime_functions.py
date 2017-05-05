@@ -16,35 +16,40 @@ else:
 max_sessions=20
 
  
+class args_bank:
+	
+	def __init__(self,X, Y, groups, W,loadargs):
+		"""Load parameters if a similar model has been estimated before"""  
+		self.session_db=load_obj()
+		if (not loadargs) or (self.session_db is None):
+			self.model_key=None
+			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=(None,0,None,None)
+			return
+		self.model_key=get_model_key(X, Y, groups, W)
+		(d,a)=self.session_db
+		if self.model_key in d.keys():
+			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=d[self.model_key]
+		else:
+			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=(None,0,None,None)
+	
+	def save(self,args,conv,not_in_use1=None,not_in_use2=None):
+		"""Saves the estimated parameters for later use"""
+		f=open(fname, "w+b")
+		if not self.session_db is None:
+			d,a=self.session_db#d is d dictionary, and a is a sequental list that allows us to remove the oldest entry when the database is full
+			if len(a)>max_sessions:
+				d.pop(a.pop(),None)
+		else:
+			d=dict()
+			a=[]
+		d[self.model_key]=(args,conv,not_in_use1,not_in_use2)
+		a.append(self.model_key)
+		self.session_db=(d,a)
+		pickle.dump((self.session_db),f)   
+		f.flush() 
+		f.close()
 
-def save(model_string,session_db,args,conv,not_in_use1,not_in_use2):
-	"""Saves the estimated parameters for later use"""
-	f=open(fname, "w+b")
-	if not session_db is None:
-		d,a=session_db#d is d dictionary, and a is a sequental list that allows us to remove the oldest entry when the database is full
-		if len(a)>max_sessions:
-			d.pop(a.pop(),None)
-	else:
-		d=dict()
-		a=[]
-	d[model_string]=(args,conv,not_in_use1,not_in_use2)
-	a.append(model_string)
-	session_db=(d,a)
-	pickle.dump((session_db),f)   
-	f.flush() 
-	f.close()
 
-def load(model_key,loadargs):
-	"""Load parameters if a similar model has been estimated before"""  
-	session_db=load_obj()
-	if session_db is None or not loadargs:
-		return None,None,0,None,None
-	(d,a)=session_db
-	if model_key in d.keys():
-		(args,conv,not_in_use1,not_in_use2)=d[model_key]
-		return session_db,args,conv,not_in_use1,not_in_use2
-	else:
-		return session_db,None,0,None,None
 
 def load_obj():
 	try:
@@ -119,7 +124,7 @@ def test_dictionary(dataframe):
 def get_variables(dataframe,model_string,groups_name,w_names,add_intercept,sort_name):
 	y_name,x_names=parse_model(model_string)
 	groups,groups_name,void=check_var(dataframe,groups_name,'group_name')
-	W,w_names,void=check_var(dataframe,w_names,'w_names',intercept_name='Variance (constant)',raise_error=False,intercept_variable=True)
+	W,w_names,void=check_var(dataframe,w_names,'w_names',intercept_name='Ln(res.var), constant',raise_error=False,intercept_variable=True)
 	intercept_name=None
 	if add_intercept:
 		intercept_name='Intercept'

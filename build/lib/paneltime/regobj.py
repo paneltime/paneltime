@@ -14,6 +14,7 @@ import threading
 import debug
 import regprocs as rp
 import functions as fu
+import paneltime_functions as ptf
 import calculus
 import copy
 
@@ -25,7 +26,7 @@ def posdef(a,da):
 	return list(range(a,a+da)),a+da
 
 class panel:
-	def __init__(self,p,d,q,m,k,X,Y,groups,x_names,y_name,groups_name,fixed_random_eff,args,W,w_names,master,descr,data,h,has_intercept):
+	def __init__(self,p,d,q,m,k,X,Y,groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,master,descr,data,h,has_intercept,loadargs):
 		"""
 		No effects    : fixed_random_eff=0\n
 		Fixed effects : fixed_random_eff=1\n
@@ -35,7 +36,7 @@ class panel:
 		if groups_name is None:
 			fixed_random_eff=0
 
-		self.initial_defs(h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,master,descr,fixed_random_eff)
+		self.initial_defs(h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,master,descr,fixed_random_eff,loadargs)
 		
 		self.X,self.Y,self.W,self.max_T,self.T_arr,self.N=self.arrayize(X, Y, W, groups)
 
@@ -49,7 +50,7 @@ class panel:
 		self.final_defs(p,d,q,m,k,X)
 		
 		self.between_group_ols()
-		self.args=arguments(p, d, q, m, k, self, args,self.has_intercept)
+		self.args=arguments(p, d, q, m, k, self, self.args_bank.args,self.has_intercept)
 		self.LL_restricted=LL(self.args.args_restricted, self).LL
 		self.LL_OLS=LL(self.args.args_OLS, self).LL		
 
@@ -67,11 +68,12 @@ class panel:
 		self.n_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
 		self.n_i=self.n_i+(self.n_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		
-	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,master,descr,fixed_random_eff):
+	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,master,descr,fixed_random_eff,loadargs):
+		self.args_bank=ptf.args_bank(X, Y, groups, W, loadargs)
 		rp.redefine_h_func(h)
 		self.has_intercept=has_intercept
 		self.data=data
-		self.lost_obs=np.max((p,q))+max((m,k))+d+3
+		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
 		self.x_names=x_names
 		self.y_name=y_name
 		self.raw_X=X
@@ -108,8 +110,9 @@ class panel:
 		rp.add_names(m,'MACH term ',names)
 		rp.add_names(k,'ARCH term ',names)
 		names.extend(self.w_names)
-		names.extend(['Variance (group eff.)'])
-		names.extend(['z in h(e,z)'])
+		if self.m>0:
+			names.extend(['Variance (group eff.)'])
+			names.extend(['z in h(e,z)'])
 		return names
 	
 	def between_group_ols(self):
@@ -163,7 +166,7 @@ class panel:
 		#fixing positive definit hessian (convexity problem) by using robust sandwich estimator
 		if np.sum(dc*(constrained==0)*g)<0:
 			#print("Warning: negative slope. Using robust sandwich hessian matrix to ensure positivity")
-			hessin=rp.sandwich(hessian,G,0)
+			hessin=rp.sandwich(hessian,G,10)
 			for i in range(len(hessin)):
 				hessin[i,i]=hessin[i,i]+(hessin[i,i]==0)
 			hessian=-np.linalg.inv(hessin)
@@ -315,7 +318,7 @@ class LL:
 	def __init__(self,args,panel):
 		if args is None:
 			args=panel.args.args
-		self.LL_const=-0.5*np.pi*panel.NT_afterloss
+		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT_afterloss
 		self.args_v=panel.args.conv_to_vector(panel,args)
 		self.args_d=panel.args.conv_to_dict(panel,args)
 		try:
@@ -326,6 +329,7 @@ class LL:
 		if not self.LL is None:
 			if np.isnan(self.LL):
 				self.LL=None
+		panel.args_bank.save(self.args_d,0)
 			
 		
 		
@@ -360,6 +364,7 @@ class LL:
 		if panel.m>0:
 			avg_h=(np.sum(h_val,1)/panel.T_arr).reshape((N,1,1))*panel.a
 			lnv=lnv+args['mu'][0]*avg_h
+			lnv=np.maximum(np.minimum(lnv,709),-709)
 		v=np.exp(lnv)*panel.a
 		v_inv=np.exp(-lnv)*panel.a	
 		e_RE=rp.RE(self,panel,e)
@@ -418,7 +423,7 @@ class arguments:
 		args=self.initargs(p, d, q, m, k, panel)
 		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
 		args['beta']=beta
-		args['omega'][0][0]=np.log(np.var(e))
+		args['omega'][0][0]=np.log(np.var(e*panel.included))
 		if m>0:
 			args['mu']=np.array([0.0])
 			args['z']=np.array([1.0])	

@@ -32,7 +32,8 @@ def LL_debug_detail(ll,panel,d):
 	lnv_0=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_0# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if panel.m>0:
 		avg_h_0=(np.sum(h_val_0,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_0=lnv_0+args['mu']*avg_h_0		
+		lnv_0=lnv_0+args['mu']*avg_h_0	
+		lnv_0=np.maximum(np.minimum(lnv_0,709),-709)
 	v_0=np.exp(lnv_0)*panel.a
 	v_inv_0=np.exp(-lnv_0)*panel.a	
 	e_RE_0=rp.RE(ll,panel,e_0)
@@ -40,7 +41,7 @@ def LL_debug_detail(ll,panel,d):
 	LL_value_0=ll.LL_const-0.5*np.sum((lnv_0+(e_REsq_0)*v_inv_0)*panel.included)	
 
 	#****LL1*****
-	matrices=set_garch_arch_debug(panel,args,d)
+	matrices=set_garch_arch_debug(panel,args,0)
 	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 	u=panel.Y-fu.dot(panel.X,beta_)
 	e_1=np.moveaxis(np.dot(AMA_1AR,u),0,1)
@@ -55,7 +56,8 @@ def LL_debug_detail(ll,panel,d):
 	lnv_1=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_1# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if panel.m>0:
 		avg_h_1=(np.sum(h_val_1,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_1=lnv_1+args['mu']*avg_h_1	
+		lnv_1=lnv_1+(args['mu']+d)*avg_h_1	
+		lnv_1=np.maximum(np.minimum(lnv_1,709),-709)
 	v_1=np.exp(lnv_1)*panel.a
 	v_inv_1=np.exp(-lnv_1)*panel.a	
 	e_RE_1=rp.RE(ll,panel,e_1)
@@ -66,7 +68,7 @@ def LL_debug_detail(ll,panel,d):
 	matrices=set_garch_arch_debug(panel,args,0)
 	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 	beta_d=beta_*0
-	beta_d[0][0]=d
+	beta_d[0][0]=0
 	u=panel.Y-fu.dot(panel.X,beta_+beta_d)
 	e_2=np.moveaxis(np.dot(AMA_1AR,u),0,1)
 	if panel.m>0:
@@ -81,6 +83,7 @@ def LL_debug_detail(ll,panel,d):
 	if panel.m>0:
 		avg_h_2=(np.sum(h_val_2,1)/panel.T_arr).reshape((N,1,1))*panel.a
 		lnv_2=lnv_2+args['mu']*avg_h_2
+		lnv_2=np.maximum(np.minimum(lnv_2,709),-709)
 	v_2=np.exp(lnv_2)*panel.a
 	v_inv_2=np.exp(-lnv_2)*panel.a	
 	e_RE_2=rp.RE(ll,panel,e_2)
@@ -88,10 +91,10 @@ def LL_debug_detail(ll,panel,d):
 	LL_value_2=ll.LL_const-0.5*np.sum((lnv_2+(e_REsq_2)*v_inv_2)*panel.included)
 	
 	#****LL3*****
-	matrices=set_garch_arch_debug(panel,args,d)
+	matrices=set_garch_arch_debug(panel,args,0)
 	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 	beta_d=beta_*0
-	beta_d[0][0]=d
+	beta_d[0][0]=0
 	u=panel.Y-fu.dot(panel.X,beta_+beta_d)
 	e_3=np.moveaxis(np.dot(AMA_1AR,u),0,1)
 	if panel.m>0:
@@ -106,6 +109,7 @@ def LL_debug_detail(ll,panel,d):
 	if panel.m>0:
 		avg_h_3=(np.sum(h_val_3,1)/panel.T_arr).reshape((N,1,1))*panel.a
 		lnv_3=lnv_3+args['mu']*avg_h_3
+		lnv_3=np.maximum(np.minimum(lnv_3,709),-709)
 	v_3=np.exp(lnv_3)*panel.a
 	v_inv_3=np.exp(-lnv_3)*panel.a	
 	e_RE_3=rp.RE(ll,panel,e_3)
@@ -253,17 +257,19 @@ def set_garch_arch_debug(self,args,d):
 	beta,rho,lambda_,gamma,psi,Wbeta=args['beta'],args['rho'],args['lambda'],args['gamma'],args['psi'],args['omega']
 	beta_=beta.reshape((len(beta),1))
 	Wbeta_=Wbeta.reshape((len(Wbeta),1))
-	X=self.I+rp.lag_matr(self.L,self.zeros,q,lambda_)
-	if not fu.cond_test(X):
+	X=self.I+rp.lag_matr(self.L,self.zero,q,lambda_)
+	try:
+		AMA_1=np.linalg.inv(X)
+	except:
 		return None
-	AMA_1=np.linalg.inv(X)
-	AAR=self.I-rp.lag_matr(self.L,self.zeros,p,rho+d)
+	AAR=self.I-rp.lag_matr(self.L,self.zero,p,rho+d)
 	AMA_1AR=fu.dot(AMA_1,AAR)
-	X=self.I-rp.lag_matr(self.L,self.zeros,k,gamma)
-	if not fu.cond_test(X):
+	X=self.I-rp.lag_matr(self.L,self.zero,k,gamma)
+	try:
+		GAR_1=np.linalg.inv(X)
+	except:
 		return None
-	GAR_1=np.linalg.inv(X)
-	GMA=rp.lag_matr(self.L,self.zeros,m,psi)	
+	GMA=rp.lag_matr(self.L,self.zero,m,psi)	
 	GAR_1MA=fu.dot(GAR_1,GMA)
 
 	return beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
@@ -673,20 +679,6 @@ def dd_func_lags(panel,L,d,dLL,addavg=0, transpose=False):
 	dLL=dLL.reshape((N,T,1,1))
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	
 
-
-
-def savevar(variable,name='tmp'):
-	"""takes var and name and saves var with filname <name>.csv """	
-	savevars(((variable,name),))
-
-def savevars(varlist):
-	"""takes a tuple of (var,name) pairs and saves numpy array var 
-	with <name>.csv. Use double brackets for single variable."""	
-	if not os.path.exists('/output'):
-		os.makedirs('/output')	
-	for var,name in varlist:
-		name=name.replace('.csv','')
-		np.savetxt("%s\\output\\%s.csv" %(os.getcwd(),name),var,delimiter=";")
 
 
 def T(x):

@@ -88,7 +88,7 @@ def maximize(panel,args=None,_print=True):
 		dx_conv=(ll.args_v==0)*dx+dx_conv
 		printout(_print, ll, dx_conv,panel)
 		#Convergence test:
-		if np.max(dx_conv) < convergence_limit:  #max direction smaller than convergence_limit -> covergence
+		if np.max(dx_conv) < convergence_limit and (its>3 or  np.sum(constrained)<=2):  #max direction smaller than convergence_limit -> covergence
 			if _print: print("Convergence on zero gradient; maximum identified")
 			return ll,g,G,H,1
 		ll=lnsrch(ll,g,dx,panel) 

@@ -15,26 +15,21 @@ import sys
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot  as plt
-
-if 'win' in sys.platform:
-	slash='\\'
-else:
-	slash='/'
+import functions as fu
 
 class diagnostics:
 	def __init__(self,panel,g,G,H,robustcov_lags,ll,simple_diagnostics=False):
 		"""This class calculates, stores and prints statistics and diagnostics"""
 		self.panel=panel
 		ll.standardize(panel)
-		self.savedir=get_savedir()
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(panel,ll)
 		
 		if simple_diagnostics:
 			self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(10)
 			self.norm_prob=stat.JB_normality_test(panel.e_st,panel.df)			
 			return
-		self.reg_output,names,args,se,tstat,tsign,sign_codes=self.coeficient_output(H,G,robustcov_lags,ll)
-		self.coeficient_printout(names,args,se,tstat,tsign,sign_codes)
+		self.reg_output,names,args,se,se_st,tstat,tsign,sign_codes=self.coeficient_output(H,G,robustcov_lags,ll)
+		self.coeficient_printout(names,args,se,se_st,tstat,tsign,sign_codes)
 		
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(panel,ll,10)
 		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)		
@@ -43,7 +38,7 @@ class diagnostics:
 
 		self.data_correlations,self.data_statistics=self.correl_and_statistics()
 		
-		scatterplots(panel,self.savedir)
+		scatterplots(panel)
 
 		print ( 'LL: %s' %(ll.LL,))
 	
@@ -79,8 +74,9 @@ class diagnostics:
 	def coeficient_output(self,H,G,robustcov_lags,ll):
 		panel=self.panel
 		args=ll.args_v
-		robust_cov_matrix=rp.sandwich(H,G,robustcov_lags)
+		robust_cov_matrix,cov=rp.sandwich(H,G,robustcov_lags,ret_hessin=True)
 		se=np.maximum(np.diag(robust_cov_matrix).flatten(),1e-200)**0.5
+		se_st=np.maximum(np.diag(cov).flatten(),1e-200)**0.5
 		names=np.array(panel.name_vector)
 
 		T=len(se)
@@ -92,15 +88,16 @@ class diagnostics:
 		output=np.concatenate((names.reshape((T,1)),
 		                      args.reshape((T,1)),
 		                      se.reshape((T,1)),
+		                      se_st.reshape((T,1)),
 		                      tstat.reshape((T,1)),
 		                      tsign.reshape((T,1)),
 		                      sign_codes.reshape((T,1))),1)
-		output=np.concatenate(([['Regressors:','coef:','SE:','t-value:','t-sign:','sign codes:']],output),0)
+		output=np.concatenate(([['Regressors:','coef:','SE sandwich:','SE standard:','t-value:','t-sign:','sign codes:']],output),0)
 		
 		
-		return output,names,args,se,tstat,tsign,sign_codes
+		return output,names,args,se,se_st,tstat,tsign,sign_codes
 
-	def coeficient_printout(self,names,args,se,tstat,tsign,sign_codes):
+	def coeficient_printout(self,names,args,se,se_st,tstat,tsign,sign_codes):
 		T=len(se)
 		printout=np.zeros((T,6),dtype='<U24')
 		maxlen=0
@@ -112,11 +109,14 @@ class diagnostics:
 		args=np.round(args,rndlen).astype('<U'+str(rndlen))
 		tstat=np.round(tstat,rndlen).astype('<U'+str(rndlen))
 		se=np.round(se,rndlen).astype('<U'+str(rndlen))
+		se_st=np.round(se_st,rndlen).astype('<U'+str(rndlen))
 		tsign=np.round(tsign,rndlen).astype('<U'+str(rndlen))
 		sep='   '
-		prstr='Variable names'.ljust(maxlen)[:maxlen]+sep
+		prstr=' '*(maxlen+int(rndlen*2.7))+'SE\n'
+		prstr+='Variable names'.ljust(maxlen)[:maxlen]+sep
 		prstr+='Coef'.ljust(rndlen)[:rndlen]+sep
-		prstr+='SE'.ljust(rndlen)[:rndlen]+sep
+		prstr+='sandwich'.ljust(rndlen)[:rndlen]+sep
+		prstr+='standard'.ljust(rndlen)[:rndlen]+sep
 		prstr+='t-stat.'.ljust(rndlen)[:rndlen]+sep
 		prstr+='sign.'.ljust(rndlen)[:rndlen]+sep
 		prstr+='\n'
@@ -129,6 +129,7 @@ class diagnostics:
 			prstr+=names[i].ljust(maxlen)[:maxlen]+sep
 			prstr+=b.ljust(rndlen)[:rndlen]+sep
 			prstr+=se[i].ljust(rndlen)[:rndlen]+sep
+			prstr+=se_st[i].ljust(rndlen)[:rndlen]+sep
 			prstr+=t.ljust(rndlen)[:rndlen]+sep
 			prstr+=tsign[i].ljust(rndlen)[:rndlen]+sep
 			prstr+=sign_codes[i]
@@ -195,7 +196,7 @@ class diagnostics:
 			output_table.extend(output[i])
 			output_positions.append('%s~%s~%s~%s' %(i,pos,len(output[i]),len(output[i][0])))
 		output_table[0]=output_positions
-		write_csv_matrix_file(panel.descr+strappend,output_table,self.savedir)
+		fu.savevar(output_table,'output/'+panel.descr+strappend,'csv')
 		
 		self.output=output
 
@@ -243,25 +244,7 @@ def get_sign_codes(tsign):
 	sc=np.array(sc,dtype='<U3')
 	return sc
 
-
-def write_csv_matrix_file(filename,Variable,savedir):
-	"""stores the contents of Variable to a file named filename"""
-	filename=filename.replace('.csv','')+'.csv'
-	savedir=savedir +slash+ filename
-	print ( 'saves to %s' %(savedir,))
-	file = open(savedir,'w',newline='')
-	writer = csv.writer(file,delimiter=';')
-	writer.writerows(Variable)
-	file.close()
-	
-def get_savedir():
-	savedir=os.getcwd()+slash+'output'
-	if not os.path.exists(savedir):
-		os.makedirs(savedir)
-	return savedir
-	
-	
-def scatterplots(panel,savedir):
+def scatterplots(panel):
 	
 	x_names=panel.x_names
 	y_name=panel.y_name
@@ -274,7 +257,8 @@ def scatterplots(panel,savedir):
 		plt.ylabel(y_name)
 		plt.xlabel(x_names[i])
 		xname=remove_illegal_signs(x_names[i])
-		fgr.savefig(savedir+slash+'%s-%s.png' %(y_name,xname))
+		fname=fu.obtain_fname('figures/%s-%s.png' %(y_name,xname))
+		fgr.savefig(fname)
 		plt.close()
 		
 	

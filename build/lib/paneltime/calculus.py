@@ -95,9 +95,9 @@ class gradient:
 
 		G=rp.concat_marray((dLL_beta,dLL_rho,dLL_lambda,dLL_gamma,dLL_psi,dLL_omega,dLL_mu,dLL_z))
 		g=np.sum(np.sum(G,0),0)
+		#print (g)
 		#gn=debug.grad_debug(panel,ll.args_v,0.0000001)#debugging
-		#panel.dLL(0.01)
-		#debug.LL_debug_detail(ll,panel,0.000001)
+		#debug.LL_debug_detail(ll,panel,0.0001)
 		if return_G:
 			return  g,G
 		else:

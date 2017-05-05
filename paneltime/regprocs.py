@@ -91,10 +91,11 @@ def RE(ll,panel,e,recalc=True):
 	"""Following Greene(2012) p. 413-414"""
 	if panel.FE_RE==0:
 		return e
-	ll.eFE=FE(panel,e)
+	eFE=FE(panel,e)
 	if panel.FE_RE==1:
 		return ll.eFE
 	if recalc:
+		ll.eFE=eFE
 		ll.vLSDV=np.sum(ll.eFE**2)/panel.NT_afterloss
 		ll.theta=(1-np.sqrt(ll.vLSDV/(panel.grp_v*panel.n_i)))*panel.included
 		ll.theta=np.maximum(ll.theta,0)
@@ -414,12 +415,14 @@ def solve(constr,H, g, x):
 	constrained=np.sum(H[n:,:n],0)
 	return xi[:n],constrained
 
-def sandwich(H,G,lags=3):
+def sandwich(H,G,lags=3,ret_hessin=False):
 	hessin=np.linalg.inv(-H)
 	V=stat.newey_west_wghts(lags,XErr=G)
 	hessinV=fu.dot(hessin,V)
-	sandwich=fu.dot(hessinV,hessin)
-	return sandwich
+	sandw=fu.dot(hessinV,hessin)
+	if ret_hessin:
+		return sandw,hessin
+	return sandw
 
 def add_names(T,namsestr,names,start=0):
 	a=[]

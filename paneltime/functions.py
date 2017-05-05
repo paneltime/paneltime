@@ -2,6 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import sys
+import os
+import csv
+
 
 def timer(tic, a):
 	if a is None:
@@ -101,3 +105,73 @@ def exec_strip(exestr,glob,loc):
 def replace_many(string,oldtext_list,newtext):
 	for i in oldtext_list:
 		string=string.replace(i,newtext)
+		
+		
+def savevar(variable,name='tmp',extension=''):
+	"""takes variable and name and saves variable with filname <name>.csv """	
+	fname=obtain_fname(name,extension)
+	print ( 'saves to '+ fname)
+	if type(variable)==np.ndarray:
+		if not variable.dtype=='float64':
+			savelist(variable, fname)	
+		else:
+			np.savetxt(fname,variable,delimiter=";")
+	else:
+		savelist(variable, fname)
+		
+		
+def savelist(variable,name):
+	file = open(name,'w',newline='')
+	writer = csv.writer(file,delimiter=';')
+	writer.writerows(variable)
+	file.close()	
+
+def savevars(varlist,extension=''):
+	"""takes a tuple of (var,name) pairs and saves numpy array var 
+	with <name>.csv. Use double brackets for single variable."""	
+
+	for var,name in varlist:
+		savevar(variable,name,extension)
+
+def obtain_fname(name,extension=''):
+	name=name.replace('\\','/')
+	wd=os.getcwd().replace('\\','/')
+	wd_arr=wd.split('/')
+
+	if not '/' in name:
+		name='output/'+name
+	d_arr=name.split('/')
+	d=[]
+	for i in d_arr:
+		if len(i)>0:
+			d.append(i)
+	if d[0]=='.':
+		d=d[1:]#ignoring single dot, as it is assumed that './'='/' 
+	if '.' in d[0]:
+		k=len(d[0].split('.'))-2
+		if k<len(wd_arr):
+			d=d[1:]
+			wd_arr=wd_arr[:-k]
+			wd='/'.join(wd_arr)	
+	else:
+		match=0
+		for i in range(len(d)-1):#matching wd with file dir
+			n=len(wd_arr)
+			for j in range(len(wd_arr)):
+				if d[i]==wd_arr[j] and match==0:
+					match=j
+				if match>0 and d[i+j-match]!=wd_arr[j]:
+					match=0
+					break
+			if match>0:
+				d=d[i+n-match:]
+				break
+		
+	fname=d[-1]
+	if extension!='':
+		fname=fname.replace('.'+extension,'')+'.'+extension
+	d=wd+'/'+'/'.join(d[:-1])
+	if not os.path.exists(d):
+		os.makedirs(d)	
+	fname=d+'/'+fname	
+	return fname

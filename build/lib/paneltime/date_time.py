@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
-import debug
+import functions as fu
 
 monthdays=np.array([31,28,31,30,31,30,31,31,30,31,30,31]).reshape((1,12))
 month_rng=np.arange(1,13).reshape((1,12))
@@ -49,7 +49,7 @@ def test():
 	dates=np.loadtxt('../Input/date.csv',delimiter='.')
 	days,months,years=dates[:,0:1],dates[:,1:2],dates[:,2:3]
 	d=days_since_2000(years, months, days)
-	debug.savevar(d)
+	fu.savevar(d,extension='csv')
 	pass
 	
 	

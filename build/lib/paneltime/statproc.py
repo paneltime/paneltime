@@ -143,10 +143,18 @@ def goodness_of_fit(panel,ll):
 	v1=std(panel,y,total=True)**2
 	Rsq=1-v0/v1
 	Rsqadj=1-(v0/v1)*(panel.NT_afterloss-1)/(panel.NT_afterloss-panel.len_args-1)
-	LL_OLS=panel.LL(panel.args.args_OLS).LL
-	LL_args_restricted=panel.LL(panel.args.args_restricted).LL
-	LL_ratio_OLS=2*(ll.LL-LL_OLS)
-	LL_ratio=2*(ll.LL-LL_OLS)
+	LL_OLS=panel.LL(panel.args.args_OLS)
+	if not LL_OLS is None:
+		LL_OLS=LL_OLS.LL
+		LL_ratio_OLS=2*(ll.LL-LL_OLS)
+	else:
+		LL_ratio_OLS=None
+	LL_args_restricted=panel.LL(panel.args.args_restricted)
+	if not LL_args_restricted is None:
+		LL_args_restricted=LL_args_restricted.LL
+		LL_ratio=2*(ll.LL-LL_args_restricted)
+	else:
+		LL_ratio=None
 	return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS
 
 
@@ -311,6 +319,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_
 		X=np.concatenate((c,X),2)
 		k=k+1
 	X=X*c
+	Y=Y*c
 	XX=fu.dot(X,X)
 	XXInv=np.linalg.inv(XX)
 	XY=fu.dot(X,Y)
@@ -352,7 +361,7 @@ def newey_west_wghts(L,X=None,err_vec=None,XErr=None):
 		XErr=X*err_vec
 	N,T,k=XErr.shape
 	S=fu.dot(XErr,XErr)#Whites heteroscedasticity consistent weighting matrix
-	for i in range(L):
+	for i in range(min(L,T)):
 		w=1-(i+1)/(L)
 		S+=w*fu.dot(XErr[:,i:],XErr[:,0:T-i])
 		S+=w*fu.dot(XErr[:,0:T-i],XErr[:,i:])
