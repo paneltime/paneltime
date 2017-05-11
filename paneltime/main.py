@@ -14,11 +14,13 @@ import numpy as np
 import regstats
 import regobj
 import warnings
-import multi_core
+import multi_core as mc
 import loaddata
 import paneltime_functions as ptf
 import maximize
 import os
+import loglikelihood as logl
+
 warnings.filterwarnings('error')
 np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
@@ -40,17 +42,20 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 
 	print ("Analyzing variables ...")
 	X,x_names,Y,y_name,groups,groups_name,W,w_names,has_intercept=ptf.get_variables(dataframe,model_string,groups_name,w_names,add_intercept,sort_name)
-	N,cols=X.shape
-	if N*(cols**0.5)>200000 and os.cpu_count()>1:#paralell computing will not increase computation time for 'small' data sets
-		master=multi_core.master('regprocs','rp')#for paralell computing
-	else:
-		master=None
+	
+
 
 	print ("Creating panel")
-	panel=regobj.panel(p, d, q, m, k, X, Y, groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,master,descr,dataframe,h,has_intercept,loadargs)
+	panel=regobj.panel(p, d, q, m, k, X, Y, groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,loadargs)
+	direction=logl.direction(panel)
+	if os.cpu_count()>1:
+		mp=mc.multiprocess()
+		mp.send_dict({'panel':panel,'direction':direction},'static dictionary')		
+	else:
+		mp=None
 	print ("Maximizing")
 
-	ll,g,G,H, conv = maximize.maximize(panel,_print=True)	
+	ll,g,G,H, conv = maximize.maximize(panel,direction,mp,_print=True)	
 	panel.args_bank.save(ll.args_d, conv)
 
 	return panel,g,G,H,ll

@@ -16,6 +16,7 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot  as plt
 import functions as fu
+import loglikelihood as logl
 
 class diagnostics:
 	def __init__(self,panel,g,G,H,robustcov_lags,ll,simple_diagnostics=False):
@@ -23,7 +24,8 @@ class diagnostics:
 		self.panel=panel
 		ll.standardize(panel)
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(panel,ll)
-		
+		self.LL_restricted=logl.LL(panel.args.args_restricted, panel).LL
+		self.LL_OLS=logl.LL(panel.args.args_OLS, panel).LL		
 		if simple_diagnostics:
 			self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(10)
 			self.norm_prob=stat.JB_normality_test(panel.e_st,panel.df)			
@@ -105,14 +107,15 @@ class diagnostics:
 			maxlen=max((len(i)+1,maxlen))
 		printout[:,0]=[s.ljust(maxlen) for s in names]
 		
-		rndlen=8
-		args=np.round(args,rndlen).astype('<U'+str(rndlen))
-		tstat=np.round(tstat,rndlen).astype('<U'+str(rndlen))
-		se=np.round(se,rndlen).astype('<U'+str(rndlen))
-		se_st=np.round(se_st,rndlen).astype('<U'+str(rndlen))
-		tsign=np.round(tsign,rndlen).astype('<U'+str(rndlen))
+		rndlen=10
+		rndlen0=8
+		args=np.round(args,rndlen0).astype('<U'+str(rndlen))
+		tstat=np.round(tstat,rndlen0).astype('<U'+str(rndlen))
+		se=np.round(se,rndlen0).astype('<U'+str(rndlen))
+		se_st=np.round(se_st,rndlen0).astype('<U'+str(rndlen))
+		tsign=np.round(tsign,rndlen0).astype('<U'+str(rndlen))
 		sep='   '
-		prstr=' '*(maxlen+int(rndlen*2.7))+'SE\n'
+		prstr=' '*(maxlen+rndlen+2*len(sep)) + '_'*int(rndlen+1)+'SE'+'_'*int(rndlen)+'\n'
 		prstr+='Variable names'.ljust(maxlen)[:maxlen]+sep
 		prstr+='Coef'.ljust(rndlen)[:rndlen]+sep
 		prstr+='sandwich'.ljust(rndlen)[:rndlen]+sep

@@ -13,12 +13,12 @@ from threading import Thread
 
 class master():
 	"""creates the slaves"""
-	def __init__(self,module,alias=''):
+	def __init__(self,modules):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
 		self.cpu_count=os.cpu_count()#assignment to self allows for the possibility to manipulate the count
 		n=self.cpu_count
-		self.slaves=[slave(module,alias,i) for i in range(n)]
+		self.slaves=[slave(modules,i) for i in range(n)]
 		pids=[self.slaves[i].p_id for i in range(n)]
 		info=tuple([n] +pids+[os.getpid()])
 		pstr='Multi core processing enabled using %s cores. Slave PIDs: '+(n-1)*'%s, '
@@ -82,7 +82,7 @@ class slave():
 	command = [sys.executable, "-u", "-m", "slave.py"]
 
 
-	def __init__(self,module,alias,slave_id):
+	def __init__(self,modules,slave_id):
 		"""Starts local worker"""
 		cwdr=os.getcwd()
 		os.chdir(__file__.replace(__name__+'.py',''))
@@ -91,7 +91,7 @@ class slave():
 		self.t=transact(self.p.stdout,self.p.stdin)
 		self.p_id = self.receive()
 		self.slave_id=slave_id
-		self.send([module,alias],slave_id)
+		self.send(modules,slave_id)
 		pass
 
 	def send(self,msg,obj):
@@ -133,3 +133,65 @@ class transact():
 	
 	
 pass
+
+
+
+
+
+
+
+def format_args(x,run_mp):
+	if not run_mp:
+		x=x.replace('rp.','')
+	x=x.replace('\t','    ')
+	n=0
+	xarr=x.split('\n')
+	newx=[]
+	for j in xarr:
+		k=len(j.lstrip())
+		if k>0 and len(newx)==0:
+			n=len(j)-k
+		if k>0:
+			newx.append(j[n:])
+	newx='\n'.join(newx)
+	return newx
+
+class multiprocess:
+	def __init__(self):
+		self.master=master([['regprocs','rp'],['maximize','mx'],['loglikelihood','logl']])#for paralell computing
+		self.d=dict()
+		if not self.master is None:
+			self.master.send_holdbacks(['AMAp','AMAq','GARM','GARK'])
+
+	def execute(self,expr,run_mp=True):
+		"""For submitting multiple functionsargs is an array of argument arrays where the first element in each 
+		argument array is the function to be evaluated"""
+		if not run_mp:#For debugging purposes
+			for i in expr:
+				exec(i,None,self.d)#the first element in i is the function, the rest are arguments
+		else:
+			d=self.master.send_tasks(expr)
+			for i in d:
+				self.d[i]=d[i]			
+		return self.d
+
+	def exe_from_arglist(self,function,args):
+		a=[]
+		n=len(args)
+		for i in range(n):
+			f_expr='res%s=' + function
+			a.append(f_expr %(i,args[i]))
+		self.execute(a)
+		res=[]
+		return self.d
+
+	def send_dict(self,d,instructions):
+		for i in d:
+			self.d[i]=d[i]
+		if str(type(self.master))=="<class 'multi_core.master'>":
+			self.master.send_dict(d,instructions)
+			
+	def format_args_array(self,arg_array,run_mp=True):
+		for i in range(len(arg_array)):
+			arg_array[i]=format_args(arg_array[i], run_mp)
+		return arg_array	

@@ -5,6 +5,7 @@ import numpy as np
 import sys
 import os
 import csv
+from scipy import sparse as sp
 
 
 def timer(tic, a):
@@ -18,6 +19,8 @@ def timer(tic, a):
 def dot(a,b,reduce_dims=True):
 	"""returns the dot product of a*b where either a or be or both to be
 	arrays of matrices"""
+	if type(a)==sp.csc_matrix:
+		return a.multiply(b)
 	if a is None or b is None:
 		return None
 	if len(a.shape)==2 and len(b.shape)==2:
@@ -131,7 +134,7 @@ def savevars(varlist,extension=''):
 	with <name>.csv. Use double brackets for single variable."""	
 
 	for var,name in varlist:
-		savevar(variable,name,extension)
+		savevar(var,name,extension)
 
 def obtain_fname(name,extension=''):
 	name=name.replace('\\','/')
@@ -175,3 +178,10 @@ def obtain_fname(name,extension=''):
 		os.makedirs(d)	
 	fname=d+'/'+fname	
 	return fname
+
+def copy_array_dict(d):
+	r=dict()
+	for i in d:
+		r[i]=np.array(d[i])
+	return r
+		

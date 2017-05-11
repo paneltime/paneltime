@@ -31,7 +31,15 @@ class args_bank:
 			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=d[self.model_key]
 		else:
 			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=(None,0,None,None)
-	
+			
+	def load(self):#for debugging
+		session_db=load_obj()
+		(d,a)=session_db
+		if self.model_key in d.keys():
+			return d[self.model_key]
+		else:
+			return (None,0,None,None)		
+		
 	def save(self,args,conv,not_in_use1=None,not_in_use2=None):
 		"""Saves the estimated parameters for later use"""
 		f=open(fname, "w+b")
@@ -92,7 +100,7 @@ def parse_model(model_string):
 		if len(x_list)>1:
 			break
 	if len(x_list)==1:
-		X=fu.clean(x_list)
+		X=fu.clean(x_list[0])
 		return Y,X
 	X=[]
 	for i in x_list:
@@ -124,7 +132,7 @@ def test_dictionary(dataframe):
 def get_variables(dataframe,model_string,groups_name,w_names,add_intercept,sort_name):
 	y_name,x_names=parse_model(model_string)
 	groups,groups_name,void=check_var(dataframe,groups_name,'group_name')
-	W,w_names,void=check_var(dataframe,w_names,'w_names',intercept_name='Ln(res.var), constant',raise_error=False,intercept_variable=True)
+	W,w_names,void=check_var(dataframe,w_names,'w_names',intercept_name='log variance (constant)',raise_error=False,intercept_variable=True)
 	intercept_name=None
 	if add_intercept:
 		intercept_name='Intercept'
