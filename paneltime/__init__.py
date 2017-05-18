@@ -19,7 +19,7 @@ import functions as fu
 
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, sort_name=None,
             descr="project_1",
-            fixed_random_eff=2, w_names=None, loadargs=True,add_intercept=True,
+            fixed_random_eff=2, w_names=None, loadargs=True,precheck=True,add_intercept=True,
             h=None
             ):
 
@@ -27,7 +27,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 	
 	return main.execute(dataframe, model_string, p, d, q, m, k, groups_name, sort_name,
 		           descr,
-		           fixed_random_eff, w_names, loadargs,add_intercept,
+		           fixed_random_eff, w_names, loadargs,precheck,add_intercept,
 		           h
 		           )
 
@@ -64,9 +64,9 @@ class model:
 
 def load(fname,sep=None,filters=None,transforms=None):
 
-	"""Loads dataframe from file <fname>, asuming column separator <sep>.\n
+	"""Loads data from file <fname>, asuming column separator <sep>.\n
 	Returns a dataframe (a dictionary of numpy column matrices).\n
-	If sep is not supplied, the method will try to find it."""
+	If sep is not supplied, the method will attemt to find it."""
 	try:
 		dataframe=main.loaddata.load(fname,sep)
 	except FileNotFoundError:

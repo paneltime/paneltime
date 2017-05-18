@@ -26,7 +26,7 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 	d,EVec=np.linalg.eig(XXNorm)
 	if np.any(np.round(d.imag,15)!=len(d)*[0]):
 		print( "non-real XX matrix")
-		return None,None
+		
 	d=d.real;EVec=EVec.real
 	d=np.abs(d)**0.5+1e-100
 	MaxEv=np.max(d)  
@@ -144,13 +144,13 @@ def goodness_of_fit(panel,ll):
 	v1=std(panel,y,total=True)**2
 	Rsq=1-v0/v1
 	Rsqadj=1-(v0/v1)*(panel.NT_afterloss-1)/(panel.NT_afterloss-panel.len_args-1)
-	LL_OLS=logl.LL(panel.args.args_OLS)
+	LL_OLS=logl.LL(panel.args.args_OLS,panel)
 	if not LL_OLS is None:
 		LL_OLS=LL_OLS.LL
 		LL_ratio_OLS=2*(ll.LL-LL_OLS)
 	else:
 		LL_ratio_OLS=None
-	LL_args_restricted=logl.LL(panel.args.args_restricted)
+	LL_args_restricted=logl.LL(panel.args.args_restricted,panel)
 	if not LL_args_restricted is None:
 		LL_args_restricted=LL_args_restricted.LL
 		LL_ratio=2*(ll.LL-LL_args_restricted)

@@ -5,7 +5,6 @@
 
 import numpy as np
 import regprocs as rp
-import regobj
 import functions as fu
 
 

@@ -58,7 +58,7 @@ class gradient:
 		(ll.de_rho,ll.de_lambda,ll.de_beta)=(de_rho,de_lambda,de_beta)
 
 		ll.de_rho_RE,ll.de_lambda_RE,ll.de_beta_RE=rp.dRE(ll,panel,de_rho,ll.e,'rho'),rp.dRE(ll,panel,de_lambda,ll.e,'lambda'),rp.dRE(ll,panel,de_beta,ll.e,'beta')
-		#drRE=panel.dLL(0.000001)
+		
 
 
 		dlnv_e_rho,		dlnv_e_rho_G	=	self.garch_arima_grad(ll,de_rho)
@@ -117,13 +117,6 @@ class gradient:
 class hessian:
 	def __init__(self,panel):
 		self.panel=panel
-		
-		if panel.len_data*(panel.X.shape[2]**0.5)>200000 and os.cpu_count()>1:#paralell computing will not increase computation time for 'small' data sets
-			self.master=panel.master#for paralell computing
-			self.mp=panel.mp
-		else:
-			self.master=None
-		
 		self.its=0
 		
 	

@@ -11,6 +11,7 @@ from queue import Queue
 from threading import Thread
 
 
+
 class master():
 	"""creates the slaves"""
 	def __init__(self,modules):
@@ -122,23 +123,22 @@ class transact():
 	def send(self,msg):
 		w=getattr(self.w,'buffer',self.w)
 		pickle.dump(msg,w)
-		w.flush()          
+		w.flush()   
+		
+	def send_debug(self,msg,f):
+		w=getattr(self.w,'buffer',self.w)
+		write(f,str(w))
+		pickle.dump(msg,w)
+		w.flush()   	
 
 	def receive(self):
 		r=getattr(self.r,'buffer',self.r)
 		u= pickle.Unpickler(r)
 		return u.load()
-	
-	
-	
-	
-pass
 
-
-
-
-
-
+def write(f,txt):
+	f.write(str(txt)+'\n')
+	f.flush()
 
 def format_args(x,run_mp):
 	if not run_mp:
@@ -158,7 +158,8 @@ def format_args(x,run_mp):
 
 class multiprocess:
 	def __init__(self):
-		self.master=master([['regprocs','rp'],['maximize','mx'],['loglikelihood','logl']])#for paralell computing
+		#self.master=master([['regprocs','rp'],['maximize','mx'],['loglikelihood','logl']])#for paralell computing
+		self.master=master([])#for paralell computing
 		self.d=dict()
 		if not self.master is None:
 			self.master.send_holdbacks(['AMAp','AMAq','GARM','GARK'])

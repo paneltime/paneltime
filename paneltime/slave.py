@@ -6,6 +6,10 @@ import os
 import multi_core
 import traceback
 import numpy as np
+import regprocs as rp
+import maximize as mx
+import loglikelihood as logl
+import time
 
 def main(f):
 	t=multi_core.transact(sys.stdin, sys.stdout)
@@ -41,11 +45,13 @@ def main(f):
 		elif msg=='expression evaluation':
 			exec(obj,globals(),d)
 			response=release_dict(d,d_old,holdbacks)
-			write(f, response)
 		elif msg=='holdbacks':
-			holdbacks=obj                     
-		t.send(response)
-		
+			holdbacks=obj  
+		if msg=='expression evaluation':
+			write(f, response)
+			t.send_debug(response,f)
+		else:
+			t.send(response)
 def write(f,txt):
 	f.write(str(txt)+'\n')
 	f.flush()

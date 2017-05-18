@@ -6,7 +6,6 @@
 
 import statproc as stat
 import numpy as np
-import regobj
 import regprocs as rp
 from scipy import stats as scstats
 import csv

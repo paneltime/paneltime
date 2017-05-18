@@ -169,7 +169,10 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 	dataframe['ones']=np.ones((n,1))
 	fu.exec_strip(transforms,globals(),dataframe)	
 	n=filter_data(filters, dataframe,n)
-	fu.exec_strip(transforms,globals(),dataframe)	
+	fu.exec_strip(transforms,globals(),dataframe)
+	for i in list(dataframe.keys()):
+		if callable(dataframe[i]):
+			dataframe.pop(i)		
 	print ("Checking and parsing variables ...")
 
 def check_var(dataframe,names,arg_name,intercept_name=None,raise_error=False,intercept_variable=False):

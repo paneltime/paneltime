@@ -12,34 +12,38 @@ import calculus
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and store all 
 	associated dynamic variables needed outside this scope"""
-	def __init__(self,args,panel):
+	def __init__(self,args,panel,X=None):
+
 		if args is None:
 			args=panel.args.args
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT_afterloss
+	
 		self.args_v=panel.args.conv_to_vector(panel,args)
 		self.args_d=panel.args.conv_to_dict(args)
-		self.LL=self.LL_calc(panel)
+		self.h_err=""
+		self.h_def=panel.h_def
+		
+		
 		try:
-			self.LL=self.LL_calc(panel)
+			self.LL=self.LL_calc(panel,X)
+			
 		except Exception as e:
 			self.LL=None
-			#print(str(e))
+			print(str(e))
 		if not self.LL is None:
 			if np.isnan(self.LL):
 				self.LL=None
-
-	def update(self,panel,args):
-		self.args_v=panel.args.conv_to_vector(panel,args)
-		self.args_d=panel.args.conv_to_dict(panel,args)
-		self.LL=self.LL_calc(panel)
+		
+		
 
 
-	def LL_calc(self,panel):
+	def LL_calc(self,panel,X=None):
 		args=self.args_d#using dictionary arguments
-
+		if X is None:
+			X=panel.X
 
 		matrices=set_garch_arch(panel,args)
-
+		
 		if matrices is None:
 			return None		
 		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
@@ -47,9 +51,9 @@ class LL:
 
 		u=panel.Y-fu.dot(panel.X,args['beta'])
 		e=fu.dot(AMA_1AR,u)
-
+		
 		if panel.m>0:
-			h_res=rp.h_func(e, args['z'][0])
+			h_res=self.h(e, args['z'][0])
 			if h_res==None:
 				return None
 			(h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val)=[i*panel.included for i in h_res]
@@ -57,6 +61,7 @@ class LL:
 		else:
 			(h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val,avg_h)=(0,0,0,0,0,0,0)
 			lnv_ARMA=0	
+		
 		W_omega=fu.dot(panel.W_a,args['omega'])
 		lnv=W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		if panel.m>0:
@@ -69,6 +74,7 @@ class LL:
 		e_RE=rp.RE(self,panel,e)
 		e_REsq=e_RE**2
 		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+		
 		if abs(LL)>1e+100: 
 			return None
 		self.AMA_1,self.AAR,self.AMA_1AR,self.GAR_1,self.GMA,self.GAR_1MA=matrices
@@ -76,7 +82,9 @@ class LL:
 		self.lnv,self.avg_h,self.v,self.v_inv,self.e_RE,self.e_REsq = lnv,avg_h,v,v_inv,e_RE,e_REsq
 		self.h_2e_val,self.h_z_val,self.h_ez_val,self.h_2z_val      = h_2e_val,h_z_val,h_ez_val,h_2z_val
 		self.e_st=e_RE*v_inv
+		
 		return LL
+	
 
 	def standardize(self,panel):
 		"""Adds X and Y and error terms after ARIMA-E-GARCH transformation and random effects to self"""
@@ -96,7 +104,19 @@ class LL:
 
 	def copy_args_d(self):
 		return fu.copy_array_dict(self.args_d)
+
 	
+	def h(self,e,z):
+		d={'e':e,'z':z}
+		try:
+			exec(self.h_def,globals(),d)
+		except Exception as err:
+			if self.h_err!=str(err):
+				print ("Warning: error in the ARCH error function h(e,z). The error was: %s" %(err))
+			h_err=str(e)
+			return None
+	
+		return d['ret']	
 	
 
 
@@ -179,37 +199,72 @@ class direction:
 		self.constr=None
 		
 		
-	def get(self,ll,mc_limit,add_one_constr,dx_conv,k,its,H_old,mp=None):
+	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,g_old=None):
 
-		g,G=self.gradient.get(ll,return_G=True)
-		hessian=self.hessian.get(ll,mp)
-
-		dc,constrained,reset,out,constr=self.solve(add_one_constr, G, g, hessian, ll, mc_limit, 
-		                                           dx_conv,k,its)
-
-		#fixing positive definit hessian (convexity problem) by using robust sandwich estimator
-
+		g,G=self.gradient.get(ll,return_G=True)		
+		hessian, hessin,hessin_apprx=self.get_hessian(ll,mp,g,g_old,G,dxi)
+		out=output(print_on)
+		
+		dc,dc_approx,constrained,reset,out,constr=self.solve(G, g, hessian,hessin_apprx, ll, mc_limit, 
+		                                           dx_conv,k,its,out)
+		
+		
 		if np.sum(dc*(constrained==0)*g)<0:
-			#print("Warning: negative slope. Using robust sandwich hessian matrix to ensure positivity")
-			hessin=rp.sandwich(hessian,G,0)
-			for i in range(len(hessin)):
-				hessin[i,i]=hessin[i,i]+(hessin[i,i]==0)
-			hessian=-np.linalg.inv(hessin)
-			dc,constrained,reset,out,constr=self.solve(add_one_constr, G, g, hessian, ll, mc_limit, 
-			                                           dx_conv,k,its)			
+			if dc_approx is None:
+				test=0
+			else:
+				test=dc_approx
+			if np.sum(test*(constrained==0)*g)>0:
+				dc=dc_approx
+			else:
+				#print("Warning: negative slope. Using robust sandwich hessian matrix to ensure positivity")
+				hessian=-np.linalg.inv(hessin)
+				dc,dc_approx,constrained,reset,out,constr=self.solve(G, g, hessian,hessin, ll, mc_limit, 
+					                                       dx_conv,k,its,out)			
+		
+		out.print()		
+		return dc,dc_approx,g,G,hessian,constrained,reset
 
-		if len(constr.constraints)>0:
-			out.print()		
-		return dc,g,G,hessian,constrained,reset
-
-	def solve(self,add_one_constr,G,g,hessian,ll,mc_limit,dx_conv,k,its):	
-		constr=constraints(self.panel.args,self.constr,add_one_constr)
+	def solve(self,G,g,hessian,hessin_apprx,ll,mc_limit,dx_conv,k,its,out):	
+		constr=constraints(self.panel.args,self.constr)
 		self.constr=constr
-		hessian,reset,out=add_constraints(G,self.panel,ll,constr,mc_limit,dx_conv,hessian,k,its)
+		hessian,reset=add_constraints(G,self.panel,ll,constr,mc_limit,dx_conv,hessian,k,its,out)
 		dc,constrained=solve(constr,hessian, g, ll.args_v)
-		return dc,constrained,reset,out,constr
+		if not hessin_apprx is None:
+			dc_approx,constrained_approx=solve(constr,hessin_apprx, g, ll.args_v)
+			return dc,dc_approx,constrained,reset,out,constr
+		return dc,None,constrained,reset,out,constr
 	
-
+	def get_hessian(self,ll,mp,g,g_old,G,dxi):
+		hessian=self.hessian.get(ll,mp)
+		hessin=rp.sandwich(hessian,G,0)
+		for i in range(len(hessin)):
+			hessin[i,i]=hessin[i,i]+(hessin[i,i]==0)
+		hessin_apprx=self.approximate_hessin(g,g_old,hessin,dxi)
+		return hessian, hessin,hessin_apprx
+	
+	def approximate_hessin(self,g,g_old,hessin,dxi):
+		if dxi is None:
+			return None
+		dg=g-g_old 				#Compute difference of gradients,
+		#and difference times current matrix:
+		hdg=(np.dot(hessin,dg.reshape(n,1))).flatten()
+		fac=fae=sumdg=sumxi=0.0 							#Calculate dot products for the denominators. 
+		fac = np.sum(dg*dxi) 
+		fae = np.sum(dg*hdg)
+		sumdg = np.sum(dg*dg) 
+		sumxi = np.sum(dxi*dxi) 
+		fac=1.0/max((fac,1e-15))
+		fad=1.0/max((fae,1e-15)) 
+								#The vector that makes BFGS different from DFP:
+		dg=fac*dxi-fad*hdg   
+		#The BFGS updating formula:
+		hessin+=fac*dxi.reshape(n,1)*dxi.reshape(1,n)
+		hessin-=fad*hdg.reshape(n,1)*hdg.reshape(1,n)
+		hessin+=fae*dg.reshape(n,1)*dg.reshape(1,n)	
+		return hessin
+	
+	
 def solve(constr,H, g, x):
 	"""Solves a second degree taylor expansion for the dc for df/dc=0 if f is quadratic, given gradient
 	g, hessian H, inequalty constraints c and equalitiy constraints c_eq and returns the solution and 
@@ -406,12 +461,11 @@ def remove(d,assoc,args,include,out,constr,names,r_type):
 		out.add(names[d],args,'NA',r_type)	
 	return True
 
-def add_constraints(G,panel,ll,constr,mc_limit,dx_conv,hessian,k,its):
+def add_constraints(G,panel,ll,constr,mc_limit,dx_conv,hessian,k,its,out):
 	names=panel.name_vector
 	args=ll.args_v
 	N,T,h=G.shape
 	include=np.ones(h,dtype=bool)
-	out=output()
 	add_initial_constraints(panel,constr,out,names,ll,include,its)
 	remove_constants(panel, G, include,constr,out,names)	
 	remove_all_multicoll(G, args, names, include, out, constr, 5000)
@@ -425,7 +479,7 @@ def add_constraints(G,panel,ll,constr,mc_limit,dx_conv,hessian,k,its):
 				reset=True
 			else:
 				reset=remove(j,None,args, include, out,constr,names,'dir cap')==False
-	return hessian, reset,out
+	return hessian, reset
 
 def add_initial_constraints(panel,constr,out,names,ll,include,its):
 	args=panel.args
@@ -443,11 +497,12 @@ def add_initial_constraints(panel,constr,out,names,ll,include,its):
 
 
 class output:
-	def __init__(self):
+	def __init__(self,on=True):
 		self.variable=[]
 		self.set_to=[]
 		self.assco=[]
 		self.cause=[]
+		self.on=on
 
 	def add(self,variable,set_to,assco,cause):
 		if (not (variable in self.variable)) or (not (cause in self.cause)):
@@ -457,6 +512,8 @@ class output:
 			self.cause.append(cause)
 
 	def print(self):
+		if self.on==False:
+			return
 		output= "|Restricted variable |    Set to    | Associated variable|  Cause   |\n"
 		output+="|--------------------|--------------|--------------------|----------|\n"
 		if len(self.variable)==0:
@@ -467,14 +524,14 @@ class output:
 		        self.set_to[i].rjust(14)[:14],
 		        self.assco[i].ljust(20)[:20],
 		        self.cause[i].ljust(10)[:10])	
-
-		print(output)	
+		if self.on:
+			print(output)	
 
 
 class constraints:
 
 	"""Stores the constraints of the LL maximization"""
-	def __init__(self,args,old_constr,add_one_constr):
+	def __init__(self,args,old_constr):
 		self.constraints=dict()
 		self.categories=[]
 		self.args=args
@@ -482,7 +539,7 @@ class constraints:
 			self.old_constr=[]
 		else:
 			self.old_constr=old_constr.constraints
-		self.add_one_constr=add_one_constr
+
 
 	def add(self,positions, minimum_or_value,maximum=None,replace=True):
 		"""Adds a constraint. 'positions' is either an integer or an iterable of integer specifying the position(s) 

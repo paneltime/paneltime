@@ -47,20 +47,8 @@ class panel:
 		
 		self.name_vector=self.make_namevector()
 		self.final_defs(p,d,q,m,k,X)
-		
-			
-		
-		
-		
+
 		self.between_group_ols()
-		
-				
-		
-		
-
-		
-		
-
 
 	def masking(self):
 		self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
@@ -74,8 +62,9 @@ class panel:
 		
 	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,loadargs):
 		self.args_bank=ptf.args_bank(X, Y, groups, W, loadargs)		
-		rp.redefine_h_func(h)
+		self.loadargs=loadargs
 		self.has_intercept=has_intercept
+
 		self.data=data
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
 		self.x_names=x_names
@@ -91,6 +80,7 @@ class panel:
 		self.FE_RE=fixed_random_eff
 		self.groups=groups	
 		self.len_data=len(X)
+		self.define_h_func(h)
 		
 		
 		
@@ -221,6 +211,49 @@ class panel:
 			N=len(T)
 		return np.array(Xarr),np.array(Yarr),np.array(Warr),max_T,T.reshape((N,1)),N
 	
+	def define_h_func(self,h_definition):
+		global h
+		if h_definition is None:
+			h_definition="""
+	def h(e,z):
+		ez2=e**2+z**2+1e-15
+		h_val		=	 np.log(ez2)	
+		h_e_val		=	 2*e/ez2
+		h_2e_val	=	 2*(z**2-e**2)/(ez2**2)
+		h_z_val		=	 2*z/ez2
+		h_2z_val	=	2*(e**2-z**2)/(ez2**2)
+		h_ez_val	=	-4*e*z/ez2**2
+		return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
+	"""	
+		n=h_definition.find('def h(e,z)')
+		for i in ['h(e,z)']:
+			n=h_definition.find(i)
+		
+		h_definition=h_definition.replace('\t','    ')
+		h_list=h_definition.split('\n')
+		k=len(h_list)
+		for i in range(k):
+			n=h_list[i].find('def h(')
+			if n>0:
+				h_list[i]=h_list[i][:n+5]+h_list[i][n+5:].replace(' ','')
+				n=h_list[i].find('def h(e,z)')
+			if n>-1:
+				break
+		if n<0:
+			raise RuntimeError('The h-function must be defined as  "def h(e,z)..."')
+		for i in range(len(h_list)):
+			h_list[i]=h_list[i][n:]
+		h_definition='\n'.join(h_list)
+		try:
+			exec(h_definition)
+		except IndentationError:
+			raise RuntimeError("""IndentationError in your custom h-function: 
+		    You might have a mix of spaces and tabs. 
+		    Space indentation only is recommended. 
+		    Tab-size four is assumed""")
+		s='ret=h(e,z)'
+		s='\n\n'+s
+		self.h_def=h_definition+s
 
 class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
@@ -246,12 +279,12 @@ class arguments:
 
 		return args
 
-	def set_init_args(self,p,d,q,m,k,panel,args_old,has_intercept):
+	def set_init_args(self,p,d,q,m,k,panel,args_old,has_intercept,):
 		
 		args=self.initargs(p, d, q, m, k, panel)
 		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
-		de2=np.roll(e**2,1)-e**2
-		c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
+		#de2=np.roll(e**2,1)-e**2
+		#c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
 
 		args['beta']=beta
 		args['omega'][0][0]=np.log(np.var(e*panel.included)*len(e[0])/np.sum(panel.included))

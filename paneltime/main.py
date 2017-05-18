@@ -12,7 +12,7 @@
 
 import numpy as np
 import regstats
-import regobj
+import panel
 import warnings
 import multi_core as mc
 import loaddata
@@ -31,7 +31,7 @@ np.set_printoptions(precision=8)
 
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, sort_name=None,
             descr="project_1",
-            fixed_random_eff=2, w_names=None, loadargs=True,add_intercept=True,
+            fixed_random_eff=2, w_names=None, loadargs=True,precheck=True,add_intercept=True,
             h=None
             ):
 
@@ -46,18 +46,19 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 
 
 	print ("Creating panel")
-	panel=regobj.panel(p, d, q, m, k, X, Y, groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,loadargs)
-	direction=logl.direction(panel)
-	if os.cpu_count()>1:
+	pnl=panel.panel(p, d, q, m, k, X, Y, groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,loadargs)
+	direction=logl.direction(pnl)
+	 
+	N,k=X.shape
+	if (N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
 		mp=mc.multiprocess()
-		mp.send_dict({'panel':panel,'direction':direction},'static dictionary')		
+		mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')		
 	else:
 		mp=None
 	print ("Maximizing")
 
-	ll,g,G,H, conv = maximize.maximize(panel,direction,mp,_print=True)	
-	panel.args_bank.save(ll.args_d, conv)
+	ll,g,G,H, conv = maximize.maximize(pnl,direction,mp,precheck,_print=True)	
 
-	return panel,g,G,H,ll
+	return pnl,g,G,H,ll
 
 
