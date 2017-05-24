@@ -143,8 +143,6 @@ def set_garch_arch(panel,args):
 		return None
 	if np.any(np.isnan(GAR_1)):
 		return None	
-
-	
 	GMA=lag_matr(panel.L,panel.zero,m,args['psi'])	
 	GAR_1MA=fu.dot(GAR_1,GMA)
 	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA

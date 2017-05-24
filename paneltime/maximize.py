@@ -164,14 +164,14 @@ def pretest_master(ll,mp):
 	while 1:
 		for j in range(n_cores):
 			s="t0=time.time()\n"
-			s+="tmp=mx.pretest_func(panel,direction,args[%s])\n" %(i,)
+			s+="tmp=mx.pretest_func(panel,direction,args[%s],ll)\n" %(i,)
 			expr[j]+=s+'res%s=tmp,(time.time()-t0),time.time(),t0\n'  %(i,)
 			i+=1
 			if i==n:
 				break
 		if i==n:
 			break			
-	mp.send_dict({'args':args},'dynamic dictionary')	
+	mp.send_dict({'args':args,'ll':ll},'dynamic dictionary')	
 	d=mp.execute(expr)
 	
 	max_ll=ll
@@ -183,15 +183,17 @@ def pretest_master(ll,mp):
 				max_ll=ll_new	
 	return max_ll
 	
-def pretest_func(panel,direction,args):
+def pretest_func(panel,direction,args,ll,mp=None):
 	
 	ll_new=logl.LL(args,panel)
 	
 	if ll_new.LL is None:
-		return None
-	dx,g,G,H,constrained,reset=direction.get(ll_new,1000,False,0,0,print_on=False)
-
-	ll_new=lnsrch(ll_new,g,dx,panel) 
+		return ll
+	try:
+		dx,g,G,H,constrained,reset=direction.get(ll_new,1000,None,0,-1,mp,print_on=False)
+	except:
+		return ll	
+	ll_new=lnsrch(ll_new,g,dx,panel,True) 
 	
 	return ll_new
 	
@@ -208,12 +210,7 @@ def pretest_sub(ll,categories,panel,direction,mp):
 				if len(args_d[c[k]])>0:
 					args_d[c[k]][0]=[i,j][k]
 			#impose_OLS(ll,args_d, panel)
-			ll_new=logl.LL(args_d,panel)
-			try:
-				dx,g,G,H,constrained,reset=direction.get(ll_new,1000,None,0,-1,mp)
-			except:
-				return max_ll
-			ll_new=lnsrch(ll_new,g,dx,panel,True) 
+			ll_new=pretest_func(panel, direction, args_d, ll)
 			catstr="(%s,%s)" %tuple(c)
 			print('Direction test %s=(%s,%s) LL: %s  Max LL: %s' %(catstr,i,j,ll_new.LL,max_ll.LL))
 			if ll_new.LL>max_ll.LL:
