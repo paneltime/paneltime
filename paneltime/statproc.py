@@ -17,12 +17,7 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 	(columns). Calculates the normalized sum of squares using square_and_norm if XXNorm is not supplied"""
 	if XXNorm is None:
 		XXNorm=square_and_norm(X)
-	ub=len(XXNorm)  
-	fi=np.zeros((ub,ub))
-	fiTot=np.zeros(ub)
-	pi=[ub*[0] for i in range(0,ub)]
-	CondIx=[0]*ub
-	MaxEv=0.0     
+	ub=len(XXNorm)     
 	d,EVec=np.linalg.eig(XXNorm)
 	if np.any(np.round(d.imag,15)!=len(d)*[0]):
 		print( "non-real XX matrix")

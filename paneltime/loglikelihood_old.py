@@ -8,8 +8,6 @@ import functions as fu
 import regprocs as rp
 import statproc as stat
 import calculus
-from scipy import sparse as sp
-import scipy
 
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and store all 
@@ -24,8 +22,8 @@ class LL:
 		self.args_d=panel.args.conv_to_dict(args)
 		self.h_err=""
 		self.h_def=panel.h_def
-		self.NT=panel.NT
-
+		
+		
 		try:
 			self.LL=self.LL_calc(panel,X)
 			
@@ -123,39 +121,57 @@ class LL:
 
 
 def set_garch_arch(panel,args):
+	if panel.max_T>50000:#For really large matrices, sparse inversion is faster and less memory consuming
+		return set_garch_arch_sparse(panel,args)
 
 	p,q,m,k,nW=panel.p,panel.q,panel.m,panel.k,panel.nW
 	X=panel.I+lag_matr(panel.L,panel.zero,q,args['lambda'])
-
 	try:
-		AMA_1=inv_banded(X,q,panel)
+		AMA_1=np.linalg.inv(X)
 	except:
 		return None
 	if np.any(np.isnan(AMA_1)):
 		return None
-	
 	AAR=panel.I-lag_matr(panel.L,panel.zero,p,args['rho'])
 	AMA_1AR=fu.dot(AMA_1,AAR)
 	X=panel.I-lag_matr(panel.L,panel.zero,k,args['gamma'])
 	try:
-		GAR_1=inv_banded(X,k,panel)
+		GAR_1=np.linalg.inv(X)
 	except:
 		return None
 	if np.any(np.isnan(GAR_1)):
-		return None	
-
-	
+		return None		
 	GMA=lag_matr(panel.L,panel.zero,m,args['psi'])	
 	GAR_1MA=fu.dot(GAR_1,GMA)
 	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
 
-def inv_banded(X,k,panel):
-	n=len(X)
-	X_b=np.zeros((k+1,n))
-	for i in range(k+1):
-		X_b[i,:n-i]=np.diag(X,-i)
-	
-	return scipy.linalg.solve_banded((k,0), X_b, panel.I)	
+
+
+def set_garch_arch_sparse(panel,args):
+	p,q,m,k,nW=panel.p,panel.q,panel.m,panel.k,panel.nW
+
+	X=panel.I_sp+lag_matr_sp(q,args['lambda'])
+	try:
+		AMA_1=sp.linalg.inv(X)
+	except:
+		return None
+	if np.any(np.isnan(AMA_1.data)):
+		return None
+	AAR=panel.I_sp-lag_matr_sp(p,args['rho'])
+	AMA_1AR=fu.dot(AMA_1,AAR)
+	X=panel.I_sp-lag_matr_sp(k,args['gamma'])
+	try:
+		GAR_1=sp.linalg.inv(X)
+	except:
+		return None
+	if np.any(np.isnan(GAR_1.data)):
+		return None		
+	GMA=lag_matr_sp(m,args['psi'])
+	GAR_1MA=fu.dot(GAR_1,GMA)
+
+	return AMA_1.toarray(),AAR.toarray(),AMA_1AR.toarray(),GAR_1.toarray(),GMA.toarray(),GAR_1MA.toarray()
+
+
 
 def lag_matr_sp(panel,k,args):
 	T=panel.max_T
@@ -181,111 +197,46 @@ class direction:
 		self.hessian=calculus.hessian(panel)
 		self.panel=panel
 		self.constr=None
-		self.hessian_num=None
-		self.g_old=None
-		self.do_shocks=True
 		
 		
-	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,):
+	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,g_old=None):
 
-		g,G=self.gradient.get(ll,return_G=True)		
-		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv)
+		g,G=self.gradient.get(ll,return_G=True)	
+		hessian=self.hessian.get(ll,mp)
 
 		out=output(print_on)
-		self.constr=constraints(self.panel.args,self.constr)
-		reset=False
-		if its>-1:
-			hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,hessian,k,its,out)
-		dc,constrained=solve(self.constr,hessian, g, ll.args_v)
-		dc_tmp=dc*1
-		for j in range(len(dc)):
-			s=dc*(constrained==0)*g
-			if np.sum(s)<0:#negative slope
-				s=np.argsort(s)
-				k=s[0]
-				remove(k, None, ll.args_v, None, out, self.constr, self.panel.name_vector, 'neg. slope')
-				dc,constrained=solve(self.constr,hessian, g, ll.args_v)
-			else:
-				break
-
-		out.print()
 		
+		dc,dc_approx,constrained,reset,out,constr=self.solve(G, g, hessian, ll, mc_limit, 
+		                                           dx_conv,k,its,out)
+		
+		
+		
+		if np.sum(dc*(constrained==0)*g)<0:
 			
-		return dc,g,G,hessian,constrained,reset
-	
+			hessin=rp.sandwich(hessian,G,0)
+			for i in range(len(hessin)):
+				hessin[i,i]=hessin[i,i]+(hessin[i,i]==0)
+				#print("Warning: negative slope. Using robust sandwich hessian matrix to ensure positivity")
+			hessian=-np.linalg.inv(hessin)
+			dc,dc_approx,constrained,reset,out,constr=self.solve(G, g, hessian, ll, mc_limit, 
+					                                       dx_conv,k,its,out)			
+		
+		out.print()		
+		return dc,dc_approx,g,G,hessian,constrained,reset
 
-	
-	def get_hessian(self,ll,mp,g,G,dxi,its,dx_conv):
-		
-		#hessinS0=rp.sandwich(hessian,G,0)
-		hessian=None
-		if ((its>=0 or its<3) and its>-1) or self.hessian_num is None:
-			hessian=self.hessian.get(ll,mp)
+	def solve(self,G,g,hessian,ll,mc_limit,dx_conv,k,its,out):	
+		constr=constraints(self.panel.args,self.constr)
+		self.constr=constr
+		hessian,reset=add_constraints(G,self.panel,ll,constr,mc_limit,dx_conv,hessian,k,its,out)
+		dc,constrained=solve(constr,hessian, g, ll.args_v)
+		return dc,None,constrained,reset,out,constr
 
-		elif (not self.g_old is None) and (not dxi is None):
-			print("Using numerical hessian")#could potentially be used to calculate the hessian nummerically for some iterations
-			hessian=self.hessian.get(ll,mp)#in order to gain speed, but it does not seem to help much. 
-			self.hessian_num=hessian			
-			hessin_num=hessin(self.hessian_num)
-			hessin_num=approximate_hessin(g,self.g_old,hessin_num,dxi)	
-			hessian=hessin(hessin_num)
-		else:
-			hessian=self.hessian_num
-		
-		I=np.diag(np.ones(len(hessian)))
-		m=1
-		if not dx_conv is None:
-			if max(dx_conv)>0.2:
-				hessian=hessian+m*I*hessian
-		else:
-			hessian=hessian+m*I*hessian
-		self.hessian_num=hessian
-			
-		self.g_old=g
-		
-		return hessian
-		
-	def get_hessian_analytical(self,ll,mp):
-
-		return hessian
-	
-def hessin(hessian):
-	try:
-		h=-np.linalg.inv(hessian)
-	except:
-		h=np.diag(np.ones(panel.args.n_args))	
-	return h
-	
-def approximate_hessin(g,g_old,hessin,dxi):
-	if dxi is None:
-		return None
-	dg=g-g_old 				#Compute difference of gradients,
-	#and difference times current matrix:
-	n=len(g)
-	hdg=(np.dot(hessin,dg.reshape(n,1))).flatten()
-	fac=fae=sumdg=sumxi=0.0 							#Calculate dot products for the denominators. 
-	fac = np.sum(dg*dxi) 
-	fae = np.sum(dg*hdg)
-	sumdg = np.sum(dg*dg) 
-	sumxi = np.sum(dxi*dxi) 
-	if (fac > (3.0e-16*sumdg*sumxi)**0.5):#Skip update if fac not sufficiently positive.
-		fac=1.0/fac
-		fad=1.0/fae 
-								#The vector that makes BFGS different from DFP:
-		dg=fac*dxi-fad*hdg   
-		#The BFGS updating formula:
-		hessin+=fac*dxi.reshape(n,1)*dxi.reshape(1,n)
-		hessin-=fad*hdg.reshape(n,1)*hdg.reshape(1,n)
-		hessin+=fae*dg.reshape(n,1)*dg.reshape(1,n)	
-	return hessin
 	
 	
 def solve(constr,H, g, x):
 	"""Solves a second degree taylor expansion for the dc for df/dc=0 if f is quadratic, given gradient
 	g, hessian H, inequalty constraints c and equalitiy constraints c_eq and returns the solution and 
 	and index constrained indicating the constrained variables"""
-	if H is None:
-		return None,g*0
 	n=len(H)
 	c,c_eq=constr.constraints_to_arrays()
 	k=len(c)
@@ -464,25 +415,18 @@ def remove_all_multicoll(G,args,names,include,out,constr,limit):
 			return
 
 
-def remove(d,assoc,set_to,include,out,constr,names,r_type):
-	""""removes" variable d by constraining it to set_to. If an assoc variable is not None, the assoc will be
-	printed as an assocaited variable. If set_to is an array, 
-	then it is constrained to set_to[d]. include[d] is set to false. out is the output object, constr is 
-	the constraints object. name[d] and name[assoc] are printed. the type of removal r_type is also printed."""
+def remove(d,assoc,args,include,out,constr,names,r_type):
 	if d in constr.constraints:
 		return False
 
-	if type(set_to)==list or type(set_to)==np.ndarray:
-		a=set_to[d]
-	else:
-		a=set_to
-	constr.add(d,a)
-	if not include is None:
-		include[d]=False	
+	if type(args)==list or type(args)==np.ndarray:
+		args=args[d]
+	constr.add(d,args)
+	include[d]=False	
 	if not assoc is None:
-		out.add(names[d],a,names[assoc],r_type)	
+		out.add(names[d],args,names[assoc],r_type)	
 	else:
-		out.add(names[d],a,'NA',r_type)	
+		out.add(names[d],args,'NA',r_type)	
 	return True
 
 def add_constraints(G,panel,ll,constr,mc_limit,dx_conv,hessian,k,its,out):
@@ -605,6 +549,5 @@ class constraints:
 		"""Removes arbitrary constraint"""
 		k=list(self.constraints.keys())[0]
 		self.constraints.pop(k)
-
 
 

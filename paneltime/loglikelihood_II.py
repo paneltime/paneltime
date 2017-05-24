@@ -8,8 +8,6 @@ import functions as fu
 import regprocs as rp
 import statproc as stat
 import calculus
-from scipy import sparse as sp
-import scipy
 
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and store all 
@@ -24,8 +22,8 @@ class LL:
 		self.args_d=panel.args.conv_to_dict(args)
 		self.h_err=""
 		self.h_def=panel.h_def
-		self.NT=panel.NT
-
+		
+		
 		try:
 			self.LL=self.LL_calc(panel,X)
 			
@@ -123,39 +121,57 @@ class LL:
 
 
 def set_garch_arch(panel,args):
+	if panel.max_T>50000:#For really large matrices, sparse inversion is faster and less memory consuming
+		return set_garch_arch_sparse(panel,args)
 
 	p,q,m,k,nW=panel.p,panel.q,panel.m,panel.k,panel.nW
 	X=panel.I+lag_matr(panel.L,panel.zero,q,args['lambda'])
-
 	try:
-		AMA_1=inv_banded(X,q,panel)
+		AMA_1=np.linalg.inv(X)
 	except:
 		return None
 	if np.any(np.isnan(AMA_1)):
 		return None
-	
 	AAR=panel.I-lag_matr(panel.L,panel.zero,p,args['rho'])
 	AMA_1AR=fu.dot(AMA_1,AAR)
 	X=panel.I-lag_matr(panel.L,panel.zero,k,args['gamma'])
 	try:
-		GAR_1=inv_banded(X,k,panel)
+		GAR_1=np.linalg.inv(X)
 	except:
 		return None
 	if np.any(np.isnan(GAR_1)):
-		return None	
-
-	
+		return None		
 	GMA=lag_matr(panel.L,panel.zero,m,args['psi'])	
 	GAR_1MA=fu.dot(GAR_1,GMA)
 	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
 
-def inv_banded(X,k,panel):
-	n=len(X)
-	X_b=np.zeros((k+1,n))
-	for i in range(k+1):
-		X_b[i,:n-i]=np.diag(X,-i)
-	
-	return scipy.linalg.solve_banded((k,0), X_b, panel.I)	
+
+
+def set_garch_arch_sparse(panel,args):
+	p,q,m,k,nW=panel.p,panel.q,panel.m,panel.k,panel.nW
+
+	X=panel.I_sp+lag_matr_sp(q,args['lambda'])
+	try:
+		AMA_1=sp.linalg.inv(X)
+	except:
+		return None
+	if np.any(np.isnan(AMA_1.data)):
+		return None
+	AAR=panel.I_sp-lag_matr_sp(p,args['rho'])
+	AMA_1AR=fu.dot(AMA_1,AAR)
+	X=panel.I_sp-lag_matr_sp(k,args['gamma'])
+	try:
+		GAR_1=sp.linalg.inv(X)
+	except:
+		return None
+	if np.any(np.isnan(GAR_1.data)):
+		return None		
+	GMA=lag_matr_sp(m,args['psi'])
+	GAR_1MA=fu.dot(GAR_1,GMA)
+
+	return AMA_1.toarray(),AAR.toarray(),AMA_1AR.toarray(),GAR_1.toarray(),GMA.toarray(),GAR_1MA.toarray()
+
+
 
 def lag_matr_sp(panel,k,args):
 	T=panel.max_T
@@ -180,81 +196,82 @@ class direction:
 		self.gradient=calculus.gradient(panel)
 		self.hessian=calculus.hessian(panel)
 		self.panel=panel
-		self.constr=None
-		self.hessian_num=None
+		self.constr=4*[None]
+		self.hessin_num=np.diag(np.ones(panel.args.n_args))
 		self.g_old=None
-		self.do_shocks=True
 		
 		
-	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,):
+	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True):
 
 		g,G=self.gradient.get(ll,return_G=True)		
-		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv)
+		hessians=self.get_hessians(ll,mp,g,G,dxi)
+		
+		dx_list=[]
+		a=[]
 
-		out=output(print_on)
-		self.constr=constraints(self.panel.args,self.constr)
-		reset=False
-		if its>-1:
-			hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,hessian,k,its,out)
-		dc,constrained=solve(self.constr,hessian, g, ll.args_v)
-		dc_tmp=dc*1
-		for j in range(len(dc)):
-			s=dc*(constrained==0)*g
-			if np.sum(s)<0:#negative slope
-				s=np.argsort(s)
-				k=s[0]
-				remove(k, None, ll.args_v, None, out, self.constr, self.panel.name_vector, 'neg. slope')
-				dc,constrained=solve(self.constr,hessian, g, ll.args_v)
+		for i in range(len(hessians)):
+			if hessians[i][0] is None:
+				dx_list.append([None,hessians[i][1],None])
+				a.append([None,None])
 			else:
-				break
-
-		out.print()
+				out=output(print_on)
+				self.constr[i]=constraints(self.panel.args,self.constr[i])
+				hessian,reset=add_constraints(G,self.panel,ll,self.constr[i],mc_limit,dx_conv,hessians[i][0],k,its,out)
+				dc,constrained=solve(self.constr[i],hessian, g, ll.args_v)
+				dc_tmp=dc*1
+				for j in range(len(dc)):
+				
+					s=dc*(constrained==0)*g
+					if np.sum(s)<0:#negative slope
+						s=np.argsort(s)
+						remove(s[0], None, ll.args_v, None, out, self.constr[i], self.panel.name_vector, 'neg. slope')
+						dc,constrained=solve(self.constr[i],hessian, g, ll.args_v)
+					else:
+						break
+				#if np.all(dc==0):
+				#	dc=np.sign(g)*(np.abs(dc)==np.max(np.abs(dc)))
+				dx_list.append([dc,hessians[i][1],out])
+				a.append([constrained,reset])
 		
-			
-		return dc,g,G,hessian,constrained,reset
+		#the analytical solution at position 0 is the one returned and tested for convergence
+		dc,name,out=dx_list[0]
+		constrained,reset=a[0]
+		s=dc*(constrained==0)*g
+		if  np.sum(s)<0:
+			dc,name,out=dx_list[1]
+			constrained,reset=a[1]			
+		return dc,g,G,hessians[0][0],constrained,reset
 	
 
 	
-	def get_hessian(self,ll,mp,g,G,dxi,its,dx_conv):
-		
-		#hessinS0=rp.sandwich(hessian,G,0)
-		hessian=None
-		if ((its>=0 or its<3) and its>-1) or self.hessian_num is None:
-			hessian=self.hessian.get(ll,mp)
+	def get_hessians(self,ll,mp,g,G,dxi):
+		hessian=self.hessian.get(ll,mp)
+		hessinS0=rp.sandwich(hessian,G,0)
+		hessinS100=rp.sandwich(hessian,G,100)
 
-		elif (not self.g_old is None) and (not dxi is None):
-			print("Using numerical hessian")#could potentially be used to calculate the hessian nummerically for some iterations
-			hessian=self.hessian.get(ll,mp)#in order to gain speed, but it does not seem to help much. 
-			self.hessian_num=hessian			
-			hessin_num=hessin(self.hessian_num)
-			hessin_num=approximate_hessin(g,self.g_old,hessin_num,dxi)	
-			hessian=hessin(hessin_num)
-		else:
-			hessian=self.hessian_num
 		
-		I=np.diag(np.ones(len(hessian)))
-		m=1
-		if not dx_conv is None:
-			if max(dx_conv)>0.2:
-				hessian=hessian+m*I*hessian
-		else:
-			hessian=hessian+m*I*hessian
-		self.hessian_num=hessian
-			
+		if (not self.g_old is None) and (not dxi is None):
+			self.hessin_num=approximate_hessin(g,self.g_old,self.hessin_num,dxi)	
+		for i in range(len(hessinS0)):
+			hessinS0[i,i]=hessinS0[i,i]+(hessinS0[i,i]==0)	
+			hessinS100[i,i]=hessinS100[i,i]+(hessinS100[i,i]==0)
+			self.hessin_num[i,i]=self.hessin_num[i,i]+(self.hessin_num[i,i]==0)
+		try:
+			hessinS0=-np.linalg.inv(hessinS0)
+			hessS100=-np.linalg.inv(hessinS100)
+			hess_num=-np.linalg.inv(self.hessin_num)
+		except:
+			pass
 		self.g_old=g
 		
-		return hessian
-		
-	def get_hessian_analytical(self,ll,mp):
+		hessians=[
+		[hessian,		'analytic'],
+		[hessinS0,		'analytic sandwich 0 lags'],
+		[hessinS100,	'analytic sandwich 100 lags'],
+		[hess_num,	'numerical']
+		]
 
-		return hessian
-	
-def hessin(hessian):
-	try:
-		h=-np.linalg.inv(hessian)
-	except:
-		h=np.diag(np.ones(panel.args.n_args))	
-	return h
+		return hessians
 	
 def approximate_hessin(g,g_old,hessin,dxi):
 	if dxi is None:

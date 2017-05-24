@@ -9,49 +9,55 @@ import time
 
 digits_precision=7
 
+def lnsrch(f0, g, dx,panel,fast=False):
 
-def lnsrch(f0, g, dx,panel):
-	
 	s=g*dx
 	slope=np.sum(s)					#ensuring positive slope (should not be negative unless errors in gradient and/or hessian)
-	if slope <= 0.0:
-		print("Warning: Roundoff problem in lnsrch")
-		sel=dx*np.sign(g)==max(dx*np.sign(g))
-		g=sel*g
-		dx=sel*dx
-		slope=np.sum(g*dx)
 	if slope<=0:
+		print("Warning: Roundoff problem in lnsrch")
 		return f0
+	if fast:
+		m=0.01
+	else:
+		m=0.25
 	for i in range(15+len(dx)):#Setting lmda so that the largest step is valid. Set ll.LL to return None when input is invalid
-		lmda=0.5**i #Always try full Newton step first.
+		lmda=m**i #Always try full Newton step first.
 		if i>14:
 			dx=dx*(np.abs(dx)<max(np.abs(dx)))
 		x=f0.args_v+lmda*dx
 		f1=logl.LL(x,panel)
-		if f1.LL is not None:
+		if not f1.LL is None:
+			if fast:
+				if f1.LL<f0.LL:
+					return f0
+				else:
+					return f1
 			break
 	if i==14+len(x):
 		return f0
 	i=0
+	d={f0.LL:f0,f1.LL:f1}
+
 	while 1:
 		i+=1
 		f05=logl.LL(f0.args_v+lmda*(0.5**i)*dx,panel)
-		if not f05.LL is None:
+		if not f05.LL is None:		
 			break
-	d={f1.LL:f1,f05.LL:f05}
-	if f1.LL>f05.LL and f1.LL>f0.LL:
-		return f1
-	lmda_pred=lmda
-	if ((f1.LL-f0.LL)*(f1.LL-f05.LL)>0) and (f05.LL!=f0.LL):
-		lmda_pred = lmda*0.5*((f1.LL-f0.LL)+((f1.LL-f0.LL)*(f1.LL-f05.LL))**0.5)/(f05.LL-f0.LL)
-		lmda_pred = max((min((lmda_pred,lmda)),0.1))
-		f_lmda_pred=logl.LL(f0.args_v+lmda_pred*dx,panel) 
-		if not f_lmda_pred.LL is None:
-			d[f_lmda_pred.LL]=f_lmda_pred
+	d[f05.LL]=f05
+
+	b=-(4*(f0.LL-f05.LL)+(f1.LL-f0.LL))/lmda
+	c=2*((f0.LL-f05.LL)+(f1.LL-f05.LL))/(lmda**2)
+	lambda_pred=lmda*0.25
+	if c<0 and b>0:#concave increasing function
+		lambda_pred=-b/(2*c)
+		f_pred=logl.LL(f0.args_v+lambda_pred*dx,panel) 
+		if not f_pred.LL is None:	
+			d[f_pred.LL]=f_pred
+	
 	f_max=max(d.keys())
-	if f_max<=f0.LL:#the function has not increased
+	if f_max==f0.LL:#the function has not increased
 		for j in range(1,6):
-			lmda=lmda_pred*(0.05**j)
+			lmda=lambda_pred*(0.05**j)
 			ll=logl.LL(f0.args_v+lmda*dx,panel) 
 			if ll.LL is None:
 				break
@@ -61,19 +67,7 @@ def lnsrch(f0, g, dx,panel):
 		return d[f_max]
 	return f0#should never happen
 
-def lnsrch_approx(f0,ll_exact, g, dx,panel):	
-	for i in range(2):
-		lmda=0.5**i
-		x=f0.args_v+lmda*dx
-		ll=logl.LL(x,panel)
-		if not ll.LL is None:
-			break
-	if ll.LL<ll_exact.LL:
-		return ll
-	print("Using approximate hessian")
-	return ll_exact
-
-def maximize(panel,direction,mp,precheck,args=None,_print=True):
+def maximize(panel,direction,mp,direction_testing,args=None,_print=True):
 	"""Maxmizes logl.LL"""
 	
 	
@@ -95,11 +89,12 @@ def maximize(panel,direction,mp,precheck,args=None,_print=True):
 	H=None
 	dxi=None
 	g=None
-	if precheck:
-		ll=pretest(ll, panel,direction,mp)
+	if direction_testing:
+		ll=dirtest(ll, panel,direction,mp)
+	direction.hessin_num=None
 	while 1:  
 		its+=1
-		dx,dx_approx,g,G,H,constrained,reset=direction.get(ll,mc_limit,dx_conv,k,its,mp,g_old=g,dxi=dxi)
+		dx,g,G,H,constrained,reset=direction.get(ll,mc_limit,dx_conv,k,its,mp,dxi=dxi)
 		if reset:
 			k=0
 		f0=ll
@@ -112,7 +107,7 @@ def maximize(panel,direction,mp,precheck,args=None,_print=True):
 			if _print: print("Convergence on zero gradient; maximum identified")
 			return ll,g,G,H,1
 		ll=lnsrch(ll,g,dx,panel) 
-		ll=lnsrch_approx(f0,ll,g,dx,panel) 
+
 		panel.args_bank.save(ll.args_d,0)
 		
 		dxi=f0.args_v-ll.args_v
@@ -138,7 +133,7 @@ def round_sign(x,n):
 	return round(x, -int(np.log10(abs(x)))+n-1)
 
 
-def pretest(ll,panel,direction,mp=None):
+def dirtest(ll,panel,direction,mp=None):
 	#dx,dx_approx,g,G,H,constrained,reset=direction.get(ll,1000,None,0,0,mp)
 	#ll=lnsrch(ll,g,dx,panel)
 	ll.standardize(panel)
@@ -194,7 +189,8 @@ def pretest_func(panel,direction,args):
 	
 	if ll_new.LL is None:
 		return None
-	dx,dx_approx,g,G,H,constrained,reset=direction.get(ll_new,1000,False,0,0,print_on=False)
+	dx,g,G,H,constrained,reset=direction.get(ll_new,1000,False,0,0,print_on=False)
+
 	ll_new=lnsrch(ll_new,g,dx,panel) 
 	
 	return ll_new
@@ -206,17 +202,20 @@ def pretest_sub(ll,categories,panel,direction,mp):
 	args_d=ll.copy_args_d()
 	for i in vals:
 		for j in vals:
+			#if np.sign(i)==np.sign(i) or np.sign(i)>0:
+			#	break
 			for k in [0,1]:
 				if len(args_d[c[k]])>0:
 					args_d[c[k]][0]=[i,j][k]
 			#impose_OLS(ll,args_d, panel)
 			ll_new=logl.LL(args_d,panel)
 			try:
-				dx,dx_approx,g,G,H,constrained,reset=direction.get(ll_new,1000,None,0,0,mp)
+				dx,g,G,H,constrained,reset=direction.get(ll_new,1000,None,0,-1,mp)
 			except:
 				return max_ll
-			ll_new=lnsrch(ll_new,g,dx,panel) 
-			print('pretest LL: %s  Max LL: %s' %(ll_new.LL,max_ll.LL))
+			ll_new=lnsrch(ll_new,g,dx,panel,True) 
+			catstr="(%s,%s)" %tuple(c)
+			print('Direction test %s=(%s,%s) LL: %s  Max LL: %s' %(catstr,i,j,ll_new.LL,max_ll.LL))
 			if ll_new.LL>max_ll.LL:
 				max_ll=ll_new
 	return max_ll
@@ -232,7 +231,7 @@ def printout(_print,ll,dx_conv,panel):
 	norm_prob=stat.JB_normality_test(ll.e_st,panel)	
 	if _print: 
 		print("LL: %s Normality probability: %s " %(ll.LL,norm_prob))
-		print("New direction in %% of argument: \n%s" %(np.round(dx_conv*100,2),))	
+		print("New direction as fraction of argument: \n%s" %(np.round(dx_conv,2),))	
 		print("Coefficients : \n%s" %(ll.args_v,))	
 		
 		

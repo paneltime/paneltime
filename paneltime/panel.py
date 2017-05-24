@@ -261,6 +261,8 @@ class arguments:
 		self.categories=['beta','rho','lambda','gamma','psi','omega','mu','z']
 		self.set_init_args(p, d, q, m, k,panel, args,has_intercept)
 		self.position_defs()
+		N,T,b=panel.X.shape
+		self.n_args=b+p+q+m+k+(m>0)*2+panel.W.shape[2]-(N==1)
 
 	def initargs(self,p,d,q,m,k,panel):
 		args=dict()
