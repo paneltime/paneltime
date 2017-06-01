@@ -255,7 +255,15 @@ def dd_func_mult(d0,mult,d1):
 	d0=d0*mult
 	d0=np.reshape(d0,(N,T,k,1))
 	d1=np.reshape(d1,(N,T,1,m))
-	x=np.sum(np.sum(d0*d1,0),0)#->k x m 
+	try:
+		x=np.sum(np.sum(d0*d1,0),0)#->k x m 
+	except RuntimeWarning as e:
+		if e.args[0]=='overflow encountered in multiply':
+			d0=np.minimum(np.maximum(d0,-1e+100),1e+100)
+			d1=np.minimum(np.maximum(d1,-1e+100),1e+100)
+			x=np.sum(np.sum(d0*d1,0),0)#->k x m 
+		else:
+			raise RuntimeWarning(e)
 	return x
 
 
@@ -281,7 +289,7 @@ def sandwich(H,G,lags=3,ret_hessin=False):
 def add_names(T,namsestr,names,start=0):
 	a=[]
 	for i in range(start,T):
-		a.append(namsestr+str(i))
+		a.append(namsestr %(i,))
 	names.extend(a)
 	
 

@@ -7,7 +7,7 @@ import functions as fu
 import time
 import debug
 import os
-
+import multi_core
 
 class gradient:
 	
@@ -118,6 +118,7 @@ class hessian:
 	def __init__(self,panel):
 		self.panel=panel
 		self.its=0
+		self.sec_deriv=self.set_mp_strings()
 		
 	
 	def get(self,ll,mp):	
@@ -247,72 +248,10 @@ class hessian:
 		HWH=np.dot(H.T,WH)
 		return H
 	
-	
-	
+
+
 	def second_derivatives_mp(self,ll,mp):
 		panel=self.panel
-		if self.its==0:
-			
-			#these are all "k x T x T" matrices:
-			evalstr=[]		
-			#strings are evaluated for the code to be compatible with multi core proccessing
-			evalstr.append("""
-				            GARM=rp.ARMA_product(ll.GAR_1,panel.L,panel.m)
-				            GARK=rp.ARMA_product(ll.GAR_1,panel.L,panel.k)
-
-				            d2lnv_gamma2		=   rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_gamma,						ll.dLL_lnv,  transpose=True)
-				            d2lnv_gamma_psi		=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_psi,						ll.dLL_lnv)
-
-				            d2lnv_gamma_rho		=	rp.dd_func_lags(panel,ll,GARK,	ll.dlnv_e_rho_G,					ll.dLL_lnv)
-				            d2lnv_gamma_lambda	=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_e_lambda_G,					ll.dLL_lnv)
-				            d2lnv_gamma_beta	=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_e_beta_G,					ll.dLL_lnv)
-				            d2lnv_gamma_z		=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_z_G,						ll.dLL_lnv)
-
-				            d2lnv_psi_rho		=	rp.dd_func_lags(panel,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_rho)),	ll.dLL_lnv)
-				            d2lnv_psi_lambda	=	rp.dd_func_lags(panel,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_lambda)),	ll.dLL_lnv)
-				            d2lnv_psi_beta		=	rp.dd_func_lags(panel,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_beta)),	ll.dLL_lnv)
-				            d2lnv_psi_z			=	rp.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,							ll.dLL_lnv)
-			                GARM=0#Releases memory
-			                GARK=0#Releases memory
-				            """)
-			#ARCH:
-			evalstr.append("""
-				            AMAq=-rp.ARMA_product(ll.AMA_1,panel.L,panel.q)
-				            d2lnv_lambda2,		d2e_lambda2		=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_lambda,	'lambda',	'lambda', transpose=True)
-				            d2lnv_lambda_rho,	d2e_lambda_rho	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_rho,		'lambda',	'rho' )
-				            d2lnv_lambda_beta,	d2e_lambda_beta	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_beta,		'lambda',	'beta')
-			                AMAq=0#Releases memory
-				            """)
-			evalstr.append("""		
-
-				            AMAp=-rp.ARMA_product(ll.AMA_1,panel.L,panel.p)
-				            d2lnv_rho_beta,		d2e_rho_beta	=	rp.dd_func_lags_mult(panel,ll,AMAp,	ll.de_rho,		ll.de_beta,		'rho',		'beta', de_zeta_u=-panel.X)
-
-			                d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
-			                if panel.N>1:
-
-			                	d2lnv_mu_rho			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.h_e_val,ll.de_rho)),	ll.dLL_lnv, 	addavg=1) 
-				            	d2lnv_mu_lambda			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.h_e_val,ll.de_lambda)),	ll.dLL_lnv, 	addavg=1) 
-				            	d2lnv_mu_beta			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.h_e_val,ll.de_beta)),	ll.dLL_lnv, 	addavg=1) 
-				            	d2lnv_mu_z				=	rp.dd_func_lags(panel,ll,None, 		ll.h_z_val,							ll.dLL_lnv, 	addavg=1) 
-			                    mu=ll.args_d['mu']
-			                
-				            d2lnv_z2				=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, ll.h_2z_val,						ll.dLL_lnv, 	addavg=mu) 
-				            d2lnv_z_rho				=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_rho)),	ll.dLL_lnv, 	addavg=mu) 
-				            d2lnv_z_lambda			=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_lambda)),ll.dLL_lnv, 	addavg=mu) 
-				            d2lnv_z_beta			=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_beta)),	ll.dLL_lnv, 	addavg=mu) 
-
-				            d2lnv_rho2,	d2e_rho2	=	rp.dd_func_lags_mult(panel,ll,	None,	ll.de_rho,		ll.de_rho,		'rho',		'rho' )
-			                AMAp=0#Releases memory
-				            """)
-			evalstr.append("""	
-
-				            d2lnv_beta2,d2e_beta2	=	rp.dd_func_lags_mult(panel,ll,	None,	ll.de_beta,		ll.de_beta,		'beta',		'beta')
-				            """)
-
-			self.sec_deriv=mp.format_args_array(evalstr)	
-				
-
 		mp.send_dict({'ll':ll_light(ll)},'dynamic dictionary')	
 		d=mp.execute(self.sec_deriv)
 
@@ -326,6 +265,68 @@ class hessian:
 		(d['dlnv_mu'], d['dlnv_z'])=(ll.dlnv_mu, ll.dlnv_z)		
 
 		return d
+	
+	def set_mp_strings(self):
+		#these are all "k x T x T" matrices:
+		evalstr=[]		
+		#strings are evaluated for the code to be compatible with multi core proccessing
+		evalstr.append("""
+			                    GARM=rp.ARMA_product(ll.GAR_1,panel.L,panel.m)
+			                    GARK=rp.ARMA_product(ll.GAR_1,panel.L,panel.k)
+	
+			                    d2lnv_gamma2		=   rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_gamma,						ll.dLL_lnv,  transpose=True)
+			                    d2lnv_gamma_psi		=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_psi,						ll.dLL_lnv)
+	
+			                    d2lnv_gamma_rho		=	rp.dd_func_lags(panel,ll,GARK,	ll.dlnv_e_rho_G,					ll.dLL_lnv)
+			                    d2lnv_gamma_lambda	=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_e_lambda_G,					ll.dLL_lnv)
+			                    d2lnv_gamma_beta	=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_e_beta_G,					ll.dLL_lnv)
+			                    d2lnv_gamma_z		=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_z_G,						ll.dLL_lnv)
+	
+			                    d2lnv_psi_rho		=	rp.dd_func_lags(panel,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_rho)),	ll.dLL_lnv)
+			                    d2lnv_psi_lambda	=	rp.dd_func_lags(panel,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_lambda)),	ll.dLL_lnv)
+			                    d2lnv_psi_beta		=	rp.dd_func_lags(panel,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_beta)),	ll.dLL_lnv)
+			                    d2lnv_psi_z			=	rp.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,							ll.dLL_lnv)
+			                    GARM=0#Releases memory
+			                    GARK=0#Releases memory
+			                    """)
+		#ARCH:
+		evalstr.append("""
+			                    AMAq=-rp.ARMA_product(ll.AMA_1,panel.L,panel.q)
+			                    d2lnv_lambda2,		d2e_lambda2		=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_lambda,	'lambda',	'lambda', transpose=True)
+			                    d2lnv_lambda_rho,	d2e_lambda_rho	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_rho,		'lambda',	'rho' )
+			                    d2lnv_lambda_beta,	d2e_lambda_beta	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_beta,		'lambda',	'beta')
+			                    AMAq=0#Releases memory
+			                    """)
+		evalstr.append("""		
+	
+			                    AMAp=-rp.ARMA_product(ll.AMA_1,panel.L,panel.p)
+			                    d2lnv_rho_beta,		d2e_rho_beta	=	rp.dd_func_lags_mult(panel,ll,AMAp,	ll.de_rho,		ll.de_beta,		'rho',		'beta', de_zeta_u=-panel.X)
+	
+			                    d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
+			                    if panel.N>1:
+	
+			                        d2lnv_mu_rho			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.h_e_val,ll.de_rho)),	ll.dLL_lnv, 	addavg=1) 
+			                        d2lnv_mu_lambda			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.h_e_val,ll.de_lambda)),	ll.dLL_lnv, 	addavg=1) 
+			                        d2lnv_mu_beta			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.h_e_val,ll.de_beta)),	ll.dLL_lnv, 	addavg=1) 
+			                        d2lnv_mu_z				=	rp.dd_func_lags(panel,ll,None, 		ll.h_z_val,							ll.dLL_lnv, 	addavg=1) 
+			                        mu=ll.args_d['mu']
+	
+			                    d2lnv_z2				=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, ll.h_2z_val,						ll.dLL_lnv, 	addavg=mu) 
+			                    d2lnv_z_rho				=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_rho)),	ll.dLL_lnv, 	addavg=mu) 
+			                    d2lnv_z_lambda			=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_lambda)),ll.dLL_lnv, 	addavg=mu) 
+			                    d2lnv_z_beta			=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_beta)),	ll.dLL_lnv, 	addavg=mu) 
+	
+			                    d2lnv_rho2,	d2e_rho2	=	rp.dd_func_lags_mult(panel,ll,	None,	ll.de_rho,		ll.de_rho,		'rho',		'rho' )
+			                    AMAp=0#Releases memory
+			                    """)
+		evalstr.append("""	
+	
+			                    d2lnv_beta2,d2e_beta2	=	rp.dd_func_lags_mult(panel,ll,	None,	ll.de_beta,		ll.de_beta,		'beta',		'beta')
+			                    """)
+	
+		return multi_core.format_args_array(evalstr)	
+
+
 
 	def hessian_mp(self,ll,mp):
 		panel=self.panel

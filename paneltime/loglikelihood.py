@@ -25,6 +25,7 @@ class LL:
 		self.h_err=""
 		self.h_def=panel.h_def
 		self.NT=panel.NT
+		
 
 		try:
 			self.LL=self.LL_calc(panel,X)
@@ -48,6 +49,9 @@ class LL:
 		
 		if matrices is None:
 			return None		
+		
+		matrices=set_garch_arch(panel,args)
+		
 		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 		(N,T,k)=panel.X.shape
 
@@ -122,17 +126,26 @@ class LL:
 	
 
 
-def set_garch_arch(panel,args):
+def set_garch_arch(panel,args,fast=False):
+
 
 	p,q,m,k,nW=panel.p,panel.q,panel.m,panel.k,panel.nW
 	X=panel.I+lag_matr(panel.L,panel.zero,q,args['lambda'])
-
-	try:
-		AMA_1=inv_banded(X,q,panel)
-	except:
-		return None
-	if np.any(np.isnan(AMA_1)):
-		return None
+	
+	if fast:
+		try:
+			AMA_1=inv_banded(X,q,panel)
+		except:
+			return None
+		if np.any(np.isnan(AMA_1)):
+			return None
+	else:
+		try:
+			AMA_1=inv_banded(X,q,panel)
+		except:
+			return None
+		if np.any(np.isnan(AMA_1)):
+			return None		
 	
 	AAR=panel.I-lag_matr(panel.L,panel.zero,p,args['rho'])
 	AMA_1AR=fu.dot(AMA_1,AAR)
@@ -146,6 +159,7 @@ def set_garch_arch(panel,args):
 	GMA=lag_matr(panel.L,panel.zero,m,args['psi'])	
 	GAR_1MA=fu.dot(GAR_1,GMA)
 	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
+
 
 def inv_banded(X,k,panel):
 	n=len(X)
@@ -326,7 +340,10 @@ def solve(constr,H, g, x):
 
 def remove_constants(panel,G,include,constr,out,names):
 	N,T,k=G.shape
-	v=stat.var(panel,G)
+	try:
+		v=stat.var(panel,G)
+	except:
+		return
 	for i in range(1,k):
 		if v[0][i]==0:
 			include[i]=False
@@ -438,7 +455,10 @@ def correl_groups(p):
 def remove_one_multicoll(G,args,names,include,out,constr,limit):
 	n=len(include)
 	T,N,k=G.shape
-	c_index,var_prop=stat.var_decomposition(X=G[:,:,include])
+	try:
+		c_index,var_prop=stat.var_decomposition(X=G[:,:,include])
+	except:
+		return False
 	zeros=np.zeros(len(c_index))
 	c_index=c_index.flatten()
 	for i in range(k):

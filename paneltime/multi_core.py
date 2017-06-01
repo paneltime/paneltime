@@ -140,21 +140,6 @@ def write(f,txt):
 	f.write(str(txt)+'\n')
 	f.flush()
 
-def format_args(x,run_mp):
-	if not run_mp:
-		x=x.replace('rp.','')
-	x=x.replace('\t','    ')
-	n=0
-	xarr=x.split('\n')
-	newx=[]
-	for j in xarr:
-		k=len(j.lstrip())
-		if k>0 and len(newx)==0:
-			n=len(j)-k
-		if k>0:
-			newx.append(j[n:])
-	newx='\n'.join(newx)
-	return newx
 
 class multiprocess:
 	def __init__(self):
@@ -192,7 +177,23 @@ class multiprocess:
 		if str(type(self.master))=="<class 'multi_core.master'>":
 			self.master.send_dict(d,instructions)
 			
-	def format_args_array(self,arg_array,run_mp=True):
-		for i in range(len(arg_array)):
-			arg_array[i]=format_args(arg_array[i], run_mp)
-		return arg_array	
+def format_args_array(arg_array,run_mp=True):
+	for i in range(len(arg_array)):
+		arg_array[i]=format_args(arg_array[i], run_mp)
+	return arg_array	
+
+def format_args(x,run_mp):
+	if not run_mp:
+		x=x.replace('rp.','')
+	x=x.replace('\t','    ')
+	n=0
+	xarr=x.split('\n')
+	newx=[]
+	for j in xarr:
+		k=len(j.lstrip())
+		if k>0 and len(newx)==0:
+			n=len(j)-k
+		if k>0:
+			newx.append(j[n:])
+	newx='\n'.join(newx)
+	return newx

@@ -104,10 +104,10 @@ class panel:
 		"""Creates a vector of the names of all regression varaibles, including variables, ARIMA and GARCH terms"""
 		p,q,m,k,nW=self.p,self.q,self.m,self.k,self.nW
 		names=self.x_names[:]#copy variable names
-		rp.add_names(p,'AR term ',names)
-		rp.add_names(q,'MA term ',names)
-		rp.add_names(m,'MACH term ',names)
-		rp.add_names(k,'ARCH term ',names)
+		rp.add_names(p,'AR term %s (p)',names)
+		rp.add_names(q,'MA term %s (q)',names)
+		rp.add_names(m,'MACH term %s (m)',names)
+		rp.add_names(k,'ARCH term %s (k)',names)
 		names.extend(self.w_names)
 		if self.m>0:
 			if self.N>1:

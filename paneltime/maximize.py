@@ -228,7 +228,21 @@ def printout(_print,ll,dx_conv,panel):
 	norm_prob=stat.JB_normality_test(ll.e_st,panel)	
 	if _print: 
 		print("LL: %s Normality probability: %s " %(ll.LL,norm_prob))
-		print("New direction as fraction of argument: \n%s" %(np.round(dx_conv,2),))	
-		print("Coefficients : \n%s" %(ll.args_v,))	
+		a='['
+		k=0
+		for i in np.round(dx_conv*100,2):
+			k+=1
+			if k==6:
+				k=0
+				a=a+(str(i)+ '00')[0:4].rjust(9) + ' %,\n'
+			elif k==1 and a=='[':
+				a=a+(str(i)+ '00')[0:4].rjust(9) + ' %,'
+			elif k==1:
+				a=a+(str(i)+ '00')[0:4].rjust(10) + ' %,'
+			else:
+				a=a+(str(i)+ '00')[0:4].rjust(9) + ' %,'
+		print("New direction as fraction of argument: \n%s" %(a[:-1]+']',))
+		print("Coefficients : \n%s" %(ll.args_v,))
+
 		
 		

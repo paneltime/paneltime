@@ -20,12 +20,12 @@ class args_bank:
 	
 	def __init__(self,X, Y, groups, W,loadargs):
 		"""Load parameters if a similar model has been estimated before"""  
+		self.model_key=get_model_key(X, Y, groups, W)
 		self.session_db=load_obj()
 		if (not loadargs) or (self.session_db is None):
 			self.model_key=None
 			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=(None,0,None,None)
 			return
-		self.model_key=get_model_key(X, Y, groups, W)
 		(d,a)=self.session_db
 		if self.model_key in d.keys():
 			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=d[self.model_key]
@@ -45,8 +45,8 @@ class args_bank:
 		f=open(fname, "w+b")
 		if not self.session_db is None:
 			d,a=self.session_db#d is d dictionary, and a is a sequental list that allows us to remove the oldest entry when the database is full
-			if len(a)>max_sessions:
-				d.pop(a.pop(),None)
+			if (len(a)>max_sessions) and (not self.model_key in d):
+				d.pop(a.pop(0))
 		else:
 			d=dict()
 			a=[]
