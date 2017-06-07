@@ -88,7 +88,7 @@ def maximize(panel,args=None,_print=True):
 		dx_conv=(ll.args_v==0)*dx+dx_conv
 		printout(_print, ll, dx_conv,panel)
 		#Convergence test:
-		if np.max(dx_conv) < convergence_limit:  #max direction smaller than convergence_limit -> covergence
+		if np.max(dx_conv) < convergence_limit and (its>3 or  np.sum(constrained)<=2):  #max direction smaller than convergence_limit -> covergence
 			if _print: print("Convergence on zero gradient; maximum identified")
 			return ll,g,G,H,1
 		ll=lnsrch(ll,g,dx,panel) 
@@ -118,7 +118,7 @@ def round_sign(x,n):
 
 def printout(_print,ll,dx_conv,panel):
 	ll.standardize(panel)
-	norm_prob=stat.JB_normality_test(ll.e_st,panel.df)	
+	norm_prob=stat.JB_normality_test(ll.e_st,panel)	
 	if _print: 
 		print("LL: %s Normality probability: %s " %(ll.LL,norm_prob))
 		print("New direction in %% of argument: \n%s" %(np.round(dx_conv*100,2),))	

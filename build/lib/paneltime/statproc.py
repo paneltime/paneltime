@@ -135,7 +135,7 @@ def adf_test(panel,ll,p):
 	adf_stat=beta[2]/se[2]
 	critval=adf_crit_values(panel.NT,True)
 	res=np.append(adf_stat,critval)
-	return 
+	return res
 
 def goodness_of_fit(panel,ll):
 	v0=std(panel,ll.e_st,total=True)**2
@@ -143,10 +143,18 @@ def goodness_of_fit(panel,ll):
 	v1=std(panel,y,total=True)**2
 	Rsq=1-v0/v1
 	Rsqadj=1-(v0/v1)*(panel.NT_afterloss-1)/(panel.NT_afterloss-panel.len_args-1)
-	LL_OLS=panel.LL(panel.args.args_OLS).LL
-	LL_args_restricted=panel.LL(panel.args.args_restricted).LL
-	LL_ratio_OLS=2*(ll.LL-LL_OLS)
-	LL_ratio=2*(ll.LL-LL_OLS)
+	LL_OLS=panel.LL(panel.args.args_OLS)
+	if not LL_OLS is None:
+		LL_OLS=LL_OLS.LL
+		LL_ratio_OLS=2*(ll.LL-LL_OLS)
+	else:
+		LL_ratio_OLS=None
+	LL_args_restricted=panel.LL(panel.args.args_restricted)
+	if not LL_args_restricted is None:
+		LL_args_restricted=LL_args_restricted.LL
+		LL_ratio=2*(ll.LL-LL_args_restricted)
+	else:
+		LL_ratio=None
 	return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS
 
 
@@ -199,18 +207,19 @@ def adf_crit_values(n,trend):
 	if r is None:
 		return d[10000]
 
-def JB_normality_test(errVec,df=None):
+def JB_normality_test(e,panel):
 	"""Jarque-Bera test for normality. 
 	returns the probability that a set of residuals are drawn from a normal distribution"""
-	nObs=len(errVec)
-	if df is None: df=nObs
-	RSS=np.sum(errVec**2)
-	Skewness=np.sum(errVec**3)
-	Kurtosis=np.sum(errVec**4)
-	Skewness=(df**0.5)*Skewness/(RSS**1.5)#For the JB test we use the LL estimates for consitency
-	Kurtosis=(df*Kurtosis/(RSS**2))-3
-	statistic=df*(Skewness*Skewness+0.25*Kurtosis*Kurtosis)/6.0 #JB
-	return 1.0-chisq_dist(statistic,2)
+	N,T,k=e.shape
+	e=e*panel.included
+	df=panel.NT_afterloss
+	s=(np.sum(e**2)/df)**0.5
+	mu3=np.sum(e**3)/df
+	mu4=np.sum(e**4)/df
+	S=mu3/s**3
+	C=mu4/s**4
+	JB=df*((S**2)+0.25*(C-3)**2)/6.0
+	return 1.0-chisq_dist(JB,2)
 
 
 def correl(X,panel=None):
@@ -310,6 +319,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_
 		X=np.concatenate((c,X),2)
 		k=k+1
 	X=X*c
+	Y=Y*c
 	XX=fu.dot(X,X)
 	XXInv=np.linalg.inv(XX)
 	XY=fu.dot(X,Y)
@@ -351,7 +361,7 @@ def newey_west_wghts(L,X=None,err_vec=None,XErr=None):
 		XErr=X*err_vec
 	N,T,k=XErr.shape
 	S=fu.dot(XErr,XErr)#Whites heteroscedasticity consistent weighting matrix
-	for i in range(L):
+	for i in range(min(L,T)):
 		w=1-(i+1)/(L)
 		S+=w*fu.dot(XErr[:,i:],XErr[:,0:T-i])
 		S+=w*fu.dot(XErr[:,0:T-i],XErr[:,i:])

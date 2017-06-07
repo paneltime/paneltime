@@ -8,6 +8,7 @@ import time
 import debug
 import os
 import multi_core
+import loglikelihood as logl
 
 class gradient:
 	

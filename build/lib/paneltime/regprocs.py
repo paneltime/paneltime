@@ -6,6 +6,14 @@ import time
 import statproc as stat
 import functions as fu
 
+def lag_matr(L,zero,k,args):
+	if k==0:
+		return zero
+	a=[]
+	for i in range(k):
+		a.append(args[i]*L[i])
+	a=np.sum(a,0)
+	return a
 
 def dd_func_lags_mult(panel,ll,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de_zeta_u=None):
 	#de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"
@@ -83,10 +91,11 @@ def RE(ll,panel,e,recalc=True):
 	"""Following Greene(2012) p. 413-414"""
 	if panel.FE_RE==0:
 		return e
-	ll.eFE=FE(panel,e)
+	eFE=FE(panel,e)
 	if panel.FE_RE==1:
 		return ll.eFE
 	if recalc:
+		ll.eFE=eFE
 		ll.vLSDV=np.sum(ll.eFE**2)/panel.NT_afterloss
 		ll.theta=(1-np.sqrt(ll.vLSDV/(panel.grp_v*panel.n_i)))*panel.included
 		ll.theta=np.maximum(ll.theta,0)
@@ -227,21 +236,35 @@ def concat_marray(matrix_array):
 h_err=""
 
 def redefine_h_func(h_definition):
-
-	if not h_definition is None:
-		try:
-			exec(h_definition)	
-		except IndentationError:
-			h_list=h_definition.split('\n')
-			n=h_list[0].find('def h(')
-			if n<0:
-				raise RuntimeError('The h-funtion must be defined as  "def h(..."')
-			if n>0:
-				for i in range(len(h_list)):
-					h_list[i]=h_list[i][n:]
-			h_definition='\n'.join(h_list)
-			exec(h_definition,globals(),globals())
-			pass
+	global h
+	if h_definition is None:
+		h_definition="""
+def h(e,z):
+	e2=e**2+z
+	i=np.abs(e2)<1e-100
+	h_val		=	 np.log(e2+i)	
+	h_e_val		=	 2*e/(e2+i)
+	h_2e_val	=	 2*(z-e**2)/((e2+i)**2)
+	h_z_val		=	 1/(e2+i)
+	h_2z_val	=	-1/(e2+i)**2
+	h_ez_val	=	-2*e/(e2+i)**2
+	return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
+"""	
+	d=dict()
+	try:
+		exec(h_definition,globals(),locals())
+	except IndentationError:
+		h_list=h_definition.split('\n')
+		n=h_list[0].find('def h(')
+		if n<0:
+			raise RuntimeError('The h-funtion must be defined as  "def h(..."')
+		if n>0:
+			for i in range(len(h_list)):
+				h_list[i]=h_list[i][n:]
+		h_definition='\n'.join(h_list)
+		exec(h_definition,globals(),locals())
+		pass
+	h=locals()['h']
 
 def h_func(e,z):
 	global h_err
@@ -253,18 +276,6 @@ def h_func(e,z):
 		h_err=str(e)
 	else:
 		h_err="none"
-		
-
-def h(e,z):
-	e2=e**2+z
-	i=np.abs(e2)<1e-100
-	h_val		=	 np.log(e2+i)	
-	h_e_val		=	 2*e/(e2+i)
-	h_2e_val	=	 2*(z-e**2)/((e2+i)**2)
-	h_z_val		=	 1/(e2+i)
-	h_2z_val	=	-1/(e2+i)**2
-	h_ez_val	=	-2*e/(e2+i)**2
-	return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
 
 def format_args_array(arg_array,master):
 	for i in range(len(arg_array)):
@@ -404,12 +415,14 @@ def solve(constr,H, g, x):
 	constrained=np.sum(H[n:,:n],0)
 	return xi[:n],constrained
 
-def sandwich(H,G,lags=3):
+def sandwich(H,G,lags=3,ret_hessin=False):
 	hessin=np.linalg.inv(-H)
 	V=stat.newey_west_wghts(lags,XErr=G)
 	hessinV=fu.dot(hessin,V)
-	sandwich=fu.dot(hessinV,hessin)
-	return sandwich
+	sandw=fu.dot(hessinV,hessin)
+	if ret_hessin:
+		return sandw,hessin
+	return sandw
 
 def add_names(T,namsestr,names,start=0):
 	a=[]
