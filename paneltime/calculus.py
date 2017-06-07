@@ -17,16 +17,14 @@ class gradient:
 	def arima_grad(self,k,x,sign=1,pre=None):
 		if k==0:
 			return None
-		L=self.panel.L
+
 		(N,T,m)=x.shape
 		#L is "T x T" 
 		#x is "N x T x 1"  
 		#creates a  "k x T x N x 1": 
-		x=np.array([np.dot(L[i],x) for i in range(k)])
-		#reshapes to  "1 x T x N x k": 
-		x=np.swapaxes(x,0,3)
+		x=np.array([rp.roll(x,i+1,1) for i in range(k)])
 		#reshapes to  "N x T x k": 
-		x=np.swapaxes(x,1,2).reshape((N,T,k))
+		x=np.swapaxes(x,0,3).reshape((N,T,k))
 		if not pre is None:
 			x=fu.dot(pre,x)
 		if sign<0:
@@ -130,8 +128,8 @@ class hessian:
 	def hessian(self,ll):
 		panel=self.panel
 		tic=time.clock()
-		GARM=rp.ARMA_product(ll.GAR_1,panel.L,panel.m)
-		GARK=rp.ARMA_product(ll.GAR_1,panel.L,panel.k)
+		GARM=rp.ARMA_product(ll.GAR_1,panel.m)
+		GARK=rp.ARMA_product(ll.GAR_1,panel.k)
 
 		d2lnv_gamma2		=   rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_gamma,						ll.dLL_lnv,  transpose=True)
 		d2lnv_gamma_psi		=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_psi,						ll.dLL_lnv)
@@ -146,12 +144,12 @@ class hessian:
 		d2lnv_psi_beta		=	rp.dd_func_lags(panel,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_beta)),	ll.dLL_lnv)
 		d2lnv_psi_z			=	rp.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,							ll.dLL_lnv)
 
-		AMAq=-rp.ARMA_product(ll.AMA_1,panel.L,panel.q)
+		AMAq=-rp.ARMA_product(ll.AMA_1,panel.q)
 		d2lnv_lambda2,		d2e_lambda2		=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_lambda,	'lambda',	'lambda', transpose=True)
 		d2lnv_lambda_rho,	d2e_lambda_rho	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_rho,		'lambda',	'rho' )
 		d2lnv_lambda_beta,	d2e_lambda_beta	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_beta,		'lambda',	'beta')
 
-		AMAp=-rp.ARMA_product(ll.AMA_1,panel.L,panel.p)
+		AMAp=-rp.ARMA_product(ll.AMA_1,panel.p)
 		d2lnv_rho_beta,		d2e_rho_beta	=	rp.dd_func_lags_mult(panel,ll,AMAp,	ll.de_rho,		ll.de_beta,		'rho',		'beta', de_zeta_u=-panel.X)
 		
 		d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
@@ -271,8 +269,13 @@ class hessian:
 		evalstr=[]		
 		#strings are evaluated for the code to be compatible with multi core proccessing
 		evalstr.append("""
+<<<<<<< HEAD
 			                    GARM=rp.ARMA_product(ll.GAR_1,panel.L,panel.m)
 			                    GARK=rp.ARMA_product(ll.GAR_1,panel.L,panel.k)
+=======
+			                    GARM=rp.ARMA_product(ll.GAR_1,panel.m)
+			                    GARK=rp.ARMA_product(ll.GAR_1,panel.k)
+>>>>>>> refs/remotes/origin/master
 	
 			                    d2lnv_gamma2		=   rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_gamma,						ll.dLL_lnv,  transpose=True)
 			                    d2lnv_gamma_psi		=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_psi,						ll.dLL_lnv)
@@ -291,7 +294,11 @@ class hessian:
 			                    """)
 		#ARCH:
 		evalstr.append("""
+<<<<<<< HEAD
 			                    AMAq=-rp.ARMA_product(ll.AMA_1,panel.L,panel.q)
+=======
+			                    AMAq=-rp.ARMA_product(ll.AMA_1,panel.q)
+>>>>>>> refs/remotes/origin/master
 			                    d2lnv_lambda2,		d2e_lambda2		=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_lambda,	'lambda',	'lambda', transpose=True)
 			                    d2lnv_lambda_rho,	d2e_lambda_rho	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_rho,		'lambda',	'rho' )
 			                    d2lnv_lambda_beta,	d2e_lambda_beta	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_beta,		'lambda',	'beta')
@@ -299,7 +306,11 @@ class hessian:
 			                    """)
 		evalstr.append("""		
 	
+<<<<<<< HEAD
 			                    AMAp=-rp.ARMA_product(ll.AMA_1,panel.L,panel.p)
+=======
+			                    AMAp=-rp.ARMA_product(ll.AMA_1,panel.p)
+>>>>>>> refs/remotes/origin/master
 			                    d2lnv_rho_beta,		d2e_rho_beta	=	rp.dd_func_lags_mult(panel,ll,AMAp,	ll.de_rho,		ll.de_beta,		'rho',		'beta', de_zeta_u=-panel.X)
 	
 			                    d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
@@ -325,9 +336,15 @@ class hessian:
 			                    """)
 	
 		return multi_core.format_args_array(evalstr)	
+<<<<<<< HEAD
 
 
 
+=======
+
+
+
+>>>>>>> refs/remotes/origin/master
 	def hessian_mp(self,ll,mp):
 		panel=self.panel
 		tic=time.clock()

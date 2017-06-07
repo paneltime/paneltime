@@ -25,7 +25,10 @@ class LL:
 		self.h_err=""
 		self.h_def=panel.h_def
 		self.NT=panel.NT
+<<<<<<< HEAD
 		
+=======
+>>>>>>> refs/remotes/origin/master
 
 		try:
 			self.LL=self.LL_calc(panel,X)
@@ -40,18 +43,28 @@ class LL:
 		
 
 
+<<<<<<< HEAD
 	def LL_calc(self,panel,X=None):
 		args=self.args_d#using dictionary arguments
 		if X is None:
 			X=panel.X
 
+=======
+	def LL_calc(self,panel,X=None,fast=False):
+		args=self.args_d#using dictionary arguments
+		if X is None:
+			X=panel.X
+>>>>>>> refs/remotes/origin/master
 		matrices=set_garch_arch(panel,args)
 		
 		if matrices is None:
 			return None		
 		
+<<<<<<< HEAD
 		matrices=set_garch_arch(panel,args)
 		
+=======
+>>>>>>> refs/remotes/origin/master
 		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 		(N,T,k)=panel.X.shape
 
@@ -124,6 +137,7 @@ class LL:
 	
 		return d['ret']	
 	
+<<<<<<< HEAD
 
 
 def set_garch_arch(panel,args,fast=False):
@@ -135,32 +149,73 @@ def set_garch_arch(panel,args,fast=False):
 	if fast:
 		try:
 			AMA_1=inv_banded(X,q,panel)
+=======
+def set_garch_arch(panel,args,fast=False):
+
+
+	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
+	
+	X_b=np.zeros((q+1,n))
+	X_b[0,:]=1
+	for i in range(q):
+		X_b[i+1,:n-i-1]=args['lambda'][i]
+	
+	if fast:
+		try:
+			AMA_1=scipy.linalg.solve_banded((q,0), X_b, panel.I)
+
+>>>>>>> refs/remotes/origin/master
 		except:
 			return None
 		if np.any(np.isnan(AMA_1)):
 			return None
 	else:
 		try:
+<<<<<<< HEAD
 			AMA_1=inv_banded(X,q,panel)
+=======
+			AMA_1=scipy.linalg.solve_banded((q,0), X_b, panel.I)
+>>>>>>> refs/remotes/origin/master
 		except:
 			return None
 		if np.any(np.isnan(AMA_1)):
 			return None		
 	
+<<<<<<< HEAD
 	AAR=panel.I-lag_matr(panel.L,panel.zero,p,args['rho'])
 	AMA_1AR=fu.dot(AMA_1,AAR)
 	X=panel.I-lag_matr(panel.L,panel.zero,k,args['gamma'])
 	try:
 		GAR_1=inv_banded(X,k,panel)
+=======
+	AAR=-lag_matr(-panel.I,p,args['rho'])
+	AMA_1AR=fu.dot(AMA_1,AAR)
+	
+	X_b=np.zeros((k+1,n))
+	X_b[0,:]=1
+	for i in range(k):
+		X_b[i+1,:n-i-1]=-args['gamma'][i]
+		
+	try:
+		GAR_1=scipy.linalg.solve_banded((k,0), X_b, panel.I)
+>>>>>>> refs/remotes/origin/master
 	except:
 		return None
 	if np.any(np.isnan(GAR_1)):
 		return None	
+<<<<<<< HEAD
 	GMA=lag_matr(panel.L,panel.zero,m,args['psi'])	
+=======
+	GMA=lag_matr(panel.zero,m,args['psi'])	
+>>>>>>> refs/remotes/origin/master
 	GAR_1MA=fu.dot(GAR_1,GMA)
 	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> refs/remotes/origin/master
 def inv_banded(X,k,panel):
 	n=len(X)
 	X_b=np.zeros((k+1,n))
@@ -169,6 +224,7 @@ def inv_banded(X,k,panel):
 	
 	return scipy.linalg.solve_banded((k,0), X_b, panel.I)	
 
+<<<<<<< HEAD
 def lag_matr_sp(panel,k,args):
 	T=panel.max_T
 	M=sp.csc_matrix(([],([],[])),(T,T))
@@ -185,6 +241,18 @@ def lag_matr(L,zero,k,args):
 		a.append(args[i]*L[i])
 	a=np.sum(a,0)
 	return a
+=======
+def lag_matr(L,k,args):
+	if k==0:
+		return L
+	L=1*L
+	r=np.arange(len(L))
+	for i in range(k):
+		d=(r[i+1:],r[:-i-1])
+		L[d]=args[i]
+
+	return L
+>>>>>>> refs/remotes/origin/master
 
 
 class direction:

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {'d2lnv_gamma_lambda': array([[-2227929.47475018, -2076018.31770527, -1934318.52735413],
        [-2310568.06646158, -2136835.71109846, -1999083.37453541],
        [-2374267.42104312, -2196235.43761706, -2048272.07835279]]), 'd2lnv_gamma2': array([[ 8471744.3534698 ,  8673171.42911611,  8813677.63249152],
@@ -289,3 +290,13 @@
          -1.99293811e+01,  -8.59854267e+03,   2.78102641e+02,
           1.49967031e+04,   9.23929550e+03]])}
 <_io.FileIO name='<stdout>' mode='wb' closefd=False>
+=======
+Traceback (most recent call last):
+  File "b:\forskning\papers\paneltime\paneltime\paneltime\slave.py", line 69, in <module>
+    main(f)
+  File "b:\forskning\papers\paneltime\paneltime\paneltime\slave.py", line 29, in main
+    (msg,obj) = t.receive()
+  File "b:\forskning\papers\paneltime\paneltime\paneltime\multi_core.py", line 137, in receive
+    return u.load()
+EOFError: Ran out of input
+>>>>>>> refs/remotes/origin/master

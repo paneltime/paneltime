@@ -267,10 +267,11 @@ def dd_func_mult(d0,mult,d1):
 	return x
 
 
-def ARMA_product(m,L,k):
+def ARMA_product(m,k):
 	a=[]
+
 	for i in range(k):
-		a.append(fu.dot(m,L[i]))
+		a.append(roll(m,-i-1,1))
 	return np.array(a)
 
 
@@ -302,15 +303,53 @@ def differenciate(X,diff,has_intercept):
 		X[:,0]=1
 	return X
 
-		
-def make_lag_matrices(T,n):
-	L0=np.diag(np.ones(T-1),-1)
-	L=[L0]
-	for i in range(n-1):
-		L.append(fu.dot(L0,L[i]))
-	return L
 
+def roll(a,shift,axis=0,empty_val=0):
+	"""For shift>0 (shift<0) this function shifts the shift up (down) by deleting the top (bottom)
+	shift and replacing the new botom (top) shift with empty_val"""
 
-		
+	if shift==0:
+		return a
+	if type(a)==list:
+		a=np.a(a)
+	s=a.shape
 
-				
+	ret=np.roll(a,shift,axis)
+	v=[slice(None)]*len(s)
+	if shift>0:
+		v[axis]=slice(0,shift)
+	else:
+		n=s[axis]
+		v[axis]=slice(n+shift,n)
+		ret[n+shift:]=empty_val
+	ret[v]=empty_val
+
+	if False:#for debugging
+		arr2=a*1
+		arr=a*1
+		if len(s)==2:
+			T,k=s
+			fill=np.ones((abs(shift),k),dtype=arr2.dtype)*empty_val		
+			if shift<0:
+				ret2= np.append(fill,arr2[0:T+shift],0)
+			else:
+				ret2= np.append(arr2[shift:],fill,0)		
+		elif len(s)==3:
+			N,T,k=s
+			fill=np.ones((N,abs(shift),k),dtype=arr2.dtype)*empty_val
+			if shift<0:
+				ret2= np.append(fill,arr2[:,0:T+shift],1)
+			else:
+				ret2= np.append(arr2[:,shift:],fill,1)		
+		elif len(s)==1:
+			T=s[0]
+			fill=np.ones(abs(shift),dtype=arr2.dtype)*empty_val
+			if shift<0:
+				ret2= np.append(fill,arr2[0:T+shift],0)
+			else:
+				ret2= np.append(arr2[shift:],fill,0)	
+
+		if not np.all(ret==ret2):
+			raise RuntimeError('Check that the calling procedure has specified the "axis" argument')
+	return ret
+

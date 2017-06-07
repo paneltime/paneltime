@@ -19,7 +19,10 @@ class simulation:
 		self.residual_sd=residual_sd
 		self.group_sd=group_sd
 		self.max_lags=np.max((self.p,self.q,self.m,self.k))
+<<<<<<< HEAD
 		self.L=rp.make_lag_matrices(T,self.max_lags)
+=======
+>>>>>>> refs/remotes/origin/master
 		self.I=np.diag(np.ones(T))
 		self.zero=self.I*0		
 		self.AAR_1MA, self.GAR_1MA=matrices=self.set_garch_arch()
@@ -125,6 +128,7 @@ class simulation:
 		
 	def set_garch_arch(self):
 		args,p,q,m,k=self.args,self.p,self.q,self.m,self.k
+<<<<<<< HEAD
 		AMA=self.I+rp.lag_matr(self.L,self.zero,q,args['lambda'])
 		X=self.I-rp.lag_matr(self.L,self.zero,p,args['rho'])
 		AAR_1=np.linalg.inv(X)
@@ -132,25 +136,48 @@ class simulation:
 		X=self.I-rp.lag_matr(self.L,self.zero,k,args['gamma'])
 		GAR_1=np.linalg.inv(X)
 		GMA=rp.lag_matr(self.L,self.zero,m,args['psi'])	
+=======
+		AMA=rp.lag_matr(self.I,q,args['lambda'])
+		X=-rp.lag_matr(-self.I,p,args['rho'])
+		AAR_1=np.linalg.inv(X)
+		AAR_1MA=fu.dot(AAR_1,AMA)
+		X=-rp.lag_matr(self.I,k,args['gamma'])
+		GAR_1=np.linalg.inv(X)
+		GMA=rp.lag_matr(self.zero,m,args['psi'])	
+>>>>>>> refs/remotes/origin/master
 		GAR_1MA=fu.dot(GAR_1,GMA)
 		return AAR_1MA, GAR_1MA
 	
 	
 	def set_garch_arch_LL(self):
 		args,p,q,m,k=self.args,self.p,self.q,self.m,self.k
+<<<<<<< HEAD
 		X=self.I+rp.lag_matr(self.L,self.zero,q,args['lambda'])
+=======
+		X=rp.lag_matr(self.I,q,args['lambda'])
+>>>>>>> refs/remotes/origin/master
 		try:
 			AMA_1=np.linalg.inv(X)
 		except:
 			return None
+<<<<<<< HEAD
 		AAR=self.I-rp.lag_matr(self.L,self.zero,p,args['rho'])
 		AMA_1AR=fu.dot(AMA_1,AAR)
 		X=self.I-rp.lag_matr(self.L,self.zero,k,args['gamma'])
+=======
+		AAR=-rp.lag_matr(-self.I,p,args['rho'])
+		AMA_1AR=fu.dot(AMA_1,AAR)
+		X=-rp.lag_matr(-self.I,k,args['gamma'])
+>>>>>>> refs/remotes/origin/master
 		try:
 			GAR_1=np.linalg.inv(X)
 		except:
 			return None
+<<<<<<< HEAD
 		GMA=rp.lag_matr(self.L,self.zero,m,args['psi'])	
+=======
+		GMA=rp.lag_matr(self.zero,m,args['psi'])	
+>>>>>>> refs/remotes/origin/master
 		GAR_1MA=fu.dot(GAR_1,GMA)
 		return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA	
 	

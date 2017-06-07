@@ -134,7 +134,10 @@ class panel:
 
 	def lag_variables(self,max_lags):
 		T=self.max_T
+<<<<<<< HEAD
 		self.L=rp.make_lag_matrices(T,max_lags)
+=======
+>>>>>>> refs/remotes/origin/master
 		self.I=np.diag(np.ones(T))
 		self.zero=self.I*0
 		
@@ -147,9 +150,16 @@ class panel:
 		#differencing:
 		if self.d==0:
 			return
+<<<<<<< HEAD
 		Ld=(self.I-self.L[0])
 		for i in range(1,self.d):
 			Ld=fu.dot(self.I-L[0],self.Ld)		
+=======
+		L0=np.diag(np.ones(T-1),-1)
+		Ld=(self.I-L0)
+		for i in range(1,self.d):
+			Ld=fu.dot(self.I-L0,self.Ld)		
+>>>>>>> refs/remotes/origin/master
 		self.Y=fu.dot(Ld,self.Y)*self.a	
 		self.X=fu.dot(Ld,self.X)*self.a
 		if self.has_intercept:

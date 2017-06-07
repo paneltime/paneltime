@@ -111,13 +111,13 @@ def adf_test(panel,ll,p):
 	y_dev=deviation(panel,y)
 	s=std(panel,y_dev,True)
 	y=y/(s+(s==0)*1e-17)
-	yl1=shift_arr(y,-1,axis=1)
+	yl1=rp.roll(y,1,1)
 	dy=y-yl1
 	date_var=np.arange(T).reshape((T,1))*panel.included	#date count
 	X=np.concatenate((panel.included,date_var,yl1),2)
 	dyL=[]
 	for i in range(p):
-		dyL.append(shift_arr(dy,-i-1,axis=1))
+		dyL.append(rp.roll(dy,i+1,1))
 	dyL=np.concatenate(dyL,2)
 	date_var=(date_var>p+1)
 	X=np.concatenate((X,dyL),2)
@@ -364,54 +364,6 @@ def newey_west_wghts(L,X=None,err_vec=None,XErr=None):
 	return S
 
 
-
-def shift_arr(array,elements,empty_val=0,axis=0):
-	"""For elements>0 (elements<0) this function shifts the elements up (down) by deleting the top (bottom)
-	elements and replacing the new botom (top) elements with empty_val"""
-	arr2=array*1
-	arr=array*1
-	if elements==0:
-		return array
-	if type(array)==list:
-		array=np.array(array)
-	s=array.shape
-	
-	ret=np.roll(arr,-elements,axis)
-	v=[slice(None)]*len(s)
-	if elements<0:
-		v[axis]=slice(0,-elements)
-	else:
-		n=s[axis]
-		v[axis]=slice(n-elements,n)
-		ret[n-elements:]=empty_val
-	ret[v]=empty_val
-			
-	if False:#for debugging
-		if len(s)==2:
-			T,k=s
-			fill=np.ones((abs(elements),k),dtype=arr2.dtype)*empty_val		
-			if elements<0:
-				ret2= np.append(fill,arr2[0:T+elements],0)
-			else:
-				ret2= np.append(arr2[elements:],fill,0)		
-		elif len(s)==3:
-			N,T,k=s
-			fill=np.ones((N,abs(elements),k),dtype=arr2.dtype)*empty_val
-			if elements<0:
-				ret2= np.append(fill,arr2[:,0:T+elements],1)
-			else:
-				ret2= np.append(arr2[:,elements:],fill,1)		
-		elif len(s)==1:
-			T=s[0]
-			fill=np.ones(abs(elements),dtype=arr2.dtype)*empty_val
-			if elements<0:
-				ret2= np.append(fill,arr2[0:T+elements],0)
-			else:
-				ret2= np.append(arr2[elements:],fill,0)	
-				
-		if not np.all(ret==ret2):
-			raise RuntimeError('Check that the calling procedure has specified the "axis" argument')
-	return ret
 
 
 
