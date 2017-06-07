@@ -124,32 +124,32 @@ class simulation:
 		
 	def set_garch_arch(self):
 		args,p,q,m,k=self.args,self.p,self.q,self.m,self.k
-		AMA=rp.lag_matr(self.I,q,args['lambda'])
-		X=-rp.lag_matr(-self.I,p,args['rho'])
+		AMA=rp.lag_matr(self.I,args['lambda'])
+		X=-rp.lag_matr(-self.I,args['rho'])
 		AAR_1=np.linalg.inv(X)
 		AAR_1MA=fu.dot(AAR_1,AMA)
-		X=-rp.lag_matr(self.I,k,args['gamma'])
+		X=-rp.lag_matr(self.I,args['gamma'])
 		GAR_1=np.linalg.inv(X)
-		GMA=rp.lag_matr(self.zero,m,args['psi'])	
+		GMA=rp.lag_matr(self.zero,args['psi'])	
 		GAR_1MA=fu.dot(GAR_1,GMA)
 		return AAR_1MA, GAR_1MA
 	
 	
 	def set_garch_arch_LL(self):
 		args,p,q,m,k=self.args,self.p,self.q,self.m,self.k
-		X=rp.lag_matr(self.I,q,args['lambda'])
+		X=rp.lag_matr(self.I,args['lambda'])
 		try:
 			AMA_1=np.linalg.inv(X)
 		except:
 			return None
-		AAR=-rp.lag_matr(-self.I,p,args['rho'])
+		AAR=-rp.lag_matr(-self.I,args['rho'])
 		AMA_1AR=fu.dot(AMA_1,AAR)
-		X=-rp.lag_matr(-self.I,k,args['gamma'])
+		X=-rp.lag_matr(-self.I,args['gamma'])
 		try:
 			GAR_1=np.linalg.inv(X)
 		except:
 			return None
-		GMA=rp.lag_matr(self.zero,m,args['psi'])	
+		GMA=rp.lag_matr(self.zero,args['psi'])	
 		GAR_1MA=fu.dot(GAR_1,GMA)
 		return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA	
 	

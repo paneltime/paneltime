@@ -25,7 +25,6 @@ class LL:
 		self.h_err=""
 		self.h_def=panel.h_def
 		self.NT=panel.NT
-
 		try:
 			self.LL=self.LL_calc(panel,X)
 			
@@ -39,7 +38,7 @@ class LL:
 		
 
 
-	def LL_calc(self,panel,X=None,fast=False):
+	def LL_calc(self,panel,X=None):
 		args=self.args_d#using dictionary arguments
 		if X is None:
 			X=panel.X
@@ -120,51 +119,41 @@ class LL:
 	
 		return d['ret']	
 	
-def set_garch_arch(panel,args,fast=False):
+def set_garch_arch(panel,args):
 
 
 	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
 	
-	X_b=np.zeros((q+1,n))
-	X_b[0,:]=1
-	for i in range(q):
-		X_b[i+1,:n-i-1]=args['lambda'][i]
-	
-	if fast:
-		try:
-			AMA_1=scipy.linalg.solve_banded((q,0), X_b, panel.I)
-
-		except:
-			return None
-		if np.any(np.isnan(AMA_1)):
-			return None
-	else:
-		try:
-			AMA_1=scipy.linalg.solve_banded((q,0), X_b, panel.I)
-		except:
-			return None
-		if np.any(np.isnan(AMA_1)):
-			return None		
-	
-	AAR=-lag_matr(-panel.I,p,args['rho'])
-	AMA_1AR=fu.dot(AMA_1,AAR)
-	
-	X_b=np.zeros((k+1,n))
-	X_b[0,:]=1
-	for i in range(k):
-		X_b[i+1,:n-i-1]=-args['gamma'][i]
-		
-	try:
-		GAR_1=scipy.linalg.solve_banded((k,0), X_b, panel.I)
-	except:
-		return None
-	if np.any(np.isnan(GAR_1)):
-		return None	
-	GMA=lag_matr(panel.zero,m,args['psi'])	
-	GAR_1MA=fu.dot(GAR_1,GMA)
+	AAR=-lag_matr(-panel.I,args['rho'])
+	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)
+	if AMA_1AR is None:
+		return
+	GMA=lag_matr(panel.zero,args['psi'])	
+	GAR_1MA,GAR_1=solve_mult(-args['gamma'], GMA, panel.I)
+	if GAR_1MA is None:
+		return
 	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
 
 
+def solve_mult(args,b,I):
+	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
+	the diagonal band"""
+	n=len(b)
+	q=len(args)
+	X=np.zeros((q+1,n))
+	X[0,:]=1
+	X2=lag_matr(I,args)
+	for i in range(q):
+		X[i+1,:n-i-1]=args[i]
+	try:
+		X_1=scipy.linalg.solve_banded((q,0), X, I)
+		if np.any(np.isnan(X_1)):
+			return None,None			
+		X_1b=fu.dot(X_1, b)
+	except:
+		return None,None
+
+	return X_1b,X_1
 
 def inv_banded(X,k,panel):
 	n=len(X)
@@ -174,7 +163,8 @@ def inv_banded(X,k,panel):
 	
 	return scipy.linalg.solve_banded((k,0), X_b, panel.I)	
 
-def lag_matr(L,k,args):
+def lag_matr(L,args):
+	k=len(args)
 	if k==0:
 		return L
 	L=1*L
