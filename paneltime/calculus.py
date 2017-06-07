@@ -269,13 +269,8 @@ class hessian:
 		evalstr=[]		
 		#strings are evaluated for the code to be compatible with multi core proccessing
 		evalstr.append("""
-<<<<<<< HEAD
-			                    GARM=rp.ARMA_product(ll.GAR_1,panel.L,panel.m)
-			                    GARK=rp.ARMA_product(ll.GAR_1,panel.L,panel.k)
-=======
 			                    GARM=rp.ARMA_product(ll.GAR_1,panel.m)
 			                    GARK=rp.ARMA_product(ll.GAR_1,panel.k)
->>>>>>> refs/remotes/origin/master
 	
 			                    d2lnv_gamma2		=   rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_gamma,						ll.dLL_lnv,  transpose=True)
 			                    d2lnv_gamma_psi		=	rp.dd_func_lags(panel,ll,GARK, 	ll.dlnv_psi,						ll.dLL_lnv)
@@ -294,11 +289,7 @@ class hessian:
 			                    """)
 		#ARCH:
 		evalstr.append("""
-<<<<<<< HEAD
-			                    AMAq=-rp.ARMA_product(ll.AMA_1,panel.L,panel.q)
-=======
 			                    AMAq=-rp.ARMA_product(ll.AMA_1,panel.q)
->>>>>>> refs/remotes/origin/master
 			                    d2lnv_lambda2,		d2e_lambda2		=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_lambda,	'lambda',	'lambda', transpose=True)
 			                    d2lnv_lambda_rho,	d2e_lambda_rho	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_rho,		'lambda',	'rho' )
 			                    d2lnv_lambda_beta,	d2e_lambda_beta	=	rp.dd_func_lags_mult(panel,ll,AMAq,	ll.de_lambda,	ll.de_beta,		'lambda',	'beta')
@@ -306,11 +297,7 @@ class hessian:
 			                    """)
 		evalstr.append("""		
 	
-<<<<<<< HEAD
-			                    AMAp=-rp.ARMA_product(ll.AMA_1,panel.L,panel.p)
-=======
 			                    AMAp=-rp.ARMA_product(ll.AMA_1,panel.p)
->>>>>>> refs/remotes/origin/master
 			                    d2lnv_rho_beta,		d2e_rho_beta	=	rp.dd_func_lags_mult(panel,ll,AMAp,	ll.de_rho,		ll.de_beta,		'rho',		'beta', de_zeta_u=-panel.X)
 	
 			                    d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
@@ -336,15 +323,9 @@ class hessian:
 			                    """)
 	
 		return multi_core.format_args_array(evalstr)	
-<<<<<<< HEAD
 
 
 
-=======
-
-
-
->>>>>>> refs/remotes/origin/master
 	def hessian_mp(self,ll,mp):
 		panel=self.panel
 		tic=time.clock()

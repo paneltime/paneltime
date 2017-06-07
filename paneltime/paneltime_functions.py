@@ -23,10 +23,6 @@ class args_bank:
 		self.model_key=get_model_key(X, Y, groups, W)
 		self.session_db=load_obj()
 		if (not loadargs) or (self.session_db is None):
-<<<<<<< HEAD
-			self.model_key=None
-=======
->>>>>>> refs/remotes/origin/master
 			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=(None,0,None,None)
 			return
 		(d,a)=self.session_db
