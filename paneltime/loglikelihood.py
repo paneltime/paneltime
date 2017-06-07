@@ -125,27 +125,29 @@ def set_garch_arch(panel,args,fast=False):
 
 	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
 	
-	AAR=-lag_matr(-panel.I,p,args['rho'])
-	AMA_1,AMA_1AR=solve_MA(args['lambda'], panel, fast, AAR)
-	
 	X_b=np.zeros((q+1,n))
 	X_b[0,:]=1
 	for i in range(q):
 		X_b[i+1,:n-i-1]=args['lambda'][i]
-
-	try:
-		if fast:
-			AMA_1AR=scipy.linalg.solve_banded((q,0), X_b, AAR)
-			AMA_1=None
-		else:
-			AMA_1=scipy.linalg.solve_banded((q,0), X_b, panel.I)
-			AMA_1AR=fu.dot(AMA_1,AAR)
-	except:
-		return None
-	if np.any(np.isnan(AMA_1)):
-		return None
-
 	
+	if fast:
+		try:
+			AMA_1=scipy.linalg.solve_banded((q,0), X_b, panel.I)
+
+		except:
+			return None
+		if np.any(np.isnan(AMA_1)):
+			return None
+	else:
+		try:
+			AMA_1=scipy.linalg.solve_banded((q,0), X_b, panel.I)
+		except:
+			return None
+		if np.any(np.isnan(AMA_1)):
+			return None		
+	
+	AAR=-lag_matr(-panel.I,p,args['rho'])
+	AMA_1AR=fu.dot(AMA_1,AAR)
 	
 	X_b=np.zeros((k+1,n))
 	X_b[0,:]=1
@@ -163,27 +165,7 @@ def set_garch_arch(panel,args,fast=False):
 	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
 
 
-def solve_MA(args,panel,fast,mult):
-	n=panel.max_T
-	q=len(args)
-	X_b=np.zeros((q+1,n))
-	X_b[0,:]=1
-	for i in range(q):
-		X_b[i+1,:n-i-1]=args[i]
 
-	try:
-		if fast:
-			X_1Y=scipy.linalg.solve_banded((q,0), X_b, Y)
-			X_1=None
-		else:
-			X_1=scipy.linalg.solve_banded((q,0), X_b, panel.I)
-			X_1Y=fu.dot(X_1,Y)
-	except:
-		return None,None
-	if np.any(np.isnan(AMA_1)):
-		return None,None
-	return X_1,X_1Y
-	
 def inv_banded(X,k,panel):
 	n=len(X)
 	X_b=np.zeros((k+1,n))

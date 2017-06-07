@@ -6,16 +6,23 @@ import os
 import multi_core
 import traceback
 import numpy as np
+import regprocs as rp
+import maximize as mx
+import loglikelihood as logl
+import time
 
 def main(f):
 	t=multi_core.transact(sys.stdin, sys.stdout)
 	t.send(os.getpid())
-	[module,alias],s_id=t.receive()
-	if alias=='':
-		exec('import '+module)
-	else:
-		exec('import '+module +' as ' + alias)
-		module=alias
+	modules,s_id=t.receive()
+	aliases=[]
+	for module,alias in modules:
+		if alias=='':
+			exec('import '+module)
+			aliases.append(module)
+		else:
+			exec('import '+module +' as ' + alias)
+			aliases.append(alias)
 	d_init=dict()
 	holdbacks=[]
 	while 1:
@@ -31,16 +38,20 @@ def main(f):
 			d=obj
 			for i in d_init:
 				d[i]=d_init[i]
-			d[module]=vars()[module]
+			for a in aliases:
+				d[a]=vars()[a]
 			d_old=dict(d)
 			response=True
 		elif msg=='expression evaluation':
 			exec(obj,globals(),d)
 			response=release_dict(d,d_old,holdbacks)
 		elif msg=='holdbacks':
-			holdbacks=obj                     
-		t.send(response)
-		
+			holdbacks=obj  
+		if msg=='expression evaluation':
+			write(f, response)
+			t.send_debug(response,f)
+		else:
+			t.send(response)
 def write(f,txt):
 	f.write(str(txt)+'\n')
 	f.flush()

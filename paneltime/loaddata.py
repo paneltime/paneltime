@@ -5,6 +5,7 @@ import functions as fu
 import date_time
 
 def load(fname,sep):
+	fname=fu.obtain_fname(fname,'csv')
 	heading,s=get_head_and_sep(fname,sep)
 	print ("opening file ...")
 	data=np.loadtxt(fname,delimiter=s,skiprows=1,dtype=np.str)
@@ -162,38 +163,56 @@ def extract_time(t):
 	v[2]=v[2][:2]
 	return v,True
 	
-		
-	
+def get_best_sep(string,sep):
+	"""Finds the separator that gives the longest array"""
+	if not sep is None:
+		return sep,string.split(sep)
+	sep=''
+	maxlen=0
+	for i in [';',',',' ','\t']:
+		b=head_split(string,i)
+		if len(b)>maxlen:
+			maxlen=len(b)
+			sep=i
+			c=b
+	return sep,c,maxlen
+				
+def head_split(string,sep):
+	a=string.split(sep)
+	b=[]
+	for j in a:
+		if len(j)>0:
+			b.append(j)	
+	return b
 			
 def get_head_and_sep(fname,sep):
 	f=open(fname,'r')
-	h=f.readline().strip()
+	head=f.readline().strip()
+	r=[]
+	sample_size=20
+	for i in range(sample_size):
+		r.append(f.read())	
 	f.close()
+	
+	sep,h,n=get_best_sep(head,sep)
 	for i in h:
 		if is_number(i):
 			raise RuntimeError("""The input file must contain a header row. No numbers are allowed in the header row""")
+	
+	for i in [sep,';',',','\t',' ']:#checks whether the separator is consistent
+		err=False
+		b=head_split(head, i)
+		for j in r:
+			if len(j.split(i))!=len(b):
+				err=True
+				break
+			if err:
+				h=b
+				sep=i
+			
+
 	if sep is None:
-		if ',' in h:
-			sep=','
-		elif ';' in h:
-			sep=';'
-		else:	
-			sample_size=20
-			r=[]
-			for i in range(sample_size):
-				r.append(f.read())
-			s_arr=[' ','\t']
-			for s in s_arr:
-				k=len(h.split(s))
-				sep=s
-				for i in r:
-					m=len(i.split(s))
-					if m!=k:
-						sep=None
-						break
-	if sep is None:
-		raise RuntimeError("Unable to find a suitable seperator for the input file. You have to specify the separator explicitly")
-	h=h.split(sep)
+		raise RuntimeError("Unable to find a suitable seperator for the input file. Check that your input file has identical number of columns in each row")
 	return h,sep
 
 

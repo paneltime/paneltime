@@ -32,7 +32,9 @@ def LL_debug_detail(ll,panel,d):
 	lnv_0=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_0# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if panel.m>0:
 		avg_h_0=(np.sum(h_val_0,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_0=lnv_0+args['mu']*avg_h_0		
+		if panel.N>1:
+			lnv_0=lnv_0+args['mu']*avg_h_0	
+		lnv_0=np.maximum(np.minimum(lnv_0,709),-709)
 	v_0=np.exp(lnv_0)*panel.a
 	v_inv_0=np.exp(-lnv_0)*panel.a	
 	e_RE_0=rp.RE(ll,panel,e_0)
@@ -40,7 +42,7 @@ def LL_debug_detail(ll,panel,d):
 	LL_value_0=ll.LL_const-0.5*np.sum((lnv_0+(e_REsq_0)*v_inv_0)*panel.included)	
 
 	#****LL1*****
-	matrices=set_garch_arch_debug(panel,args,d)
+	matrices=set_garch_arch_debug(panel,args,0)
 	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 	u=panel.Y-fu.dot(panel.X,beta_)
 	e_1=np.moveaxis(np.dot(AMA_1AR,u),0,1)
@@ -55,7 +57,9 @@ def LL_debug_detail(ll,panel,d):
 	lnv_1=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_1# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if panel.m>0:
 		avg_h_1=(np.sum(h_val_1,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_1=lnv_1+args['mu']*avg_h_1	
+		if panel.N>1:
+			lnv_1=lnv_1+(args['mu']+d)*avg_h_1	
+		lnv_1=np.maximum(np.minimum(lnv_1,709),-709)
 	v_1=np.exp(lnv_1)*panel.a
 	v_inv_1=np.exp(-lnv_1)*panel.a	
 	e_RE_1=rp.RE(ll,panel,e_1)
@@ -66,7 +70,7 @@ def LL_debug_detail(ll,panel,d):
 	matrices=set_garch_arch_debug(panel,args,0)
 	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 	beta_d=beta_*0
-	beta_d[0][0]=d
+	beta_d[0][0]=0
 	u=panel.Y-fu.dot(panel.X,beta_+beta_d)
 	e_2=np.moveaxis(np.dot(AMA_1AR,u),0,1)
 	if panel.m>0:
@@ -80,7 +84,9 @@ def LL_debug_detail(ll,panel,d):
 	lnv_2=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_2# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if panel.m>0:
 		avg_h_2=(np.sum(h_val_2,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_2=lnv_2+args['mu']*avg_h_2
+		if panel.N>1:
+			lnv_2=lnv_2+args['mu']*avg_h_2
+		lnv_2=np.maximum(np.minimum(lnv_2,709),-709)
 	v_2=np.exp(lnv_2)*panel.a
 	v_inv_2=np.exp(-lnv_2)*panel.a	
 	e_RE_2=rp.RE(ll,panel,e_2)
@@ -88,10 +94,10 @@ def LL_debug_detail(ll,panel,d):
 	LL_value_2=ll.LL_const-0.5*np.sum((lnv_2+(e_REsq_2)*v_inv_2)*panel.included)
 	
 	#****LL3*****
-	matrices=set_garch_arch_debug(panel,args,d)
+	matrices=set_garch_arch_debug(panel,args,0)
 	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 	beta_d=beta_*0
-	beta_d[0][0]=d
+	beta_d[0][0]=0
 	u=panel.Y-fu.dot(panel.X,beta_+beta_d)
 	e_3=np.moveaxis(np.dot(AMA_1AR,u),0,1)
 	if panel.m>0:
@@ -105,7 +111,9 @@ def LL_debug_detail(ll,panel,d):
 	lnv_3=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_3# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if panel.m>0:
 		avg_h_3=(np.sum(h_val_3,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_3=lnv_3+args['mu']*avg_h_3
+		if panel.N>1:
+			lnv_3=lnv_3+args['mu']*avg_h_3
+		lnv_3=np.maximum(np.minimum(lnv_3,709),-709)
 	v_3=np.exp(lnv_3)*panel.a
 	v_inv_3=np.exp(-lnv_3)*panel.a	
 	e_RE_3=rp.RE(ll,panel,e_3)
@@ -152,100 +160,6 @@ def LL_debug_detail(ll,panel,d):
 	test2dd=(dd_val-d1_val-d2_val+_val)/d**2
 	return testdd
 
-def LL_debug_detail_single(panel,ll,d):
-	c=ll.syncronize(panel)
-	"""Calcuates LL after some variable change with d. Used for debugging. Which variable is affected must be specified manually below"""
-	(N,T,k)=panel.X.shape
-	s=0
-	if s==1: return
-	
-	matrices=set_garch_arch_debug(panel,c,0)	
-	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
-	u=panel.Y-fu.dot(panel.X,beta_)
-	e_0=np.moveaxis(np.dot(AMA_1AR,u),0,1)
-	if panel.m>0:
-		h_res=rp.h_func(e_0, c[panel.z_sel])
-		if h_res==None:return None
-		(h_val_0,h_e_val_0,h_2e_val_0,h_c_val_0,h_2c_val_0,h_ec_val_0)=[i*panel.included for i in h_res]		
-		lnv_ARMA_0=np.moveaxis(np.dot(GAR_1MA,h_val_0),0,1)# 'T x T' * 'N x T x 1' -> 'T x N x 1' movaxis -> 'N x T x 1'
-	else:
-		(h_val_0,h_e_val_0,h_2e_val_0,h_c_val_0,h_2c_val_0,h_ec_val_0,avg_h_0)=(0,0,0,0,0,0,0)
-		lnv_ARMA_0=0	
-	lnv_0=fu.dot(panel.W_a,Wbeta_)+lnv_ARMA_0# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	if panel.m>0:
-		avg_h_0=(np.sum(h_val_0,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_0=lnv_0+c[panel.mu_sel]*avg_h_0		
-	v_0=np.exp(lnv_0)*panel.a
-	v_inv_0=np.exp(-lnv_0)*panel.a	
-	e_RE_0=rp.RE(panel,e_0)
-	e_REsq_0=e_RE_0**2
-	LL_value_0=panel.LL_const-0.5*np.sum((lnv_0+(e_REsq_0)*v_inv_0)*panel.included)	
-
-	matrices=set_garch_arch_debug(panel,c,0)
-	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
-	u=panel.Y-fu.dot(panel.X,beta_)
-	e_1=np.moveaxis(np.dot(AMA_1AR,u),0,1)
-	if panel.m>0:
-		h_res=rp.h_func(e_1, c[panel.z_sel]+d)
-		if h_res==None:return None
-		(h_val_1,h_e_val_1,h_2e_val_1,h_c_val_1,h_2c_val_1,h_ec_val_1)=[i*panel.included for i in h_res]		
-		lnv_ARMA_1=np.moveaxis(np.dot(GAR_1MA,h_val_1),0,1)# 'T x T' * 'N x T x 1' -> 'T x N x 1' movaxis -> 'N x T x 1'
-	else:
-		(h_val_1,h_e_val_1,h_2e_val_1,h_c_val_1,h_2c_val_1,h_ec_val_1,avg_h_1)=(0,0,0,0,0,0,0)
-		lnv_ARMA_1=0
-	lnv_1=fu.dot(panel.W_a,Wbeta_)+lnv_ARMA_1# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	if panel.m>0:
-		avg_h_1=(np.sum(h_val_1,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_1=lnv_1+c[panel.mu_sel]*avg_h_1	
-	v_1=np.exp(lnv_1)*panel.a
-	v_inv_1=np.exp(-lnv_1)*panel.a	
-	e_RE_1=rp.RE(panel,e_1)
-	e_REsq_1=e_RE_1**2
-	LL_value_1=panel.LL_const-0.5*np.sum((lnv_1+(e_REsq_1)*v_inv_1)*panel.included)	
-
-	matrices=set_garch_arch_debug(panel,c,0)
-	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
-	u=panel.Y-fu.dot(panel.X,beta_+np.array([[0],[0]]))
-	e_2=np.moveaxis(np.dot(AMA_1AR,u),0,1)
-	if panel.m>0:
-		h_res=rp.h_func(e_2, c[panel.z_sel]+2*d)
-		if h_res==None:return None
-		(h_val,h_e_val,he_val,h_z_val,hc_val,h_ez_val)=[i*panel.included for i in h_res]		
-		lnv_ARMA_2=np.moveaxis(np.dot(GAR_1MA,h_val_2),0,1)# 'T x T' * 'N x T x 1' -> 'T x N x 1' movaxis -> 'N x T x 1'
-	else:
-		(h_val_2,h_e_val_2,h_2e_val_2,h_c_val_2,h_2c_val_2,h_ec_val_2,avg_h_2)=(0,0,0,0,0,0,0)
-		lnv_ARMA_2=0
-	lnv_2=fu.dot(panel.W_a,Wbeta_)+lnv_ARMA_2# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	if panel.m>0:
-		avg_h_2=(np.sum(h_val_2,1)/panel.T_arr).reshape((N,1,1))*panel.a
-		lnv_2=lnv_2+c[panel.mu_sel]*avg_h_2
-	v_2=np.exp(lnv_2)*panel.a
-	v_inv_2=np.exp(-lnv_2)*panel.a	
-	e_RE_2=rp.RE(panel,e_2)
-	e_REsq_2=e_RE_2**2
-	LL_value_2=panel.LL_const-0.5*np.sum((lnv_2+(e_REsq_2)*v_inv_2)*panel.included)
-
-
-	
-	_val=h_val_0
-	d1_val=h_val_1
-	d2_val=h_val_2
-	
-	testd1=np.sum((d1_val-_val)*panel.included)/d
-	testd2=np.sum((d2_val-d1_val)*panel.included)/d
-	testdd=np.sum((d2_val-2*d1_val+_val)*panel.included)/d**2
-	
-	_val=LL_value_0
-	d1_val=LL_value_1
-	d2_val=LL_value_2
-
-	test1d=(d1_val-_val)/d
-	test2d=(d2_val-_val)/d
-	test2dd=(d2_val-2*d1_val+_val)/d**2
-	return testdd
-
-
-
 
 def set_garch_arch_debug(self,args,d):
 
@@ -253,17 +167,19 @@ def set_garch_arch_debug(self,args,d):
 	beta,rho,lambda_,gamma,psi,Wbeta=args['beta'],args['rho'],args['lambda'],args['gamma'],args['psi'],args['omega']
 	beta_=beta.reshape((len(beta),1))
 	Wbeta_=Wbeta.reshape((len(Wbeta),1))
-	X=self.I+self.lag_matr(q,lambda_)
-	if not fu.cond_test(X):
+	X=self.I+rp.lag_matr(self.L,self.zero,q,lambda_)
+	try:
+		AMA_1=np.linalg.inv(X)
+	except:
 		return None
-	AMA_1=np.linalg.inv(X)
-	AAR=self.I-self.lag_matr(p,rho+d)
+	AAR=self.I-rp.lag_matr(self.L,self.zero,p,rho+d)
 	AMA_1AR=fu.dot(AMA_1,AAR)
-	X=self.I-self.lag_matr(k,gamma)
-	if not fu.cond_test(X):
+	X=self.I-rp.lag_matr(self.L,self.zero,k,gamma)
+	try:
+		GAR_1=np.linalg.inv(X)
+	except:
 		return None
-	GAR_1=np.linalg.inv(X)
-	GMA=self.lag_matr(m,psi)	
+	GMA=rp.lag_matr(self.L,self.zero,m,psi)	
 	GAR_1MA=fu.dot(GAR_1,GMA)
 
 	return beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
@@ -379,188 +295,7 @@ def diffs_debug(panel,x0,x1,x2,d):
 	x=np.sum(x0)
 	return ddx,dx,x
 
-def gradient(self,ll,return_G=False):
-	u,e,h_e_val,lnv_ARMA,h_val,v,v_inv=ll.u,ll.e,ll.h_e_val,ll.lnv_ARMA,ll.h_val,ll.v,ll.v_inv
-	p,d,q,m,k,nW=self.p,self.d,self.q,self.m,self.k,self.nW
 
-	#ARIMA:
-	de_rho=self.arima_grad(p,u,-1,ll.AMA_1)
-	de_lambda=self.arima_grad(q,e,-1,ll.AMA_1)
-	de_beta=-fu.dot(ll.AMA_1AR,self.X)
-	(ll.de_rho,ll.de_lambda,ll.de_beta)=(de_rho,de_lambda,de_beta)
-
-	ll.de_rho_RE,ll.de_lambda_RE,ll.de_beta_RE=rp.dRE(ll,self,de_rho,ll.e,'rho'),rp.dRE(ll,self,de_lambda,ll.e,'lambda'),rp.dRE(ll,self,de_beta,ll.e,'beta')
-	#drRE=self.dLL(0.000001)
-
-
-	dlnv_e_rho,		dlnv_e_rho_G	=	self.garch_arima_grad(ll,de_rho)
-	dlnv_e_lambda, 	dlnv_e_lambda_G	=	self.garch_arima_grad(ll,de_lambda)
-	dlnv_e_beta,	dlnv_e_beta_G	=	self.garch_arima_grad(ll,de_beta)
-
-	(ll.dlnv_e_rho,ll.dlnv_e_lambda,ll.dlnv_e_beta)=(dlnv_e_rho,dlnv_e_lambda,dlnv_e_beta)
-	(ll.dlnv_e_rho_G,ll.dlnv_e_lambda_G,ll.dlnv_e_beta_G)=(dlnv_e_rho_G,dlnv_e_lambda_G,dlnv_e_beta_G)
-
-	#GARCH:
-	if self.m>0:
-		dlnv_gamma=self.arima_grad(k,lnv_ARMA,1,ll.GAR_1)
-		dlnv_psi=self.arima_grad(m,h_val,1,ll.GAR_1)
-		dlnv_z_G=fu.dot(ll.GAR_1MA,ll.h_z_val)
-		(N,T,k)=dlnv_z_G.shape
-		dlnv_z=dlnv_z_G+(ll.args_d['mu']*(np.sum(ll.h_z_val,1)/self.T_arr)).reshape(N,1,1)
-		dlnv_mu=ll.avg_h
-	else:
-		(dlnv_gamma, dlnv_psi, dlnv_mu, dlnv_z_G, dlnv_z)=(None,None,None,None,None)
-	(ll.dlnv_gamma, ll.dlnv_psi,ll.dlnv_mu,ll.dlnv_z_G,ll.dlnv_z)=(dlnv_gamma, dlnv_psi, dlnv_mu, dlnv_z_G, dlnv_z)
-
-	#LL
-
-	DLL_e=-(ll.e_RE*ll.v_inv)
-	dLL_lnv=-0.5*(self.included-(ll.e_REsq*v_inv))
-	(ll.DLL_e, ll.dLL_lnv)=(DLL_e, dLL_lnv)
-
-
-	#final derivatives:
-	dLL_beta=rp.add((rp.prod((dlnv_e_beta,dLL_lnv)),rp.prod((ll.de_beta_RE,DLL_e))),True)
-	dLL_rho=rp.add((rp.prod((dlnv_e_rho,dLL_lnv)),rp.prod((ll.de_rho_RE,DLL_e))),True)
-	dLL_lambda=rp.add((rp.prod((dlnv_e_lambda,dLL_lnv)),rp.prod((ll.de_lambda_RE,DLL_e))),True)
-	dLL_gamma=rp.prod((dlnv_gamma,dLL_lnv))
-	dLL_psi=rp.prod((dlnv_psi,dLL_lnv))
-	dLL_omega=rp.prod((self.W_a,dLL_lnv))
-	dLL_mu=rp.prod((ll.dlnv_mu,dLL_lnv))
-	dLL_z=rp.prod((ll.dlnv_z,dLL_lnv))
-
-	G=rp.concat_marray((dLL_beta,dLL_rho,dLL_lambda,dLL_gamma,dLL_psi,dLL_omega,dLL_mu,dLL_z))
-	g=np.sum(np.sum(G,0),0)
-	#gn=debug.grad_debug(self,ll.args_d,0.0000001)#debugging
-	#self.dLL(0.01)
-	#self.LL_debug_detail(ll.args_d,0.000001)
-	if return_G:
-		return  g,G
-	else:
-		return g
-
-def hessian(self,ll):
-
-	GARM=rp.ARMA_product(ll.GAR_1,self.L,self.m)
-	GARK=rp.ARMA_product(ll.GAR_1,self.L,self.k)
-
-	d2lnv_gamma2		=   rp.dd_func_lags(self,ll,GARK, 	ll.dlnv_gamma,						ll.dLL_lnv,  transpose=True)
-	d2lnv_gamma_psi		=	rp.dd_func_lags(self,ll,GARK, 	ll.dlnv_psi,						ll.dLL_lnv)
-
-	d2lnv_gamma_rho		=	rp.dd_func_lags(self,ll,GARK,	ll.dlnv_e_rho_G,					ll.dLL_lnv)
-	d2lnv_gamma_lambda	=	rp.dd_func_lags(self,ll,GARK, 	ll.dlnv_e_lambda_G,					ll.dLL_lnv)
-	d2lnv_gamma_beta	=	rp.dd_func_lags(self,ll,GARK, 	ll.dlnv_e_beta_G,					ll.dLL_lnv)
-	d2lnv_gamma_z		=	rp.dd_func_lags(self,ll,GARK, 	ll.dlnv_z_G,						ll.dLL_lnv)
-
-	d2lnv_psi_rho		=	rp.dd_func_lags(self,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_rho)),	ll.dLL_lnv)
-	d2lnv_psi_lambda	=	rp.dd_func_lags(self,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_lambda)),	ll.dLL_lnv)
-	d2lnv_psi_beta		=	rp.dd_func_lags(self,ll,GARM, 	rp.prod((ll.h_e_val,ll.de_beta)),	ll.dLL_lnv)
-	d2lnv_psi_z			=	rp.dd_func_lags(self,ll,GARM, 	ll.h_z_val,							ll.dLL_lnv)
-	GARM=0#Releases memory
-	GARK=0#Releases memory
-
-	AMAq=-rp.ARMA_product(ll.AMA_1,self.L,self.q)
-	d2lnv_lambda2,		d2e_lambda2		=	rp.dd_func_lags_mult(self,ll,AMAq,	ll.de_lambda,	ll.de_lambda,	'lambda',	'lambda', transpose=True)
-	d2lnv_lambda_rho,	d2e_lambda_rho	=	rp.dd_func_lags_mult(self,ll,AMAq,	ll.de_lambda,	ll.de_rho,		'lambda',	'rho' )
-	d2lnv_lambda_beta,	d2e_lambda_beta	=	rp.dd_func_lags_mult(self,ll,AMAq,	ll.de_lambda,	ll.de_beta,		'lambda',	'beta')
-	AMAq=0#Releases memory
-
-
-	AMAp=-rp.ARMA_product(ll.AMA_1,self.L,self.p)
-	d2lnv_rho_beta,		d2e_rho_beta	=	rp.dd_func_lags_mult(self,ll,AMAp,	ll.de_rho,		ll.de_beta,		'rho',		'beta', de_zeta_u=-self.X)
-
-
-	d2lnv_mu_rho			=	rp.dd_func_lags(self,ll,None, 		rp.prod((ll.h_e_val,ll.de_rho)),	ll.dLL_lnv, 	addavg=1) 
-	d2lnv_mu_lambda			=	rp.dd_func_lags(self,ll,None, 		rp.prod((ll.h_e_val,ll.de_lambda)),	ll.dLL_lnv, 	addavg=1) 
-	d2lnv_mu_beta			=	rp.dd_func_lags(self,ll,None, 		rp.prod((ll.h_e_val,ll.de_beta)),	ll.dLL_lnv, 	addavg=1) 
-	d2lnv_mu_z				=	rp.dd_func_lags(self,ll,None, 		ll.h_z_val,							ll.dLL_lnv, 	addavg=1) 
-
-	d2lnv_z2				=	rp.dd_func_lags(self,ll,ll.GAR_1MA, ll.h_2z_val,						ll.dLL_lnv, 	addavg=ll.args_d['mu']) 
-	d2lnv_z_rho				=	rp.dd_func_lags(self,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_rho)),	ll.dLL_lnv, 	addavg=ll.args_d['mu']) 
-	d2lnv_z_lambda			=	rp.dd_func_lags(self,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_lambda)),ll.dLL_lnv, 	addavg=ll.args_d['mu']) 
-	d2lnv_z_beta			=	rp.dd_func_lags(self,ll,ll.GAR_1MA, rp.prod((ll.h_ez_val,ll.de_beta)),	ll.dLL_lnv, 	addavg=ll.args_d['mu']) 
-
-	d2lnv_rho2,	d2e_rho2	=	rp.dd_func_lags_mult(self,ll,	None,	ll.de_rho,		ll.de_rho,		'rho',		'rho' )
-	AMAp=0#Releases memory
-
-	d2lnv_beta2,d2e_beta2	=	rp.dd_func_lags_mult(self,ll,	None,	ll.de_beta,		ll.de_beta,		'beta',		'beta')
-
-
-	#return debug.hessian_debug(self,args):
-	d=self.second_derivatives(ll)
-	#Final:
-	
-	d2LL_de2=-ll.v_inv*self.included
-	d2LL_dln_de=ll.e_RE*ll.v_inv*self.included
-	d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.included	
-	(de_rho_RE,de_lambda_RE,de_beta_RE)=(ll.de_rho_RE,ll.de_lambda_RE,ll.de_beta_RE)
-	(dlnv_e_rho,dlnv_e_lambda,dlnv_e_beta)=(ll.dlnv_e_rho,ll.dlnv_e_lambda,ll.dlnv_e_beta)
-	(dlnv_gamma,dlnv_psi)=(ll.dlnv_gamma,ll.dlnv_psi)
-	(dlnv_mu, dlnv_z)=(ll.dlnv_mu, ll.dlnv_z)			
-
-	D2LL_beta2			=	rp.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta_RE,		dlnv_e_beta, 	dlnv_e_beta,	d2e_beta2, 					d2lnv_beta2)
-	D2LL_beta_rho		=	rp.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_rho_RE,		dlnv_e_beta, 	dlnv_e_rho,		T(d2e_rho_beta), 		T(d2lnv_rho_beta))
-	D2LL_beta_lambda	=	rp.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_lambda_RE,	dlnv_e_beta, 	dlnv_e_lambda,	T(d2e_lambda_beta), 	T(d2lnv_lambda_beta))
-	D2LL_beta_gamma		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_e_beta, 	ll.dlnv_gamma,		None, 					T(d2lnv_gamma_beta))
-	D2LL_beta_psi		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_e_beta, 	ll.dlnv_psi,		None, 					T(d2lnv_psi_beta))
-	D2LL_beta_omega		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_e_beta, 	self.W_a,		None, 					None)
-	D2LL_beta_mu		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_e_beta, 	dlnv_mu,		None, 					T(d2lnv_mu_beta))
-	D2LL_beta_z			=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_e_beta, 	dlnv_z,			None, 					T(d2lnv_z_beta))
-	
-	D2LL_rho2			=	rp.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_rho_RE,		dlnv_e_rho, 	dlnv_e_rho,		d2e_rho2, 					d2lnv_rho2)
-	D2LL_rho_lambda		=	rp.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_lambda_RE,	dlnv_e_rho, 	dlnv_e_lambda,	T(d2e_lambda_rho), 		T(d2lnv_lambda_rho))
-	D2LL_rho_gamma		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_e_rho, 	ll.dlnv_gamma,		None, 					T(d2lnv_gamma_rho))	
-	D2LL_rho_psi		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_e_rho, 	ll.dlnv_psi,		None, 					T(d2lnv_psi_rho))
-	D2LL_rho_omega		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_e_rho, 	self.W_a,		None, 					None)
-	D2LL_rho_mu			=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_e_rho, 	dlnv_mu,		None, 					T(d2lnv_mu_rho))
-	D2LL_rho_z			=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_e_rho, 	dlnv_z,			None, 					T(d2lnv_z_rho))
-	
-	D2LL_lambda2		=	rp.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	de_lambda_RE,	dlnv_e_lambda, 	dlnv_e_lambda,	T(d2e_lambda2), 		T(d2lnv_lambda2))
-	D2LL_lambda_gamma	=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_e_lambda, 	ll.dlnv_gamma,		None, 					T(d2lnv_gamma_lambda))
-	D2LL_lambda_psi		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_e_lambda, 	ll.dlnv_psi,		None, 					T(d2lnv_psi_lambda))
-	D2LL_lambda_omega	=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_e_lambda, 	self.W_a,		None, 					None)
-	D2LL_lambda_mu		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_e_lambda, 	dlnv_mu,		None, 					T(d2lnv_mu_lambda))
-	D2LL_lambda_z		=	rp.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_e_lambda, 	dlnv_z,			None, 					T(d2lnv_z_lambda))
-	
-	D2LL_gamma2			=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			ll.dlnv_gamma, 	ll.dlnv_gamma,		None, 					T(d2lnv_gamma2))
-	D2LL_gamma_psi		=	rp.dd_func(None,		None,			d2LL_dln2,	None,			None,			ll.dlnv_gamma, 	ll.dlnv_psi,		None, 					d2lnv_gamma_psi)
-	D2LL_gamma_omega	=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			ll.dlnv_gamma, 	self.W_a,		None, 					None)
-	D2LL_gamma_mu		=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			ll.dlnv_gamma, 	dlnv_mu,		None, 					None)
-	D2LL_gamma_z		=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			ll.dlnv_gamma, 	dlnv_z,			None, 					d2lnv_gamma_z)
-	
-	D2LL_psi2			=	rp.dd_func(None,		None,			d2LL_dln2,	None,			None,			ll.dlnv_psi, 		ll.dlnv_psi,		None, 					None)
-	D2LL_psi_omega		=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			ll.dlnv_psi, 		self.W_a,		None, 					None)
-	D2LL_psi_mu			=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			ll.dlnv_psi, 		dlnv_mu,		None, 					None)
-	D2LL_psi_z			=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			ll.dlnv_psi, 		dlnv_z,			None, 					d2lnv_psi_z)
-	
-	D2LL_omega2			=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			self.W_a, 		self.W_a,		None, 					None)
-	D2LL_omega_mu		=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			self.W_a, 		dlnv_mu,		None, 					None)
-	D2LL_omega_z		=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			self.W_a, 		dlnv_z,			None, 					None)
-	
-	D2LL_mu2			=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 		dlnv_mu,		None, 					None)
-	D2LL_mu_z			=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 		dlnv_z,			None, 					d2lnv_mu_z)
-	
-	D2LL_z2				=	rp.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_z, 		dlnv_z,			None, 					d2lnv_z2)
-	
-	
-	H= [[D2LL_beta2,			D2LL_beta_rho,		D2LL_beta_lambda,		D2LL_beta_gamma,	D2LL_beta_psi,		D2LL_beta_omega,	D2LL_beta_mu,	D2LL_beta_z		],
-		[T(D2LL_beta_rho),		D2LL_rho2,			D2LL_rho_lambda,		D2LL_rho_gamma,		D2LL_rho_psi,		D2LL_rho_omega,		D2LL_rho_mu,	D2LL_rho_z			],
-		[T(D2LL_beta_lambda),	T(D2LL_rho_lambda),	D2LL_lambda2,			D2LL_lambda_gamma,	D2LL_lambda_psi,	D2LL_lambda_omega,	D2LL_lambda_mu,	D2LL_lambda_z		],
-		[T(D2LL_beta_gamma),	T(D2LL_rho_gamma),	T(D2LL_lambda_gamma),	D2LL_gamma2,		D2LL_gamma_psi,		D2LL_gamma_omega, 	D2LL_gamma_mu,	D2LL_gamma_z		],
-		[T(D2LL_beta_psi),		T(D2LL_rho_psi),	T(D2LL_lambda_psi),		T(D2LL_gamma_psi),	D2LL_psi2,			D2LL_psi_omega, 	D2LL_psi_mu,	D2LL_psi_z			],
-		[T(D2LL_beta_omega),	T(D2LL_rho_omega),	T(D2LL_lambda_omega),	T(D2LL_gamma_omega),T(D2LL_psi_omega),	D2LL_omega2, 		D2LL_omega_mu,	D2LL_omega_z		], 
-		[T(D2LL_beta_mu),		T(D2LL_rho_mu),		T(D2LL_lambda_mu),		T(D2LL_gamma_mu),	T(D2LL_psi_mu),		T(D2LL_omega_mu), 	D2LL_mu2,		D2LL_mu_z			],
-		[T(D2LL_beta_z),		T(D2LL_rho_z),		T(D2LL_lambda_z),		T(D2LL_gamma_z),	T(D2LL_psi_z),		T(D2LL_omega_z), 	D2LL_mu_z,		D2LL_z2				]]
-
-
-	H=rp.concat_matrix(H)
-	#Hn=-debug.hess_debug(self,ll,0.000001)#debugging
-	#debug.LL_debug_detail(self,ll,0.0000001)
-
-	return H 
-
-
-	
 
 def dd_func_lags_mult(panel,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de_zeta_u=None,d=0.000001):
 	#de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"
@@ -673,20 +408,6 @@ def dd_func_lags(panel,L,d,dLL,addavg=0, transpose=False):
 	dLL=dLL.reshape((N,T,1,1))
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	
 
-
-
-def savevar(variable,name='tmp'):
-	"""takes var and name and saves var with filname <name>.csv """	
-	savevars(((variable,name),))
-
-def savevars(varlist):
-	"""takes a tuple of (var,name) pairs and saves numpy array var 
-	with <name>.csv. Use double brackets for single variable."""	
-	if not os.path.exists('/output'):
-		os.makedirs('/output')	
-	for var,name in varlist:
-		name=name.replace('.csv','')
-		np.savetxt("%s\\output\\%s.csv" %(os.getcwd(),name),var,delimiter=";")
 
 
 def T(x):
