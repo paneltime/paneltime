@@ -25,6 +25,7 @@ class LL:
 		self.h_err=""
 		self.h_def=panel.h_def
 		self.NT=panel.NT
+
 		try:
 			self.LL=self.LL_calc(panel,X)
 			
@@ -142,7 +143,15 @@ def solve_mult(args,b,I):
 	q=len(args)
 	X=np.zeros((q+1,n))
 	X[0,:]=1
-	X2=lag_matr(I,args)
+	X2=np.zeros((n,n))
+	w=np.zeros(n)
+	r=np.arange(n)
+	#for j in range(20):
+	#	for i in range(n):
+	#		k=min((i,q))
+	#		w[i]=np.sum(w[i-k:i-1]*w[i-1])
+	#		d=(r[i+1:],r[:-i-1])
+	#		X2[d]=w[i]		
 	for i in range(q):
 		X[i+1,:n-i-1]=args[i]
 	try:
