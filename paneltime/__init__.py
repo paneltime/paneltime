@@ -20,7 +20,7 @@ import functions as fu
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, sort_name=None,
             descr="project_1",
             fixed_random_eff=2, w_names=None, loadargs=True,direction_testing=True,add_intercept=True,
-            h=None
+            h=None,user_constraints=None
             ):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
@@ -28,7 +28,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 	return main.execute(dataframe, model_string, p, d, q, m, k, groups_name, sort_name,
 		           descr,
 		           fixed_random_eff, w_names, loadargs,direction_testing,add_intercept,
-		           h
+		           h,user_constraints
 		           )
 
 

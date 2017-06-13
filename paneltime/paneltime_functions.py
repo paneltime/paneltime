@@ -18,9 +18,9 @@ max_sessions=20
  
 class args_bank:
 	
-	def __init__(self,X, Y, groups, W,loadargs):
+	def __init__(self,model_string,loadargs):
 		"""Load parameters if a similar model has been estimated before"""  
-		self.model_key=get_model_key(X, Y, groups, W)
+		self.model_key=model_string# possibility for determening model based on data: get_model_key(X, Y, W)
 		self.session_db=load_obj()
 		if (not loadargs) or (self.session_db is None):
 			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=(None,0,None,None)
@@ -50,23 +50,26 @@ class args_bank:
 			d=dict()
 			a=[]
 		d[self.model_key]=(args,conv,not_in_use1,not_in_use2)
+		if self.model_key in a:
+			a.remove(self.model_key)
+		a.append(self.model_key)		
+		if len(a)!=len(d):
+			a=list(d.keys())
 		a.append(self.model_key)
 		self.session_db=(d,a)
 		pickle.dump((self.session_db),f)   
 		f.flush() 
 		f.close()
 
-
-
 def load_obj():
 	try:
 		f=open(fname, "r+b")
+		u= pickle.Unpickler(f)
+		u=u.load()
+		f.close()
+		return u 
 	except:
 		return None
-	u= pickle.Unpickler(f)
-	u=u.load()
-	f.close()
-	return u 
 
 
 def get_model_key(X,Y, groups,W):
@@ -199,11 +202,11 @@ def check_var(dataframe,names,arg_name,intercept_name=None,raise_error=False,int
 	for i in names:
 		X.append(dataframe[i])
 	X=np.concatenate(X,1)
-	X,names=remove_constants(X,names, dataframe, raise_error,has_const)
+	X,names=remove(X,names, dataframe, raise_error,has_const)
 	return X,names,has_const
 
 	
-def remove_constants(X,names,dataframe,raise_error,has_const):
+def remove(X,names,dataframe,raise_error,has_const):
 	"""Removes constants variables at position 1 or higher, and any zero variable. You shold set raise_error=True for vital variables (X and Y)"""
 	
 	keep=np.var(X,0)!=0
@@ -212,9 +215,9 @@ def remove_constants(X,names,dataframe,raise_error,has_const):
 	if sumtrash>0:
 		remvd=','.join(np.array(names)[keep==False])
 		if sumtrash==1:
-			remvd="Warning: The variable %s was removed because it was a constant or zero" %(remvd,)
+			remvd="Warning: The variable %s was removed because it was requested removed or constant" %(remvd,)
 		else:
-			remvd="Warning: The variables %s were removed because they were constants or zero" %(remvd,)
+			remvd="Warning: The variables %s were removed because they were requested removed or constant" %(remvd,)
 		if raise_error and len(X[0])<=sumtrash:
 			raise RuntimeError(remvd+'. Aborting since there are no more variables to run with.')
 		else:

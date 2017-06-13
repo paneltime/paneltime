@@ -287,12 +287,6 @@ def sandwich(H,G,lags=3,ret_hessin=False):
 		return sandw,hessin
 	return sandw
 
-def add_names(T,namsestr,names,start=0):
-	a=[]
-	for i in range(start,T):
-		a.append(namsestr %(i,))
-	names.extend(a)
-	
 
 	
 def differenciate(X,diff,has_intercept):

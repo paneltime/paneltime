@@ -28,7 +28,7 @@ def posdef(a,da):
 	return list(range(a,a+da)),a+da
 
 class panel:
-	def __init__(self,p,d,q,m,k,X,Y,groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,descr,data,h,has_intercept,loadargs):
+	def __init__(self,p,d,q,m,k,X,Y,groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,descr,data,h,has_intercept,loadargs,model_string,user_constraints):
 		"""
 		No effects    : fixed_random_eff=0\n
 		Fixed effects : fixed_random_eff=1\n
@@ -38,15 +38,15 @@ class panel:
 		if groups_name is None:
 			fixed_random_eff=0
 
-		self.initial_defs(h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,loadargs)
+		self.initial_defs(h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,loadargs,model_string)
 		
 		self.X,self.Y,self.W,self.max_T,self.T_arr,self.N=self.arrayize(X, Y, W, groups)
 
 		self.masking()
 		self.lag_variables(max((q,p,k,m)))
 		
-		self.name_vector=self.make_namevector()
-		self.final_defs(p,d,q,m,k,X)
+
+		self.final_defs(p,d,q,m,k,X,user_constraints)
 
 		self.between_group_ols()
 
@@ -60,8 +60,8 @@ class panel:
 		self.n_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
 		self.n_i=self.n_i+(self.n_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		
-	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,loadargs):
-		self.args_bank=ptf.args_bank(X, Y, groups, W, loadargs)		
+	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,loadargs,model_string):
+		self.args_bank=ptf.args_bank(model_string, loadargs)		
 		self.loadargs=loadargs
 		self.has_intercept=has_intercept
 
@@ -84,7 +84,7 @@ class panel:
 		
 		
 		
-	def final_defs(self,p,d,q,m,k,X):
+	def final_defs(self,p,d,q,m,k,X,user_constraints):
 		self.W_a=self.W*self.a
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT_afterloss=np.sum(self.included)
@@ -95,25 +95,10 @@ class panel:
 		self.df=self.NT_afterloss-self.len_args-self.number_of_RE_coef-self.number_of_FE_coef_in_variance
 		self.xmin=np.min(X,0).reshape((1,X.shape[1]))
 		self.xmax=np.max(X,0).reshape((1,X.shape[1]))
-		self.args=arguments(p, d, q, m, k, self, self.args_bank.args,self.has_intercept)
+		self.args=arguments(p, d, q, m, k, self, self.args_bank.args,self.has_intercept,user_constraints)
 
 
-	
 
-	def make_namevector(self):
-		"""Creates a vector of the names of all regression varaibles, including variables, ARIMA and GARCH terms"""
-		p,q,m,k,nW=self.p,self.q,self.m,self.k,self.nW
-		names=self.x_names[:]#copy variable names
-		rp.add_names(p,'AR term %s (p)',names)
-		rp.add_names(q,'MA term %s (q)',names)
-		rp.add_names(m,'MACH term %s (m)',names)
-		rp.add_names(k,'ARCH term %s (k)',names)
-		names.extend(self.w_names)
-		if self.m>0:
-			if self.N>1:
-				names.extend(['mu (var.group eff.)'])
-			names.extend(['z in h(e,z)'])
-		return names
 	
 	def between_group_ols(self):
 		N,T,k=self.X.shape
@@ -257,12 +242,14 @@ class panel:
 
 class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
-	def __init__(self,p, d, q, m, k, panel, args,has_intercept):
+	def __init__(self,p, d, q, m, k, panel, args,has_intercept,user_constraints):
 		self.categories=['beta','rho','lambda','gamma','psi','omega','mu','z']
-		self.set_init_args(p, d, q, m, k,panel, args,has_intercept)
+		self.set_init_args(p, d, q, m, k,panel, args,has_intercept,user_constraints)
+		self.make_namevector(panel,p, q, m, k)
 		self.position_defs()
 		N,T,b=panel.X.shape
 		self.n_args=b+p+q+m+k+(m>0)*2+panel.W.shape[2]-(N==1)
+		self.apply_user_constraints(panel, user_constraints)
 
 	def initargs(self,p,d,q,m,k,panel):
 		args=dict()
@@ -281,13 +268,14 @@ class arguments:
 
 		return args
 
-	def set_init_args(self,p,d,q,m,k,panel,args_old,has_intercept,):
+	def set_init_args(self,p,d,q,m,k,panel,args_old,has_intercept,user_constraints):
 		
 		args=self.initargs(p, d, q, m, k, panel)
-		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
+		
 		#de2=np.roll(e**2,1)-e**2
 		#c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
 
+		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
 		args['beta']=beta
 		args['omega'][0][0]=np.log(np.var(e*panel.included)*len(e[0])/np.sum(panel.included))
 		if m>0:
@@ -306,6 +294,7 @@ class arguments:
 			args['z']=insert_arg(args['z'],args_old['z'])
 		self.args=args
 		self.set_restricted_args(p, d, q, m, k,panel,e,beta)
+		
 
 	def set_restricted_args(self,p, d, q, m, k, panel,e,beta):
 		self.args_restricted=self.initargs(p, d, q, m, k, panel)
@@ -359,12 +348,68 @@ class arguments:
 			return v
 		else:
 			return args
-		
+
+
+	def make_namevector(self,panel,p, q, m, k):
+		"""Creates a vector of the names of all regression varaibles, including variables, ARIMA and GARCH terms"""
+		d=dict()
+		names=panel.x_names[:]#copy variable names
+		d['beta']=names
+		add_names(p,'AR term %s (p)','rho',d,names)
+		add_names(q,'MA term %s (q)','lambda',d,names)
+		add_names(m,'MACH term %s (m)','gamma',d,names)
+		add_names(k,'ARCH term %s (k)','psi',d,names)
+		d['omega']=panel.w_names
+		names.extend(panel.w_names)
+		if m>0:
+			if panel.N>1:
+				d['mu']=['mu (var.group eff.)']
+				names.extend(d['mu'])
+			d['z']=['z in h(e,z)']
+			names.extend(d['z'])
 			
+		self.names_v=names
+		self.names_d=d
+		
+	def apply_user_constraints(self,panel,user_constraints):
+		if user_constraints is None:
+			return	
+		if type(user_constraints)!=list:
+			print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
+		names_v=self.names_v
+		names_d=self.names_d
+		if type(user_constraints[0])!=list:
+			user_constraints=[user_constraints]	
+		for i in user_constraints:
+			if len(i)==2:
+				if type(i[0])!=str:
+					name=names[i[0]]
+				else:
+					name=i[0]
+			for c in self.categories:
+				if name in names_d[c]:
+					j=names_d[c].index(name)
+					self.start_args[c][j]=i[1]
+					self.args[c][j]=i[1]
+					self.args_restricted[c][j]=i[1]
+					self.args_OLS[c][j]=i[1]
+					break
+			
+
+			
+def add_names(T,namsestr,category,d,names):
+	a=[]
+	for i in range(T):
+		a.append(namsestr %(i,))
+	names.extend(a)
+	d[category]=a
+	
+
 def insert_arg(arg,add):
 	n=min((len(arg),len(add)))
 	arg[:n]=add[:n]
 	return arg
+
 
 
 

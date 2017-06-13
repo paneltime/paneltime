@@ -65,9 +65,9 @@ def lnsrch(f0, g, dx,panel,fast=False):
 				return ll
 	else:
 		return d[f_max]
-	return f0#should never happen
-
-def maximize(panel,direction,mp,direction_testing,args=None,_print=True):
+	return f0#should never happen	
+	
+def maximize(panel,direction,mp,direction_testing,args=None,_print=True,user_constraints=None):
 	"""Maxmizes logl.LL"""
 	
 	
@@ -94,14 +94,14 @@ def maximize(panel,direction,mp,direction_testing,args=None,_print=True):
 	direction.hessin_num=None
 	while 1:  
 		its+=1
-		dx,g,G,H,constrained,reset=direction.get(ll,mc_limit,dx_conv,k,its,mp,dxi=dxi)
+		dx,g,G,H,constrained,reset=direction.get(ll,mc_limit,dx_conv,k,its,mp,dxi=dxi,user_constraints=user_constraints)
 		if reset:
 			k=0
 		f0=ll
 		LL0=round_sign(ll.LL,digits_precision)
 		dx_conv=(ll.args_v!=0)*np.abs(dx)*(constrained==0)/(np.abs(ll.args_v)+(ll.args_v==0))
 		dx_conv=(ll.args_v==0)*dx+dx_conv
-		printout(_print, ll, dx_conv,panel)
+		printout(_print, ll, dx_conv,panel,its)
 		#Convergence test:
 		if np.max(dx_conv) < convergence_limit and (its>3 or  np.sum(constrained)<=2):  #max direction smaller than convergence_limit -> covergence
 			if _print: print("Convergence on zero gradient; maximum identified")
@@ -223,11 +223,11 @@ def impose_OLS(ll,args_d,panel):
 	args_d['beta'][:]=beta
 	
 
-def printout(_print,ll,dx_conv,panel):
+def printout(_print,ll,dx_conv,panel,its):
 	ll.standardize(panel)
 	norm_prob=stat.JB_normality_test(ll.e_st,panel)	
 	if _print: 
-		print("LL: %s Normality probability: %s " %(ll.LL,norm_prob))
+		print("LL: %s Normality probability: %s    Iteration: %s" %(ll.LL,norm_prob,its))
 		a='['
 		k=0
 		for i in np.round(dx_conv*100,2):

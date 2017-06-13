@@ -196,7 +196,7 @@ class direction:
 		self.do_shocks=True
 		
 		
-	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,):
+	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,user_constraints=None):
 
 		g,G=self.gradient.get(ll,return_G=True)		
 		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv)
@@ -204,20 +204,23 @@ class direction:
 		out=output(print_on)
 		self.constr=constraints(self.panel.args,self.constr)
 		reset=False
+		if its==1:
+			self.old_dx_conv=None
 		if its>-1:
-			hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,hessian,k,its,out)
+			hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
+		self.old_dx_conv=dx_conv
 		dc,constrained=solve(self.constr,hessian, g, ll.args_v)
-		dc_tmp=dc*1
+
 		for j in range(len(dc)):
 			s=dc*(constrained==0)*g
 			if np.sum(s)<0:#negative slope
 				s=np.argsort(s)
 				k=s[0]
-				remove(k, None, ll.args_v, None, out, self.constr, self.panel.name_vector, 'neg. slope')
+				remove(k, None, ll.args_v, None, out, self.constr, self.panel.args.names_v, 'neg. slope')
 				dc,constrained=solve(self.constr,hessian, g, ll.args_v)
 			else:
 				break
-
+		
 		out.print()
 		
 			
@@ -229,28 +232,37 @@ class direction:
 		
 		#hessinS0=rp.sandwich(hessian,G,0)
 		hessian=None
-		if ((its>=0 or its<3) and its>-1) or self.hessian_num is None:
+		if its>-1 and (int(its*0.5)==its*0.5 or self.hessian_num is None) or True:
 			hessian=self.hessian.get(ll,mp)
 
 		elif (not self.g_old is None) and (not dxi is None):
-			print("Using numerical hessian")#could potentially be used to calculate the hessian nummerically for some iterations
-			hessian=self.hessian.get(ll,mp)#in order to gain speed, but it does not seem to help much. 
-			self.hessian_num=hessian			
+			print("Using numerical hessian")#could potentially be used to calculate the hessian nummerically for 
+											#some iterations to gain speed, but loss of accuracy outweights the benefits			
 			hessin_num=hessin(self.hessian_num)
-			hessin_num=approximate_hessin(g,self.g_old,hessin_num,dxi)	
-			hessian=hessin(hessin_num)
+			if hessin_num is None:
+				hessian=self.hessian.get(ll,mp)
+			else:
+				hessin_num=approximate_hessin(g,self.g_old,hessin_num,dxi)	
+				hessian=hessin(hessin_num)
+				if hessian is None:
+					hessian=self.hessian.get(ll,mp)
 		else:
 			hessian=self.hessian_num
 		
 		I=np.diag(np.ones(len(hessian)))
-		m=1
-		if not dx_conv is None:
-			if max(dx_conv)>0.2:
-				hessian=hessian+m*I*hessian
+
+		if dx_conv is None:
+			m=10
 		else:
-			hessian=hessian+m*I*hessian
+			dx_max=max(dx_conv)
+			fact=200
+			m=fact*dx_max/(fact*(1/dx_max)+dx_max)
+		#m=1
+		#if dx_max<0.2:
+		#	m=0
+				
+		hessian=(hessian+m*I*hessian)/(1+m)
 		self.hessian_num=hessian
-			
 		self.g_old=g
 		
 		return hessian
@@ -263,7 +275,7 @@ def hessin(hessian):
 	try:
 		h=-np.linalg.inv(hessian)
 	except:
-		h=np.diag(np.ones(panel.args.n_args))	
+		return None	
 	return h
 	
 def approximate_hessin(g,g_old,hessin,dxi):
@@ -501,24 +513,29 @@ def remove(d,assoc,set_to,include,out,constr,names,r_type):
 		out.add(names[d],a,'NA',r_type)	
 	return True
 
-def add_constraints(G,panel,ll,constr,mc_limit,dx_conv,hessian,k,its,out):
-	names=panel.name_vector
+def add_constraints(G,panel,ll,constr,mc_limit,dx_conv,dx_conv_old,hessian,k,its,out,user_constraints):
+	names=panel.args.names_v
 	args=ll.args_v
 	N,T,h=G.shape
 	include=np.ones(h,dtype=bool)
+	add_user_constraints(panel,constr,names,include,user_constraints,its,ll)
 	add_initial_constraints(panel,constr,out,names,ll,include,its)
 	remove_constants(panel, G, include,constr,out,names)	
-	remove_all_multicoll(G, args, names, include, out, constr, 1000)
+
+	remove_all_multicoll(G, args, names, include, out, constr, 50)
+	remove_H_correl(hessian,include,constr,args,out,names)
 	reset=False
-	#remove_H_correl(hessian,include,constr,args,out,names)
 	if mc_limit<30 and not (dx_conv is None):
 		srt=np.argsort(dx_conv)
 		for i in range(min((k,len(srt)-2))):
-			j=srt[-i-1]
-			if dx_conv[j]<0.05:
+			if max(dx_conv)>2:
+				j=srt[-i-1]
+			else:
+				j=srt[i]
+			if dx_conv[j]<0.01:
 				reset=True
 			else:
-				reset=remove(j,None,args, include, out,constr,names,'dir cap')==False
+				remove(j,None,args, include, out,constr,names,'dir cap')
 	return hessian, reset
 
 def add_initial_constraints(panel,constr,out,names,ll,include,its):
@@ -533,7 +550,27 @@ def add_initial_constraints(panel,constr,out,names,ll,include,its):
 		for i in args.positions['beta']:
 			remove(i, None, beta[i][0], include, out, constr, names, 'initial')	
 
-
+def add_user_constraints(panel,constr,names,include,user_constraints,its,ll):
+	if user_constraints is None:
+		return
+	if type(user_constraints)!=list:
+		if its==1:
+			print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")
+		return
+	else:
+		if type(user_constraints[0])!=list:
+			user_constraints=[user_constraints]
+		for i in user_constraints:
+			if type(i[0])==str:
+				pos=names.index(i[0])
+			else:
+				pos=i[0]
+			if len(i)>2:
+				maximum=i[2]
+				
+			else:
+				maximum=None
+			constr.add(pos, i[1],maximum)
 
 
 class output:

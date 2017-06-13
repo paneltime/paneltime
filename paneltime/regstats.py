@@ -18,7 +18,7 @@ import functions as fu
 import loglikelihood as logl
 
 class diagnostics:
-	def __init__(self,panel,g,G,H,robustcov_lags,ll,simple_diagnostics=False):
+	def __init__(self,panel,g,G,H,robustcov_lags,ll,simple_diagnostics=False,corr_matrix_vars=None):
 		"""This class calculates, stores and prints statistics and diagnostics"""
 		self.panel=panel
 		ll.standardize(panel)
@@ -37,7 +37,7 @@ class diagnostics:
 
 		self.multicollinearity_check(G)
 
-		self.data_correlations,self.data_statistics=self.correl_and_statistics()
+		self.data_correlations,self.data_statistics=self.correl_and_statistics(corr_matrix_vars)
 		
 		scatterplots(panel)
 
@@ -46,15 +46,19 @@ class diagnostics:
 		self.adf_test=stat.adf_test(panel,ll,10)
 		self.save_stats(ll)
 	
-	def correl_and_statistics(self):
+	def correl_and_statistics(self,corr_matrix_vars):
 		panel=self.panel
 		x_names=[]
 		X=[]
-		for i in panel.data.keys():
-			d=panel.data[i]
-			if type(d)==np.ndarray:
-				x_names.append(i)
-				X.append(panel.data[i])
+		if not corr_matrix_vars is None:
+			if type(corr_matrix_vars)==str:
+				corr_matrix_vars=corr_matrix_vars.split(',')
+			for i in corr_matrix_vars:
+				add_corr_variable(i, panel, x_names, X)
+		if len(x_names)==0:
+			for i in panel.data.keys():
+				add_corr_variable(i, panel, x_names, X)
+	
 		n=len(x_names)
 		X=np.concatenate(X,1)
 		x_names=np.array(x_names).reshape((1,n))
@@ -78,7 +82,7 @@ class diagnostics:
 		robust_cov_matrix,cov=rp.sandwich(H,G,robustcov_lags,ret_hessin=True)
 		se=np.maximum(np.diag(robust_cov_matrix).flatten(),1e-200)**0.5
 		se_st=np.maximum(np.diag(cov).flatten(),1e-200)**0.5
-		names=np.array(panel.name_vector)
+		names=np.array(panel.args.names_v)
 
 		T=len(se)
 		output=[]
@@ -145,7 +149,7 @@ class diagnostics:
 	def multicollinearity_check(self,G):
 		"Returns a variance decompostition matrix with headings"
 		panel=self.panel
-		vNames=['CI:']+panel.name_vector
+		vNames=['CI:']+panel.args.names_v
 		k=len(vNames)-1
 		matr=stat.var_decomposition(X=G,concat=True)
 		matr=np.round(matr,3)
@@ -181,7 +185,6 @@ class diagnostics:
 		    ])
 		
 		add_output(output,name_list,'Regression',self.reg_output)
-		add_output(output,name_list,'Correlation Matrix',self.data_correlations)
 		add_output(output,name_list,'Multicollinearity',self.MultiColl)
 
 		add_output(output,name_list,'Descriptive statistics',self.data_statistics)
@@ -198,11 +201,18 @@ class diagnostics:
 			output_table.extend(output[i])
 			output_positions.append('%s~%s~%s~%s' %(i,pos,len(output[i]),len(output[i][0])))
 		output_table[0]=output_positions
+		add_output(output,name_list,'Correlation Matrix',self.data_correlations)
 		fu.savevar(output_table,'output/'+panel.descr+strappend,'csv')
 		
 		self.output=output
 
-	
+def add_corr_variable(name,panel,x_names,X):
+	if name in panel.data.keys():
+		d=panel.data[name]
+		if type(d)==np.ndarray:
+			x_names.append(name)
+			X.append(d)
+			
 def add_output(output_dict,name_list,name,table):
 	if type(table)==np.ndarray:
 		table=np.concatenate(([[''] for i in range(len(table))],table),1)

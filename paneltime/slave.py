@@ -48,7 +48,6 @@ def main(f):
 		elif msg=='holdbacks':
 			holdbacks=obj  
 		if msg=='expression evaluation':
-			write(f, response)
 			t.send_debug(response,f)
 		else:
 			t.send(response)
