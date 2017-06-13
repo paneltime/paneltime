@@ -6,6 +6,12 @@
 <_io.FileIO name='<stdout>' mode='wb' closefd=False>
 <_io.FileIO name='<stdout>' mode='wb' closefd=False>
 <_io.FileIO name='<stdout>' mode='wb' closefd=False>
-e.py", line 131, in send_debug
-    pickle.dump(msg,w)
-OSError: [Errno 22] Invalid argument
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
+<_io.FileIO name='<stdout>' mode='wb' closefd=False>
