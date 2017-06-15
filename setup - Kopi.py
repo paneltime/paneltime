@@ -5,7 +5,7 @@ https://github.com/pypa/sampleproject
 """
 
 # Always prefer setuptools over distutils
-from setuptools import setup, find_packages,Extension
+from setuptools import setup, find_packages
 # To use a consistent encoding
 from codecs import open
 from os import path
@@ -16,14 +16,6 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 	long_description = f.read()
 print (find_packages(exclude=['contrib', 'docs', 'tests']))
-
-cfunctions = Extension('cfunctions',
-#        define_macros=[('FOO', '1')],
-include_dirs=[],
-library_dirs=[],
-libraries=[],
-sources=['paneltime/cfunctions.c'])
-
 setup(
     name='paneltime',
 
@@ -114,7 +106,6 @@ setup(
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
     # pip to create the appropriate form of executable for the target platform.
-    ext_modules=[cfunctions],
     entry_points={
         'console_scripts': [
             'paneltime=paneltime:main',

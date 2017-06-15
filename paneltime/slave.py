@@ -47,10 +47,9 @@ def main(f):
 			response=release_dict(d,d_old,holdbacks)
 		elif msg=='holdbacks':
 			holdbacks=obj  
-		if msg=='expression evaluation':
-			t.send_debug(response,f)
-		else:
-			t.send(response)
+			
+		t.send(response)
+		
 def write(f,txt):
 	f.write(str(txt)+'\n')
 	f.flush()
