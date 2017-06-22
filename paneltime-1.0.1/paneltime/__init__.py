@@ -31,7 +31,17 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 		           h,user_constraints
 		           )
 
-
+def autofit(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, sort_name=None,
+            descr="project_1",
+            fixed_random_eff=2, w_names=None, loadargs=True,direction_testing=True,add_intercept=True,
+            h=None,user_constraints=None
+            ):
+	return main.autofit(dataframe, model_string, p, d, q, m, k, groups_name, sort_name,
+		               descr,
+		               fixed_random_eff, w_names, loadargs,direction_testing,add_intercept,
+		               h,user_constraints
+		               )	
+	
 def execute_model(model, p=1, d=0, q=1, m=1, k=1, 
             fixed_random_eff=2, loadargs=True,add_intercept=True,
             h=None
@@ -41,7 +51,7 @@ def execute_model(model, p=1, d=0, q=1, m=1, k=1,
 	
 
 def diagnostics(panel,g,G,H,ll,robustcov_lags=100):
-	main.regstats.diagnostics(panel,g,G,H,100,ll)
+	return main.regstats.diagnostics(panel,g,G,H,100,ll)
 
 
 

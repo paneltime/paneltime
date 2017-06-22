@@ -132,6 +132,7 @@ def test_dictionary(dataframe):
 	return n
 
 def get_variables(dataframe,model_string,groups_name,w_names,add_intercept,sort_name):
+	print ("Analyzing variables ...")
 	y_name,x_names=parse_model(model_string)
 	groups,groups_name,void=check_var(dataframe,groups_name,'group_name')
 	W,w_names,void=check_var(dataframe,w_names,'w_names',intercept_name='log variance (constant)',raise_error=False,intercept_variable=True)
