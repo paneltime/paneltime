@@ -23,7 +23,7 @@ cfunctions = Extension('cfunctions',
 include_dirs=[np.get_include()],
 library_dirs=[],
 libraries=[],
-sources=['paneltime/cfunctions.c'])
+sources=['paneltime/cfunctions.cpp'])
 
 setup(
     name='paneltime',

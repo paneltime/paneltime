@@ -47,15 +47,15 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, groups_name=None, 
 	direction=logl.direction(pnl)
 	 
 	N,k=X.shape
-	if (N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
+	if (N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24 or False:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
 		mp=mc.multiprocess()
 		mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')		
 	else:
 		mp=None
-	print ("Maximizing")
+	print ("Maximizing:")
 
 	ll,g,G,H, conv = maximize.maximize(pnl,direction,mp,direction_testing,_print=True,user_constraints=user_constraints)	
 
-	return pnl,g,G,H,ll
+	return pnl,g,G,H,ll,direction
 
 

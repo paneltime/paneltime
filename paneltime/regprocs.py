@@ -252,6 +252,10 @@ def dd_func_mult(d0,mult,d1):
 		return None
 	(N,T,k)=d0.shape
 	(N,T,m)=d1.shape
+	if np.any(np.isnan(d0)) or np.any(np.isnan(d1)):
+		x=np.empty((k,m))
+		x[:]=np.nan
+		return x
 	d0=d0*mult
 	d0=np.reshape(d0,(N,T,k,1))
 	d1=np.reshape(d1,(N,T,1,m))

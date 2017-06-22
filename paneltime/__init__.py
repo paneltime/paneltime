@@ -41,7 +41,7 @@ def execute_model(model, p=1, d=0, q=1, m=1, k=1,
 	
 
 def diagnostics(panel,g,G,H,ll,robustcov_lags=100):
-	main.regstats.diagnostics(panel,g,G,H,100,ll)
+	return main.regstats.diagnostics(panel,g,G,H,100,ll)
 
 
 

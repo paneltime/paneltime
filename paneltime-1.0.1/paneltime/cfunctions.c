@@ -6,15 +6,28 @@
 
 
 
-static PyObject * test(PyObject *self, PyObject *args) {
-	
+static PyObject * simpleinverse(PyObject *self, PyObject *args) {
+	int i,nMatr=2,nInts=1;
+	long* inputI=new long[nInts];
+	PyObject** inputM=new PyObject*[nMatr];
+	PyArrayObject** array=new PyArrayObject*[nMatr];
+	if (!PyArg_ParseTuple(args, "OOl", &inputM[0],&inputM[1],
+											&inputI[0]))
+		return NULL;
+	for(i=0;i<nMatr;i++){
+		array[i] = (PyArrayObject *) PyArray_ContiguousFromObject(inputM[i], PyArray_DOUBLE, 2, 2);
+		if (array[i] == NULL)
+			return NULL;
+	}
+	double a=Get(array[0],2,3);
+	return a;
 
 }
 
 
 static PyMethodDef cmethods[] = {
 
-	{"test",  test, METH_VARARGS,
+	{"simpleinverse",  simpleinverse, METH_VARARGS,
 	"Execute a shell command."},
 	{NULL, NULL, 0, NULL}        /* Sentinel */
 };

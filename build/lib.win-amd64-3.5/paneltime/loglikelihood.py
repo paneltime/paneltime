@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 #contains the log likelihood object
-
+import sys
+sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.win-amd64-3.5'))
+sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.linux-x86_64-3.5'))
+import cfunctions as c
 import numpy as np
 import functions as fu
 import regprocs as rp
@@ -44,11 +47,10 @@ class LL:
 		if X is None:
 			X=panel.X
 		matrices=set_garch_arch(panel,args)
-		
 		if matrices is None:
 			return None		
 		
-		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
+		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 		(N,T,k)=panel.X.shape
 
 		u=panel.Y-fu.dot(panel.X,args['beta'])
@@ -79,7 +81,7 @@ class LL:
 		
 		if abs(LL)>1e+100: 
 			return None
-		self.AMA_1,self.AAR,self.AMA_1AR,self.GAR_1,self.GMA,self.GAR_1MA=matrices
+		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e,self.h_e_val,self.h_val, self.lnv_ARMA        = u,e,h_e_val,h_val, lnv_ARMA
 		self.lnv,self.avg_h,self.v,self.v_inv,self.e_RE,self.e_REsq = lnv,avg_h,v,v_inv,e_RE,e_REsq
 		self.h_2e_val,self.h_z_val,self.h_ez_val,self.h_2z_val      = h_2e_val,h_z_val,h_ez_val,h_2z_val
@@ -120,11 +122,11 @@ class LL:
 	
 		return d['ret']	
 	
-def set_garch_arch(panel,args):
+def set_garch_arch_old(panel,args):
 
 
 	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
-	
+
 	AAR=-lag_matr(-panel.I,args['rho'])
 	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)
 	if AMA_1AR is None:
@@ -133,9 +135,65 @@ def set_garch_arch(panel,args):
 	GAR_1MA,GAR_1=solve_mult(-args['gamma'], GMA, panel.I)
 	if GAR_1MA is None:
 		return
-	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
+	return AMA_1,AMA_1AR,GAR_1,GAR_1MA
 
 
+def set_garch_arch(panel,args):
+	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
+	the diagonal band"""
+	n=panel.max_T
+	rho=np.insert(-args['rho'],0,1)
+	psi=np.insert(args['psi'],0,0)
+
+	r=np.arange(n)
+	AMA_1,AMA_1AR,GAR_1,GAR_1MA=panel.AMA_1,panel.AMA_1AR,panel.GAR_1,panel.GAR_1MA
+	c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA)
+
+	return  AMA_1,AMA_1AR,GAR_1,GAR_1MA
+			
+def add_to_matrices(X_1,X_1b,a,ab,r):
+	for i in range(0,len(a)):	
+		if i>0:
+			d=(r[i:],r[:-i])
+			X_1[d]=a[i]
+		else:
+			d=(r,r)
+		X_1b[d]=ab[i]	
+	return X_1,X_1b
+
+def solve_mult2(x_args,b_args,X_1,X_1b,b_top):
+	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
+	the diagonal band"""
+	n=len(X_1)
+	b_args=-np.insert(b_args,0,b_top)
+	q=len(x_args)
+	k=len(b_args)
+	r=np.arange(n)
+
+	
+	if True:
+		a=np.ones(n)
+		ab=np.zeros(n)
+		for i in range(n):
+			if i>0:
+				sum_ax=0
+				for j in range(min(q,i)):
+					sum_ax+=x_args[j]*a[i-j-1]
+				a[i]=-sum_ax
+			sum_ab=0
+			for j in range(min(k,i+1)):
+				sum_ab+=b_args[j]*a[i-j]
+			ab[i]=sum_ab			
+	for i in range(0,n):	
+		if i>0:
+			d=(r[i:],r[:-i])
+			X_1[d]=a[i]
+		else:
+			d=(r,r)
+		X_1b[d]=ab[i]	
+	return X_1b,X_1
+	
+	
 def solve_mult(args,b,I):
 	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
 	the diagonal band"""
@@ -145,13 +203,7 @@ def solve_mult(args,b,I):
 	X[0,:]=1
 	X2=np.zeros((n,n))
 	w=np.zeros(n)
-	r=np.arange(n)
-	#for j in range(20):
-	#	for i in range(n):
-	#		k=min((i,q))
-	#		w[i]=np.sum(w[i-k:i-1]*w[i-1])
-	#		d=(r[i+1:],r[:-i-1])
-	#		X2[d]=w[i]		
+	r=np.arange(n)	
 	for i in range(q):
 		X[i+1,:n-i-1]=args[i]
 	try:

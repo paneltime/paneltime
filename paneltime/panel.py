@@ -61,7 +61,7 @@ class panel:
 		self.n_i=self.n_i+(self.n_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		
 	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,loadargs,model_string):
-		self.args_bank=ptf.args_bank(model_string, loadargs)		
+		self.args_bank=ptf.args_bank(model_string+descr, loadargs)		
 		self.loadargs=loadargs
 		self.has_intercept=has_intercept
 
@@ -120,7 +120,8 @@ class panel:
 	def lag_variables(self,max_lags):
 		T=self.max_T
 		self.I=np.diag(np.ones(T))
-		self.zero=self.I*0
+		self.zero=np.zeros((T,T))
+
 		
 		#for sparse matrices:
 		self.cnt_sp=np.arange(T)

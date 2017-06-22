@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 #contains the log likelihood object
-
+import sys
+sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.win-amd64-3.5'))
+sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.linux-x86_64-3.5'))
+import cfunctions as c
 import numpy as np
 import functions as fu
 import regprocs as rp
@@ -44,11 +47,10 @@ class LL:
 		if X is None:
 			X=panel.X
 		matrices=set_garch_arch(panel,args)
-		
 		if matrices is None:
 			return None		
 		
-		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
+		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 		(N,T,k)=panel.X.shape
 
 		u=panel.Y-fu.dot(panel.X,args['beta'])
@@ -79,7 +81,7 @@ class LL:
 		
 		if abs(LL)>1e+100: 
 			return None
-		self.AMA_1,self.AAR,self.AMA_1AR,self.GAR_1,self.GMA,self.GAR_1MA=matrices
+		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e,self.h_e_val,self.h_val, self.lnv_ARMA        = u,e,h_e_val,h_val, lnv_ARMA
 		self.lnv,self.avg_h,self.v,self.v_inv,self.e_RE,self.e_REsq = lnv,avg_h,v,v_inv,e_RE,e_REsq
 		self.h_2e_val,self.h_z_val,self.h_ez_val,self.h_2z_val      = h_2e_val,h_z_val,h_ez_val,h_2z_val
@@ -114,17 +116,17 @@ class LL:
 			exec(self.h_def,globals(),d)
 		except Exception as err:
 			if self.h_err!=str(err):
-				print ("Warning: error in the ARCH error function h(e,z). The error was: %s" %(err))
+				print ("Warning,error in the ARCH error function h(e,z): %s" %(err))
 			h_err=str(e)
 			return None
 	
 		return d['ret']	
 	
-def set_garch_arch(panel,args):
+def set_garch_arch_old(panel,args):
 
 
 	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
-	
+
 	AAR=-lag_matr(-panel.I,args['rho'])
 	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)
 	if AMA_1AR is None:
@@ -133,9 +135,75 @@ def set_garch_arch(panel,args):
 	GAR_1MA,GAR_1=solve_mult(-args['gamma'], GMA, panel.I)
 	if GAR_1MA is None:
 		return
-	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
+	return AMA_1,AMA_1AR,GAR_1,GAR_1MA
 
 
+def set_garch_arch(panel,args):
+	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
+	the diagonal band"""
+	n=panel.max_T
+	rho=np.insert(-args['rho'],0,1)
+	psi=np.insert(args['psi'],0,0)
+
+	r=np.arange(n)
+	AMA_1,AMA_1AR,GAR_1,GAR_1MA=(
+	    np.diag(np.ones(n)),
+		np.zeros((n,n)),
+		np.diag(np.ones(n)),
+		np.zeros((n,n))
+	)
+	try:
+		c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA)
+	except:
+		return None
+	for i in (AMA_1,AMA_1AR,GAR_1,GAR_1MA):
+		if np.any(np.isnan(AMA_1)):
+			return None
+	return  AMA_1,AMA_1AR,GAR_1,GAR_1MA
+			
+def add_to_matrices(X_1,X_1b,a,ab,r):
+	for i in range(0,len(a)):	
+		if i>0:
+			d=(r[i:],r[:-i])
+			X_1[d]=a[i]
+		else:
+			d=(r,r)
+		X_1b[d]=ab[i]	
+	return X_1,X_1b
+
+def solve_mult2(x_args,b_args,X_1,X_1b,b_top):
+	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
+	the diagonal band"""
+	n=len(X_1)
+	b_args=-np.insert(b_args,0,b_top)
+	q=len(x_args)
+	k=len(b_args)
+	r=np.arange(n)
+
+	
+	if True:
+		a=np.ones(n)
+		ab=np.zeros(n)
+		for i in range(n):
+			if i>0:
+				sum_ax=0
+				for j in range(min(q,i)):
+					sum_ax+=x_args[j]*a[i-j-1]
+				a[i]=-sum_ax
+			sum_ab=0
+			for j in range(min(k,i+1)):
+				sum_ab+=b_args[j]*a[i-j]
+			ab[i]=sum_ab			
+	for i in range(0,n):	
+		if i>0:
+			d=(r[i:],r[:-i])
+			X_1[d]=a[i]
+		else:
+			d=(r,r)
+		X_1b[d]=ab[i]	
+	return X_1b,X_1
+	
+	
 def solve_mult(args,b,I):
 	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
 	the diagonal band"""
@@ -145,13 +213,7 @@ def solve_mult(args,b,I):
 	X[0,:]=1
 	X2=np.zeros((n,n))
 	w=np.zeros(n)
-	r=np.arange(n)
-	#for j in range(20):
-	#	for i in range(n):
-	#		k=min((i,q))
-	#		w[i]=np.sum(w[i-k:i-1]*w[i-1])
-	#		d=(r[i+1:],r[:-i-1])
-	#		X2[d]=w[i]		
+	r=np.arange(n)	
 	for i in range(q):
 		X[i+1,:n-i-1]=args[i]
 	try:
@@ -194,6 +256,7 @@ class direction:
 		self.hessian_num=None
 		self.g_old=None
 		self.do_shocks=True
+		self.I=np.diag(np.ones(panel.args.n_args))
 		
 		
 	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,user_constraints=None):
@@ -210,7 +273,8 @@ class direction:
 			hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
 		self.old_dx_conv=dx_conv
 		dc,constrained=solve(self.constr,hessian, g, ll.args_v)
-
+		if np.any(np.isnan(dc)):
+			a=1
 		for j in range(len(dc)):
 			s=dc*(constrained==0)*g
 			if np.sum(s)<0:#negative slope
@@ -232,25 +296,11 @@ class direction:
 		
 		#hessinS0=rp.sandwich(hessian,G,0)
 		hessian=None
-		if its>-1 and (int(its*0.5)==its*0.5 or self.hessian_num is None) or True:
-			hessian=self.hessian.get(ll,mp)
-
-		elif (not self.g_old is None) and (not dxi is None):
-			print("Using numerical hessian")#could potentially be used to calculate the hessian nummerically for 
-											#some iterations to gain speed, but loss of accuracy outweights the benefits			
-			hessin_num=hessin(self.hessian_num)
-			if hessin_num is None:
-				hessian=self.hessian.get(ll,mp)
-			else:
-				hessin_num=approximate_hessin(g,self.g_old,hessin_num,dxi)	
-				hessian=hessin(hessin_num)
-				if hessian is None:
-					hessian=self.hessian.get(ll,mp)
-		else:
-			hessian=self.hessian_num
-		
-		I=np.diag(np.ones(len(hessian)))
-
+		I=self.I
+		hessian=self.hessian.get(ll,mp)
+		hessian,num=self.nummerical_hessian(hessian, dxi,g)
+		if num:
+			return hessian
 		if dx_conv is None:
 			m=10
 		else:
@@ -266,11 +316,24 @@ class direction:
 		self.g_old=g
 		
 		return hessian
-		
-	def get_hessian_analytical(self,ll,mp):
-
-		return hessian
 	
+	def nummerical_hessian(self,hessian,dxi,g):
+		if not hessian is None:
+			return hessian,False
+		I=self.I
+		if (self.g_old is None) or (dxi is None):
+			return I,True
+
+		#print("Using numerical hessian")		
+		hessin_num=hessin(self.hessian_num)
+		if hessin_num is None:
+			return I,True
+		hessin_num=nummerical_hessin(g,self.g_old,hessin_num,dxi)	
+		hessian=hessin(hessin_num)
+		if hessian is None:
+			return I,True
+		return hessian,True
+		
 def hessin(hessian):
 	try:
 		h=-np.linalg.inv(hessian)
@@ -278,7 +341,7 @@ def hessin(hessian):
 		return None	
 	return h
 	
-def approximate_hessin(g,g_old,hessin,dxi):
+def nummerical_hessin(g,g_old,hessin,dxi):
 	if dxi is None:
 		return None
 	dg=g-g_old 				#Compute difference of gradients,

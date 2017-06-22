@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+import sys
+sys.path.append(__file__.replace("paneltime\\functions.py",'build\\lib.win-amd64-3.5'))
+sys.path.append(__file__.replace("paneltime\\functions.py",'build\\lib.linux-x86_64-3.5'))
+import cfunctions as c
 import numpy as np
 import sys
 import os
@@ -43,8 +46,14 @@ def dot(a,b,reduce_dims=True):
 		if a.shape[1]!=b.shape[1] or a.shape[1]!=a.shape[0]:
 			raise RuntimeError("dimensions do not match")
 		else:
-			x=np.array([[np.dot(a,b[i,:,j]) for i in range(b.shape[0])] for j in range(b.shape[2])])
-			return np.moveaxis(x,0,2)	
+			x2=np.array([[np.dot(a,b[i,:,j]) for i in range(b.shape[0])] for j in range(b.shape[2])])
+			x2=np.moveaxis(x2,0,2)	
+			x=np.zeros(b.shape)
+			r=c.dot(a,b,b.shape,x)
+			return x
+			
+			x=np.moveaxis(x,0,2)	
+			return x
 	else:
 		raise RuntimeError("this multiplication is not supported by dot")
 
