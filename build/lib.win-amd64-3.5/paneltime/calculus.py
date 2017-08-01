@@ -236,15 +236,10 @@ class hessian:
 		#for debugging:
 		#Hn=debug.hess_debug(panel,ll.args_v,0.000001)#debugging
 		#debug.LL_debug_detail(self,ll,0.0000001)
-		#print (time.clock()-tic)
+		print (time.clock()-tic)
 		self.its+=1
-		
-		W=H*1
-		for i in range(len(W)):
-			W[i,i]=W[i,i]+(W[i,i]==0)
-		W=np.linalg.inv(W)
-		WH=np.dot(W,H)	
-		HWH=np.dot(H.T,WH)
+		if np.any(np.isnan(H)):
+			return None
 		return H
 	
 
@@ -394,6 +389,8 @@ H= [[D2LL_beta2,			D2LL_beta_rho,		D2LL_beta_lambda,		D2LL_beta_gamma,	D2LL_beta
 		exec(evalstr,None,d)
 		H=d['H']
 		H=rp.concat_matrix(H)
+		if np.any(np.isnan(H)):
+			return None
 		#for debugging:
 		#Hn=debug.hess_debug(panel,ll.args_v,0.000001)#debugging
 		#H_debug=hessian(self, ll)

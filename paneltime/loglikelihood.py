@@ -152,13 +152,7 @@ def set_garch_arch(panel,args):
 		np.diag(np.ones(n)),
 		np.zeros((n,n))
 	)
-	try:
-		c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA)
-	except:
-		return None
-	for i in (AMA_1,AMA_1AR,GAR_1,GAR_1MA):
-		if np.any(np.isnan(AMA_1)):
-			return None
+	c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA)
 	return  AMA_1,AMA_1AR,GAR_1,GAR_1MA
 			
 def add_to_matrices(X_1,X_1b,a,ab,r):
@@ -256,6 +250,7 @@ class direction:
 		self.hessian_num=None
 		self.g_old=None
 		self.do_shocks=True
+		self.old_dx_conv=None
 		self.I=np.diag(np.ones(panel.args.n_args))
 		
 		
@@ -267,14 +262,9 @@ class direction:
 		out=output(print_on)
 		self.constr=constraints(self.panel.args,self.constr)
 		reset=False
-		if its==1:
-			self.old_dx_conv=None
-		if its>-1:
-			hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
+		hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
 		self.old_dx_conv=dx_conv
 		dc,constrained=solve(self.constr,hessian, g, ll.args_v)
-		if np.any(np.isnan(dc)):
-			a=1
 		for j in range(len(dc)):
 			s=dc*(constrained==0)*g
 			if np.sum(s)<0:#negative slope
@@ -567,7 +557,7 @@ def remove(d,assoc,set_to,include,out,constr,names,r_type):
 		a=set_to[d]
 	else:
 		a=set_to
-	constr.add(d,a)
+	constr.add(d,a,assoc=assoc)
 	if not include is None:
 		include[d]=False	
 	if not assoc is None:
@@ -674,6 +664,7 @@ class constraints:
 	def __init__(self,args,old_constr):
 		self.constraints=dict()
 		self.categories=[]
+		self.associates=dict()
 		self.args=args
 		if old_constr is None:
 			self.old_constr=[]
@@ -681,7 +672,7 @@ class constraints:
 			self.old_constr=old_constr.constraints
 
 
-	def add(self,positions, minimum_or_value,maximum=None,replace=True):
+	def add(self,positions, minimum_or_value,maximum=None,replace=True,assoc=None):
 		"""Adds a constraint. 'positions' is either an integer or an iterable of integer specifying the position(s) 
 		for which the constraints shall apply. If 'positions' is a string, it is assumed to be the name of a category \n\n
 
@@ -702,6 +693,8 @@ class constraints:
 						self.constraints[i]=[minimum_or_value,maximum]
 					else:
 						self.constraints[i]=[maximum,minimum_or_value]
+				if not assoc is None:
+					self.associates[i]=assoc
 			category=self.args.map_to_categories[i]
 			if not category in self.categories:
 				self.categories.append(category)

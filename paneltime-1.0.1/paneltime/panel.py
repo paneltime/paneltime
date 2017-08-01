@@ -358,8 +358,8 @@ class arguments:
 		d['beta']=names
 		add_names(p,'AR term %s (p)','rho',d,names)
 		add_names(q,'MA term %s (q)','lambda',d,names)
-		add_names(m,'MACH term %s (m)','gamma',d,names)
 		add_names(k,'ARCH term %s (k)','psi',d,names)
+		add_names(m,'MACH term %s (m)','gamma',d,names)
 		d['omega']=panel.w_names
 		names.extend(panel.w_names)
 		if m>0:

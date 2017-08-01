@@ -18,20 +18,25 @@ import functions as fu
 import loglikelihood as logl
 
 class diagnostics:
-	def __init__(self,panel,g,G,H,robustcov_lags,ll,simple_diagnostics=False,corr_matrix_vars=None):
+	def __init__(self,panel,g,G,H,ll,robustcov_lags=100,simple_diagnostics=False,corr_matrix_vars=None):
 		"""This class calculates, stores and prints statistics and diagnostics"""
 		self.panel=panel
 		ll.standardize(panel)
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(panel,ll)
 		self.LL_restricted=logl.LL(panel.args.args_restricted, panel).LL
 		self.LL_OLS=logl.LL(panel.args.args_OLS, panel).LL		
-		if simple_diagnostics:
-			self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(10)
-			self.norm_prob=stat.JB_normality_test(panel.e_st,panel.df)			
-			return
-		self.reg_output,names,args,se,se_st,tstat,tsign,sign_codes=self.coeficient_output(H,G,robustcov_lags,ll)
-		self.coeficient_printout(names,args,se,se_st,tstat,tsign,sign_codes)
+		(self.reg_output,
+		 self.names,
+		 self.args,
+		 self.se_robust,
+		 self.se_st,
+		 self.tstat,
+		 self.tsign,
+		 sign_codes)=self.coeficient_output(H,G,robustcov_lags,ll)
 		
+		self.coeficient_printout(sign_codes)
+		if simple_diagnostics:		
+			return		
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(panel,ll,10)
 		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)		
 
@@ -80,19 +85,19 @@ class diagnostics:
 		panel=self.panel
 		args=ll.args_v
 		robust_cov_matrix,cov=rp.sandwich(H,G,robustcov_lags,ret_hessin=True)
-		se=np.maximum(np.diag(robust_cov_matrix).flatten(),1e-200)**0.5
+		se_robust=np.maximum(np.diag(robust_cov_matrix).flatten(),1e-200)**0.5
 		se_st=np.maximum(np.diag(cov).flatten(),1e-200)**0.5
 		names=np.array(panel.args.names_v)
 
-		T=len(se)
+		T=len(se_robust)
 		output=[]
-		tstat=np.maximum(np.minimum((args)/((se<=0)*args*1e-15+se),3000),-3000)
+		tstat=np.maximum(np.minimum((args)/((se_robust<=0)*args*1e-15+se_robust),3000),-3000)
 		tsign=1-scstats.t.cdf(np.abs(tstat),panel.df)
 		sign_codes=get_sign_codes(tsign)
 		
 		output=np.concatenate((names.reshape((T,1)),
 		                      args.reshape((T,1)),
-		                      se.reshape((T,1)),
+		                      se_robust.reshape((T,1)),
 		                      se_st.reshape((T,1)),
 		                      tstat.reshape((T,1)),
 		                      tsign.reshape((T,1)),
@@ -100,9 +105,10 @@ class diagnostics:
 		output=np.concatenate(([['Regressors:','coef:','SE sandwich:','SE standard:','t-value:','t-sign:','sign codes:']],output),0)
 		
 		
-		return output,names,args,se,se_st,tstat,tsign,sign_codes
+		return output,names,args,se_robust,se_st,tstat,tsign,sign_codes
 
-	def coeficient_printout(self,names,args,se,se_st,tstat,tsign,sign_codes):
+	def coeficient_printout(self,sign_codes):
+		names,args,se,se_st,tstat,tsign=self.names,self.args,self.se_robust,self.se_st,self.tstat,self.tsign
 		T=len(se)
 		printout=np.zeros((T,6),dtype='<U24')
 		maxlen=0
@@ -188,7 +194,7 @@ class diagnostics:
 		add_output(output,name_list,'Multicollinearity',self.MultiColl)
 
 		add_output(output,name_list,'Descriptive statistics',self.data_statistics)
-		
+		add_output(output,name_list,'Correlation Matrix',self.data_correlations)
 		add_output(output,name_list,'Number of dates in each group',panel.T_arr.reshape((N,1)))
 		
 		output_table=[['']]
@@ -201,7 +207,7 @@ class diagnostics:
 			output_table.extend(output[i])
 			output_positions.append('%s~%s~%s~%s' %(i,pos,len(output[i]),len(output[i][0])))
 		output_table[0]=output_positions
-		add_output(output,name_list,'Correlation Matrix',self.data_correlations)
+		
 		fu.savevar(output_table,'output/'+panel.descr+strappend,'csv')
 		
 		self.output=output

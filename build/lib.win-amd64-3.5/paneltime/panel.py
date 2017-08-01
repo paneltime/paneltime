@@ -121,10 +121,7 @@ class panel:
 		T=self.max_T
 		self.I=np.diag(np.ones(T))
 		self.zero=np.zeros((T,T))
-		self.AMA_1=np.diag(np.ones(T))
-		self.AMA_1AR=np.zeros((T,T))
-		self.GAR_1=np.diag(np.ones(T))
-		self.GAR_1MA=np.zeros((T,T))
+
 		
 		#for sparse matrices:
 		self.cnt_sp=np.arange(T)
@@ -361,8 +358,8 @@ class arguments:
 		d['beta']=names
 		add_names(p,'AR term %s (p)','rho',d,names)
 		add_names(q,'MA term %s (q)','lambda',d,names)
-		add_names(m,'MACH term %s (m)','gamma',d,names)
 		add_names(k,'ARCH term %s (k)','psi',d,names)
+		add_names(m,'MACH term %s (m)','gamma',d,names)
 		d['omega']=panel.w_names
 		names.extend(panel.w_names)
 		if m>0:

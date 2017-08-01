@@ -194,7 +194,7 @@ def pretest_func(panel,direction,args,ll,mp=None):
 	
 def pretest_sub(ll,categories,panel,direction,mp):
 	c=categories
-	vals=[-0.5,0.5]
+	vals=[-0.5,0,0.5]
 	max_ll=ll
 	args_d=ll.copy_args_d()
 	for i in vals:

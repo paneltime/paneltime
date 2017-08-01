@@ -327,3 +327,32 @@ def dim_check(V,arg_name,v_names=None,dict_check=False):
 		if len(v_names)!=k:
 			raise RuntimeError ("A name list is supplied for %s, but its lenght does not match the number of columns in %s." %(arg_name,arg_name))	
 	return v_names
+
+
+def check_sign(panel,sign,category,old_lim,constraints,sign_level):
+	sign=sign[panel.args.positions[category]]
+	if category in constraints.categories:
+		j=len(sign)
+		if has_same_cat_assoc(constraints, panel, category):
+			j=j-1
+		return j,True
+	if old_lim:
+		return len(sign),True
+	lim=False
+	j=1
+	for i in range(len(sign)):
+		j+=1
+		if sign[i]>sign_level:
+			lim=True
+			j=len(sign)-1
+			break
+	return j,lim
+
+def has_same_cat_assoc(constraints,panel,category):
+	for i in constraints.constraints:
+		check_cat=panel.args.map_to_categories[i]
+		if check_cat==category and i in constraints.associates:
+			assoc_cat=panel.args.map_to_categories[constraints.associates[i]]
+			if assoc_cat==check_cat:
+				return True	
+	return False

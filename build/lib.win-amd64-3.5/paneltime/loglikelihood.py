@@ -46,7 +46,7 @@ class LL:
 		args=self.args_d#using dictionary arguments
 		if X is None:
 			X=panel.X
-		matrices=set_garch_arch(panel,args)
+		matrices=set_garch_arch_old(panel,args)
 		if matrices is None:
 			return None		
 		
@@ -116,7 +116,7 @@ class LL:
 			exec(self.h_def,globals(),d)
 		except Exception as err:
 			if self.h_err!=str(err):
-				print ("Warning: error in the ARCH error function h(e,z). The error was: %s" %(err))
+				print ("Warning,error in the ARCH error function h(e,z): %s" %(err))
 			h_err=str(e)
 			return None
 	
@@ -146,9 +146,13 @@ def set_garch_arch(panel,args):
 	psi=np.insert(args['psi'],0,0)
 
 	r=np.arange(n)
-	AMA_1,AMA_1AR,GAR_1,GAR_1MA=panel.AMA_1,panel.AMA_1AR,panel.GAR_1,panel.GAR_1MA
+	AMA_1,AMA_1AR,GAR_1,GAR_1MA=(
+	    np.diag(np.ones(n)),
+		np.zeros((n,n)),
+		np.diag(np.ones(n)),
+		np.zeros((n,n))
+	)
 	c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA)
-
 	return  AMA_1,AMA_1AR,GAR_1,GAR_1MA
 			
 def add_to_matrices(X_1,X_1b,a,ab,r):
@@ -246,6 +250,8 @@ class direction:
 		self.hessian_num=None
 		self.g_old=None
 		self.do_shocks=True
+		self.old_dx_conv=None
+		self.I=np.diag(np.ones(panel.args.n_args))
 		
 		
 	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,user_constraints=None):
@@ -256,13 +262,9 @@ class direction:
 		out=output(print_on)
 		self.constr=constraints(self.panel.args,self.constr)
 		reset=False
-		if its==1:
-			self.old_dx_conv=None
-		if its>-1:
-			hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
+		hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
 		self.old_dx_conv=dx_conv
 		dc,constrained=solve(self.constr,hessian, g, ll.args_v)
-
 		for j in range(len(dc)):
 			s=dc*(constrained==0)*g
 			if np.sum(s)<0:#negative slope
@@ -284,25 +286,11 @@ class direction:
 		
 		#hessinS0=rp.sandwich(hessian,G,0)
 		hessian=None
-		if its>-1 and (int(its*0.5)==its*0.5 or self.hessian_num is None) or True:
-			hessian=self.hessian.get(ll,mp)
-
-		elif (not self.g_old is None) and (not dxi is None):
-			print("Using numerical hessian")#could potentially be used to calculate the hessian nummerically for 
-											#some iterations to gain speed, but loss of accuracy outweights the benefits			
-			hessin_num=hessin(self.hessian_num)
-			if hessin_num is None:
-				hessian=self.hessian.get(ll,mp)
-			else:
-				hessin_num=approximate_hessin(g,self.g_old,hessin_num,dxi)	
-				hessian=hessin(hessin_num)
-				if hessian is None:
-					hessian=self.hessian.get(ll,mp)
-		else:
-			hessian=self.hessian_num
-		
-		I=np.diag(np.ones(len(hessian)))
-
+		I=self.I
+		hessian=self.hessian.get(ll,mp)
+		hessian,num=self.nummerical_hessian(hessian, dxi,g)
+		if num:
+			return hessian
 		if dx_conv is None:
 			m=10
 		else:
@@ -318,11 +306,24 @@ class direction:
 		self.g_old=g
 		
 		return hessian
-		
-	def get_hessian_analytical(self,ll,mp):
-
-		return hessian
 	
+	def nummerical_hessian(self,hessian,dxi,g):
+		if not hessian is None:
+			return hessian,False
+		I=self.I
+		if (self.g_old is None) or (dxi is None):
+			return I,True
+
+		#print("Using numerical hessian")		
+		hessin_num=hessin(self.hessian_num)
+		if hessin_num is None:
+			return I,True
+		hessin_num=nummerical_hessin(g,self.g_old,hessin_num,dxi)	
+		hessian=hessin(hessin_num)
+		if hessian is None:
+			return I,True
+		return hessian,True
+		
 def hessin(hessian):
 	try:
 		h=-np.linalg.inv(hessian)
@@ -330,7 +331,7 @@ def hessin(hessian):
 		return None	
 	return h
 	
-def approximate_hessin(g,g_old,hessin,dxi):
+def nummerical_hessin(g,g_old,hessin,dxi):
 	if dxi is None:
 		return None
 	dg=g-g_old 				#Compute difference of gradients,
@@ -556,7 +557,7 @@ def remove(d,assoc,set_to,include,out,constr,names,r_type):
 		a=set_to[d]
 	else:
 		a=set_to
-	constr.add(d,a)
+	constr.add(d,a,assoc=assoc)
 	if not include is None:
 		include[d]=False	
 	if not assoc is None:
@@ -663,6 +664,7 @@ class constraints:
 	def __init__(self,args,old_constr):
 		self.constraints=dict()
 		self.categories=[]
+		self.associates=dict()
 		self.args=args
 		if old_constr is None:
 			self.old_constr=[]
@@ -670,7 +672,7 @@ class constraints:
 			self.old_constr=old_constr.constraints
 
 
-	def add(self,positions, minimum_or_value,maximum=None,replace=True):
+	def add(self,positions, minimum_or_value,maximum=None,replace=True,assoc=None):
 		"""Adds a constraint. 'positions' is either an integer or an iterable of integer specifying the position(s) 
 		for which the constraints shall apply. If 'positions' is a string, it is assumed to be the name of a category \n\n
 
@@ -691,6 +693,8 @@ class constraints:
 						self.constraints[i]=[minimum_or_value,maximum]
 					else:
 						self.constraints[i]=[maximum,minimum_or_value]
+				if not assoc is None:
+					self.associates[i]=assoc
 			category=self.args.map_to_categories[i]
 			if not category in self.categories:
 				self.categories.append(category)

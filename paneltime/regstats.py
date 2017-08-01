@@ -18,17 +18,13 @@ import functions as fu
 import loglikelihood as logl
 
 class diagnostics:
-	def __init__(self,panel,g,G,H,robustcov_lags,ll,simple_diagnostics=False,corr_matrix_vars=None):
+	def __init__(self,panel,g,G,H,ll,robustcov_lags=100,simple_diagnostics=False,corr_matrix_vars=None):
 		"""This class calculates, stores and prints statistics and diagnostics"""
 		self.panel=panel
 		ll.standardize(panel)
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(panel,ll)
 		self.LL_restricted=logl.LL(panel.args.args_restricted, panel).LL
 		self.LL_OLS=logl.LL(panel.args.args_OLS, panel).LL		
-		if simple_diagnostics:
-			self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(10)
-			self.norm_prob=stat.JB_normality_test(panel.e_st,panel.df)			
-			return
 		(self.reg_output,
 		 self.names,
 		 self.args,
@@ -39,7 +35,8 @@ class diagnostics:
 		 sign_codes)=self.coeficient_output(H,G,robustcov_lags,ll)
 		
 		self.coeficient_printout(sign_codes)
-
+		if simple_diagnostics:		
+			return		
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(panel,ll,10)
 		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)		
 

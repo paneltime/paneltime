@@ -22,6 +22,7 @@ static double* to_c_array(PyObject *pyobj,long* n_ref) {
 		};
 	*n_ref=n;
 	return a;
+	Py_DECREF(arr);
 }
 
 double min(double a, double b){
@@ -68,7 +69,7 @@ void inverse(PyObject *py_x_args,PyObject *py_b_args,long n,
 			}
 		
 	}
-
+	delete a,ab,b_args,x_args;
 	
 	
 }
@@ -98,6 +99,16 @@ static PyObject *bandinverse(PyObject *self, PyObject *args) {
 	PyArrayObject* GAR_1MA =  (PyArrayObject *) PyArray_FROM_OTF(GAR_1MA_in, 	NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
 	inverse(lambda,rho,n,&AMA_1,&AMA_1AR);
 	inverse(gamma,psi,n,&GAR_1,&GAR_1MA);	
+	
+	Py_DECREF(AMA_1);
+	Py_DECREF(AMA_1AR);
+	Py_DECREF(GAR_1);
+	Py_DECREF(GAR_1MA);
+
+	Py_DECREF(rho);
+	Py_DECREF(lambda);
+	Py_DECREF(psi);
+	Py_DECREF(gamma);
 	
 	return Py_BuildValue("i",1);
 		
