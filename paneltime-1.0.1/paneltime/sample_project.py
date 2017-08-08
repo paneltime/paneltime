@@ -31,7 +31,7 @@ transforms="""
          LNMeanRelSpread=Ln(MeanRelSpread,False)               
          LNRelTick=Ln(RelTickSize,False)
          LNMeanNticks=np.maximum(LNMeanRelSpread-LNRelTick,0)
-         DayRet=DayChange
+
 
 
          LNBestOBVol=Ln(bestOBVol*avgPrice,False)
@@ -61,7 +61,8 @@ model_string="""LNRange ~
             LNMktShare
             MktShare0
             LNmaxLevels
-            DayRet	
+            DayRet
+            PrevDayRet
                 """
 h="""def h(e,z):
         e2=e**2+z
