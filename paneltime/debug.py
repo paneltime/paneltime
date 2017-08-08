@@ -21,7 +21,7 @@ def LL_debug_detail(ll,panel,d):
 	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 	u=panel.Y-fu.dot(panel.X,beta_)
 	e_0=np.moveaxis(np.dot(AMA_1AR,u),0,1)
-	if panel.m>0:
+	if ll.m>0:
 		h_res=rp.h_func(e_0, args['z'])
 		if h_res==None:return None
 		(h_val_0,h_e_val_0,h_2e_val_0,h_c_val_0,h_2c_val_0,h_ec_val_0)=[i*panel.included for i in h_res]		
@@ -30,7 +30,7 @@ def LL_debug_detail(ll,panel,d):
 		(h_val_0,h_e_val_0,h_2e_val_0,h_c_val_0,h_2c_val_0,h_ec_val_0,avg_h_0)=(0,0,0,0,0,0,0)
 		lnv_ARMA_0=0	
 	lnv_0=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_0# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	if panel.m>0:
+	if ll.m>0:
 		avg_h_0=(np.sum(h_val_0,1)/panel.T_arr).reshape((N,1,1))*panel.a
 		if panel.N>1:
 			lnv_0=lnv_0+args['mu']*avg_h_0	
@@ -46,7 +46,7 @@ def LL_debug_detail(ll,panel,d):
 	beta_,Wbeta_,AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 	u=panel.Y-fu.dot(panel.X,beta_)
 	e_1=np.moveaxis(np.dot(AMA_1AR,u),0,1)
-	if panel.m>0:
+	if ll.m>0:
 		h_res=rp.h_func(e_1, args['z'])
 		if h_res==None:return None
 		(h_val_1,h_e_val_1,h_2e_val_1,h_c_val_1,h_2c_val_1,h_ec_val_1)=[i*panel.included for i in h_res]		
@@ -55,7 +55,7 @@ def LL_debug_detail(ll,panel,d):
 		(h_val_1,h_e_val_1,h_2e_val_1,h_c_val_1,h_2c_val_1,h_ec_val_1,avg_h_1)=(0,0,0,0,0,0,0)
 		lnv_ARMA_1=0
 	lnv_1=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_1# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	if panel.m>0:
+	if ll.m>0:
 		avg_h_1=(np.sum(h_val_1,1)/panel.T_arr).reshape((N,1,1))*panel.a
 		if panel.N>1:
 			lnv_1=lnv_1+(args['mu']+d)*avg_h_1	
@@ -73,7 +73,7 @@ def LL_debug_detail(ll,panel,d):
 	beta_d[0][0]=0
 	u=panel.Y-fu.dot(panel.X,beta_+beta_d)
 	e_2=np.moveaxis(np.dot(AMA_1AR,u),0,1)
-	if panel.m>0:
+	if ll.m>0:
 		h_res=rp.h_func(e_2, args['z'])
 		if h_res==None:return None
 		(h_val_2,h_e_val_2,h_2e_val_2,h_c_val_2,h_2c_val_2,h_ec_val_2)=[i*panel.included for i in h_res]		
@@ -82,7 +82,7 @@ def LL_debug_detail(ll,panel,d):
 		(h_val_2,h_e_val_2,h_2e_val_2,h_c_val_2,h_2c_val_2,h_ec_val_2,avg_h_2)=(0,0,0,0,0,0,0)
 		lnv_ARMA_2=0
 	lnv_2=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_2# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	if panel.m>0:
+	if ll.m>0:
 		avg_h_2=(np.sum(h_val_2,1)/panel.T_arr).reshape((N,1,1))*panel.a
 		if panel.N>1:
 			lnv_2=lnv_2+args['mu']*avg_h_2
@@ -100,7 +100,7 @@ def LL_debug_detail(ll,panel,d):
 	beta_d[0][0]=0
 	u=panel.Y-fu.dot(panel.X,beta_+beta_d)
 	e_3=np.moveaxis(np.dot(AMA_1AR,u),0,1)
-	if panel.m>0:
+	if ll.m>0:
 		h_res=rp.h_func(e_3, args['z'])
 		if h_res==None:return None
 		(h_val_3,h_e_val_3,h_3e_val_3,h_c_val_3,h_3c_val_3,h_ec_val_3)=[i*panel.included for i in h_res]		
@@ -109,7 +109,7 @@ def LL_debug_detail(ll,panel,d):
 		(h_val_3,h_e_val_3,h_3e_val_3,h_c_val_3,h_3c_val_3,h_ec_val_3,avg_h_3)=(0,0,0,0,0,0,0)
 		lnv_ARMA_3=0 
 	lnv_3=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_3# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	if panel.m>0:
+	if ll.m>0:
 		avg_h_3=(np.sum(h_val_3,1)/panel.T_arr).reshape((N,1,1))*panel.a
 		if panel.N>1:
 			lnv_3=lnv_3+args['mu']*avg_h_3
@@ -366,7 +366,7 @@ def dd_func_lags_mult(panel,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de
 		de2_zeta_xi_RE_4 = de2_zeta_xi_RE_4 * DLL_e
 		de2_zeta_xi_RE_4 = np.sum(np.sum(de2_zeta_xi_RE_4,0),0)#and sum it
 	#GARCH: 
-	if panel.m>0:
+	if ll.m>0:
 		h_e_de2_zeta_xi = de2_zeta_xi * panel.h_e_val.reshape(N,T,1,1) * DLL_e
 		h_2e_dezeta_dexi = panel.h_2e_val.reshape(N,T,1,1) * de_xi.reshape((N,T,m,1)) * de_zeta.reshape((N,T,1,k))
 
@@ -386,7 +386,7 @@ def dd_func_lags_mult(panel,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de
 
 def dd_func_lags(panel,L,d,dLL,addavg=0, transpose=False):
 	#d is "N x T x m" and L is "k x T x T"
-	if panel.m==0:
+	if ll.m==0:
 		return None
 	if d is None:
 		return None		

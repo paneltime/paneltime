@@ -34,9 +34,10 @@ class diagnostics:
 		 self.tsign,
 		 sign_codes)=self.coeficient_output(H,G,robustcov_lags,ll)
 		
-		self.coeficient_printout(sign_codes)
+		
 		if simple_diagnostics:		
-			return		
+			return	
+		self.coeficient_printout(sign_codes)
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(panel,ll,10)
 		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)		
 
@@ -155,10 +156,11 @@ class diagnostics:
 	def multicollinearity_check(self,G):
 		"Returns a variance decompostition matrix with headings"
 		panel=self.panel
-		vNames=['CI:']+panel.args.names_v
+		vNames=['MaxProportion''CI:']+panel.args.names_v
 		k=len(vNames)-1
 		matr=stat.var_decomposition(X=G,concat=True)
 		matr=np.round(matr,3)
+		maxp=np.max(matr[:,1:],1).reshape((matr.shape[0]))
 		matr=np.concatenate(([vNames],matr))
 		self.MultiColl=matr
 

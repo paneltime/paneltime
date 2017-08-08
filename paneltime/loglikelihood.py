@@ -15,10 +15,14 @@ from scipy import sparse as sp
 import scipy
 
 class LL:
-	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and store all 
-	associated dynamic variables needed outside this scope"""
+	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and creates an object
+	that store dynamic variables that depend on the \n
+	If args is a dictionary, the ARMA-GARCH orders are 
+	determined from the dictionary. If args is a vector, the ARMA-GARCH order needs to be consistent
+	with the  panel object
+	"""
 	def __init__(self,args,panel,X=None):
-
+		
 		if args is None:
 			args=panel.args.args
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT_afterloss
@@ -124,7 +128,6 @@ class LL:
 	
 def set_garch_arch_old(panel,args):
 
-
 	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
 
 	AAR=-lag_matr(-panel.I,args['rho'])
@@ -139,7 +142,7 @@ def set_garch_arch_old(panel,args):
 
 
 def set_garch_arch(panel,args):
-	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
+	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
 	the diagonal band"""
 	n=panel.max_T
 	rho=np.insert(-args['rho'],0,1)

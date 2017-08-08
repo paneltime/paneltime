@@ -28,7 +28,7 @@ def posdef(a,da):
 	return list(range(a,a+da)),a+da
 
 class panel:
-	def __init__(self,p,d,q,m,k,X,Y,groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,descr,data,h,has_intercept,loadargs,model_string,user_constraints):
+	def __init__(self,p,d,q,m,k,X,Y,groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,descr,data,h,has_intercept,model_string,user_constraints,args):
 		"""
 		No effects    : fixed_random_eff=0\n
 		Fixed effects : fixed_random_eff=1\n
@@ -38,7 +38,7 @@ class panel:
 		if groups_name is None:
 			fixed_random_eff=0
 
-		self.initial_defs(h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,loadargs,model_string)
+		self.initial_defs(h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,model_string)
 		
 		self.X,self.Y,self.W,self.max_T,self.T_arr,self.N=self.arrayize(X, Y, W, groups)
 
@@ -46,7 +46,7 @@ class panel:
 		self.lag_variables(max((q,p,k,m)))
 		
 
-		self.final_defs(p,d,q,m,k,X,user_constraints)
+		self.final_defs(p,d,q,m,k,X,user_constraints,args)
 
 		self.between_group_ols()
 
@@ -60,11 +60,8 @@ class panel:
 		self.n_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
 		self.n_i=self.n_i+(self.n_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		
-	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,loadargs,model_string):
-		self.args_bank=ptf.args_bank(model_string+descr, loadargs)		
-		self.loadargs=loadargs
+	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,model_string):
 		self.has_intercept=has_intercept
-
 		self.data=data
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
 		self.x_names=x_names
@@ -84,7 +81,7 @@ class panel:
 		
 		
 		
-	def final_defs(self,p,d,q,m,k,X,user_constraints):
+	def final_defs(self,p,d,q,m,k,X,user_constraints,args):
 		self.W_a=self.W*self.a
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT_afterloss=np.sum(self.included)
@@ -95,7 +92,7 @@ class panel:
 		self.df=self.NT_afterloss-self.len_args-self.number_of_RE_coef-self.number_of_FE_coef_in_variance
 		self.xmin=np.min(X,0).reshape((1,X.shape[1]))
 		self.xmax=np.max(X,0).reshape((1,X.shape[1]))
-		self.args=arguments(p, d, q, m, k, self, self.args_bank.args,self.has_intercept,user_constraints)
+		self.args=arguments(p, d, q, m, k, self, args,self.has_intercept,user_constraints)
 
 
 
@@ -245,7 +242,8 @@ class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
 	def __init__(self,p, d, q, m, k, panel, args,has_intercept,user_constraints):
 		self.categories=['beta','rho','lambda','gamma','psi','omega','mu','z']
-		self.set_init_args(p, d, q, m, k,panel, args,has_intercept,user_constraints)
+		self.args_old=args
+		self.set_init_args(p, d, q, m, k,panel,has_intercept,user_constraints)
 		self.make_namevector(panel,p, q, m, k)
 		self.position_defs()
 		N,T,b=panel.X.shape
@@ -269,10 +267,10 @@ class arguments:
 
 		return args
 
-	def set_init_args(self,p,d,q,m,k,panel,args_old,has_intercept,user_constraints):
+	def set_init_args(self,p,d,q,m,k,panel,has_intercept,user_constraints):
 		
 		args=self.initargs(p, d, q, m, k, panel)
-		
+
 		#de2=np.roll(e**2,1)-e**2
 		#c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
 
@@ -283,16 +281,16 @@ class arguments:
 			if panel.N>1:
 				args['mu']=np.array([0.0])
 			args['z']=np.array([1.0])	
-		self.start_args=fu.copy_array_dict(args)
-		if not args_old is None: 
-			args['beta']=insert_arg(args['beta'],args_old['beta'])
-			args['omega']=insert_arg(args['omega'],args_old['omega'])
-			args['rho']=insert_arg(args['rho'],args_old['rho'])
-			args['lambda']=insert_arg(args['lambda'],args_old['lambda'])
-			args['psi']=insert_arg(args['psi'],args_old['psi'])
-			args['gamma']=insert_arg(args['gamma'],args_old['gamma'])
-			args['mu']=insert_arg(args['mu'],args_old['mu'])
-			args['z']=insert_arg(args['z'],args_old['z'])
+		self.args_start=fu.copy_array_dict(args)
+		if not self.args_old is None: 
+			args['beta']=insert_arg(args['beta'],self.args_old['beta'])
+			args['omega']=insert_arg(args['omega'],self.args_old['omega'])
+			args['rho']=insert_arg(args['rho'],self.args_old['rho'])
+			args['lambda']=insert_arg(args['lambda'],self.args_old['lambda'])
+			args['psi']=insert_arg(args['psi'],self.args_old['psi'])
+			args['gamma']=insert_arg(args['gamma'],self.args_old['gamma'])
+			args['mu']=insert_arg(args['mu'],self.args_old['mu'])
+			args['z']=insert_arg(args['z'],self.args_old['z'])
 		self.args=args
 		self.set_restricted_args(p, d, q, m, k,panel,e,beta)
 		
@@ -340,7 +338,7 @@ class arguments:
 		"""Converts a dict argument args to vector argument. if args is a vector, it is returned unchanged"""
 		if type(args)==dict:
 			v=np.array([])
-			for i in panel.args.categories:
+			for i in self.categories:
 				s=args[i]
 				if type(s)==np.ndarray:
 					s=s.flatten()
@@ -358,8 +356,9 @@ class arguments:
 		d['beta']=names
 		add_names(p,'AR term %s (p)','rho',d,names)
 		add_names(q,'MA term %s (q)','lambda',d,names)
-		add_names(k,'ARCH term %s (k)','psi',d,names)
 		add_names(m,'MACH term %s (m)','gamma',d,names)
+		add_names(k,'ARCH term %s (k)','psi',d,names)
+		
 		d['omega']=panel.w_names
 		names.extend(panel.w_names)
 		if m>0:
@@ -390,7 +389,7 @@ class arguments:
 			for c in self.categories:
 				if name in names_d[c]:
 					j=names_d[c].index(name)
-					self.start_args[c][j]=i[1]
+					self.args_start[c][j]=i[1]
 					self.args[c][j]=i[1]
 					self.args_restricted[c][j]=i[1]
 					self.args_OLS[c][j]=i[1]

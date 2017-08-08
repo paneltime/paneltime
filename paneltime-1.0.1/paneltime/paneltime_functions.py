@@ -330,6 +330,7 @@ def dim_check(V,arg_name,v_names=None,dict_check=False):
 
 
 def check_sign(panel,sign,category,old_lim,constraints,sign_level):
+	"Checks whether the higest order of category is significant. If it is not, lim is set to True"
 	sign=sign[panel.args.positions[category]]
 	if category in constraints.categories:
 		j=len(sign)

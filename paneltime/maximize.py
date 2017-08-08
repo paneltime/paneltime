@@ -62,7 +62,7 @@ def lnsrch(f0, g, dx,panel):
 		return d[f_max]
 	return f0#should never happen	
 	
-def maximize(panel,direction,mp,direction_testing,args=None,_print=True,user_constraints=None):
+def maximize(panel,direction,mp,direction_testing,args_bank,args=None,_print=True,user_constraints=None):
 	"""Maxmizes logl.LL"""
 	
 	
@@ -103,7 +103,7 @@ def maximize(panel,direction,mp,direction_testing,args=None,_print=True,user_con
 			return ll,g,G,H,1
 		ll=lnsrch(ll,g,dx,panel) 
 
-		panel.args_bank.save(ll.args_d,0)
+		args_bank.save(ll.args_d,0)
 		
 		dxi=f0.args_v-ll.args_v
 		test=np.max(np.abs(f0.args_v-ll.args_v)/np.maximum(np.abs(ll.args_v),1e-50))
