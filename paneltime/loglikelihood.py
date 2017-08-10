@@ -10,6 +10,7 @@ import numpy as np
 import functions as fu
 import regprocs as rp
 import statproc as stat
+import random_effects as re
 import calculus
 from scipy import sparse as sp
 import scipy
@@ -23,6 +24,7 @@ class LL:
 	"""
 	def __init__(self,args,panel,X=None):
 		
+		self.REObj=re.REObj(panel)
 		if args is None:
 			args=panel.args.args
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT_afterloss
@@ -79,7 +81,7 @@ class LL:
 			lnv=np.maximum(np.minimum(lnv,100),-100)
 		v=np.exp(lnv)*panel.a
 		v_inv=np.exp(-lnv)*panel.a	
-		e_RE=rp.RE(self,panel,e)
+		e_RE=self.REObj.RE(e)
 		e_REsq=e_RE**2
 		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
 		
@@ -100,9 +102,9 @@ class LL:
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
 		Y=fu.dot(self.AMA_1AR,panel.Y)
-		Y=rp.RE(self,panel,Y,False)*v_inv
+		Y=self.REObj.RE(Y,False)*v_inv
 		X=fu.dot(self.AMA_1AR,panel.X)
-		X=rp.RE(self,panel,X,False)*v_inv
+		X=self.REObj.RE(X,False)*v_inv
 		self.e_st=self.e_RE*v_inv
 		self.Y_st=Y
 		self.X_st=X
@@ -247,7 +249,7 @@ def lag_matr(L,args):
 class direction:
 	def __init__(self,panel):
 		self.gradient=calculus.gradient(panel)
-		self.hessian=calculus.hessian(panel)
+		self.hessian=calculus.hessian(panel,self.gradient)
 		self.panel=panel
 		self.constr=None
 		self.hessian_num=None
@@ -257,10 +259,10 @@ class direction:
 		self.I=np.diag(np.ones(panel.args.n_args))
 		
 		
-	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,user_constraints=None):
+	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,user_constraints=None,numerical=False):
 
 		g,G=self.gradient.get(ll,return_G=True)		
-		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv)
+		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv,numerical)
 
 		out=output(print_on)
 		self.constr=constraints(self.panel.args,self.constr)
@@ -285,12 +287,13 @@ class direction:
 	
 
 	
-	def get_hessian(self,ll,mp,g,G,dxi,its,dx_conv):
+	def get_hessian(self,ll,mp,g,G,dxi,its,dx_conv,numerical):
 		
 		#hessinS0=rp.sandwich(hessian,G,0)
 		hessian=None
 		I=self.I
-		hessian=self.hessian.get(ll,mp)
+		if not numerical or self.hessian_num is None:
+			hessian=self.hessian.get(ll,mp)
 		hessian,num=self.nummerical_hessian(hessian, dxi,g)
 		if num:
 			return hessian
@@ -440,9 +443,9 @@ def remove_H_correl(hessian,include,constr,args,out,names):
 	p=p[srt][::-1]
 	p=p[np.nonzero(p[:,0]>=1.0)[0]]
 	principal_factors=[]
-	groups=correl_groups(p)
+	IDs=correl_IDs(p)
 	acc=None
-	for i in groups:
+	for i in IDs:
 		for j in range(len(i)):
 			if not i[j] in constr.constraints:
 				acc=i.pop(j)
@@ -465,8 +468,8 @@ def remove_correl(panel,G,include,constr,args,out,names):
 	p=p[srt][::-1]
 	p=p[np.nonzero(p[:,0]>0.8)[0]]
 	principal_factors=[]
-	groups=correl_groups(p)
-	for i in groups:
+	IDs=correl_IDs(p)
+	for i in IDs:
 		for j in range(len(i)):
 			if not i[j] in constr.constraints:
 				acc=i.pop(j)
@@ -475,46 +478,46 @@ def remove_correl(panel,G,include,constr,args,out,names):
 			remvd=remove(j,acc,args,include,out,constr,names,'correl')	
 
 
-def append_to_group(group,intlist):
-	ingroup=False
+def append_to_ID(ID,intlist):
+	inID=False
 	for i in intlist:
-		if i in group:
-			ingroup=True
+		if i in ID:
+			inID=True
 			break
-	if ingroup:
+	if inID:
 		for j in intlist:
-			if not j in group:
-				group.append(j)
+			if not j in ID:
+				ID.append(j)
 		return True
 	else:
 		return False
 
-def correl_groups(p):
-	groups=[]
+def correl_IDs(p):
+	IDs=[]
 	appended=False
 	x=np.array(p[:,1:3],dtype=int)
 	for i,j in x:
-		for k in range(len(groups)):
-			appended=append_to_group(groups[k],[i,j])
+		for k in range(len(IDs)):
+			appended=append_to_ID(IDs[k],[i,j])
 			if appended:
 				break
 		if not appended:
-			groups.append([i,j])
-	g=len(groups)
+			IDs.append([i,j])
+	g=len(IDs)
 	keep=g*[True]
 	for k in range(g):
 		if keep[k]:
-			for h in range(k+1,len(groups)):
+			for h in range(k+1,len(IDs)):
 				appended=False
-				for m in range(len(groups[h])):
-					if groups[h][m] in groups[k]:
-						appended=append_to_group(groups[k],  groups[h])
+				for m in range(len(IDs[h])):
+					if IDs[h][m] in IDs[k]:
+						appended=append_to_ID(IDs[k],  IDs[h])
 						keep[h]=False
 						break
 	g=[]
-	for i in range(len(groups)):
+	for i in range(len(IDs)):
 		if keep[i]:
-			g.append(groups[i])
+			g.append(IDs[i])
 	return g
 
 

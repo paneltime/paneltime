@@ -244,10 +244,10 @@ def deviation(panel,X):
 	mean=np.sum(np.sum(x,0),0).reshape((1,1,k))/panel.NT_afterloss
 	return (X-mean)*panel.included
 
-def std(panel,x_dev,groupwise=False,total=False):
+def std(panel,x_dev,IDwise=False,total=False):
 	N,T,k=x_dev.shape
 	x=x_dev*panel.included
-	if groupwise:
+	if IDwise:
 		s=np.sum(x**2,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
 	elif total:
 		s=np.sum(x**2)/panel.NT_afterloss
@@ -256,10 +256,10 @@ def std(panel,x_dev,groupwise=False,total=False):
 	s=s**0.5
 	return s
 
-def avg(panel,x,groupwise=False,total=False):
+def avg(panel,x,IDwise=False,total=False):
 	N,T,k=x.shape
 	x=x*panel.included
-	if groupwise:
+	if IDwise:
 		m=np.sum(x,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
 	elif total:
 		m=np.sum(x)/panel.NT_afterloss
@@ -267,11 +267,11 @@ def avg(panel,x,groupwise=False,total=False):
 		m=np.sum(np.sum(x,0),0).reshape((1,k))/panel.NT_afterloss
 	return m
 
-def var(panel,x,groupwise=False,total=False):
+def var(panel,x,IDwise=False,total=False):
 	N,T,k=x.shape
 	x2=(x**2)*panel.included
-	m=avg(panel,x,groupwise,total)
-	if groupwise:
+	m=avg(panel,x,IDwise,total)
+	if IDwise:
 		v=np.sum(x2,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
 	elif total:
 		v=np.sum(x2)/panel.NT_afterloss

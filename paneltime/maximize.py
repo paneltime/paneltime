@@ -62,7 +62,7 @@ def lnsrch(f0, g, dx,panel):
 		return d[f_max]
 	return f0#should never happen	
 	
-def maximize(panel,direction,mp,direction_testing,args_bank,args=None,_print=True,user_constraints=None):
+def maximize(panel,direction,mp,direction_testing,args_archive,args=None,_print=True,user_constraints=None):
 	"""Maxmizes logl.LL"""
 	
 	
@@ -85,7 +85,7 @@ def maximize(panel,direction,mp,direction_testing,args_bank,args=None,_print=Tru
 	dxi=None
 	g=None
 	if direction_testing:
-		ll=dirtest(ll, panel,direction,mp)
+		ll=dirtest(ll, panel,direction,mp,user_constraints)
 	direction.hessin_num=None
 	while 1:  
 		its+=1
@@ -103,7 +103,7 @@ def maximize(panel,direction,mp,direction_testing,args_bank,args=None,_print=Tru
 			return ll,g,G,H,1
 		ll=lnsrch(ll,g,dx,panel) 
 
-		args_bank.save(ll.args_d,0)
+		args_archive.save(ll.args_d,0)
 		
 		dxi=f0.args_v-ll.args_v
 		test=np.max(np.abs(f0.args_v-ll.args_v)/np.maximum(np.abs(ll.args_v),1e-50))
@@ -128,20 +128,20 @@ def round_sign(x,n):
 	return round(x, -int(np.log10(abs(x)))+n-1)
 
 
-def dirtest(ll,panel,direction,mp=None):
+def dirtest(ll,panel,direction,mp,user_constraints):
 	#dx,dx_approx,g,G,H,constrained,reset=direction.get(ll,1000,None,0,0,mp)
 	#ll=lnsrch(ll,g,dx,panel)
 	ll.standardize(panel)
 	if os.cpu_count()<24:
-		ll=pretest_sub(ll,['psi','gamma'],panel,direction,mp)
-		ll=pretest_sub(ll,['rho','lambda'],panel,direction,mp)
+		ll=pretest_sub(ll,['psi','gamma'],panel,direction,mp,user_constraints)
+		ll=pretest_sub(ll,['rho','lambda'],panel,direction,mp,user_constraints)
 		
 	else:
 		ll=pretest_master(ll,mp)
 	return ll
 	
 	
-def pretest_master(ll,mp):
+def pretest_master(ll,mp,user_constraints):
 	c=['psi','gamma','rho','lambda']
 	k=len(c)
 	a=np.array(np.meshgrid(*tuple([[-0.5, 0.5]]*k))).T.reshape(-1,k)
@@ -159,7 +159,7 @@ def pretest_master(ll,mp):
 	while 1:
 		for j in range(n_cores):
 			s="t0=time.time()\n"
-			s+="tmp=mx.pretest_func(panel,direction,args[%s],ll)\n" %(i,)
+			s+="tmp=mx.pretest_func(panel,direction,args[%s],ll,user_constraints)\n" %(i,)
 			expr[j]+=s+'res%s=tmp,(time.time()-t0),time.time(),t0\n'  %(i,)
 			i+=1
 			if i==n:
@@ -178,7 +178,7 @@ def pretest_master(ll,mp):
 				max_ll=ll_new	
 	return max_ll
 	
-def pretest_func(panel,direction,args,ll,mp=None):
+def pretest_func(panel,direction,args,ll,user_constraints,mp=None):
 	
 	ll_new=logl.LL(args,panel)
 	
@@ -192,7 +192,7 @@ def pretest_func(panel,direction,args,ll,mp=None):
 	
 	return ll_new
 	
-def pretest_sub(ll,categories,panel,direction,mp):
+def pretest_sub(ll,categories,panel,direction,mp,user_constraints):
 	c=categories
 	vals=[-0.5,0,0.5]
 	max_ll=ll
@@ -205,7 +205,7 @@ def pretest_sub(ll,categories,panel,direction,mp):
 				if len(args_d[c[k]])>0:
 					args_d[c[k]][0]=[i,j][k]
 			#impose_OLS(ll,args_d, panel)
-			ll_new=pretest_func(panel, direction, args_d, ll)
+			ll_new=pretest_func(panel, direction, args_d, ll,user_constraints,mp)
 			catstr="(%s,%s)" %tuple(c)
 			print('Direction test %s=(%s,%s) LL: %s  Max LL: %s' %(catstr,i,j,ll_new.LL,max_ll.LL))
 			if ll_new.LL>max_ll.LL:

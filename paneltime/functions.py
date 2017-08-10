@@ -105,6 +105,20 @@ def clean(string,split='',cleanchrs=['\n','\t',' ']):
 			ret.append(i)
 	return ret
 
+def split_input(input_str):
+	if input_str is None:
+		return None
+	for s in [',','\n','+',' ']:
+		lst=input_str.split(s)
+		if len(lst)>1:
+			break
+	x=[]
+	for i in lst:
+		m=clean(i)
+		if m!='':
+			x.append(m)
+	return x	
+
 
 def clean_str(s,cleanchrs,split=''):
 	for j in cleanchrs:

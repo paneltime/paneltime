@@ -18,7 +18,7 @@ import functions as fu
 import loglikelihood as logl
 
 class diagnostics:
-	def __init__(self,panel,g,G,H,ll,robustcov_lags=100,simple_diagnostics=False,corr_matrix_vars=None):
+	def __init__(self,panel,g,G,H,ll,robustcov_lags=100,correl_vars=None,descriptives_vars=None,simple_diagnostics=False):
 		"""This class calculates, stores and prints statistics and diagnostics"""
 		self.panel=panel
 		ll.standardize(panel)
@@ -43,7 +43,7 @@ class diagnostics:
 
 		self.multicollinearity_check(G)
 
-		self.data_correlations,self.data_statistics=self.correl_and_statistics(corr_matrix_vars)
+		self.data_correlations,self.data_statistics=self.correl_and_statistics(correl_vars,descriptives_vars)
 		
 		scatterplots(panel)
 
@@ -52,32 +52,24 @@ class diagnostics:
 		self.adf_test=stat.adf_test(panel,ll,10)
 		self.save_stats(ll)
 	
-	def correl_and_statistics(self,corr_matrix_vars):
+	def correl_and_statistics(self,correl_vars,descriptives_vars):
 		panel=self.panel
 		x_names=[]
 		X=[]
-		if not corr_matrix_vars is None:
-			if type(corr_matrix_vars)==str:
-				corr_matrix_vars=corr_matrix_vars.split(',')
-			for i in corr_matrix_vars:
-				add_corr_variable(i, panel, x_names, X)
-		if len(x_names)==0:
-			for i in panel.data.keys():
-				add_corr_variable(i, panel, x_names, X)
+		correl_X,correl_names=get_variables(panel, correl_vars)
+		descr_X,descr_names=get_variables(panel, descriptives_vars)
 	
-		n=len(x_names)
-		X=np.concatenate(X,1)
-		x_names=np.array(x_names).reshape((1,n))
-		c=stat.correl(X)
-		c=np.concatenate((x_names,c),0)
-		vstat=np.concatenate((np.mean(X,0).reshape((n,1)),
-		                      np.std(X,0).reshape((n,1)),
-		                      np.min(X,0).reshape((n,1)),
-		                      np.max(X,0).reshape((n,1))),1)
-		vstat=np.concatenate((x_names.T,vstat),1)
+
+		c=stat.correl(correl_X)
+		c=np.concatenate((correl_names,c),0)
+		vstat=np.concatenate((np.mean(descr_X,0).reshape((n,1)),
+		                      np.std(descr_X,0).reshape((n,1)),
+		                      np.min(descr_X,0).reshape((n,1)),
+		                      np.max(descr_X,0).reshape((n,1))),1)
+		vstat=np.concatenate((descr_names.T,vstat),1)
 		vstat=np.concatenate(([['','Mean','SD','min','max']],vstat),0)
-		x_names=np.append([['']],x_names,1).T
-		c=np.concatenate((x_names,c),1)
+		correl_names=np.append([['']],correl_names,1).T
+		c=np.concatenate((correl_names,c),1)
 
 		return c,vstat
 		
@@ -103,7 +95,7 @@ class diagnostics:
 		                      tstat.reshape((T,1)),
 		                      tsign.reshape((T,1)),
 		                      sign_codes.reshape((T,1))),1)
-		output=np.concatenate(([['Regressors:','coef:','SE sandwich:','SE standard:','t-value:','t-sign:','sign codes:']],output),0)
+		output=np.concatenate(([['Regressor:','coef:','SE sandwich:','SE standard:','t-value:','t-sign:','sign codes:']],output),0)
 		
 		
 		return output,names,args,se_robust,se_st,tstat,tsign,sign_codes
@@ -156,11 +148,12 @@ class diagnostics:
 	def multicollinearity_check(self,G):
 		"Returns a variance decompostition matrix with headings"
 		panel=self.panel
-		vNames=['MaxProportion''CI:']+panel.args.names_v
+		vNames=['Max(var_proportion)','CI:']+panel.args.names_v
 		k=len(vNames)-1
 		matr=stat.var_decomposition(X=G,concat=True)
 		matr=np.round(matr,3)
-		maxp=np.max(matr[:,1:],1).reshape((matr.shape[0]))
+		maxp=np.max(matr[:,1:],1).reshape((matr.shape[0],1))
+		matr=np.concatenate((maxp,matr),1)
 		matr=np.concatenate(([vNames],matr))
 		self.MultiColl=matr
 
@@ -174,14 +167,14 @@ class diagnostics:
 		add_output(output,name_list,'Information',[
 		    ['Description:',panel.descr],
 		    ['LL:',ll.LL],
-		    ['Number of groups:',N],
+		    ['Number of IDs:',N],
 		    ['Maximum number of dates:',T],
-		    ['(A, Total number of observations:',panel.NT],
-		    ['(B, Observations lost to GARCH/ARIMA',panel.tot_lost_obs],		
-		    ['    Total after loss of observations (A-B,:',panel.NT_afterloss],
-		    ['(C, Number of Random Effects coefficients:',N],
-		    ['(D, Number of Fixed Effects coefficients in the variance process:',N],
-		    ['(E, Number of coefficients:',panel.len_args],
+		    ['A) Total number of observations:',panel.NT],
+		    ['B) Observations lost to GARCH/ARIMA',panel.tot_lost_obs],		
+		    ['    Total after loss of observations (A-B):',panel.NT_afterloss],
+		    ['C) Number of Random Effects coefficients:',N],
+		    ['D) Number of Fixed Effects coefficients in the variance process:',N],
+		    ['E) Number of coefficients:',panel.len_args],
 		    ['DF (A-B-C-D-E):',panel.df],
 		    ['RSq:',self.Rsq],
 		    ['RSq Adj:',self.Rsqadj],
@@ -197,7 +190,7 @@ class diagnostics:
 
 		add_output(output,name_list,'Descriptive statistics',self.data_statistics)
 		add_output(output,name_list,'Correlation Matrix',self.data_correlations)
-		add_output(output,name_list,'Number of dates in each group',panel.T_arr.reshape((N,1)))
+		add_output(output,name_list,'Number of dates in each ID',panel.T_arr.reshape((N,1)))
 		
 		output_table=[['']]
 		output_positions=['']
@@ -214,12 +207,29 @@ class diagnostics:
 		
 		self.output=output
 
-def add_corr_variable(name,panel,x_names,X):
-	if name in panel.data.keys():
-		d=panel.data[name]
+def add_variable(name,panel,names,variables):
+	if name in panel.dataframe.keys():
+		d=panel.dataframe[name]
 		if type(d)==np.ndarray:
-			x_names.append(name)
-			X.append(d)
+			names.append(name)
+			variables.append(d)
+			
+def get_variables(panel,input_str):
+	v=fu.split_input(input_str)
+	names=[]
+	variables=[]
+	if not v is None:
+		for i in v:
+			add_variable(i, panel, names, variables)
+	
+	if v is None or len(names)==0:
+		for i in panel.dataframe.keys():
+			add_variable(i, panel, names, variables)
+			
+	n=len(names)
+	X=np.concatenate(variables,1)
+	names=np.array(names).reshape((1,n))
+	return X,names
 			
 def add_output(output_dict,name_list,name,table):
 	if type(table)==np.ndarray:

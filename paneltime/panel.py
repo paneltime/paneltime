@@ -14,7 +14,7 @@ import threading
 import debug
 import regprocs as rp
 import functions as fu
-import paneltime_functions as ptf
+import model_parser
 import calculus
 import copy
 import loglikelihood as logl
@@ -28,19 +28,19 @@ def posdef(a,da):
 	return list(range(a,a+da)),a+da
 
 class panel:
-	def __init__(self,p,d,q,m,k,X,Y,groups,x_names,y_name,groups_name,fixed_random_eff,W,w_names,descr,data,h,has_intercept,model_string,user_constraints,args):
+	def __init__(self,p,d,q,m,k,X,Y,IDs,x_names,y_name,IDs_name,fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,model_string,user_constraints,args):
 		"""
 		No effects    : fixed_random_eff=0\n
 		Fixed effects : fixed_random_eff=1\n
 		Random effects: fixed_random_eff=2\n
 		
 		"""
-		if groups_name is None:
+		if IDs_name is None:
 			fixed_random_eff=0
 
-		self.initial_defs(h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,model_string)
+		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,w_names,descr,fixed_random_eff,model_string)
 		
-		self.X,self.Y,self.W,self.max_T,self.T_arr,self.N=self.arrayize(X, Y, W, groups)
+		self.X,self.Y,self.W,self.max_T,self.T_arr,self.N=self.arrayize(X, Y, W, IDs)
 
 		self.masking()
 		self.lag_variables(max((q,p,k,m)))
@@ -48,7 +48,7 @@ class panel:
 
 		self.final_defs(p,d,q,m,k,X,user_constraints,args)
 
-		self.between_group_ols()
+		self.between_ID_ols()
 
 	def masking(self):
 		self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
@@ -60,22 +60,22 @@ class panel:
 		self.n_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
 		self.n_i=self.n_i+(self.n_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		
-	def initial_defs(self,h,X,Y,groups,W,has_intercept,data,p,q,m,k,d,x_names,y_name,groups_name,w_names,descr,fixed_random_eff,model_string):
+	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,w_names,descr,fixed_random_eff,model_string):
 		self.has_intercept=has_intercept
-		self.data=data
+		self.dataframe=dataframe
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
 		self.x_names=x_names
 		self.y_name=y_name
 		self.raw_X=X
 		self.raw_Y=Y
-		self.groups_name=groups_name
+		self.IDs_name=IDs_name
 		self.w_names=w_names		
 		self.p,self.d,self.q,self.m,self.k,self.nW,self.n_beta=p,d,q,m,k,W.shape[1],X.shape[1]
 		self.n_beta=len(X[0])
 		self.descr=descr
 		self.its_reg=0
 		self.FE_RE=fixed_random_eff
-		self.groups=groups	
+		self.IDs=IDs	
 		self.len_data=len(X)
 		self.define_h_func(h)
 		
@@ -97,19 +97,19 @@ class panel:
 
 
 	
-	def between_group_ols(self):
+	def between_ID_ols(self):
 		N,T,k=self.X.shape
 		if self.FE_RE==0:
 			return
 		if k+4>N and self.FE_RE==2:
 			self.FE_RE=1
-			print ("""Warning: Only %s groups compared to %s variables. Group mean regression 
+			print ("""Warning: Only %s IDs compared to %s variables. Group mean regression 
 				            does not have sufficient degrees of freedom for a reasonably robust variance
 				            estimate. A fixed effect model will be run instead.""" %(N,k))	
 			return
 		g_X=np.sum(self.X*self.included,1)/self.n_i.reshape(N,1)
 		g_Y=np.sum(self.Y*self.included,1)/self.n_i.reshape(N,1)
-		non_zeros=np.sum(g_X**2,0)>0   #sometimes differencing may cause the group variables to be all zero.
+		non_zeros=np.sum(g_X**2,0)>0   #sometimes differencing may cause the ID variables to be all zero.
 		g_X=g_X[:,non_zeros]           #These variables need to be eliminated.
 		beta,self.grp_err=stat.OLS_simple(g_Y,g_X)
 		self.grp_v=np.var(self.grp_err)
@@ -157,11 +157,11 @@ class panel:
 		ret=np.concatenate(x_arr,0)
 		return ret	
 
-	def arrayize(self,X,Y,W,groups):
-		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each groups,
+	def arrayize(self,X,Y,W,IDs):
+		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs,
 		and returns the matrix arrays and their row number"""
 		NT,k=X.shape
-		if groups is None:
+		if IDs is None:
 			Xarr=X.reshape((1,NT,k))
 			Yarr=Y.reshape((1,NT,1))
 			NTW,k=W.shape
@@ -170,9 +170,9 @@ class panel:
 			max_T=NT
 			T=np.array([[NT]])
 		else:
-			sel=np.unique(groups)
+			sel=np.unique(IDs)
 			N=len(sel)
-			sel=(groups.T==sel.reshape((N,1)))
+			sel=(IDs.T==sel.reshape((N,1)))
 			T=np.sum(sel,1)
 			max_T=np.max(T)
 			Xarr=[]
@@ -188,7 +188,7 @@ class panel:
 					Yarr.append(rp.fillmatr(Y[i],max_T))
 					Warr.append(rp.fillmatr(W[i],max_T))
 				else:
-					print("Warning: group %s removed because of too few observations" %(k))
+					print("Warning: ID %s removed because of too few observations" %(k))
 				k+=1
 			T=np.array(T_used)
 			N=len(T)
@@ -363,7 +363,7 @@ class arguments:
 		names.extend(panel.w_names)
 		if m>0:
 			if panel.N>1:
-				d['mu']=['mu (var.group eff.)']
+				d['mu']=['mu (var.ID eff.)']
 				names.extend(d['mu'])
 			d['z']=['z in h(e,z)']
 			names.extend(d['z'])

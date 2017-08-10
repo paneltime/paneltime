@@ -10,14 +10,14 @@ import functions as fu
 
 class simulation:
 	"""Creates an object that can simulate ARIMA-GARCH-timeseries data"""
-	def __init__(self,N,T,beta,rho=[0.5],lmbda=[-0.5],psi=[0.5],gamma=[-0.5],omega=0.1,mu=1,z=1,residual_sd=1,group_sd=0,names=['x','const','Y','ID']):
+	def __init__(self,N,T,beta,rho=[0.5],lmbda=[-0.5],psi=[0.5],gamma=[-0.5],omega=0.1,mu=1,z=1,residual_sd=1,ID_sd=0,names=['x','const','Y','ID']):
 
 		self.args,self.p,self.q,self.m,self.k,self.beta_len=self.new_args(beta,rho,lmbda,psi,gamma,omega,mu,z)
 		self.T=T
 		self.names=['x','const','Y','ID']
 		self.N=N
 		self.residual_sd=residual_sd
-		self.group_sd=group_sd
+		self.ID_sd=ID_sd
 		self.max_lags=np.max((self.p,self.q,self.m,self.k))
 		self.I=np.diag(np.ones(T))
 		self.zero=self.I*0		
@@ -26,8 +26,8 @@ class simulation:
 	def sim_many(self,n):
 		for i in range(n):
 			d=dict()
-			X,Y,groups=self.sim()
-			save_dataset(X,Y,groups,self.names,i)
+			X,Y,IDs=self.sim()
+			save_dataset(X,Y,IDs,self.names,i)
 			
 	def de_sim(self,X,Y):
 		args=self.args
@@ -56,8 +56,8 @@ class simulation:
 		if self.residual_sd==0:
 			raise RuntimeError("Zero residual error not allowed.")
 		e=np.random.normal(0,self.residual_sd,(self.N,self.T,1))
-		if self.group_sd>0:
-			eRE=e+np.random.normal(0,self.group_sd,(self.N,1,1))
+		if self.ID_sd>0:
+			eRE=e+np.random.normal(0,self.ID_sd,(self.N,1,1))
 		else:
 			eRE=e
 	
@@ -66,8 +66,8 @@ class simulation:
 	
 		if self.m>0:
 			h=np.log(self.eRE**2+args['z'])
-			group_eff=np.random.normal(0,1,(self.N,1,1))*args['mu']
-			lnv=fu.dot(self.GAR_1MA,h)+group_eff+args['omega']
+			ID_eff=np.random.normal(0,1,(self.N,1,1))*args['mu']
+			lnv=fu.dot(self.GAR_1MA,h)+ID_eff+args['omega']
 		else:
 			lnv=0	
 	
@@ -83,10 +83,10 @@ class simulation:
 		
 		X=reshape(X,self.max_lags+1)
 		Y=reshape(Y,self.max_lags+1)
-		groups=np.ones((self.N,self.T,1))*np.arange(self.N).reshape((self.N,1,1))
-		groups=reshape(groups,self.max_lags+1)
+		IDs=np.ones((self.N,self.T,1))*np.arange(self.N).reshape((self.N,1,1))
+		IDs=reshape(IDs,self.max_lags+1)
 
-		return X,Y,groups
+		return X,Y,IDs
 
 	def new_args(self,beta,rho,lmbda,psi,gamma,omega,mu,z):
 		if rho is None:
@@ -162,7 +162,7 @@ def reshape(X,n):
 
 
 
-def save_dataset(X,Y,groups,names,i):
+def save_dataset(X,Y,IDs,names,i):
 	k=len(X[0])
 	h=[]
 	for j in range(len(X[0])):
@@ -171,6 +171,6 @@ def save_dataset(X,Y,groups,names,i):
 	h=np.array([h])
 	X=np.concatenate((h,X),0)
 	Y=np.concatenate(([[names[2]]],Y),0)
-	groups=np.concatenate(([[names[3]]],groups),0)
-	data=np.concatenate((X,Y,groups),1)
+	IDs=np.concatenate(([[names[3]]],IDs),0)
+	data=np.concatenate((X,Y,IDs),1)
 	fu.savevar(data,'/simulations/data_new'+str(i),'csv')	
