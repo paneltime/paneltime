@@ -57,8 +57,8 @@ class panel:
 	
 		#"after lost observations" masks: 
 		self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])# sets observations that shall be zero after lost observations to zero by multiplying it with the arrayized variable
-		self.n_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
-		self.n_i=self.n_i+(self.n_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
+		self.T_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
+		self.T_i=self.T_i+(self.T_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		
 	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,w_names,descr,fixed_random_eff,model_string):
 		self.has_intercept=has_intercept
@@ -84,12 +84,12 @@ class panel:
 	def final_defs(self,p,d,q,m,k,X,user_constraints,args):
 		self.W_a=self.W*self.a
 		self.tot_lost_obs=self.lost_obs*self.N
-		self.NT_afterloss=np.sum(self.included)
-		self.NT=self.NT_afterloss+self.tot_lost_obs				
+		self.NT=np.sum(self.included)
+		self.NT_before_loss=self.NT+self.tot_lost_obs				
 		self.len_args=p+d+q+m+k+self.W.shape[2]+self.X.shape[2]+2*(m==0)
 		self.number_of_RE_coef=self.N
 		self.number_of_FE_coef_in_variance=self.N
-		self.df=self.NT_afterloss-self.len_args-self.number_of_RE_coef-self.number_of_FE_coef_in_variance
+		self.df=self.NT-self.len_args-self.number_of_RE_coef-self.number_of_FE_coef_in_variance
 		self.xmin=np.min(X,0).reshape((1,X.shape[1]))
 		self.xmax=np.max(X,0).reshape((1,X.shape[1]))
 		self.args=arguments(p, d, q, m, k, self, args,self.has_intercept,user_constraints)
@@ -107,8 +107,8 @@ class panel:
 				            does not have sufficient degrees of freedom for a reasonably robust variance
 				            estimate. A fixed effect model will be run instead.""" %(N,k))	
 			return
-		g_X=np.sum(self.X*self.included,1)/self.n_i.reshape(N,1)
-		g_Y=np.sum(self.Y*self.included,1)/self.n_i.reshape(N,1)
+		g_X=np.sum(self.X*self.included,1)/self.T_i.reshape(N,1)
+		g_Y=np.sum(self.Y*self.included,1)/self.T_i.reshape(N,1)
 		non_zeros=np.sum(g_X**2,0)>0   #sometimes differencing may cause the ID variables to be all zero.
 		g_X=g_X[:,non_zeros]           #These variables need to be eliminated.
 		beta,self.grp_err=stat.OLS_simple(g_Y,g_X)
@@ -237,6 +237,13 @@ class panel:
 		s='ret=h(e,z)'
 		s='\n\n'+s
 		self.h_def=h_definition+s
+		
+	def mean(self,X,axis=None):
+		if axis==None:
+			return np.sum(X)/self.NT
+		if axis==1:
+			return np.sum(X)/self.T_i
+			
 
 class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""

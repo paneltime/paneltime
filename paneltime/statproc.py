@@ -107,7 +107,7 @@ def adf_test(panel,ll,p):
 	"""Returns the augmented dickey fuller test statistic and critical value"""
 	N,T,k=panel.X.shape
 	beta,y=OLS(panel,panel.X*panel.included,panel.Y*panel.included,return_e=True)
-	y=rp.FE(panel,y)
+	y=ll.re_obj.FE(y)
 	y_dev=deviation(panel,y)
 	s=std(panel,y_dev,True)
 	y=y/(s+(s==0)*1e-17)
@@ -138,7 +138,7 @@ def goodness_of_fit(panel,ll):
 	y=deviation(panel,ll.Y_st)
 	v1=std(panel,y,total=True)**2
 	Rsq=1-v0/v1
-	Rsqadj=1-(v0/v1)*(panel.NT_afterloss-1)/(panel.NT_afterloss-panel.len_args-1)
+	Rsqadj=1-(v0/v1)*(panel.NT-1)/(panel.NT-panel.len_args-1)
 	LL_OLS=logl.LL(panel.args.args_OLS,panel)
 	if not LL_OLS is None:
 		LL_OLS=LL_OLS.LL
@@ -166,7 +166,7 @@ def breusch_godfrey_test(panel,ll, lags):
 		X_u=np.append(X_u,e[:,lags-i:T-i],2)
 	XX=fu.dot(X_u,X_u)
 	Beta,Rsq=OLS(panel,X_u,u,True,True,c=c)
-	T=(panel.NT_afterloss-X_u.shape[2]-lags)
+	T=(panel.NT-X_u.shape[2]-lags)
 	BGStat=T*Rsq
 	rho=Beta[len(X[0]):]
 	ProbNoAC=1.0-chisq_dist(BGStat,lags)
@@ -208,7 +208,7 @@ def JB_normality_test(e,panel):
 	returns the probability that a set of residuals are drawn from a normal distribution"""
 	N,T,k=e.shape
 	e=e*panel.included
-	df=panel.NT_afterloss
+	df=panel.NT
 	s=(np.sum(e**2)/df)**0.5
 	mu3=np.sum(e**3)/df
 	mu4=np.sum(e**4)/df
@@ -224,7 +224,7 @@ def correl(X,panel=None):
 	if not panel is None:
 		X=X*panel.included
 		N,T,k=X.shape
-		N=panel.NT_afterloss
+		N=panel.NT
 		mean=np.sum(np.sum(X,0),0).reshape((1,k))/N
 	else:
 		N,k=X.shape
@@ -241,7 +241,7 @@ def correl(X,panel=None):
 def deviation(panel,X):
 	N,T,k=X.shape
 	x=X*panel.included
-	mean=np.sum(np.sum(x,0),0).reshape((1,1,k))/panel.NT_afterloss
+	mean=np.sum(np.sum(x,0),0).reshape((1,1,k))/panel.NT
 	return (X-mean)*panel.included
 
 def std(panel,x_dev,IDwise=False,total=False):
@@ -250,9 +250,9 @@ def std(panel,x_dev,IDwise=False,total=False):
 	if IDwise:
 		s=np.sum(x**2,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
 	elif total:
-		s=np.sum(x**2)/panel.NT_afterloss
+		s=np.sum(x**2)/panel.NT
 	else:
-		s=np.sum(np.sum(x**2,0),0).reshape((1,k))/panel.NT_afterloss
+		s=np.sum(np.sum(x**2,0),0).reshape((1,k))/panel.NT
 	s=s**0.5
 	return s
 
@@ -262,9 +262,9 @@ def avg(panel,x,IDwise=False,total=False):
 	if IDwise:
 		m=np.sum(x,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
 	elif total:
-		m=np.sum(x)/panel.NT_afterloss
+		m=np.sum(x)/panel.NT
 	else:
-		m=np.sum(np.sum(x,0),0).reshape((1,k))/panel.NT_afterloss
+		m=np.sum(np.sum(x,0),0).reshape((1,k))/panel.NT
 	return m
 
 def var(panel,x,IDwise=False,total=False):
@@ -274,9 +274,9 @@ def var(panel,x,IDwise=False,total=False):
 	if IDwise:
 		v=np.sum(x2,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
 	elif total:
-		v=np.sum(x2)/panel.NT_afterloss
+		v=np.sum(x2)/panel.NT
 	else:
-		v=np.sum(np.sum(x2,0),0).reshape((1,k))/panel.NT_afterloss
+		v=np.sum(np.sum(x2,0),0).reshape((1,k))/panel.NT
 	v=v-(m**2)
 	return v
 
@@ -310,7 +310,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_
 	if c is None:
 		c=panel.included
 	N,T,k=X.shape
-	NT=panel.NT_afterloss
+	NT=panel.NT
 	if add_const:
 		X=np.concatenate((c,X),2)
 		k=k+1

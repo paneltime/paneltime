@@ -24,10 +24,10 @@ def dd_func_lags_mult(panel,ll,g_obj,AMAL,de_xi,de_zeta,vname1,vname2,transpose=
 		de2_zeta_xi=fu.dot(AMAL,de_zeta_u,False)#"T x N x s x m"
 		if transpose:#only happens if lags==k
 			de2_zeta_xi=de2_zeta_xi+np.swapaxes(de2_zeta_xi,2,3)#adds the transpose
-		de2_zeta_xi_RE=ll.REObj.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi_RE=ll.re_obj.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)
 	else:
 		de2_zeta_xi=0
-		de2_zeta_xi_RE=ll.REObj.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi_RE=ll.re_obj.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2)
 		if de2_zeta_xi_RE is None:
 			de2_zeta_xi_RE=None
 	if not de2_zeta_xi_RE is None:	

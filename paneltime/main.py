@@ -110,8 +110,8 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 		#is found for all categories, the loop ends
 		p,p_lim=model_parser.check_sign(panel,diag.tsign,'rho',		p_lim,constraints,process_sign_level)
 		q,q_lim=model_parser.check_sign(panel,diag.tsign,'lambda',	q_lim,constraints,process_sign_level)
-		m,m_lim=model_parser.check_sign(panel,diag.tsign,'psi',		m_lim,constraints,process_sign_level)
-		k,k_lim=model_parser.check_sign(panel,diag.tsign,'gamma',	k_lim,constraints,process_sign_level)
+		m,m_lim=model_parser.check_sign(panel,diag.tsign,'psi',		m_lim,constraints,process_sign_level,1)
+		k,k_lim=model_parser.check_sign(panel,diag.tsign,'gamma',	k_lim,constraints,process_sign_level,1)
 		loadargs=True
 		if p_lim and q_lim and m_lim and k_lim:
 			break

@@ -72,7 +72,7 @@ def maximize(panel,direction,mp,direction_testing,args_archive,args=None,_print=
 		to be used as initial arguments (loadargs=True) but these failed to 
 		return a valid log likelihood with the new parameters. Default inital 
 		arguments will be used. """)
-		ll=logl.LL(panel.args.start_args,panel)
+		ll=logl.LL(panel.args.args,panel)
 	its=0
 	mc_limit_init=300
 	mc_limit_min=0

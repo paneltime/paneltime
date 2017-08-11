@@ -47,7 +47,7 @@ class gradient:
 
 	def get(self,ll,return_G=False):
 		panel=self.panel
-		REObj=ll.REObj
+		re_obj=ll.re_obj
 		u,e,h_e_val,lnv_ARMA,h_val,v,v_inv=ll.u,ll.e,ll.h_e_val,ll.lnv_ARMA,ll.h_val,ll.v,ll.v_inv
 		p,d,q,m,k,nW=panel.p,panel.d,panel.q,panel.m,panel.k,panel.nW
 
@@ -57,7 +57,7 @@ class gradient:
 		de_beta=-fu.dot(ll.AMA_1AR,panel.X)
 		(self.de_rho,self.de_lambda,self.de_beta)=(de_rho,de_lambda,de_beta)
 
-		self.de_rho_RE,self.de_lambda_RE,self.de_beta_RE=REObj.dRE(de_rho,ll.e,'rho'),REObj.dRE(de_lambda,ll.e,'lambda'),REObj.dRE(de_beta,ll.e,'beta')
+		self.de_rho_RE,self.de_lambda_RE,self.de_beta_RE=re_obj.dRE(de_rho,ll.e,'rho'),re_obj.dRE(de_lambda,ll.e,'lambda'),re_obj.dRE(de_beta,ll.e,'beta')
 		
 
 
@@ -249,7 +249,7 @@ class hessian:
 
 	def second_derivatives_mp(self,ll,mp,g_obj):
 		panel=self.panel
-		mp.send_dict({'ll':ll_light(ll),'g_obj':g_obj_light(self.g_obj),'REObj':REObj_light(ll.REObj)},'dynamic dictionary')	
+		mp.send_dict({'ll':ll_light(ll),'g_obj':g_obj_light(self.g_obj),'re_obj':REObj_light(ll.re_obj)},'dynamic dictionary')	
 		d=mp.execute(self.sec_deriv)
 
 		d['d2LL_de2']=-ll.v_inv*panel.included
@@ -325,11 +325,11 @@ class hessian:
 
 
 
-	def hessian_mp(self,ll,mp,REObj):
+	def hessian_mp(self,ll,mp,re_obj):
 		panel=self.panel
 		tic=time.clock()
 		#return debug.hessian_debug(self,args):
-		d=self.second_derivatives_mp(ll,mp,REObj)
+		d=self.second_derivatives_mp(ll,mp,re_obj)
 		#Final:
 		evalstr="""
 D2LL_beta2			=	rp.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta_RE,		dlnv_e_beta, 	dlnv_e_beta,	d2e_beta2, 					d2lnv_beta2)
@@ -441,17 +441,17 @@ class g_obj_light():
 		self.de_beta		=	g_obj.de_beta
 		
 class REObj_light():
-	def __init__(self,REObj):
-		"""A minimalistic version of REObj object for multiprocessing. Reduces the amount of information 
+	def __init__(self,re_obj):
+		"""A minimalistic version of re_obj object for multiprocessing. Reduces the amount of information 
 			transfered to the nodes"""
-		if hasattr(REObj,'vLSDV'):
-			self.vLSDV			=	REObj.vLSDV
-			self.theta			=	REObj.theta
-			if not hasattr(REObj,'deFE'):
+		if hasattr(re_obj,'vLSDV'):
+			self.vLSDV			=	re_obj.vLSDV
+			self.theta			=	re_obj.theta
+			if not hasattr(re_obj,'deFE'):
 				raise RuntimeError('the method gradient, from this module, must precede hessian in the code')
-			self.deFE			=	REObj.deFE
-			self.dvLSDV			=	REObj.dvLSDV
-			self.dtheta			=	REObj.dtheta
+			self.deFE			=	re_obj.deFE
+			self.dvLSDV			=	re_obj.dvLSDV
+			self.dtheta			=	re_obj.dtheta
 
 
 		

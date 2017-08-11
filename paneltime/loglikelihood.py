@@ -24,16 +24,15 @@ class LL:
 	"""
 	def __init__(self,args,panel,X=None):
 		
-		self.REObj=re.REObj(panel)
+		self.re_obj=re.re_obj(panel)
 		if args is None:
 			args=panel.args.args
-		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT_afterloss
+		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
 	
 		self.args_v=panel.args.conv_to_vector(panel,args)
 		self.args_d=panel.args.conv_to_dict(args)
 		self.h_err=""
 		self.h_def=panel.h_def
-		self.NT=panel.NT
 
 		try:
 			self.LL=self.LL_calc(panel,X)
@@ -81,7 +80,7 @@ class LL:
 			lnv=np.maximum(np.minimum(lnv,100),-100)
 		v=np.exp(lnv)*panel.a
 		v_inv=np.exp(-lnv)*panel.a	
-		e_RE=self.REObj.RE(e)
+		e_RE=self.re_obj.RE(e)
 		e_REsq=e_RE**2
 		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
 		
@@ -102,9 +101,9 @@ class LL:
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
 		Y=fu.dot(self.AMA_1AR,panel.Y)
-		Y=self.REObj.RE(Y,False)*v_inv
+		Y=self.re_obj.RE(Y,False)*v_inv
 		X=fu.dot(self.AMA_1AR,panel.X)
-		X=self.REObj.RE(X,False)*v_inv
+		X=self.re_obj.RE(X,False)*v_inv
 		self.e_st=self.e_RE*v_inv
 		self.Y_st=Y
 		self.X_st=X

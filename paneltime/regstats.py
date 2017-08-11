@@ -62,6 +62,7 @@ class diagnostics:
 
 		c=stat.correl(correl_X)
 		c=np.concatenate((correl_names,c),0)
+		n=descr_X.shape[1]
 		vstat=np.concatenate((np.mean(descr_X,0).reshape((n,1)),
 		                      np.std(descr_X,0).reshape((n,1)),
 		                      np.min(descr_X,0).reshape((n,1)),
@@ -169,9 +170,9 @@ class diagnostics:
 		    ['LL:',ll.LL],
 		    ['Number of IDs:',N],
 		    ['Maximum number of dates:',T],
-		    ['A) Total number of observations:',panel.NT],
+		    ['A) Total number of observations:',panel.NT_before_loss],
 		    ['B) Observations lost to GARCH/ARIMA',panel.tot_lost_obs],		
-		    ['    Total after loss of observations (A-B):',panel.NT_afterloss],
+		    ['    Total after loss of observations (A-B):',panel.NT],
 		    ['C) Number of Random Effects coefficients:',N],
 		    ['D) Number of Fixed Effects coefficients in the variance process:',N],
 		    ['E) Number of coefficients:',panel.len_args],

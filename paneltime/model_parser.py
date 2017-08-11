@@ -249,7 +249,7 @@ def dim_check(V,arg_name,v_names=None,dict_check=False):
 	return v_names
 
 
-def check_sign(panel,sign,category,old_lim,constraints,sign_level):
+def check_sign(panel,sign,category,old_lim,constraints,sign_level,min_level=0):
 	"Checks whether the higest order of category is significant. If it is not, lim is set to True"
 	sign=sign[panel.args.positions[category]]
 	if category in constraints.categories:
@@ -260,13 +260,11 @@ def check_sign(panel,sign,category,old_lim,constraints,sign_level):
 	if old_lim:
 		return len(sign),True
 	lim=False
-	j=1
-	for i in range(len(sign)):
-		j+=1
-		if sign[i]>sign_level:
-			lim=True
-			j=len(sign)-1
-			break
+	if sign[-1]>sign_level:
+		lim=True
+		j=max((len(sign)-1,min_level))
+	else:
+		j=len(sign)+1
 	return j,lim
 
 def has_same_cat_assoc(constraints,panel,category):
