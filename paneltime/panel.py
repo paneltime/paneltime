@@ -48,7 +48,6 @@ class panel:
 
 		self.final_defs(p,d,q,m,k,X,user_constraints,args)
 
-		self.between_ID_ols()
 
 	def masking(self):
 		self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
@@ -59,6 +58,8 @@ class panel:
 		self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])# sets observations that shall be zero after lost observations to zero by multiplying it with the arrayized variable
 		self.T_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
 		self.T_i=self.T_i+(self.T_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
+		self.N_t=np.sum(self.included,0).reshape((1,self.max_T,1))#number of observations for each i
+		self.N_t=self.N_t+(self.N_t<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case		
 		
 	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,w_names,descr,fixed_random_eff,model_string):
 		self.has_intercept=has_intercept
@@ -93,26 +94,6 @@ class panel:
 		self.xmin=np.min(X,0).reshape((1,X.shape[1]))
 		self.xmax=np.max(X,0).reshape((1,X.shape[1]))
 		self.args=arguments(p, d, q, m, k, self, args,self.has_intercept,user_constraints)
-
-
-
-	
-	def between_ID_ols(self):
-		N,T,k=self.X.shape
-		if self.FE_RE==0:
-			return
-		if k+4>N and self.FE_RE==2:
-			self.FE_RE=1
-			print ("""Warning: Only %s IDs compared to %s variables. Group mean regression 
-				            does not have sufficient degrees of freedom for a reasonably robust variance
-				            estimate. A fixed effect model will be run instead.""" %(N,k))	
-			return
-		g_X=np.sum(self.X*self.included,1)/self.T_i.reshape(N,1)
-		g_Y=np.sum(self.Y*self.included,1)/self.T_i.reshape(N,1)
-		non_zeros=np.sum(g_X**2,0)>0   #sometimes differencing may cause the ID variables to be all zero.
-		g_X=g_X[:,non_zeros]           #These variables need to be eliminated.
-		beta,self.grp_err=stat.OLS_simple(g_Y,g_X)
-		self.grp_v=np.var(self.grp_err)
 
 	def lag_variables(self,max_lags):
 		T=self.max_T
@@ -239,10 +220,34 @@ class panel:
 		self.h_def=h_definition+s
 		
 	def mean(self,X,axis=None):
+		dims=list(X.shape)
+		dims[2:]=[1]*(len(dims)-2)
 		if axis==None:
 			return np.sum(X)/self.NT
 		if axis==1:
-			return np.sum(X)/self.T_i
+			dims.pop(1)
+			return np.sum(X,1)/self.T_i.reshape(dims)
+		if axis==0:
+			dims.pop(0)
+			return np.sum(X,0)/self.N_t.reshape(dims)
+		if axis==(0,1):
+			np.sum(sum(X,0),0)/self.NT
+			
+	def var(self,X,axis=None,k=1,mean=None):
+		dims=list(X.shape)
+		dims[2:]=[1]*(len(dims)-2)		
+		if mean==None:
+			m=self.mean(X, axis)
+		if axis==None:
+			return np.sum((X-m)**2)/(self.NT-k)
+		if axis==1:
+			dims.pop(1)
+			return np.sum((X-m)**2,1)/np.maximum(self.T_i-k,1).reshape(dims)
+		if axis==0:
+			dims.pop(0)
+			return np.sum((X-m)**2,0)/np.maximum(self.N_t-k,1).reshape(dims)
+		if axis==(0,1):
+			np.sum(sum((X-m)**2,0),0)/(self.NT-k)
 			
 
 class arguments:

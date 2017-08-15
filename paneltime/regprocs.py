@@ -42,7 +42,7 @@ def dd_func_lags_mult(panel,ll,g_obj,AMAL,de_xi,de_zeta,vname1,vname2,transpose=
 		d2lnv_zeta_xi = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
 		if panel.N>1:
-			d_mu = ll.args_d['mu'] * (np.sum(d2lnv_zeta_xi,1) / panel.T_arr.reshape((N,1,1)))
+			d_mu = ll.args_d['mu'] * panel.mean(d2lnv_zeta_xi,1)
 			d_mu = d_mu.reshape((N,1,m,k)) * panel.included.reshape((N,T,1,1))	
 		else:
 			d_mu=0
@@ -76,7 +76,7 @@ def dd_func_lags(panel,ll,L,d,dLL,addavg=0, transpose=False):
 	elif len(L.shape)==2:
 		x=fu.dot(L,d).reshape(N,T,1,m)
 	if addavg:
-		addavg=(addavg*np.sum(d,1)/panel.T_arr).reshape(N,1,1,m)
+		addavg=(addavg*panel.mean(d,1)).reshape(N,1,1,m)
 		x=x+addavg
 	dLL=dLL.reshape((N,T,1,1))
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	

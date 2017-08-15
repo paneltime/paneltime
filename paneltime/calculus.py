@@ -33,6 +33,7 @@ class gradient:
 		return x
 
 	def garch_arima_grad(self,ll,d):
+		panel=self.panel
 		if self.panel.m>0 and not d is None:
 			((N,T,k))=d.shape
 			x=rp.prod((ll.h_e_val,d))
@@ -40,7 +41,7 @@ class gradient:
 			mu=0
 			if self.panel.N>1:
 				mu=ll.args_d['mu']
-			dlnv_e=dlnv_e_G+mu*(np.sum(x,1)/self.panel.T_arr).reshape((N,1,k))*self.panel.a#adds also the average inverted error ter
+			dlnv_e=dlnv_e_G+mu*panel.mean(x,1).reshape((N,1,k))*self.panel.a#adds also the average inverted error ter
 			return dlnv_e,dlnv_e_G
 		else:
 			return None,None
@@ -81,7 +82,7 @@ class gradient:
 			else:
 				mu=0
 				dlnv_mu=None
-			dlnv_z=dlnv_z_G+(mu*(np.sum(ll.h_z_val,1)/panel.T_arr)).reshape(N,1,1)
+			dlnv_z=dlnv_z_G+(mu*panel.mean(ll.h_z_val,1)).reshape(N,1,1)
 
 
 		(self.dlnv_gamma, self.dlnv_psi,self.dlnv_mu,self.dlnv_z_G,self.dlnv_z)=(dlnv_gamma, dlnv_psi, dlnv_mu, dlnv_z_G, dlnv_z)

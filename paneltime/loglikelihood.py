@@ -33,6 +33,7 @@ class LL:
 		self.args_d=panel.args.conv_to_dict(args)
 		self.h_err=""
 		self.h_def=panel.h_def
+		
 
 		try:
 			self.LL=self.LL_calc(panel,X)
@@ -74,7 +75,7 @@ class LL:
 		W_omega=fu.dot(panel.W_a,args['omega'])
 		lnv=W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		if panel.m>0:
-			avg_h=(np.sum(h_val,1)/panel.T_arr).reshape((N,1,1))*panel.a
+			avg_h=panel.mean(h_val,1).reshape((N,1,1))*panel.a
 			if panel.N>1:
 				lnv=lnv+args['mu'][0]*avg_h
 			lnv=np.maximum(np.minimum(lnv,100),-100)

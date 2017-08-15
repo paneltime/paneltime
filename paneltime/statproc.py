@@ -134,9 +134,9 @@ def adf_test(panel,ll,p):
 	return res
 
 def goodness_of_fit(panel,ll):
-	v0=std(panel,ll.e_st,total=True)**2
+	v0=panel.var(ll.e_st)
 	y=deviation(panel,ll.Y_st)
-	v1=std(panel,y,total=True)**2
+	v1=panel.var(y)
 	Rsq=1-v0/v1
 	Rsqadj=1-(v0/v1)*(panel.NT-1)/(panel.NT-panel.len_args-1)
 	LL_OLS=logl.LL(panel.args.args_OLS,panel)
@@ -243,42 +243,6 @@ def deviation(panel,X):
 	x=X*panel.included
 	mean=np.sum(np.sum(x,0),0).reshape((1,1,k))/panel.NT
 	return (X-mean)*panel.included
-
-def std(panel,x_dev,IDwise=False,total=False):
-	N,T,k=x_dev.shape
-	x=x_dev*panel.included
-	if IDwise:
-		s=np.sum(x**2,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
-	elif total:
-		s=np.sum(x**2)/panel.NT
-	else:
-		s=np.sum(np.sum(x**2,0),0).reshape((1,k))/panel.NT
-	s=s**0.5
-	return s
-
-def avg(panel,x,IDwise=False,total=False):
-	N,T,k=x.shape
-	x=x*panel.included
-	if IDwise:
-		m=np.sum(x,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
-	elif total:
-		m=np.sum(x)/panel.NT
-	else:
-		m=np.sum(np.sum(x,0),0).reshape((1,k))/panel.NT
-	return m
-
-def var(panel,x,IDwise=False,total=False):
-	N,T,k=x.shape
-	x2=(x**2)*panel.included
-	m=avg(panel,x,IDwise,total)
-	if IDwise:
-		v=np.sum(x2,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
-	elif total:
-		v=np.sum(x2)/panel.NT
-	else:
-		v=np.sum(np.sum(x2,0),0).reshape((1,k))/panel.NT
-	v=v-(m**2)
-	return v
 
 def correl_2dim(X,Y=None):
 	"""Returns the correlation of X and Y. Assumes two dimensional matrixes. If Y is not supplied, the 

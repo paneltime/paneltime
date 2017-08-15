@@ -31,7 +31,7 @@ def LL_debug_detail(ll,panel,d):
 		lnv_ARMA_0=0	
 	lnv_0=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_0# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if ll.m>0:
-		avg_h_0=(np.sum(h_val_0,1)/panel.T_arr).reshape((N,1,1))*panel.a
+		avg_h_0=panel.mean(h_val_0,1).reshape((N,1,1))*panel.a
 		if panel.N>1:
 			lnv_0=lnv_0+args['mu']*avg_h_0	
 		lnv_0=np.maximum(np.minimum(lnv_0,709),-709)
@@ -56,7 +56,7 @@ def LL_debug_detail(ll,panel,d):
 		lnv_ARMA_1=0
 	lnv_1=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_1# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if ll.m>0:
-		avg_h_1=(np.sum(h_val_1,1)/panel.T_arr).reshape((N,1,1))*panel.a
+		avg_h_1=panel.mean(h_val_1,1).reshape((N,1,1))*panel.a
 		if panel.N>1:
 			lnv_1=lnv_1+(args['mu']+d)*avg_h_1	
 		lnv_1=np.maximum(np.minimum(lnv_1,709),-709)
@@ -83,7 +83,7 @@ def LL_debug_detail(ll,panel,d):
 		lnv_ARMA_2=0
 	lnv_2=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_2# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if ll.m>0:
-		avg_h_2=(np.sum(h_val_2,1)/panel.T_arr).reshape((N,1,1))*panel.a
+		avg_h_2=panel.mean(h_val_2,1).reshape((N,1,1))*panel.a
 		if panel.N>1:
 			lnv_2=lnv_2+args['mu']*avg_h_2
 		lnv_2=np.maximum(np.minimum(lnv_2,709),-709)
@@ -110,7 +110,7 @@ def LL_debug_detail(ll,panel,d):
 		lnv_ARMA_3=0 
 	lnv_3=fu.dot(panel.W_a,args['omega'])+lnv_ARMA_3# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	if ll.m>0:
-		avg_h_3=(np.sum(h_val_3,1)/panel.T_arr).reshape((N,1,1))*panel.a
+		avg_h_3=panel.mean(h_val_3,1).reshape((N,1,1))*panel.a
 		if panel.N>1:
 			lnv_3=lnv_3+args['mu']*avg_h_3
 		lnv_3=np.maximum(np.minimum(lnv_3,709),-709)
@@ -245,7 +245,7 @@ def LL_debug(panel,ll,d):
 	(h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val)=[i*panel.included for i in h_res]		
 	lnv_ARMA=np.moveaxis(fu.dot(GAR_1MA,h_val),0,1)# 'T x T' * 'N x T x 1' -> 'T x N x 1' movaxis -> 'N x T x 1'
 	lnv_W=fu.dot(panel.W_a,Wbeta_)+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	avg_h=(np.sum(h_val,1)/panel.T_arr).reshape((N,1,1))*panel.a
+	avg_h=panel.mean(h_val,1).reshape((N,1,1))*panel.a
 	lnv=lnv_W+c[panel.mu_sel]*avg_h
 	v=np.exp(lnv)*panel.a
 	v_inv=np.exp(-lnv)*panel.a	
@@ -372,7 +372,7 @@ def dd_func_lags_mult(panel,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de
 
 		d2lnv_zeta_xi = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 
-		d_mu = panel.c[panel.mu_sel] * (np.sum(d2lnv_zeta_xi,1) / panel.T_arr.reshape((N,1,1)))
+		d_mu = panel.c[panel.mu_sel] * panel.mean(d2lnv_zeta_xi,1).reshape((N,1,1))
 		d_mu = d_mu.reshape((N,1,m,k)) * panel.a.reshape((N,T,1,1))	
 
 		d2lnv_zeta_xi = d2lnv_zeta_xi + d_mu
@@ -403,7 +403,7 @@ def dd_func_lags(panel,L,d,dLL,addavg=0, transpose=False):
 		if transpose:#only happens if lags==k
 			x=x+np.swapaxes(x,2,3)#adds the transpose
 	if addavg:
-		addavg=(addavg*np.sum(d,1)/panel.T_arr).reshape(N,1,k,m)
+		addavg=(addavg*panel.mean(d,1)).reshape(N,1,k,m)
 		x=x+addavg
 	dLL=dLL.reshape((N,T,1,1))
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	
