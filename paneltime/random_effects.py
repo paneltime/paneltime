@@ -105,7 +105,7 @@ class re_obj:
 		ddtheta =(d2theta_d_e_v_var* de_var1+d2theta_d_v_var   * de_var1) * de_var2
 		ddtheta+=(d2theta_d_e_var  * de_var1+d2theta_d_e_v_var * de_var1) * de_var2
 		ddtheta+=ddtheta+ (dtheta_de_var*d2e_var+dtheta_dv_var*d2v_var)
-
+		ddtheta=ddtheta
 	
 		if hasdd:
 			dRE00=self.FRE(ddx,self.theta.reshape(N,T,1,1))
@@ -114,7 +114,7 @@ class re_obj:
 		dRE01=self.FRE(dx1,self.dtheta[vname2].reshape(N,T,1,m),True)
 		dRE10=self.FRE(dx2,self.dtheta[vname1].reshape(N,T,k,1),True)
 		dRE11=self.FRE(x.reshape(N,T,1,1),ddtheta,True)
-		return (dRE00+dRE01+dRE10+dRE11)
+		return (dRE00+dRE01+dRE10+dRE11)*panel.included
 	
 	def FRE(self,x,w=1,d=False):
 		"""returns x after fixed effects, and set lost observations to zero"""
