@@ -2,30 +2,39 @@
 # -*- coding: utf-8 -*-
 
 #contains the log likelihood object
-
+import sys
+sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.win-amd64-3.5'))
+sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.linux-x86_64-3.5'))
+import cfunctions as c
 import numpy as np
 import functions as fu
 import regprocs as rp
 import statproc as stat
+import random_effects as re
 import calculus
 from scipy import sparse as sp
 import scipy
 
 class LL:
-	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and store all 
-	associated dynamic variables needed outside this scope"""
+	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and creates an object
+	that store dynamic variables that depend on the \n
+	If args is a dictionary, the ARMA-GARCH orders are 
+	determined from the dictionary. If args is a vector, the ARMA-GARCH order needs to be consistent
+	with the  panel object
+	"""
 	def __init__(self,args,panel,X=None):
-
+		
+		self.re_obj=re.re_obj(panel)
 		if args is None:
 			args=panel.args.args
-		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT_afterloss
+		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
 	
 		self.args_v=panel.args.conv_to_vector(panel,args)
 		self.args_d=panel.args.conv_to_dict(args)
 		self.h_err=""
 		self.h_def=panel.h_def
-		self.NT=panel.NT
-
+		
+		
 		try:
 			self.LL=self.LL_calc(panel,X)
 			
@@ -44,11 +53,10 @@ class LL:
 		if X is None:
 			X=panel.X
 		matrices=set_garch_arch(panel,args)
-		
 		if matrices is None:
 			return None		
 		
-		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
+		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 		(N,T,k)=panel.X.shape
 
 		u=panel.Y-fu.dot(panel.X,args['beta'])
@@ -67,19 +75,19 @@ class LL:
 		W_omega=fu.dot(panel.W_a,args['omega'])
 		lnv=W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		if panel.m>0:
-			avg_h=(np.sum(h_val,1)/panel.T_arr).reshape((N,1,1))*panel.a
+			avg_h=panel.mean(h_val,1).reshape((N,1,1))*panel.a
 			if panel.N>1:
 				lnv=lnv+args['mu'][0]*avg_h
 			lnv=np.maximum(np.minimum(lnv,100),-100)
 		v=np.exp(lnv)*panel.a
 		v_inv=np.exp(-lnv)*panel.a	
-		e_RE=rp.RE(self,panel,e)
+		e_RE=self.re_obj.RE(e)
 		e_REsq=e_RE**2
 		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
 		
 		if abs(LL)>1e+100: 
 			return None
-		self.AMA_1,self.AAR,self.AMA_1AR,self.GAR_1,self.GMA,self.GAR_1MA=matrices
+		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e,self.h_e_val,self.h_val, self.lnv_ARMA        = u,e,h_e_val,h_val, lnv_ARMA
 		self.lnv,self.avg_h,self.v,self.v_inv,self.e_RE,self.e_REsq = lnv,avg_h,v,v_inv,e_RE,e_REsq
 		self.h_2e_val,self.h_z_val,self.h_ez_val,self.h_2z_val      = h_2e_val,h_z_val,h_ez_val,h_2z_val
@@ -94,9 +102,9 @@ class LL:
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
 		Y=fu.dot(self.AMA_1AR,panel.Y)
-		Y=rp.RE(self,panel,Y,False)*v_inv
+		Y=self.re_obj.RE(Y,False)*v_inv
 		X=fu.dot(self.AMA_1AR,panel.X)
-		X=rp.RE(self,panel,X,False)*v_inv
+		X=self.re_obj.RE(X,False)*v_inv
 		self.e_st=self.e_RE*v_inv
 		self.Y_st=Y
 		self.X_st=X
@@ -114,17 +122,16 @@ class LL:
 			exec(self.h_def,globals(),d)
 		except Exception as err:
 			if self.h_err!=str(err):
-				print ("Warning: error in the ARCH error function h(e,z). The error was: %s" %(err))
+				print ("Warning,error in the ARCH error function h(e,z): %s" %(err))
 			h_err=str(e)
 			return None
 	
 		return d['ret']	
 	
-def set_garch_arch(panel,args):
-
+def set_garch_arch_old(panel,args):
 
 	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
-	
+
 	AAR=-lag_matr(-panel.I,args['rho'])
 	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)
 	if AMA_1AR is None:
@@ -133,9 +140,69 @@ def set_garch_arch(panel,args):
 	GAR_1MA,GAR_1=solve_mult(-args['gamma'], GMA, panel.I)
 	if GAR_1MA is None:
 		return
-	return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA
+	return AMA_1,AMA_1AR,GAR_1,GAR_1MA
 
 
+def set_garch_arch(panel,args):
+	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
+	the diagonal band"""
+	n=panel.max_T
+	rho=np.insert(-args['rho'],0,1)
+	psi=np.insert(args['psi'],0,0)
+
+	r=np.arange(n)
+	AMA_1,AMA_1AR,GAR_1,GAR_1MA=(
+	    np.diag(np.ones(n)),
+		np.zeros((n,n)),
+		np.diag(np.ones(n)),
+		np.zeros((n,n))
+	)
+	c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA)
+	return  AMA_1,AMA_1AR,GAR_1,GAR_1MA
+			
+def add_to_matrices(X_1,X_1b,a,ab,r):
+	for i in range(0,len(a)):	
+		if i>0:
+			d=(r[i:],r[:-i])
+			X_1[d]=a[i]
+		else:
+			d=(r,r)
+		X_1b[d]=ab[i]	
+	return X_1,X_1b
+
+def solve_mult2(x_args,b_args,X_1,X_1b,b_top):
+	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
+	the diagonal band"""
+	n=len(X_1)
+	b_args=-np.insert(b_args,0,b_top)
+	q=len(x_args)
+	k=len(b_args)
+	r=np.arange(n)
+
+	
+	if True:
+		a=np.ones(n)
+		ab=np.zeros(n)
+		for i in range(n):
+			if i>0:
+				sum_ax=0
+				for j in range(min(q,i)):
+					sum_ax+=x_args[j]*a[i-j-1]
+				a[i]=-sum_ax
+			sum_ab=0
+			for j in range(min(k,i+1)):
+				sum_ab+=b_args[j]*a[i-j]
+			ab[i]=sum_ab			
+	for i in range(0,n):	
+		if i>0:
+			d=(r[i:],r[:-i])
+			X_1[d]=a[i]
+		else:
+			d=(r,r)
+		X_1b[d]=ab[i]	
+	return X_1b,X_1
+	
+	
 def solve_mult(args,b,I):
 	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
 	the diagonal band"""
@@ -145,13 +212,7 @@ def solve_mult(args,b,I):
 	X[0,:]=1
 	X2=np.zeros((n,n))
 	w=np.zeros(n)
-	r=np.arange(n)
-	#for j in range(20):
-	#	for i in range(n):
-	#		k=min((i,q))
-	#		w[i]=np.sum(w[i-k:i-1]*w[i-1])
-	#		d=(r[i+1:],r[:-i-1])
-	#		X2[d]=w[i]		
+	r=np.arange(n)	
 	for i in range(q):
 		X[i+1,:n-i-1]=args[i]
 	try:
@@ -188,29 +249,27 @@ def lag_matr(L,args):
 class direction:
 	def __init__(self,panel):
 		self.gradient=calculus.gradient(panel)
-		self.hessian=calculus.hessian(panel)
+		self.hessian=calculus.hessian(panel,self.gradient)
 		self.panel=panel
 		self.constr=None
 		self.hessian_num=None
 		self.g_old=None
 		self.do_shocks=True
+		self.old_dx_conv=None
+		self.I=np.diag(np.ones(panel.args.n_args))
 		
 		
-	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,user_constraints=None):
+	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,user_constraints=None,numerical=False):
 
 		g,G=self.gradient.get(ll,return_G=True)		
-		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv)
+		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv,numerical)
 
 		out=output(print_on)
 		self.constr=constraints(self.panel.args,self.constr)
 		reset=False
-		if its==1:
-			self.old_dx_conv=None
-		if its>-1:
-			hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
+		hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
 		self.old_dx_conv=dx_conv
 		dc,constrained=solve(self.constr,hessian, g, ll.args_v)
-
 		for j in range(len(dc)):
 			s=dc*(constrained==0)*g
 			if np.sum(s)<0:#negative slope
@@ -228,29 +287,16 @@ class direction:
 	
 
 	
-	def get_hessian(self,ll,mp,g,G,dxi,its,dx_conv):
+	def get_hessian(self,ll,mp,g,G,dxi,its,dx_conv,numerical):
 		
 		#hessinS0=rp.sandwich(hessian,G,0)
 		hessian=None
-		if its>-1 and (int(its*0.5)==its*0.5 or self.hessian_num is None) or True:
+		I=self.I
+		if not numerical or self.hessian_num is None:
 			hessian=self.hessian.get(ll,mp)
-
-		elif (not self.g_old is None) and (not dxi is None):
-			print("Using numerical hessian")#could potentially be used to calculate the hessian nummerically for 
-											#some iterations to gain speed, but loss of accuracy outweights the benefits			
-			hessin_num=hessin(self.hessian_num)
-			if hessin_num is None:
-				hessian=self.hessian.get(ll,mp)
-			else:
-				hessin_num=approximate_hessin(g,self.g_old,hessin_num,dxi)	
-				hessian=hessin(hessin_num)
-				if hessian is None:
-					hessian=self.hessian.get(ll,mp)
-		else:
-			hessian=self.hessian_num
-		
-		I=np.diag(np.ones(len(hessian)))
-
+		hessian,num=self.nummerical_hessian(hessian, dxi,g)
+		if num:
+			return hessian
 		if dx_conv is None:
 			m=10
 		else:
@@ -266,11 +312,24 @@ class direction:
 		self.g_old=g
 		
 		return hessian
-		
-	def get_hessian_analytical(self,ll,mp):
-
-		return hessian
 	
+	def nummerical_hessian(self,hessian,dxi,g):
+		if not hessian is None:
+			return hessian,False
+		I=self.I
+		if (self.g_old is None) or (dxi is None):
+			return I,True
+
+		#print("Using numerical hessian")		
+		hessin_num=hessin(self.hessian_num)
+		if hessin_num is None:
+			return I,True
+		hessin_num=nummerical_hessin(g,self.g_old,hessin_num,dxi)	
+		hessian=hessin(hessin_num)
+		if hessian is None:
+			return I,True
+		return hessian,True
+		
 def hessin(hessian):
 	try:
 		h=-np.linalg.inv(hessian)
@@ -278,7 +337,7 @@ def hessin(hessian):
 		return None	
 	return h
 	
-def approximate_hessin(g,g_old,hessin,dxi):
+def nummerical_hessin(g,g_old,hessin,dxi):
 	if dxi is None:
 		return None
 	dg=g-g_old 				#Compute difference of gradients,
@@ -384,9 +443,9 @@ def remove_H_correl(hessian,include,constr,args,out,names):
 	p=p[srt][::-1]
 	p=p[np.nonzero(p[:,0]>=1.0)[0]]
 	principal_factors=[]
-	groups=correl_groups(p)
+	IDs=correl_IDs(p)
 	acc=None
-	for i in groups:
+	for i in IDs:
 		for j in range(len(i)):
 			if not i[j] in constr.constraints:
 				acc=i.pop(j)
@@ -409,8 +468,8 @@ def remove_correl(panel,G,include,constr,args,out,names):
 	p=p[srt][::-1]
 	p=p[np.nonzero(p[:,0]>0.8)[0]]
 	principal_factors=[]
-	groups=correl_groups(p)
-	for i in groups:
+	IDs=correl_IDs(p)
+	for i in IDs:
 		for j in range(len(i)):
 			if not i[j] in constr.constraints:
 				acc=i.pop(j)
@@ -419,46 +478,46 @@ def remove_correl(panel,G,include,constr,args,out,names):
 			remvd=remove(j,acc,args,include,out,constr,names,'correl')	
 
 
-def append_to_group(group,intlist):
-	ingroup=False
+def append_to_ID(ID,intlist):
+	inID=False
 	for i in intlist:
-		if i in group:
-			ingroup=True
+		if i in ID:
+			inID=True
 			break
-	if ingroup:
+	if inID:
 		for j in intlist:
-			if not j in group:
-				group.append(j)
+			if not j in ID:
+				ID.append(j)
 		return True
 	else:
 		return False
 
-def correl_groups(p):
-	groups=[]
+def correl_IDs(p):
+	IDs=[]
 	appended=False
 	x=np.array(p[:,1:3],dtype=int)
 	for i,j in x:
-		for k in range(len(groups)):
-			appended=append_to_group(groups[k],[i,j])
+		for k in range(len(IDs)):
+			appended=append_to_ID(IDs[k],[i,j])
 			if appended:
 				break
 		if not appended:
-			groups.append([i,j])
-	g=len(groups)
+			IDs.append([i,j])
+	g=len(IDs)
 	keep=g*[True]
 	for k in range(g):
 		if keep[k]:
-			for h in range(k+1,len(groups)):
+			for h in range(k+1,len(IDs)):
 				appended=False
-				for m in range(len(groups[h])):
-					if groups[h][m] in groups[k]:
-						appended=append_to_group(groups[k],  groups[h])
+				for m in range(len(IDs[h])):
+					if IDs[h][m] in IDs[k]:
+						appended=append_to_ID(IDs[k],  IDs[h])
 						keep[h]=False
 						break
 	g=[]
-	for i in range(len(groups)):
+	for i in range(len(IDs)):
 		if keep[i]:
-			g.append(groups[i])
+			g.append(IDs[i])
 	return g
 
 
@@ -504,7 +563,7 @@ def remove(d,assoc,set_to,include,out,constr,names,r_type):
 		a=set_to[d]
 	else:
 		a=set_to
-	constr.add(d,a)
+	constr.add(d,a,assoc=assoc)
 	if not include is None:
 		include[d]=False	
 	if not assoc is None:
@@ -611,6 +670,7 @@ class constraints:
 	def __init__(self,args,old_constr):
 		self.constraints=dict()
 		self.categories=[]
+		self.associates=dict()
 		self.args=args
 		if old_constr is None:
 			self.old_constr=[]
@@ -618,7 +678,7 @@ class constraints:
 			self.old_constr=old_constr.constraints
 
 
-	def add(self,positions, minimum_or_value,maximum=None,replace=True):
+	def add(self,positions, minimum_or_value,maximum=None,replace=True,assoc=None):
 		"""Adds a constraint. 'positions' is either an integer or an iterable of integer specifying the position(s) 
 		for which the constraints shall apply. If 'positions' is a string, it is assumed to be the name of a category \n\n
 
@@ -639,6 +699,8 @@ class constraints:
 						self.constraints[i]=[minimum_or_value,maximum]
 					else:
 						self.constraints[i]=[maximum,minimum_or_value]
+				if not assoc is None:
+					self.associates[i]=assoc
 			category=self.args.map_to_categories[i]
 			if not category in self.categories:
 				self.categories.append(category)

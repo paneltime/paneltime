@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+import sys
+sys.path.append(__file__.replace("paneltime\\functions.py",'build\\lib.win-amd64-3.5'))
+sys.path.append(__file__.replace("paneltime\\functions.py",'build\\lib.linux-x86_64-3.5'))
+import cfunctions as c
 import numpy as np
 import sys
 import os
@@ -15,7 +18,7 @@ def timer(tic, a):
 	tac=time.clock()
 	a.append(tic-tac)
 	return tac,a
-	
+
 def dot(a,b,reduce_dims=True):
 	"""returns the dot product of a*b where either a or be or both to be
 	arrays of matrices"""
@@ -28,23 +31,57 @@ def dot(a,b,reduce_dims=True):
 			return np.dot(a.T,b)
 		return np.dot(a,b)
 	if len(a.shape)==2 and len(b.shape)==3:
-		return np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
+		N,T,k=b.shape
+		x=np.moveaxis(b, 1, 0)
+		x=x.reshape((T,N*k))
+		x=np.dot(a,x)
+		x.resize((T,N,k))
+		x=np.moveaxis(x,0,1)
+		#slower alternative:
+		#x2=np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
+		return x
 	elif len(a.shape)==3 and len(b.shape)==2:
 		return np.array([np.dot(a[i],b) for i in range(a.shape[0])])
 	elif len(a.shape)==3 and len(b.shape)==3:
 		if a.shape[1]!=b.shape[1]:
 			raise RuntimeError("dimensions do not match")
 		elif a.shape[0]==b.shape[0] and reduce_dims:
-			return np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
+			x=np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
+			return x
 		elif a.shape[2]==b.shape[1]:
-			x=np.array([[np.dot(a[i],b[j]) for j in range(b.shape[0])] for i in range(a.shape[0])])
-			return np.moveaxis(x,0,2)	
+			k,Ta,Ta2=a.shape
+			if Ta2!=Ta:
+				raise RuntimeError("hm")
+			N,T,m=b.shape
+			b_f=np.moveaxis(b, 1, 0)
+			a_f=a.reshape((k*T,T))
+			b_f=b_f.reshape((T,N*m))
+			x=np.dot(a_f,b_f)
+			x.resize((k,T,N,m))	
+			x=np.swapaxes(x, 2, 0)
+			#slower:
+			#x2=np.array([[np.dot(a[i],b[j]) for j in range(b.shape[0])] for i in range(a.shape[0])])
+			#x2=np.moveaxis(x2,0,2)	
+			return x
 	elif len(a.shape)==2 and len(b.shape)==4:
 		if a.shape[1]!=b.shape[1] or a.shape[1]!=a.shape[0]:
 			raise RuntimeError("dimensions do not match")
 		else:
-			x=np.array([[np.dot(a,b[i,:,j]) for i in range(b.shape[0])] for j in range(b.shape[2])])
-			return np.moveaxis(x,0,2)	
+			N,T,k,m=b.shape
+			x=np.moveaxis(b, 1, 0)
+			x=x.reshape((T,N*k*m))
+			x=np.dot(a,x)
+			x.resize((T,N,k,m))
+			x=np.moveaxis(x,0,1)
+
+			#slower alternatives:
+			#x=np.array([[np.dot(a,b[i,:,j]) for i in range(b.shape[0])] for j in range(b.shape[2])])
+			#x=np.moveaxis(x,0,2)
+				#or
+			#x2=np.zeros(b.shape)		
+			#r=c.dot(a,b,b.shape,x2)		
+			return x
+
 	else:
 		raise RuntimeError("this multiplication is not supported by dot")
 
@@ -61,12 +98,26 @@ def clean(string,split='',cleanchrs=['\n','\t',' ']):
 			s[i]=clean_str(s[i],cleanchrs)
 	else:	
 		s=clean_str(string,cleanchrs,split)
-		
+
 	ret=[]
 	for i in s:
 		if i!='':
 			ret.append(i)
 	return ret
+
+def split_input(input_str):
+	if input_str is None:
+		return None
+	for s in [',','\n','+',' ']:
+		lst=input_str.split(s)
+		if len(lst)>1:
+			break
+	x=[]
+	for i in lst:
+		m=clean(i)
+		if m!='':
+			x.append(m)
+	return x	
 
 
 def clean_str(s,cleanchrs,split=''):
@@ -75,8 +126,8 @@ def clean_str(s,cleanchrs,split=''):
 	if split!='':
 		s=s.split(split)
 	return s
-	
-	
+
+
 def exec_strip(exestr,glob,loc):
 	"""Identical to exec, except leading spaces/tabs are stripped in order to avoid indentation error"""
 	if exestr is None:
@@ -93,7 +144,7 @@ def exec_strip(exestr,glob,loc):
 			i+=1
 		else:
 			lines.pop(i)
-			
+
 	if k==0 or k==len(exestr):
 		exec(exestr, glob, loc)
 	r=''
@@ -103,13 +154,13 @@ def exec_strip(exestr,glob,loc):
 	for s in lines:
 		r=r+s[k:]+'\n'
 	exec(r, glob, loc)
-	
-	
+
+
 def replace_many(string,oldtext_list,newtext):
 	for i in oldtext_list:
 		string=string.replace(i,newtext)
-		
-		
+
+
 def savevar(variable,name='tmp',extension=''):
 	"""takes variable and name and saves variable with filname <name>.csv """	
 	fname=obtain_fname(name,extension)
@@ -121,8 +172,8 @@ def savevar(variable,name='tmp',extension=''):
 			np.savetxt(fname,variable,delimiter=";")
 	else:
 		savelist(variable, fname)
-		
-		
+
+
 def savelist(variable,name):
 	file = open(name,'w',newline='')
 	writer = csv.writer(file,delimiter=';')
@@ -169,7 +220,7 @@ def obtain_fname(name,extension=''):
 			if match>0:
 				d=d[i+n-match:]
 				break
-		
+
 	fname=d[-1]
 	if extension!='':
 		fname=fname.replace('.'+extension,'')+'.'+extension
@@ -184,4 +235,3 @@ def copy_array_dict(d):
 	for i in d:
 		r[i]=np.array(d[i])
 	return r
-		

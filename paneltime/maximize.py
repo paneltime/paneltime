@@ -9,17 +9,14 @@ import time
 
 digits_precision=7
 
-def lnsrch(f0, g, dx,panel,fast=False):
+def lnsrch(f0, g, dx,panel):
 
 	s=g*dx
 	slope=np.sum(s)					#ensuring positive slope (should not be negative unless errors in gradient and/or hessian)
 	if slope<=0:
 		print("Warning: Roundoff problem in lnsrch")
 		return f0
-	if fast:
-		m=0.01
-	else:
-		m=0.25
+	m=0.25
 	for i in range(15+len(dx)):#Setting lmda so that the largest step is valid. Set ll.LL to return None when input is invalid
 		lmda=m**i #Always try full Newton step first.
 		if i>14:
@@ -27,11 +24,6 @@ def lnsrch(f0, g, dx,panel,fast=False):
 		x=f0.args_v+lmda*dx
 		f1=logl.LL(x,panel)
 		if not f1.LL is None:
-			if fast:
-				if f1.LL<f0.LL:
-					return f0
-				else:
-					return f1
 			break
 	if i==14+len(x):
 		return f0
@@ -44,7 +36,10 @@ def lnsrch(f0, g, dx,panel,fast=False):
 		if not f05.LL is None:		
 			break
 	d[f05.LL]=f05
-
+	for i in []:
+		fcheck=logl.LL(f0.args_v+lmda*i*dx,panel)
+		if not fcheck.LL is None:
+			d[fcheck.LL]=fcheck
 	b=-(4*(f0.LL-f05.LL)+(f1.LL-f0.LL))/lmda
 	c=2*((f0.LL-f05.LL)+(f1.LL-f05.LL))/(lmda**2)
 	lambda_pred=lmda*0.25
@@ -67,7 +62,7 @@ def lnsrch(f0, g, dx,panel,fast=False):
 		return d[f_max]
 	return f0#should never happen	
 	
-def maximize(panel,direction,mp,direction_testing,args=None,_print=True,user_constraints=None):
+def maximize(panel,direction,mp,direction_testing,args_archive,args=None,_print=True,user_constraints=None):
 	"""Maxmizes logl.LL"""
 	
 	
@@ -77,7 +72,7 @@ def maximize(panel,direction,mp,direction_testing,args=None,_print=True,user_con
 		to be used as initial arguments (loadargs=True) but these failed to 
 		return a valid log likelihood with the new parameters. Default inital 
 		arguments will be used. """)
-		ll=logl.LL(panel.args.start_args,panel)
+		ll=logl.LL(panel.args.args,panel)
 	its=0
 	mc_limit_init=300
 	mc_limit_min=0
@@ -90,7 +85,7 @@ def maximize(panel,direction,mp,direction_testing,args=None,_print=True,user_con
 	dxi=None
 	g=None
 	if direction_testing:
-		ll=dirtest(ll, panel,direction,mp)
+		ll=dirtest(ll, panel,direction,mp,user_constraints)
 	direction.hessin_num=None
 	while 1:  
 		its+=1
@@ -108,7 +103,7 @@ def maximize(panel,direction,mp,direction_testing,args=None,_print=True,user_con
 			return ll,g,G,H,1
 		ll=lnsrch(ll,g,dx,panel) 
 
-		panel.args_bank.save(ll.args_d,0)
+		args_archive.save(ll.args_d,0)
 		
 		dxi=f0.args_v-ll.args_v
 		test=np.max(np.abs(f0.args_v-ll.args_v)/np.maximum(np.abs(ll.args_v),1e-50))
@@ -133,20 +128,20 @@ def round_sign(x,n):
 	return round(x, -int(np.log10(abs(x)))+n-1)
 
 
-def dirtest(ll,panel,direction,mp=None):
+def dirtest(ll,panel,direction,mp,user_constraints):
 	#dx,dx_approx,g,G,H,constrained,reset=direction.get(ll,1000,None,0,0,mp)
 	#ll=lnsrch(ll,g,dx,panel)
 	ll.standardize(panel)
 	if os.cpu_count()<24:
-		ll=pretest_sub(ll,['psi','gamma'],panel,direction,mp)
-		ll=pretest_sub(ll,['rho','lambda'],panel,direction,mp)
+		ll=pretest_sub(ll,['psi','gamma'],panel,direction,mp,user_constraints)
+		ll=pretest_sub(ll,['rho','lambda'],panel,direction,mp,user_constraints)
 		
 	else:
 		ll=pretest_master(ll,mp)
 	return ll
 	
 	
-def pretest_master(ll,mp):
+def pretest_master(ll,mp,user_constraints):
 	c=['psi','gamma','rho','lambda']
 	k=len(c)
 	a=np.array(np.meshgrid(*tuple([[-0.5, 0.5]]*k))).T.reshape(-1,k)
@@ -164,7 +159,7 @@ def pretest_master(ll,mp):
 	while 1:
 		for j in range(n_cores):
 			s="t0=time.time()\n"
-			s+="tmp=mx.pretest_func(panel,direction,args[%s],ll)\n" %(i,)
+			s+="tmp=mx.pretest_func(panel,direction,args[%s],ll,user_constraints)\n" %(i,)
 			expr[j]+=s+'res%s=tmp,(time.time()-t0),time.time(),t0\n'  %(i,)
 			i+=1
 			if i==n:
@@ -183,7 +178,7 @@ def pretest_master(ll,mp):
 				max_ll=ll_new	
 	return max_ll
 	
-def pretest_func(panel,direction,args,ll,mp=None):
+def pretest_func(panel,direction,args,ll,user_constraints,mp=None):
 	
 	ll_new=logl.LL(args,panel)
 	
@@ -193,13 +188,13 @@ def pretest_func(panel,direction,args,ll,mp=None):
 		dx,g,G,H,constrained,reset=direction.get(ll_new,1000,None,0,-1,mp,print_on=False)
 	except:
 		return ll	
-	ll_new=lnsrch(ll_new,g,dx,panel,True) 
+	ll_new=lnsrch(ll_new,g,dx,panel) 
 	
 	return ll_new
 	
-def pretest_sub(ll,categories,panel,direction,mp):
+def pretest_sub(ll,categories,panel,direction,mp,user_constraints):
 	c=categories
-	vals=[-0.5,0.5]
+	vals=[-0.5,0,0.5]
 	max_ll=ll
 	args_d=ll.copy_args_d()
 	for i in vals:
@@ -210,7 +205,7 @@ def pretest_sub(ll,categories,panel,direction,mp):
 				if len(args_d[c[k]])>0:
 					args_d[c[k]][0]=[i,j][k]
 			#impose_OLS(ll,args_d, panel)
-			ll_new=pretest_func(panel, direction, args_d, ll)
+			ll_new=pretest_func(panel, direction, args_d, ll,user_constraints,mp)
 			catstr="(%s,%s)" %tuple(c)
 			print('Direction test %s=(%s,%s) LL: %s  Max LL: %s' %(catstr,i,j,ll_new.LL,max_ll.LL))
 			if ll_new.LL>max_ll.LL:
@@ -241,7 +236,7 @@ def printout(_print,ll,dx_conv,panel,its):
 				a=a+(str(i)+ '00')[0:4].rjust(10) + ' %,'
 			else:
 				a=a+(str(i)+ '00')[0:4].rjust(9) + ' %,'
-		print("New direction as fraction of argument: \n%s" %(a[:-1]+']',))
+		print("New direction as percentage of argument: \n%s" %(a[:-1]+']',))
 		print("Coefficients : \n%s" %(ll.args_v,))
 
 		

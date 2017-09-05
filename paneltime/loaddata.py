@@ -17,7 +17,6 @@ def load(fname,sep):
 		d[heading[i]]=data[:,i:i+1]
 	return d
 
-
 def get_name(x,x_names,default):
 	x=get_names(x,x_names)
 	if x==[]:

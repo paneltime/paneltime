@@ -8,14 +8,14 @@ import functions as fu
 
 
 
-def dd_func_lags_mult(panel,ll,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de_zeta_u=None):
+def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de_zeta_u=None):
 	#de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"
 	
 	if de_xi is None or de_zeta is None:
 		return None,None	
 	(N,T,m)=de_xi.shape
 	(N,T,k)=de_zeta.shape
-	DLL_e=ll.DLL_e.reshape(N,T,1,1)
+	DLL_e=g.DLL_e.reshape(N,T,1,1)
 	u_calc=False
 	if de_zeta_u is None:
 		de_zeta_u=de_zeta#for error beta-rho covariance, the u derivative must be used
@@ -24,10 +24,10 @@ def dd_func_lags_mult(panel,ll,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False,
 		de2_zeta_xi=fu.dot(AMAL,de_zeta_u,False)#"T x N x s x m"
 		if transpose:#only happens if lags==k
 			de2_zeta_xi=de2_zeta_xi+np.swapaxes(de2_zeta_xi,2,3)#adds the transpose
-		de2_zeta_xi_RE=ddRE(ll,panel,de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi_RE=ll.re_obj.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)
 	else:
 		de2_zeta_xi=0
-		de2_zeta_xi_RE=ddRE(ll,panel,None,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi_RE=ll.re_obj.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2)
 		if de2_zeta_xi_RE is None:
 			de2_zeta_xi_RE=None
 	if not de2_zeta_xi_RE is None:	
@@ -42,7 +42,7 @@ def dd_func_lags_mult(panel,ll,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False,
 		d2lnv_zeta_xi = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
 		if panel.N>1:
-			d_mu = ll.args_d['mu'] * (np.sum(d2lnv_zeta_xi,1) / panel.T_arr.reshape((N,1,1)))
+			d_mu = ll.args_d['mu'] * panel.mean(d2lnv_zeta_xi,1)
 			d_mu = d_mu.reshape((N,1,m,k)) * panel.included.reshape((N,T,1,1))	
 		else:
 			d_mu=0
@@ -52,7 +52,7 @@ def dd_func_lags_mult(panel,ll,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False,
 		
 		d2lnv_zeta_xi = d2lnv_zeta_xi + d_mu
 		
-		d2lnv_zeta_xi=np.sum(np.sum(d2lnv_zeta_xi*ll.dLL_lnv.reshape((N,T,1,1)),0),0)
+		d2lnv_zeta_xi=np.sum(np.sum(d2lnv_zeta_xi*g.dLL_lnv.reshape((N,T,1,1)),0),0)
 	else:
 		d2lnv_zeta_xi=None
 
@@ -76,101 +76,10 @@ def dd_func_lags(panel,ll,L,d,dLL,addavg=0, transpose=False):
 	elif len(L.shape)==2:
 		x=fu.dot(L,d).reshape(N,T,1,m)
 	if addavg:
-		addavg=(addavg*np.sum(d,1)/panel.T_arr).reshape(N,1,1,m)
+		addavg=(addavg*panel.mean(d,1)).reshape(N,1,1,m)
 		x=x+addavg
 	dLL=dLL.reshape((N,T,1,1))
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	
-
-
-
-def RE(ll,panel,e,recalc=True):
-	"""Following Greene(2012) p. 413-414"""
-	if panel.FE_RE==0:
-		return e
-	eFE=FE(panel,e)
-	if panel.FE_RE==1:
-		return ll.eFE
-	if recalc:
-		ll.eFE=eFE
-		ll.vLSDV=np.sum(ll.eFE**2)/panel.NT_afterloss
-		ll.theta=(1-np.sqrt(ll.vLSDV/(panel.grp_v*panel.n_i)))*panel.included
-		ll.theta=np.maximum(ll.theta,0)
-		if np.any(ll.theta>1):
-			raise RuntimeError("WTF")
-	eRE=FE(panel,e,ll.theta)
-	return eRE
-
-def dRE(ll,panel,de,e,vname):
-	"""Returns the first and second derivative of RE"""
-	if not hasattr(ll,'deFE'):
-		ll.deFE=dict()
-		ll.dvLSDV=dict()
-		ll.dtheta=dict()
-
-	if panel.FE_RE==0:
-		return de
-	elif panel.FE_RE==1:
-		return FE(panel,de)	
-	sqrt_expr=np.sqrt(1/(panel.grp_v*panel.n_i*ll.vLSDV))
-	ll.deFE[vname]=FE(panel,de)
-	ll.dvLSDV[vname]=np.sum(np.sum(ll.eFE*ll.deFE[vname],0),0)/panel.NT_afterloss
-	ll.dtheta[vname]=-sqrt_expr*ll.dvLSDV[vname]*panel.included
-
-	dRE0=FE(panel,de,ll.theta)
-	dRE1=FE(panel,e,ll.dtheta[vname],True)
-	return (dRE0+dRE1)*panel.included
-
-def ddRE(ll,panel,dde,de1,de2,e,vname1,vname2):
-	"""Returns the first and second derivative of RE"""
-	if panel.FE_RE==0:
-		return dde
-	elif panel.FE_RE==1:
-		return FE(panel,dde)	
-	(N,T,k)=de1.shape
-	(N,T,m)=de2.shape
-	if dde is None:
-		ddeFE=0
-		hasdd=False
-	else:
-		ddeFE=FE(panel,dde)
-		hasdd=True
-	eFE=ll.eFE.reshape(N,T,1,1)
-	ddvLSDV=np.sum(np.sum(eFE*ddeFE+ll.deFE[vname1].reshape(N,T,k,1)*ll.deFE[vname2].reshape(N,T,1,m),0),0)/panel.NT_afterloss
-
-	ddtheta1=(np.sqrt(1/(panel.grp_v*panel.n_i*(ll.vLSDV**2))))*ll.dvLSDV[vname1].reshape(k,1)*ll.dvLSDV[vname2].reshape(1,m)
-	ddtheta2=ddtheta1+(-np.sqrt(1/(panel.grp_v*panel.n_i*ll.vLSDV)))*ddvLSDV
-	ddtheta=ddtheta2.reshape(N,1,k,m)*panel.included.reshape(N,T,1,1)
-
-	if hasdd:
-		dRE00=FE(panel,dde,ll.theta.reshape(N,T,1,1))
-	else:
-		dRE00=0
-	dRE01=FE(panel,de1.reshape(N,T,k,1),ll.dtheta[vname2].reshape(N,T,1,m),True)
-	dRE10=FE(panel,de2.reshape(N,T,1,m),ll.dtheta[vname1].reshape(N,T,k,1),True)
-	dRE11=FE(panel,e.reshape(N,T,1,1),ddtheta,True)
-	return (dRE00+dRE01+dRE10+dRE11)
-
-def FE(panel,e,w=1,d=False):
-	"""returns x after fixed effects, and set lost observations to zero"""
-	#assumes e is a "N x T x k" matrix
-	if e is None:
-		return None
-	if len(e.shape)==3:
-		N,T,k=e.shape
-		s=((N,1,k),(N,T,1))
-		n_i=panel.n_i
-	elif len(e.shape)==4:
-		N,T,k,m=e.shape
-		s=((N,1,k,m),(N,T,1,1))
-		n_i=panel.n_i.reshape((N,1,1,1))
-	ec=e*panel.included.reshape(s[1])
-	sum_ec=np.sum(ec,1).reshape(s[0])
-	sum_ec_all=np.sum(sum_ec,0)	
-	dFE=-(w*(sum_ec/n_i-sum_ec_all/panel.NT_afterloss))*panel.included.reshape(s[1])
-	if d==False:
-		return ec*panel.included.reshape(s[1])+dFE
-	else:
-		return dFE
 
 
 def add(iterable,ignore=False):
@@ -252,6 +161,10 @@ def dd_func_mult(d0,mult,d1):
 		return None
 	(N,T,k)=d0.shape
 	(N,T,m)=d1.shape
+	if np.any(np.isnan(d0)) or np.any(np.isnan(d1)):
+		x=np.empty((k,m))
+		x[:]=np.nan
+		return x
 	d0=d0*mult
 	d0=np.reshape(d0,(N,T,k,1))
 	d1=np.reshape(d1,(N,T,1,m))
