@@ -9,6 +9,7 @@ import regprocs as rp
 import numpy as np
 import regprocs as rp
 import functions as fu
+import loglikelihood as logl
 
 
 def var_decomposition(XXNorm=None,X=None,concat=False):
@@ -16,16 +17,11 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 	(columns). Calculates the normalized sum of squares using square_and_norm if XXNorm is not supplied"""
 	if XXNorm is None:
 		XXNorm=square_and_norm(X)
-	ub=len(XXNorm)  
-	fi=np.zeros((ub,ub))
-	fiTot=np.zeros(ub)
-	pi=[ub*[0] for i in range(0,ub)]
-	CondIx=[0]*ub
-	MaxEv=0.0     
+	ub=len(XXNorm)     
 	d,EVec=np.linalg.eig(XXNorm)
 	if np.any(np.round(d.imag,15)!=len(d)*[0]):
 		print( "non-real XX matrix")
-		return None,None
+		
 	d=d.real;EVec=EVec.real
 	d=np.abs(d)**0.5+1e-100
 	MaxEv=np.max(d)  
@@ -111,17 +107,17 @@ def adf_test(panel,ll,p):
 	"""Returns the augmented dickey fuller test statistic and critical value"""
 	N,T,k=panel.X.shape
 	beta,y=OLS(panel,panel.X*panel.included,panel.Y*panel.included,return_e=True)
-	y=rp.FE(panel,y)
+	y=ll.re_obj.FRE(y)
 	y_dev=deviation(panel,y)
 	s=std(panel,y_dev,True)
 	y=y/(s+(s==0)*1e-17)
-	yl1=shift_arr(y,-1,axis=1)
+	yl1=rp.roll(y,1,1)
 	dy=y-yl1
 	date_var=np.arange(T).reshape((T,1))*panel.included	#date count
 	X=np.concatenate((panel.included,date_var,yl1),2)
 	dyL=[]
 	for i in range(p):
-		dyL.append(shift_arr(dy,-i-1,axis=1))
+		dyL.append(rp.roll(dy,i+1,1))
 	dyL=np.concatenate(dyL,2)
 	date_var=(date_var>p+1)
 	X=np.concatenate((X,dyL),2)
@@ -138,18 +134,18 @@ def adf_test(panel,ll,p):
 	return res
 
 def goodness_of_fit(panel,ll):
-	v0=std(panel,ll.e_st,total=True)**2
+	v0=panel.var(ll.e_st)
 	y=deviation(panel,ll.Y_st)
-	v1=std(panel,y,total=True)**2
+	v1=panel.var(y)
 	Rsq=1-v0/v1
-	Rsqadj=1-(v0/v1)*(panel.NT_afterloss-1)/(panel.NT_afterloss-panel.len_args-1)
-	LL_OLS=panel.LL(panel.args.args_OLS)
+	Rsqadj=1-(v0/v1)*(panel.NT-1)/(panel.NT-panel.len_args-1)
+	LL_OLS=logl.LL(panel.args.args_OLS,panel)
 	if not LL_OLS is None:
 		LL_OLS=LL_OLS.LL
 		LL_ratio_OLS=2*(ll.LL-LL_OLS)
 	else:
 		LL_ratio_OLS=None
-	LL_args_restricted=panel.LL(panel.args.args_restricted)
+	LL_args_restricted=logl.LL(panel.args.args_restricted,panel)
 	if not LL_args_restricted is None:
 		LL_args_restricted=LL_args_restricted.LL
 		LL_ratio=2*(ll.LL-LL_args_restricted)
@@ -170,7 +166,7 @@ def breusch_godfrey_test(panel,ll, lags):
 		X_u=np.append(X_u,e[:,lags-i:T-i],2)
 	XX=fu.dot(X_u,X_u)
 	Beta,Rsq=OLS(panel,X_u,u,True,True,c=c)
-	T=(panel.NT_afterloss-len(X_u[0])-lags)
+	T=(panel.NT-X_u.shape[2]-lags)
 	BGStat=T*Rsq
 	rho=Beta[len(X[0]):]
 	ProbNoAC=1.0-chisq_dist(BGStat,lags)
@@ -212,7 +208,7 @@ def JB_normality_test(e,panel):
 	returns the probability that a set of residuals are drawn from a normal distribution"""
 	N,T,k=e.shape
 	e=e*panel.included
-	df=panel.NT_afterloss
+	df=panel.NT
 	s=(np.sum(e**2)/df)**0.5
 	mu3=np.sum(e**3)/df
 	mu4=np.sum(e**4)/df
@@ -228,7 +224,7 @@ def correl(X,panel=None):
 	if not panel is None:
 		X=X*panel.included
 		N,T,k=X.shape
-		N=panel.NT_afterloss
+		N=panel.NT
 		mean=np.sum(np.sum(X,0),0).reshape((1,k))/N
 	else:
 		N,k=X.shape
@@ -245,44 +241,8 @@ def correl(X,panel=None):
 def deviation(panel,X):
 	N,T,k=X.shape
 	x=X*panel.included
-	mean=np.sum(np.sum(x,0),0).reshape((1,1,k))/panel.NT_afterloss
+	mean=np.sum(np.sum(x,0),0).reshape((1,1,k))/panel.NT
 	return (X-mean)*panel.included
-
-def std(panel,x_dev,groupwise=False,total=False):
-	N,T,k=x_dev.shape
-	x=x_dev*panel.included
-	if groupwise:
-		s=np.sum(x**2,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
-	elif total:
-		s=np.sum(x**2)/panel.NT_afterloss
-	else:
-		s=np.sum(np.sum(x**2,0),0).reshape((1,k))/panel.NT_afterloss
-	s=s**0.5
-	return s
-
-def avg(panel,x,groupwise=False,total=False):
-	N,T,k=x.shape
-	x=x*panel.included
-	if groupwise:
-		m=np.sum(x,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
-	elif total:
-		m=np.sum(x)/panel.NT_afterloss
-	else:
-		m=np.sum(np.sum(x,0),0).reshape((1,k))/panel.NT_afterloss
-	return m
-
-def var(panel,x,groupwise=False,total=False):
-	N,T,k=x.shape
-	x2=(x**2)*panel.included
-	m=avg(panel,x,groupwise,total)
-	if groupwise:
-		v=np.sum(x2,1).reshape((N,1,k))/panel.T_arr.reshape(N,1,1)
-	elif total:
-		v=np.sum(x2)/panel.NT_afterloss
-	else:
-		v=np.sum(np.sum(x2,0),0).reshape((1,k))/panel.NT_afterloss
-	v=v-(m**2)
-	return v
 
 def correl_2dim(X,Y=None):
 	"""Returns the correlation of X and Y. Assumes two dimensional matrixes. If Y is not supplied, the 
@@ -314,7 +274,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_
 	if c is None:
 		c=panel.included
 	N,T,k=X.shape
-	NT=panel.NT_afterloss
+	NT=panel.NT
 	if add_const:
 		X=np.concatenate((c,X),2)
 		k=k+1
@@ -361,61 +321,13 @@ def newey_west_wghts(L,X=None,err_vec=None,XErr=None):
 		XErr=X*err_vec
 	N,T,k=XErr.shape
 	S=fu.dot(XErr,XErr)#Whites heteroscedasticity consistent weighting matrix
-	for i in range(min(L,T)):
+	for i in range(1,min(L,T)):
 		w=1-(i+1)/(L)
 		S+=w*fu.dot(XErr[:,i:],XErr[:,0:T-i])
 		S+=w*fu.dot(XErr[:,0:T-i],XErr[:,i:])
 	return S
 
 
-
-def shift_arr(array,elements,empty_val=0,axis=0):
-	"""For elements>0 (elements<0) this function shifts the elements up (down) by deleting the top (bottom)
-	elements and replacing the new botom (top) elements with empty_val"""
-	arr2=array*1
-	arr=array*1
-	if elements==0:
-		return array
-	if type(array)==list:
-		array=np.array(array)
-	s=array.shape
-	
-	ret=np.roll(arr,-elements,axis)
-	v=[slice(None)]*len(s)
-	if elements<0:
-		v[axis]=slice(0,-elements)
-	else:
-		n=s[axis]
-		v[axis]=slice(n-elements,n)
-		ret[n-elements:]=empty_val
-	ret[v]=empty_val
-			
-	if False:#for debugging
-		if len(s)==2:
-			T,k=s
-			fill=np.ones((abs(elements),k),dtype=arr2.dtype)*empty_val		
-			if elements<0:
-				ret2= np.append(fill,arr2[0:T+elements],0)
-			else:
-				ret2= np.append(arr2[elements:],fill,0)		
-		elif len(s)==3:
-			N,T,k=s
-			fill=np.ones((N,abs(elements),k),dtype=arr2.dtype)*empty_val
-			if elements<0:
-				ret2= np.append(fill,arr2[:,0:T+elements],1)
-			else:
-				ret2= np.append(arr2[:,elements:],fill,1)		
-		elif len(s)==1:
-			T=s[0]
-			fill=np.ones(abs(elements),dtype=arr2.dtype)*empty_val
-			if elements<0:
-				ret2= np.append(fill,arr2[0:T+elements],0)
-			else:
-				ret2= np.append(arr2[elements:],fill,0)	
-				
-		if not np.all(ret==ret2):
-			raise RuntimeError('Check that the calling procedure has specified the "axis" argument')
-	return ret
 
 
 
