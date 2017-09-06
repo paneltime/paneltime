@@ -409,12 +409,9 @@ def solve(constr,H, g, x):
 
 def remove_constants(panel,G,include,constr,out,names):
 	N,T,k=G.shape
-	try:
-		v=stat.var(panel,G)
-	except:
-		return
+	v=panel.var(G,(0,1))
 	for i in range(1,k):
-		if v[0][i]==0:
+		if v[i]==0:
 			include[i]=False
 			constr.add(i,0)
 			out.add(names[i],0,'NA','constant')	

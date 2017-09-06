@@ -70,15 +70,34 @@ class lag_object:
 
 def sort(dataframe,time_name,IDs_name):
 	"sorts the data frame"
-	v=dataframe[time_name]
-	if not IDs_name is None:
+	if (time_name is None) and (IDs_name is None):
+		return
+	elif (time_name is None) and (not IDs_name is None):
 		g=dataframe[IDs_name]
-		dt=v.astype(dtype=[('date',type(v[0][0]))])
-		gr=g.astype(dtype=[('IDs',type(g[0][0]))])
-		v=rfn.merge_arrays((dt,gr))
-		srt=np.argsort(v,0,order=['IDs','date']).flatten()
+		if np.var(g)==0:
+			return
+		srt=np.argsort(g,0).flatten()
+	elif (not time_name is None) and (IDs_name is None):
+		dt=dataframe[time_name]
+		if np.var(g)==None:
+			return
+		srt=np.argsort(dt,0).flatten()	
 	else:
-		srt=np.argsort(v,0).flatten()
+		dt=dataframe[time_name]
+		vdt=np.var(dt)
+		dt=dt.astype(dtype=[('date',type(dt[0][0]))])
+		g=dataframe[IDs_name]
+		vg=np.var(g)
+		g=g.astype(dtype=[('IDs',type(g[0][0]))])
+		if vdt==0 and vg==0:
+			return
+		if vdt==0 and vg>0:
+			srt=np.argsort(g,0).flatten()
+		elif vdt>0 and vg==0:
+			srt=np.argsort(dt,0).flatten()
+		else:
+			s=rfn.merge_arrays((dt,g))
+			srt=np.argsort(s,0,order=['IDs','date']).flatten()
 	for i in dataframe:
 		if type(dataframe[i])==np.ndarray:
 			dataframe[i]=dataframe[i][srt]

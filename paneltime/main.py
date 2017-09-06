@@ -43,7 +43,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 		
 	X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
 	
-	args_archive=args_archive.args_archive(model_string+descr, loadargs)
+	args_archive=tempstore.args_archive(model_string+descr, loadargs)
 	if loadargs==2:
 		p,q,m,k=get_args_lags(args_archive.args, loadargs)
 	pnl,g,G,H,ll,constraints=execute_maximization(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
@@ -62,8 +62,8 @@ def execute_maximization(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
 	direction=logl.direction(pnl)
 	 
 	N,k=X.shape
-	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24) and False:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
-		mp=mc.multiprocess()
+	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24):#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
+		mp=mc.multiprocess(4)
 		mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')		
 	else:
 		mp=None
@@ -76,7 +76,7 @@ def execute_maximization(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
 
 
 def get_args_lags(args,loadargs):
-	if loadargs:
+	if loadargs and (not args is None):
 		p,q,m,k=len(args['rho']),len(args['lambda']),len(args['gamma']),len(args['psi'])		
 	else:
 		p,q,m,k=1,1,1,1	
