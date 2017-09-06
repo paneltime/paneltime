@@ -14,10 +14,13 @@ from threading import Thread
 
 class master():
 	"""creates the slaves"""
-	def __init__(self,modules):
+	def __init__(self,modules,max_nodes):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
-		self.cpu_count=os.cpu_count()#assignment to self allows for the possibility to manipulate the count
+		if max_nodes is None:
+			self.cpu_count=os.cpu_count()#assignment to self allows for the possibility to manipulate the count
+		else:
+			self.cpu_count=min((os.cpu_count(),max_nodes))
 		n=self.cpu_count
 		self.slaves=[slave(modules,i) for i in range(n)]
 		pids=[self.slaves[i].p_id for i in range(n)]
@@ -25,20 +28,20 @@ class master():
 		pstr='Multi core processing enabled using %s cores. Slave PIDs: '+(n-1)*'%s, '
 		pstr=pstr+'%s. Master PID: %s'
 		print (pstr %info)	
-		
+
 	def send_dict(self, d,instructions):
 		if instructions !='static dictionary' and instructions !='dynamic dictionary':
 			raise RuntimeError('Incorrect instructions passed for adding dictionary to slaves')
 		for s in self.slaves:
 			s.send(instructions,d)
 			res=s.receive()
-			
+
 	def send_holdbacks(self, key_arr):
 		"""Sends a list with keys to variables that are not to be returned by the slaves"""
 		for s in self.slaves:
 			s.send('holdbacks',key_arr)
 			res=s.receive()
-	
+
 	def send_tasks(self,tasks):
 		"""expressions is a list of (strign,id) tuples with string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves"""
 		tasks=list(tasks)
@@ -66,17 +69,17 @@ class master():
 			if sent>=n and got>=n:
 				break
 		return get_slave_dicts(d_arr)
-			
+
 def get_slave_dicts(d_arr):
-	
+
 	d=d_arr[0]
 	for i in range(1,len(d_arr)):
 		for key in d_arr[i]:
 			if not key in d:
 				d[key]=d_arr[i][key]
 	return d
-				
-			
+
+
 
 class slave():
 	"""Creates a slave"""
@@ -100,19 +103,19 @@ class slave():
 		self.t.send((msg,obj))          
 
 	def receive(self,q=None):
-		
+
 		if q is None:
 			answ=self.t.receive()
 			return answ
 		q.put((self.t.receive(),self.slave_id))
-		
-	
+
+
 	def kill(self):
 		self.send((True,None))
 
-		
-			
-		
+
+
+
 
 class transact():
 	"""Local worker class"""
@@ -124,7 +127,7 @@ class transact():
 		w=getattr(self.w,'buffer',self.w)
 		pickle.dump(msg,w)
 		w.flush()   
-		
+
 	def send_debug(self,msg,f):
 		w=getattr(self.w,'buffer',self.w)
 		write(f,str(w))
@@ -142,9 +145,9 @@ def write(f,txt):
 
 
 class multiprocess:
-	def __init__(self):
+	def __init__(self,max_nodes=None):
 		#self.master=master([['regprocs','rp'],['maximize','mx'],['loglikelihood','logl']])#for paralell computing
-		self.master=master([])#for paralell computing
+		self.master=master([],max_nodes)#for paralell computing
 		self.d=dict()
 		if not self.master is None:
 			self.master.send_holdbacks(['AMAp','AMAq','GARM','GARK'])
@@ -176,7 +179,7 @@ class multiprocess:
 			self.d[i]=d[i]
 		if str(type(self.master))=="<class 'multi_core.master'>":
 			self.master.send_dict(d,instructions)
-			
+
 def format_args_array(arg_array,run_mp=True):
 	for i in range(len(arg_array)):
 		arg_array[i]=format_args(arg_array[i], run_mp)

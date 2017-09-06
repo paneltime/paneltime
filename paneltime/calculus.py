@@ -248,9 +248,10 @@ class hessian:
 	
 
 
-	def second_derivatives_mp(self,ll,mp,g):
+	def second_derivatives_mp(self,ll,mp):
 		panel=self.panel
-		mp.send_dict({'ll':ll_light(ll),'g':g_obj_light(self.g),'re_obj':REObj_light(ll.re_obj)},'dynamic dictionary')	
+		g=self.g
+		mp.send_dict({'ll':ll_light(ll),'g':g_obj_light(g)},'dynamic dictionary')	
 		d=mp.execute(self.sec_deriv)
 
 		d['d2LL_de2']=-ll.v_inv*panel.included
@@ -326,11 +327,11 @@ class hessian:
 
 
 
-	def hessian_mp(self,ll,mp,re_obj):
+	def hessian_mp(self,ll,mp):
 		panel=self.panel
 		tic=time.clock()
 		#return debug.hessian_debug(self,args):
-		d=self.second_derivatives_mp(ll,mp,re_obj)
+		d=self.second_derivatives_mp(ll,mp)
 		#Final:
 		evalstr="""
 D2LL_beta2			=	rp.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta_RE,		dlnv_sigma_beta, 	dlnv_sigma_beta,	d2e_beta2, 					d2lnv_beta2)
@@ -418,11 +419,11 @@ class ll_light():
 		self.h_2z_val		=	ll.h_2z_val
 		self.h_ez_val		=	ll.h_ez_val
 		self.GAR_1MA		=	ll.GAR_1MA
-		self.dLL_lnv		=	ll.dLL_lnv
 		self.args_v			=	ll.args_v
 		self.args_d			=	ll.args_d
 		self.GAR_1			=	ll.GAR_1
 		self.AMA_1			=	ll.AMA_1
+		self.re_obj			=	ll.re_obj
 
 class g_obj_light():
 	def __init__(self,g):
@@ -440,19 +441,7 @@ class g_obj_light():
 		self.de_lambda		=	g.de_lambda
 		self.de_rho			=	g.de_rho
 		self.de_beta		=	g.de_beta
-		
-class REObj_light():
-	def __init__(self,re_obj):
-		"""A minimalistic version of re_obj object for multiprocessing. Reduces the amount of information 
-			transfered to the nodes"""
-		if hasattr(re_obj,'vLSDV'):
-			self.vLSDV			=	re_obj.vLSDV
-			self.theta			=	re_obj.theta
-			if not hasattr(re_obj,'deFE'):
-				raise RuntimeError('the method gradient, from this module, must precede hessian in the code')
-			self.deFE			=	re_obj.deFE
-			self.dvLSDV			=	re_obj.dvLSDV
-			self.dtheta			=	re_obj.dtheta
+
 
 
 		

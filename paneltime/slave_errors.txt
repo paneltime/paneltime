@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "b:\forskning\papers\paneltime\paneltime\paneltime\slave.py", line 67, in <module>
-    main(f)
-  File "b:\forskning\papers\paneltime\paneltime\paneltime\slave.py", line 29, in main
-    (msg,obj) = t.receive()
-  File "b:\forskning\papers\paneltime\paneltime\paneltime\multi_core.py", line 137, in receive
-    return u.load()
-EOFError: Ran out of input

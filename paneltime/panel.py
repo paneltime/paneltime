@@ -231,13 +231,15 @@ class panel:
 			dims.pop(0)
 			return np.sum(X,0)/self.N_t.reshape(dims)
 		if axis==(0,1):
-			np.sum(sum(X,0),0)/self.NT
+			return np.sum(sum(X,0),0)/self.NT
 			
 	def var(self,X,axis=None,k=1,mean=None):
 		dims=list(X.shape)
 		dims[2:]=[1]*(len(dims)-2)		
-		if mean==None:
+		if mean is None:
 			m=self.mean(X, axis)
+		else:
+			m=mean
 		if axis==None:
 			return np.sum((X-m)**2)/(self.NT-k)
 		if axis==1:
@@ -247,7 +249,7 @@ class panel:
 			dims.pop(0)
 			return np.sum((X-m)**2,0)/np.maximum(self.N_t-k,1).reshape(dims)
 		if axis==(0,1):
-			np.sum(sum((X-m)**2,0),0)/(self.NT-k)
+			return np.sum((X-m)**2,axis)/(self.NT-k)
 			
 
 class arguments:
