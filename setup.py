@@ -5,17 +5,18 @@ https://github.com/pypa/sampleproject
 """
 
 # Always prefer setuptools over distutils
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 # To use a consistent encoding
 from codecs import open
 from os import path
+import numpy as np
 
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 	long_description = f.read()
-print (find_packages(exclude=['contrib', 'docs', 'tests']))
+cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
 setup(
     name='paneltime',
 
@@ -64,6 +65,7 @@ setup(
     # simple. Or you can use find_packages().
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     
+    ext_modules=[cfunc],
     # Alternatively, if you want to distribute just a my_module.py, uncomment
     # this:
     #   py_modules=["my_module"],
