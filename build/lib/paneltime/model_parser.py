@@ -183,7 +183,7 @@ def check_and_add_variables(names,dataframe,arg_name):
 			else:
 				try:
 					var=eval(name,globals(),dataframe)
-				except:
+				except KeyError as e:
 					raise RuntimeError("Variable %s is requested in %s, but it does not exist in the dataframe" %(name,arg_name))
 				dataframe[name]=var
 			

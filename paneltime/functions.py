@@ -9,6 +9,7 @@ import sys
 import os
 import csv
 from scipy import sparse as sp
+import re
 
 
 def timer(tic, a):
@@ -106,8 +107,26 @@ def clean(string,split='',cleanchrs=['\n','\t',' ']):
 	return ret
 
 def split_input(input_str):
+	
 	if input_str is None:
 		return None
+	
+	p = re.compile('\([^()]+\)')
+	if '§' in input_str or '£' in input_str  or '¤' in input_str:
+		raise RuntimeError("The charactesr §, ¤  or £ are not allowed in model string")
+	while 1:
+		matches=tuple(p.finditer(input_str))
+		if len(matches)==0:
+			break
+		for m in matches:
+			k,n=m.start(),m.end()
+			s =input_str[:k]+'¤'
+			s+=input_str[k+1:n-1].replace('+','§') + '£'
+			s+=input_str[n:]
+			input_str=s
+
+		
+
 	for s in [',','\n','+',' ']:
 		lst=input_str.split(s)
 		if len(lst)>1:
@@ -116,6 +135,9 @@ def split_input(input_str):
 	for i in lst:
 		m=clean(i)
 		if m!='':
+			m=m.replace('¤','(')
+			m=m.replace('§','+')
+			m=m.replace('£',')')
 			x.append(m)
 	return x	
 
@@ -163,7 +185,7 @@ def replace_many(string,oldtext_list,newtext):
 
 def savevar(variable,name='tmp',extension=''):
 	"""takes variable and name and saves variable with filname <name>.csv """	
-	fname=obtain_fname(name,extension)
+	fname=obtain_output_fname(name,extension)
 	print ( 'saves to '+ fname)
 	if type(variable)==np.ndarray:
 		if not variable.dtype=='float64':
@@ -187,7 +209,7 @@ def savevars(varlist,extension=''):
 	for var,name in varlist:
 		savevar(var,name,extension)
 
-def obtain_fname(name,extension=''):
+def obtain_output_fname(name,extension=''):
 	name=name.replace('\\','/')
 	wd=os.getcwd().replace('\\','/')
 	wd_arr=wd.split('/')

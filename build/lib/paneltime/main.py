@@ -22,12 +22,24 @@ import tempstore
 import os
 import loglikelihood as logl
 
+
 warnings.filterwarnings('error')
 np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
-
-
+class results:
+	def __init__(self, p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
+                         fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
+                         args_archive,model_string,user_constraints,
+                         direction_testing,args,mp):
+		ll,g,G,H, conv=maximize(panel, direction, mp, direction_testing, 
+		                        args_archive,args,True,user_constraints)
+		self.ll=ll
+		self.g=g
+		self.G=G
+		self.H=H
+		self.conv=conv
+		self.constraints=direction.constr
 
 
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
@@ -43,36 +55,44 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 		
 	X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
 	
+	mp=mp_check(direction_testing, X)
+		
 	args_archive=tempstore.args_archive(model_string+descr, loadargs)
 	if loadargs==2:
 		p,q,m,k=get_args_lags(args_archive.args, loadargs)
-	pnl,g,G,H,ll,constraints=execute_maximization(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
+	results_obj=results(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
 	                                            fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
-	                                            args_archive,model_string,user_constraints,direction_testing,args_archive.args)
-	return pnl,g,G,H,ll,constraints
+	                                            args_archive,model_string,user_constraints,direction_testing,args_archive.args,mp)
+	return results_obj
 	
-
-def execute_maximization(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
-                         fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
-                         args_archive,model_string,user_constraints,
-                         direction_testing,args):
-	print ("Creating panel")
-	pnl=panel.panel(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,fixed_random_eff,W,
-	                w_names,descr,dataframe,h,has_intercept,model_string,user_constraints,args)
-	direction=logl.direction(pnl)
-	 
-	N,k=X.shape
-	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24):#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
-		mp=mc.multiprocess(4)
-		mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')		
-	else:
-		mp=None
-	print ("Maximizing:")
-
-
-	ll,g,G,H, conv = maximize.maximize(pnl,direction,mp,direction_testing,args_archive,pnl.args.args,_print=True,user_constraints=user_constraints)	
-
-	return pnl,g,G,H,ll,direction.constr
+class results:
+	def __init__(self,p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
+		                     fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
+		                     args_archive,model_string,user_constraints,
+		                     direction_testing,args,mp):
+		print ("Creating panel")
+		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,fixed_random_eff,W,
+			            w_names,descr,dataframe,h,has_intercept,model_string,user_constraints,args)
+		
+		direction=logl.direction(pnl)
+		if not mp is None:
+			mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')
+			
+		 
+	
+		print ("Maximizing:")
+	
+	
+		ll,g,G,H, conv = maximize.maximize(pnl,direction,mp,direction_testing,args_archive,pnl.args.args,_print=True,user_constraints=user_constraints)	
+		
+		self.ll=ll
+		self.gradient=g
+		self.gradient_matrix=G
+		self.hessian=H
+		self.converged=conv
+		self.constraints=direction.constr
+		self.panel=pnl
+	
 
 
 def get_args_lags(args,loadargs):
@@ -81,6 +101,7 @@ def get_args_lags(args,loadargs):
 	else:
 		p,q,m,k=1,1,1,1	
 	return p,q,m,k
+
 	
 def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
             descr="project_1",
@@ -91,20 +112,23 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 		direction_testing=False
 		
 	X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
-	
+	mp=mp_check(direction_testing, X)
+		
 	args_archive=tempstore.args_archive(model_string+descr, loadargs)
 	
 	p,q,m,k=get_args_lags(args_archive.args, loadargs)
 	p_lim,q_lim,m_lim,k_lim=False,False,False,False
 	args=args_archive.args
 	while True:
-		panel,g,G,H,ll,constraints=execute_maximization(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
+		results_obj=results(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
 	                                            fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
 	                                            args_archive,model_string,user_constraints,
-		                                        direction_testing,args)
-		args=ll.args_d
+		                                        direction_testing,args,mp)
+		panel=results_obj.panel
+		constraints=results_obj.constraints
+		args=results_obj.ll.args_d
 		direction_testing=False
-		diag=regstats.diagnostics(panel,g,G,H,ll,3,simple_diagnostics=True)	
+		diag=regstats.statistics(results_obj,3,simple_diagnostics=True)	
 		#Testing whether the highest order of each category is significant. If it is not, it is assumed
 		#the maximum order for the category is found, and the order is reduced by one.  When the maximum order
 		#is found for all categories, the loop ends
@@ -125,5 +149,16 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 			print("Found maximum lag lenght for: %s" %(",".join(a_lim)))
 		if len(a_incr)>0:
 			print("Extending lags for: %s" %(",".join(a_incr)))
-	return panel,g,G,H,ll,constraints
+	return results_obj
 
+
+def mp_check(direction_testing,X):
+	N,k=X.shape
+	mp=None
+	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24):#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
+		if direction_testing:
+			mp=mc.multiprocess(os.cpu_count())
+		else:
+			mp=mc.multiprocess(4)
+	return mp
+	

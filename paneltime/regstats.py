@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#This module calculates diagnostics and saves it to a file
+#This module calculates statistics and saves it to a file
 
 
 import statproc as stat
@@ -17,14 +17,18 @@ from matplotlib import pyplot  as plt
 import functions as fu
 import loglikelihood as logl
 
-class diagnostics:
-	def __init__(self,panel,g,G,H,ll,robustcov_lags=100,correl_vars=None,descriptives_vars=None,simple_diagnostics=False):
-		"""This class calculates, stores and prints statistics and diagnostics"""
-		self.panel=panel
-		ll.standardize(panel)
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(panel,ll)
-		self.LL_restricted=logl.LL(panel.args.args_restricted, panel).LL
-		self.LL_OLS=logl.LL(panel.args.args_OLS, panel).LL		
+class statistics:
+	def __init__(self,results_obj,robustcov_lags=100,correl_vars=None,descriptives_vars=None,simple_diagnostics=False):
+		"""This class calculates, stores and prints statistics and statistics"""		
+
+		self.G=results_obj.gradient_matrix
+		self.H=results_obj.hessian
+		self.ll=results_obj.ll
+		self.panel=results_obj.panel
+		self.ll.standardize()
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(self.panel,self.ll)
+		self.LL_restricted=logl.LL(self.panel.args.args_restricted, self.panel).LL
+		self.LL_OLS=logl.LL(self.panel.args.args_OLS, self.panel).LL		
 		(self.reg_output,
 		 self.names,
 		 self.args,
@@ -32,25 +36,25 @@ class diagnostics:
 		 self.se_st,
 		 self.tstat,
 		 self.tsign,
-		 sign_codes)=self.coeficient_output(H,G,robustcov_lags,ll)
+		 sign_codes)=self.coeficient_output(self.H,self.G,robustcov_lags,self.ll)
 		
 		
 		if simple_diagnostics:		
 			return	
 		self.coeficient_printout(sign_codes)
-		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(panel,ll,10)
-		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)		
+		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(self.panel,self.ll,10)
+		self.norm_prob=stat.JB_normality_test(self.ll.e_st,self.panel)		
 
-		self.multicollinearity_check(G)
+		self.multicollinearity_check(self.G)
 
 		self.data_correlations,self.data_statistics=self.correl_and_statistics(correl_vars,descriptives_vars)
 		
-		scatterplots(panel)
+		scatterplots(self.panel)
 
-		print ( 'LL: %s' %(ll.LL,))
+		print ( 'LL: %s' %(self.ll.LL,))
 	
-		self.adf_test=stat.adf_test(panel,ll,10)
-		self.save_stats(ll)
+		self.adf_test=stat.adf_test(self.panel,self.ll,10)
+		self.save_stats(self.ll)
 	
 	def correl_and_statistics(self,correl_vars,descriptives_vars):
 		panel=self.panel
@@ -288,7 +292,7 @@ def scatterplots(panel):
 		plt.ylabel(y_name)
 		plt.xlabel(x_names[i])
 		xname=remove_illegal_signs(x_names[i])
-		fname=fu.obtain_fname('figures/%s-%s.png' %(y_name,xname))
+		fname=fu.obtain_output_fname('figures/%s-%s.png' %(y_name,xname))
 		fgr.savefig(fname)
 		plt.close()
 		

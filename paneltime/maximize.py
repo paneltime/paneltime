@@ -61,10 +61,10 @@ def lnsrch(f0, g, dx,panel):
 	else:
 		return d[f_max]
 	return f0#should never happen	
-	
+		
+		
 def maximize(panel,direction,mp,direction_testing,args_archive,args=None,_print=True,user_constraints=None):
 	"""Maxmizes logl.LL"""
-	
 	
 	ll=logl.LL(args,panel)
 	if ll.LL is None:
@@ -78,14 +78,15 @@ def maximize(panel,direction,mp,direction_testing,args_archive,args=None,_print=
 	mc_limit_min=0
 	mc_limit=mc_limit_init
 	convergence_limit=0.01
-	has_problems=False
 	k=0
 	dx_conv=None
 	H=None
 	dxi=None
 	g=None
 	if direction_testing:
+		t=time.time()
 		ll=dirtest(ll, panel,direction,mp,user_constraints)
+		print(time.time()-t)
 	direction.hessin_num=None
 	while 1:  
 		its+=1
@@ -116,10 +117,8 @@ def maximize(panel,direction,mp,direction_testing,args_archive,args=None,_print=
 			else:
 				mc_limit=mc_limit_min
 				k+=1
-			has_problems=True
 		else:
 			mc_limit=mc_limit_init
-			has_problems=False
 			k=0
 	
 
@@ -131,17 +130,17 @@ def round_sign(x,n):
 def dirtest(ll,panel,direction,mp,user_constraints):
 	#dx,dx_approx,g,G,H,constrained,reset=direction.get(ll,1000,None,0,0,mp)
 	#ll=lnsrch(ll,g,dx,panel)
-	ll.standardize(panel)
+	ll.standardize()
 	if os.cpu_count()<24:
 		ll=pretest_sub(ll,['psi','gamma'],panel,direction,mp,user_constraints)
 		ll=pretest_sub(ll,['rho','lambda'],panel,direction,mp,user_constraints)
 		
 	else:
-		ll=pretest_master(ll,mp)
+		ll=pretest_master(ll,panel,direction,mp,user_constraints)
 	return ll
 	
 	
-def pretest_master(ll,mp,user_constraints):
+def pretest_master(ll,panel,direction,mp,user_constraints):
 	c=['psi','gamma','rho','lambda']
 	k=len(c)
 	a=np.array(np.meshgrid(*tuple([[-0.5, 0.5]]*k))).T.reshape(-1,k)
@@ -153,20 +152,25 @@ def pretest_master(ll,mp,user_constraints):
 			args_d[c[j]][0]=i[j]
 		args.append(args_d)
 	expr=[]
-	n_cores=os.cpu_count()-2
+	n_cores=os.cpu_count()
 	expr=['' for i in range(n_cores)]
 	i=0
 	while 1:
 		for j in range(n_cores):
 			s="t0=time.time()\n"
-			s+="tmp=mx.pretest_func(panel,direction,args[%s],ll,user_constraints)\n" %(i,)
+			s+="tmp=pretest_func(panel,direction,args[%s],ll,user_constraints)\n" %(i,)
 			expr[j]+=s+'res%s=tmp,(time.time()-t0),time.time(),t0\n'  %(i,)
+
 			i+=1
 			if i==n:
 				break
 		if i==n:
 			break			
-	mp.send_dict({'args':args,'ll':ll},'dynamic dictionary')	
+	d={'args':args,'ll':ll,'user_constraints':user_constraints,
+	              'pretest_func':pretest_func,'lnsrch':lnsrch,'panel':panel,
+	              'direction':direction}
+
+	mp.send_dict(d,'dynamic dictionary')	
 	d=mp.execute(expr)
 	
 	max_ll=ll
@@ -185,7 +189,7 @@ def pretest_func(panel,direction,args,ll,user_constraints,mp=None):
 	if ll_new.LL is None:
 		return ll
 	try:
-		dx,g,G,H,constrained,reset=direction.get(ll_new,1000,None,0,-1,mp,print_on=False)
+		dx,g,G,H,constrained,reset=direction.get(ll_new,1000,None,0,-1,mp)
 	except:
 		return ll	
 	ll_new=lnsrch(ll_new,g,dx,panel) 
@@ -219,7 +223,7 @@ def impose_OLS(ll,args_d,panel):
 	
 
 def printout(_print,ll,dx_conv,panel,its):
-	ll.standardize(panel)
+	ll.standardize()
 	norm_prob=stat.JB_normality_test(ll.e_st,panel)	
 	if _print: 
 		print("LL: %s Normality probability: %s    Iteration: %s" %(ll.LL,norm_prob,its))

@@ -7,6 +7,7 @@ import subprocess
 import struct
 import pickle
 import time
+import functions as fu
 from queue import Queue
 from threading import Thread
 
@@ -95,7 +96,8 @@ class slave():
 		self.t=transact(self.p.stdout,self.p.stdin)
 		self.p_id = self.receive()
 		self.slave_id=slave_id
-		self.send(modules,slave_id)
+		f_node_name=fu.obtain_output_fname('/output/slaves/%s.txt' %(slave_id,))
+		self.send('init_transact',(modules,slave_id,f_node_name))
 		pass
 
 	def send(self,msg,obj):

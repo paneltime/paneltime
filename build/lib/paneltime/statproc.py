@@ -109,7 +109,8 @@ def adf_test(panel,ll,p):
 	beta,y=OLS(panel,panel.X*panel.included,panel.Y*panel.included,return_e=True)
 	y=ll.re_obj.FRE(y)
 	y_dev=deviation(panel,y)
-	s=std(panel,y_dev,True)
+	s=panel.var(y_dev,1)**0.5
+	s=s.reshape(N,1,1)
 	y=y/(s+(s==0)*1e-17)
 	yl1=rp.roll(y,1,1)
 	dy=y-yl1

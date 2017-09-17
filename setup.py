@@ -22,7 +22,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.0.2',
+    version='1.0.3',
 
     description='An efficient integrated panel and GARCH estimator',
     long_description=long_description,
@@ -73,7 +73,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
-    install_requires=['numpy >= 1.11','scipy','matplotlib',],
+    install_requires=['numpy >= 1.11','scipy','matplotlib','cfunctions'],
     #**************************************************************************<REMOVED
 
     # List additional groups of dependencies here (e.g. development
