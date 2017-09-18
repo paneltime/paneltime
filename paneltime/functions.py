@@ -213,7 +213,7 @@ def obtain_fname(name,extension='',to_output=False):
 	name=name.replace('\\','/')
 	wd=os.getcwd().replace('\\','/')
 	wd_arr=wd.split('/')
-
+	print (wd_arr)
 	if to_output and not '/' in name:
 		name='output/'+name
 	d_arr=name.split('/')
@@ -229,6 +229,7 @@ def obtain_fname(name,extension='',to_output=False):
 			d=d[1:]
 			wd_arr=wd_arr[:-k]
 			wd='/'.join(wd_arr)	
+		print(wd)
 	else:
 		match=0
 		for i in range(len(d)-1):#matching wd with file dir
@@ -242,7 +243,7 @@ def obtain_fname(name,extension='',to_output=False):
 			if match>0:
 				d=d[i+n-match:]
 				break
-
+	
 	fname=d[-1]
 	if extension!='':
 		fname=fname.replace('.'+extension,'')+'.'+extension
