@@ -5,24 +5,25 @@ https://github.com/pypa/sampleproject
 """
 
 # Always prefer setuptools over distutils
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 # To use a consistent encoding
 from codecs import open
 from os import path
+import numpy as np
 
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 	long_description = f.read()
-print (find_packages(exclude=['contrib', 'docs', 'tests']))
+#cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
 setup(
     name='paneltime',
-
+    #ext_modules=[cfunc],
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.0.2',
+    version='1.0.3',
 
     description='An efficient integrated panel and GARCH estimator',
     long_description=long_description,
@@ -64,6 +65,7 @@ setup(
     # simple. Or you can use find_packages().
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     
+    
     # Alternatively, if you want to distribute just a my_module.py, uncomment
     # this:
     #   py_modules=["my_module"],
@@ -73,7 +75,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
-    install_requires=['numpy >= 1.11','scipy','matplotlib',],
+    install_requires=['numpy >= 1.11','scipy','matplotlib'],
     #**************************************************************************<REMOVED
 
     # List additional groups of dependencies here (e.g. development
@@ -91,9 +93,11 @@ setup(
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
     #**************************************************************************REMOVED>
-    #package_data={
-    #    'sample': ['package_data.dat'],
-    #    },
+    
+    package_data={
+        '': ['cfunctions.cp35-win_amd64.pyd','cfunctions.cpython-35m-x86_64-linux-gnu.so'],
+        },
+    include_package_data=True,
     #**************************************************************************<REMOVED
     #
     # Although 'package_data' is the preferred approach, in some case you may

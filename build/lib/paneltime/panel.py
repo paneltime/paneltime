@@ -235,20 +235,28 @@ class panel:
 			
 	def var(self,X,axis=None,k=1,mean=None):
 		dims=list(X.shape)
-		dims[2:]=[1]*(len(dims)-2)		
+		dims_m=np.array(X.shape)
+		dims[2:]=[1]*(len(dims)-2)	
 		if mean is None:
 			m=self.mean(X, axis)
 		else:
 			m=mean
 		if axis==None:
 			return np.sum((X-m)**2)/(self.NT-k)
+		count=[]
 		if axis==1:
+			dims_m[1]=1
+			m=m.reshape(dims_m)
 			dims.pop(1)
 			return np.sum((X-m)**2,1)/np.maximum(self.T_i-k,1).reshape(dims)
 		if axis==0:
+			dims_m[0]=1		
+			m=m.reshape(dims_m)
 			dims.pop(0)
 			return np.sum((X-m)**2,0)/np.maximum(self.N_t-k,1).reshape(dims)
 		if axis==(0,1):
+			dims_m[0:2]=1
+			m=m.reshape(dims_m)
 			return np.sum((X-m)**2,axis)/(self.NT-k)
 			
 

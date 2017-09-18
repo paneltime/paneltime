@@ -50,8 +50,8 @@ def execute_model(model, p=1, d=0, q=1, m=1, k=1,
 	               p,d,q,m,k,model.IDs_name,model.time_name,model.descr,fixed_random_eff,model.w_names,loadargs,add_intercept,h)
 	
 
-def diagnostics(panel,g,G,H,ll,robustcov_lags=100,correl_vars=None,descriptives_vars=None):
-	return main.regstats.diagnostics(panel,g,G,H,ll,robustcov_lags,correl_vars,descriptives_vars)
+def statistics(results,robustcov_lags=100,correl_vars=None,descriptives_vars=None):
+	return main.regstats.statistics(results,robustcov_lags,correl_vars,descriptives_vars)
 
 
 

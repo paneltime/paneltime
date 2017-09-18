@@ -9,6 +9,7 @@ import sys
 import os
 import csv
 from scipy import sparse as sp
+import re
 
 
 def timer(tic, a):
@@ -106,8 +107,26 @@ def clean(string,split='',cleanchrs=['\n','\t',' ']):
 	return ret
 
 def split_input(input_str):
+	
 	if input_str is None:
 		return None
+	
+	p = re.compile('\([^()]+\)')
+	if '§' in input_str or '£' in input_str  or '¤' in input_str:
+		raise RuntimeError("The charactesr §, ¤  or £ are not allowed in model string")
+	while 1:
+		matches=tuple(p.finditer(input_str))
+		if len(matches)==0:
+			break
+		for m in matches:
+			k,n=m.start(),m.end()
+			s =input_str[:k]+'¤'
+			s+=input_str[k+1:n-1].replace('+','§') + '£'
+			s+=input_str[n:]
+			input_str=s
+
+		
+
 	for s in [',','\n','+',' ']:
 		lst=input_str.split(s)
 		if len(lst)>1:
@@ -116,6 +135,9 @@ def split_input(input_str):
 	for i in lst:
 		m=clean(i)
 		if m!='':
+			m=m.replace('¤','(')
+			m=m.replace('§','+')
+			m=m.replace('£',')')
 			x.append(m)
 	return x	
 
@@ -161,9 +183,9 @@ def replace_many(string,oldtext_list,newtext):
 		string=string.replace(i,newtext)
 
 
-def savevar(variable,name='tmp',extension=''):
+def savevar(variable,name='tmp'):
 	"""takes variable and name and saves variable with filname <name>.csv """	
-	fname=obtain_fname(name,extension)
+	fname=obtain_fname('./output/'+name)
 	print ( 'saves to '+ fname)
 	if type(variable)==np.ndarray:
 		if not variable.dtype=='float64':
@@ -180,55 +202,21 @@ def savelist(variable,name):
 	writer.writerows(variable)
 	file.close()	
 
-def savevars(varlist,extension=''):
+def savevars(varlist):
 	"""takes a tuple of (var,name) pairs and saves numpy array var 
 	with <name>.csv. Use double brackets for single variable."""	
 
 	for var,name in varlist:
-		savevar(var,name,extension)
+		savevar(var,name)
 
-def obtain_fname(name,extension=''):
-	name=name.replace('\\','/')
-	wd=os.getcwd().replace('\\','/')
-	wd_arr=wd.split('/')
+def obtain_fname(name):
 
-	if not '/' in name:
-		name='output/'+name
-	d_arr=name.split('/')
-	d=[]
-	for i in d_arr:
-		if len(i)>0:
-			d.append(i)
-	if d[0]=='.':
-		d=d[1:]#ignoring single dot, as it is assumed that './'='/' 
-	if '.' in d[0]:
-		k=len(d[0].split('.'))-2
-		if k<len(wd_arr):
-			d=d[1:]
-			wd_arr=wd_arr[:-k]
-			wd='/'.join(wd_arr)	
-	else:
-		match=0
-		for i in range(len(d)-1):#matching wd with file dir
-			n=len(wd_arr)
-			for j in range(len(wd_arr)):
-				if d[i]==wd_arr[j] and match==0:
-					match=j
-				if match>0 and d[i+j-match]!=wd_arr[j]:
-					match=0
-					break
-			if match>0:
-				d=d[i+n-match:]
-				break
+	path=os.path.abspath(name)
+	path_dir=os.path.dirname(path)
+	if not os.path.exists(path_dir):
+		os.makedirs(path_dir)	
 
-	fname=d[-1]
-	if extension!='':
-		fname=fname.replace('.'+extension,'')+'.'+extension
-	d=wd+'/'+'/'.join(d[:-1])
-	if not os.path.exists(d):
-		os.makedirs(d)	
-	fname=d+'/'+fname	
-	return fname
+	return path
 
 def copy_array_dict(d):
 	r=dict()

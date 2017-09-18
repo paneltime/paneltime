@@ -14,7 +14,8 @@ import time
 def main(f):
 	t=multi_core.transact(sys.stdin, sys.stdout)
 	t.send(os.getpid())
-	modules,s_id=t.receive()
+	msg,(modules,s_id,f_node_name)=t.receive()
+	f_node=open(f_node_name,'w')
 	aliases=[]
 	for module,alias in modules:
 		if alias=='':
@@ -42,8 +43,10 @@ def main(f):
 				d[a]=vars()[a]
 			d_old=dict(d)
 			response=True
-		elif msg=='expression evaluation':
+		elif msg=='expression evaluation':	
+			sys.stdout = f_node
 			exec(obj,globals(),d)
+			sys.stdout = sys.__stdout__
 			response=release_dict(d,d_old,holdbacks)
 		elif msg=='holdbacks':
 			holdbacks=obj  
@@ -66,6 +69,7 @@ try:
 	f=open('slave_errors.txt','w')
 	main(f)
 except Exception as e:
+	write(f, 'test')
 	traceback.print_exc(file=f)
 	f.flush()
 	f.close()
