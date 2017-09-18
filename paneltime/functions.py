@@ -214,7 +214,7 @@ def obtain_fname(name):
 	path=os.path.abspath(name)
 
 	if not os.path.exists(path):
-		os.makedirs(path)	
+		os.makedirs(os.path.dirname(path))	
 
 	return path
 
