@@ -96,7 +96,7 @@ class slave():
 		self.t=transact(self.p.stdout,self.p.stdin)
 		self.p_id = self.receive()
 		self.slave_id=slave_id
-		f_node_name=fu.obtain_output_fname('/output/slaves/%s.txt' %(slave_id,))
+		f_node_name=fu.obtain_fname('/output/slaves/%s.txt' %(slave_id,))
 		self.send('init_transact',(modules,slave_id,f_node_name))
 		pass
 

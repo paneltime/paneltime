@@ -185,7 +185,7 @@ def replace_many(string,oldtext_list,newtext):
 
 def savevar(variable,name='tmp',extension=''):
 	"""takes variable and name and saves variable with filname <name>.csv """	
-	fname=obtain_output_fname(name,extension)
+	fname=obtain_fname(name,extension,True)
 	print ( 'saves to '+ fname)
 	if type(variable)==np.ndarray:
 		if not variable.dtype=='float64':
@@ -209,12 +209,12 @@ def savevars(varlist,extension=''):
 	for var,name in varlist:
 		savevar(var,name,extension)
 
-def obtain_output_fname(name,extension=''):
+def obtain_fname(name,extension='',to_output=False):
 	name=name.replace('\\','/')
 	wd=os.getcwd().replace('\\','/')
 	wd_arr=wd.split('/')
 
-	if not '/' in name:
+	if to_output and not '/' in name:
 		name='output/'+name
 	d_arr=name.split('/')
 	d=[]

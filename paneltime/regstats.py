@@ -292,7 +292,7 @@ def scatterplots(panel):
 		plt.ylabel(y_name)
 		plt.xlabel(x_names[i])
 		xname=remove_illegal_signs(x_names[i])
-		fname=fu.obtain_output_fname('figures/%s-%s.png' %(y_name,xname))
+		fname=fu.obtain_fname('figures/%s-%s.png' %(y_name,xname))
 		fgr.savefig(fname)
 		plt.close()
 		
