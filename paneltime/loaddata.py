@@ -5,7 +5,7 @@ import functions as fu
 import date_time
 
 def load(fname,sep):
-	fname=fu.obtain_fname(fname,'csv')
+	fname=fu.obtain_fname(fname)
 	heading,s=get_head_and_sep(fname,sep)
 	print ("opening file ...")
 	data=np.loadtxt(fname,delimiter=s,skiprows=1,dtype=np.str)
