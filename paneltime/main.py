@@ -128,7 +128,7 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 		constraints=results_obj.constraints
 		args=results_obj.ll.args_d
 		direction_testing=False
-		diag=regstats.statistics(results_obj,3,simple_diagnostics=True)	
+		diag=regstats.statistics(results_obj,3,simple_statistics=True)	
 		#Testing whether the highest order of each category is significant. If it is not, it is assumed
 		#the maximum order for the category is found, and the order is reduced by one.  When the maximum order
 		#is found for all categories, the loop ends

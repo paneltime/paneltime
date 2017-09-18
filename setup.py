@@ -16,10 +16,10 @@ here = path.abspath(path.dirname(__file__))
 # Get the long description from the README file
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 	long_description = f.read()
-cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
+#cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
 setup(
     name='paneltime',
-
+    #ext_modules=[cfunc],
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
@@ -65,7 +65,7 @@ setup(
     # simple. Or you can use find_packages().
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     
-    ext_modules=[cfunc],
+    
     # Alternatively, if you want to distribute just a my_module.py, uncomment
     # this:
     #   py_modules=["my_module"],
@@ -93,9 +93,11 @@ setup(
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
     #**************************************************************************REMOVED>
-    #package_data={
-    #    'sample': ['package_data.dat'],
-    #    },
+    
+    package_data={
+        '': ['cfunctions.cp35-win_amd64.pyd','cfunctions.cpython-35m-x86_64-linux-gnu.so'],
+        },
+    include_package_data=True,
     #**************************************************************************<REMOVED
     #
     # Although 'package_data' is the preferred approach, in some case you may

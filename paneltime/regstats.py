@@ -18,7 +18,7 @@ import functions as fu
 import loglikelihood as logl
 
 class statistics:
-	def __init__(self,results_obj,robustcov_lags=100,correl_vars=None,descriptives_vars=None,simple_diagnostics=False):
+	def __init__(self,results_obj,robustcov_lags=100,correl_vars=None,descriptives_vars=None,simple_statistics=False):
 		"""This class calculates, stores and prints statistics and statistics"""		
 
 		self.G=results_obj.gradient_matrix
@@ -39,7 +39,7 @@ class statistics:
 		 sign_codes)=self.coeficient_output(self.H,self.G,robustcov_lags,self.ll)
 		
 		
-		if simple_diagnostics:		
+		if simple_statistics:		
 			return	
 		self.coeficient_printout(sign_codes)
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(self.panel,self.ll,10)

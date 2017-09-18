@@ -3,8 +3,8 @@
 
 #contains the log likelihood object
 import sys
-#sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.win-amd64-3.5'))
-#sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.linux-x86_64-3.5'))
+sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.win-amd64-3.5'))
+sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.linux-x86_64-3.5'))
 import cfunctions as c
 import numpy as np
 import functions as fu
@@ -24,7 +24,6 @@ class LL:
 	"""
 	def __init__(self,args,panel,X=None):
 		
-		self.panel=panel
 		self.re_obj=re.re_obj(panel)
 		if args is None:
 			args=panel.args.args
@@ -97,10 +96,9 @@ class LL:
 		return LL
 	
 
-	def standardize(self):
+	def standardize(self,panel):
 		"""Adds X and Y and error terms after ARIMA-E-GARCH transformation and random effects to self"""
 		v_inv=self.v_inv**0.5
-		panel=self.panel
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
 		Y=fu.dot(self.AMA_1AR,panel.Y)
@@ -261,12 +259,12 @@ class direction:
 		self.I=np.diag(np.ones(panel.args.n_args))
 		
 		
-	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,user_constraints=None,numerical=False):
+	def get(self,ll,mc_limit,dx_conv,k,its,mp=None,dxi=None,print_on=True,user_constraints=None,numerical=False):
 
 		g,G=self.gradient.get(ll,return_G=True)		
 		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv,numerical)
 
-		out=output()
+		out=output(print_on)
 		self.constr=constraints(self.panel.args,self.constr)
 		reset=False
 		hessian,reset=add_constraints(G,self.panel,ll,self.constr,mc_limit,dx_conv,self.old_dx_conv,hessian,k,its,out,user_constraints)
@@ -632,11 +630,12 @@ def add_user_constraints(panel,constr,names,include,user_constraints,its,ll):
 
 
 class output:
-	def __init__(self):
+	def __init__(self,on=True):
 		self.variable=[]
 		self.set_to=[]
 		self.assco=[]
 		self.cause=[]
+		self.on=on
 
 	def add(self,variable,set_to,assco,cause):
 		if (not (variable in self.variable)) or (not (cause in self.cause)):
@@ -646,6 +645,8 @@ class output:
 			self.cause.append(cause)
 
 	def print(self):
+		if self.on==False:
+			return
 		output= "|Restricted variable |    Set to    | Associated variable|  Cause   |\n"
 		output+="|--------------------|--------------|--------------------|----------|\n"
 		if len(self.variable)==0:
@@ -656,8 +657,8 @@ class output:
 		        self.set_to[i].rjust(14)[:14],
 		        self.assco[i].ljust(20)[:20],
 		        self.cause[i].ljust(10)[:10])	
-
-		print(output)	
+		if self.on:
+			print(output)	
 
 
 class constraints:
