@@ -208,7 +208,7 @@ class statistics:
 			output_positions.append('%s~%s~%s~%s' %(i,pos,len(output[i]),len(output[i][0])))
 		output_table[0]=output_positions
 		
-		fu.savevar(output_table,'output/'+panel.descr+strappend,'csv')
+		fu.savevar(output_table,'output/'+panel.descr+strappend+'.csv')
 		
 		self.output=output
 

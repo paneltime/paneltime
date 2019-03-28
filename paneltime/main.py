@@ -155,10 +155,12 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 def mp_check(direction_testing,X):
 	N,k=X.shape
 	mp=None
-	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24):#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
+	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24) or True:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
+		modules=[['regprocs','rp']]
 		if direction_testing:
-			mp=mc.multiprocess(os.cpu_count())
+			mp=mc.multiprocess(os.cpu_count(),modules)
 		else:
-			mp=mc.multiprocess(4)
+			mp=mc.multiprocess(4,modules)
+		
 	return mp
 	

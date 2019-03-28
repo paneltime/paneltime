@@ -6,9 +6,6 @@ import os
 import multi_core
 import traceback
 import numpy as np
-import regprocs as rp
-import maximize as mx
-import loglikelihood as logl
 import time
 
 def main(f):
@@ -17,14 +14,14 @@ def main(f):
 	msg,(modules,s_id,f_node_name)=t.receive()
 	f_node=open(f_node_name,'w')
 	aliases=[]
+	d_init=dict()
 	for module,alias in modules:
 		if alias=='':
-			exec('import '+module)
-			aliases.append(module)
+			exec('import '+module,globals(),d_init)
+			aliases.append(module,globals(),d_init)
 		else:
-			exec('import '+module +' as ' + alias)
-			aliases.append(alias)
-	d_init=dict()
+			exec('import '+module +' as ' + alias,globals(),d_init)
+
 	holdbacks=[]
 	while 1:
 		(msg,obj) = t.receive()
@@ -33,35 +30,37 @@ def main(f):
 			sys.exit()
 			response=True
 		elif msg=='static dictionary':#an initial dictionary to be used in the batch will be passed
-			d_init=obj
+			d=obj
+			add_to_dict(d_init,d)
 			response=True
 		elif msg=='dynamic dictionary':#a dictionary to be used in the batch will be passed
 			d=obj
-			for i in d_init:
-				d[i]=d_init[i]
-			for a in aliases:
-				d[a]=vars()[a]
-			d_old=dict(d)
+			add_to_dict(d,d_init)
+			d_list=list(d.keys())
 			response=True
 		elif msg=='expression evaluation':	
 			sys.stdout = f_node
 			exec(obj,globals(),d)
 			sys.stdout = sys.__stdout__
-			response=release_dict(d,d_old,holdbacks)
+			response=release_dict(d,d_list,holdbacks)
 		elif msg=='holdbacks':
 			holdbacks=obj  
 			
 		t.send(response)
 		
+def add_to_dict(to_dict,from_dict):
+	for i in from_dict:
+		to_dict[i]=from_dict[i]
+		
 def write(f,txt):
 	f.write(str(txt)+'\n')
 	f.flush()
 	
-def release_dict(d,d_old,holdbacks):
+def release_dict(d,d_list,holdbacks):
 	"""Ensures that only new variables are returned"""
 	response=dict()
 	for i in d:
-		if (not i in d_old) and (not i in holdbacks):
+		if (not i in d_list) and (not i in holdbacks):
 			response[i]=d[i]	
 	return response
 
@@ -69,7 +68,6 @@ try:
 	f=open('slave_errors.txt','w')
 	main(f)
 except Exception as e:
-	write(f, 'test')
 	traceback.print_exc(file=f)
 	f.flush()
 	f.close()

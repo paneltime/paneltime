@@ -24,15 +24,22 @@ class master():
 			self.cpu_count=min((os.cpu_count(),max_nodes))
 		n=self.cpu_count
 		self.slaves=[slave(modules,i) for i in range(n)]
-		pids=[self.slaves[i].p_id for i in range(n)]
-		info=tuple([n] +pids+[os.getpid()])
-		pstr='Multi core processing enabled using %s cores. Slave PIDs: '+(n-1)*'%s, '
-		pstr=pstr+'%s. Master PID: %s'
+		pids=[]
+		for i in range(n):
+			pid=str(self.slaves[i].p_id)
+			if int(i/5.0)==i/5.0:
+				pid='\n'+pid
+			pids.append(pid)
+		info=tuple([n]+[os.getpid()] +pids)
+		pstr="""Multi core processing enabled using %s cores. \n
+		Master PID: %s \n
+		Slave PIDs: %s""" + ((n-1)*'%s, ')[:-2]
+		
 		print (pstr %info)	
 
 	def send_dict(self, d,instructions):
-		if instructions !='static dictionary' and instructions !='dynamic dictionary':
-			raise RuntimeError('Incorrect instructions passed for adding dictionary to slaves')
+		if instructions!='static dictionary':
+			instructions='dynamic dictionary'
 		for s in self.slaves:
 			s.send(instructions,d)
 			res=s.receive()
@@ -147,9 +154,9 @@ def write(f,txt):
 
 
 class multiprocess:
-	def __init__(self,max_nodes=None):
+	def __init__(self,max_nodes=None,modules=[]):
 		#self.master=master([['regprocs','rp'],['maximize','mx'],['loglikelihood','logl']])#for paralell computing
-		self.master=master([],max_nodes)#for paralell computing
+		self.master=master(modules,max_nodes)#for paralell computing
 		self.d=dict()
 		if not self.master is None:
 			self.master.send_holdbacks(['AMAp','AMAq','GARM','GARK'])

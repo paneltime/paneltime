@@ -95,7 +95,10 @@ setup(
     #**************************************************************************REMOVED>
     
     package_data={
-        '': ['cfunctions.cp35-win_amd64.pyd','cfunctions.cpython-35m-x86_64-linux-gnu.so'],
+        '': [
+		'cfunctions.cp35-win_amd64.pyd',
+		'cfunctions.cp36-win_amd64.pyd',
+		'cfunctions.cpython-35m-x86_64-linux-gnu.so'],
         },
     include_package_data=True,
     #**************************************************************************<REMOVED
