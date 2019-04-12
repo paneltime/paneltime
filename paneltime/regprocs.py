@@ -36,21 +36,35 @@ def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=Fals
 
 	#GARCH: 
 	if panel.m>0:
-		h_e_de2_zeta_xi = de2_zeta_xi * ll.h_e_val.reshape(N,T,1,1)
-		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi.reshape((N,T,m,1)) * de_zeta.reshape((N,T,1,k))
+		de_xi   = de_xi.reshape((N,T,m,1))
+		de_zeta = de_zeta.reshape((N,T,1,k))
+		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi
+		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi * de_zeta
 
-		d2lnv_zeta_xi = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
+		d2lnv_zeta_xi_h = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
 		if panel.N>1:
-			d_mu = ll.args_d['mu'] * panel.mean(d2lnv_zeta_xi,1)
-			d_mu = d_mu.reshape((N,1,m,k)) * panel.included.reshape((N,T,1,1))	
+			if ll.zmu:
+				h_e_val,h_2e_val,incl =ll.h_e_val.reshape(N,T,1,1),ll.h_2e_val.reshape(N,T,1,1),panel.included.reshape((N,T,1,1))
+				e_de2_zeta_xi   = panel.mean(h_e_val * de2_zeta_xi,1)
+				e2_dezeta_dexi  = panel.mean(de_xi*de_zeta*h_2e_val,1)					
+			else:
+				avg_e2,davg_lne2,incl =ll.avg_e2.reshape(N,1,1,1),ll.davg_lne2.reshape(N,T,1,1),panel.included.reshape((N,T,1,1))	
+				e_de2_zeta_xi   = panel.mean(davg_lne2 * de2_zeta_xi,1)
+				e2_dezeta_dexi  = 2*panel.mean(de_xi*de_zeta/avg_e2,1)
+				e2_dezeta_dexi -= panel.mean(davg_lne2*de_xi,1)*panel.mean(davg_lne2*de_zeta,1)
+
+			d2lnv_zeta_xi_e = (e_de2_zeta_xi+e2_dezeta_dexi).reshape(N,1,m,k)
+			
+			d_mu = ll.args_d['mu'] * d2lnv_zeta_xi_e  * incl
+
 		else:
 			d_mu=0
 		
 		
-		d2lnv_zeta_xi = fu.dot(ll.GAR_1MA, d2lnv_zeta_xi)
+		d2lnv_zeta_xi_h = fu.dot(ll.GAR_1MA, d2lnv_zeta_xi_h)
 		
-		d2lnv_zeta_xi = d2lnv_zeta_xi + d_mu
+		d2lnv_zeta_xi = d2lnv_zeta_xi_h + d_mu
 		
 		d2lnv_zeta_xi=np.sum(np.sum(d2lnv_zeta_xi*g.dLL_lnv.reshape((N,T,1,1)),0),0)
 	else:

@@ -5,7 +5,10 @@
 import sys
 #sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.win-amd64-3.5'))
 #sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.linux-x86_64-3.5'))
-import cfunctions as c
+try:#only using c function if installed
+	import cfunctions as c
+except ImportError as e:
+	c=None
 import numpy as np
 import functions as fu
 import regprocs as rp
@@ -30,7 +33,7 @@ class LL:
 			args=panel.args.args
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
 	
-		self.args_v=panel.args.conv_to_vector(panel,args)
+		self.args_v=panel.args.conv_to_vector(args)
 		self.args_d=panel.args.conv_to_dict(args)
 		self.h_err=""
 		self.h_def=panel.h_def
@@ -76,9 +79,23 @@ class LL:
 		W_omega=fu.dot(panel.W_a,args['omega'])
 		lnv=W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		if panel.m>0:
-			avg_h=panel.mean(h_val,1).reshape((N,1,1))*panel.a
+			if False: #using average of h function as group variance
+				avg_h=panel.mean(h_val,1).reshape((N,1,1))*panel.a
+				self.avg_lne2,self.davg_lne2,self.d2avg_lne2   = avg_h,     h_e_val,   h_2e_val
+				self.avg_e2, self.zmu                          = None,  1
+				
+			else: #using log average of e**2 function as group variance
+				avg_e2=panel.mean(e**2,1).reshape((N,1,1))
+				avg_lne2=np.log(avg_e2)*panel.a
+				#the derivatives, for later use
+				avg_e=panel.mean(e,1).reshape((N,1,1))
+				davg_lne2=(2*e/avg_e2)
+				d2avg_lne2=(2/avg_e2-4*(e*avg_e/avg_e2**2))		
+			
+				self.avg_lne2,self.davg_lne2,self.d2avg_lne2   = avg_lne2,  davg_lne2, d2avg_lne2 
+				self.avg_e2, self.zmu                          = avg_e2, 0			
 			if panel.N>1:
-				lnv=lnv+args['mu'][0]*avg_h
+				lnv=lnv+args['mu'][0]*self.avg_lne2
 			lnv=np.maximum(np.minimum(lnv,100),-100)
 		v=np.exp(lnv)*panel.a
 		v_inv=np.exp(-lnv)*panel.a	
@@ -89,30 +106,33 @@ class LL:
 		if abs(LL)>1e+100: 
 			return None
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
-		self.u,self.e,self.h_e_val,self.h_val, self.lnv_ARMA        = u,e,h_e_val,h_val, lnv_ARMA
-		self.lnv,self.avg_h,self.v,self.v_inv,self.e_RE,self.e_REsq = lnv,avg_h,v,v_inv,e_RE,e_REsq
-		self.h_2e_val,self.h_z_val,self.h_ez_val,self.h_2z_val      = h_2e_val,h_z_val,h_ez_val,h_2z_val
-		self.e_st=e_RE*v_inv
+		self.u,self.e,self.h_val, self.lnv_ARMA        = u,         e,         h_val,    lnv_ARMA
+		self.lnv,self.v,self.v_inv                     = lnv,       v,         v_inv
+		self.e_RE,self.e_REsq                          = e_RE,      e_REsq
+		self.h_z_val,self.h_ez_val,self.h_2z_val       = h_z_val,   h_ez_val,  h_2z_val
+		self.h_e_val,  self.h_2e_val                   = h_e_val,   h_2e_val
+
 		
 		return LL
 	
 
 	def standardize(self):
 		"""Adds X and Y and error terms after ARIMA-E-GARCH transformation and random effects to self"""
-		v_inv=self.v_inv**0.5
+		sd_inv=self.v_inv**0.5
 		panel=self.panel
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
 		Y=fu.dot(self.AMA_1AR,panel.Y)
-		Y=self.re_obj.RE(Y,False)*v_inv
+		Y=self.re_obj.RE(Y,False)*sd_inv
 		X=fu.dot(self.AMA_1AR,panel.X)
-		X=self.re_obj.RE(X,False)*v_inv
-		self.e_st=self.e_RE*v_inv
+		X=self.re_obj.RE(X,False)*sd_inv
+		self.e_st=self.e_RE*sd_inv
 		self.Y_st=Y
 		self.X_st=X
-		self.e_st_long=panel.de_arrayize(self.e_st,m)
-		self.Y_st_long=panel.de_arrayize(self.Y_st,m)
-		self.X_st_long=panel.de_arrayize(self.X_st,m)
+		incl=panel.included.reshape(N,T)
+		self.e_st_long=self.e_st[incl,:]
+		self.Y_st_long=self.Y_st[incl,:]
+		self.X_st_long=self.X_st[incl,:]
 
 	def copy_args_d(self):
 		return fu.copy_array_dict(self.args_d)
@@ -129,23 +149,16 @@ class LL:
 			return None
 	
 		return d['ret']	
-	
-def set_garch_arch_old(panel,args):
-
-	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
-
-	AAR=-lag_matr(-panel.I,args['rho'])
-	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)
-	if AMA_1AR is None:
-		return
-	GMA=lag_matr(panel.zero,args['psi'])	
-	GAR_1MA,GAR_1=solve_mult(-args['gamma'], GMA, panel.I)
-	if GAR_1MA is None:
-		return
-	return AMA_1,AMA_1AR,GAR_1,GAR_1MA
-
 
 def set_garch_arch(panel,args):
+	if c is None:
+		m=set_garch_arch_scipy(panel,args)
+	else:
+		m=set_garch_arch_c(panel,args)
+	return m
+		
+		
+def set_garch_arch_c(panel,args):
 	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
 	the diagonal band"""
 	n=panel.max_T
@@ -161,49 +174,21 @@ def set_garch_arch(panel,args):
 	)
 	c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA)
 	return  AMA_1,AMA_1AR,GAR_1,GAR_1MA
-			
-def add_to_matrices(X_1,X_1b,a,ab,r):
-	for i in range(0,len(a)):	
-		if i>0:
-			d=(r[i:],r[:-i])
-			X_1[d]=a[i]
-		else:
-			d=(r,r)
-		X_1b[d]=ab[i]	
-	return X_1,X_1b
 
-def solve_mult2(x_args,b_args,X_1,X_1b,b_top):
-	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
-	the diagonal band"""
-	n=len(X_1)
-	b_args=-np.insert(b_args,0,b_top)
-	q=len(x_args)
-	k=len(b_args)
-	r=np.arange(n)
 
-	
-	if True:
-		a=np.ones(n)
-		ab=np.zeros(n)
-		for i in range(n):
-			if i>0:
-				sum_ax=0
-				for j in range(min(q,i)):
-					sum_ax+=x_args[j]*a[i-j-1]
-				a[i]=-sum_ax
-			sum_ab=0
-			for j in range(min(k,i+1)):
-				sum_ab+=b_args[j]*a[i-j]
-			ab[i]=sum_ab			
-	for i in range(0,n):	
-		if i>0:
-			d=(r[i:],r[:-i])
-			X_1[d]=a[i]
-		else:
-			d=(r,r)
-		X_1b[d]=ab[i]	
-	return X_1b,X_1
-	
+def set_garch_arch_scipy(panel,args):
+
+	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
+
+	AAR=-lag_matr(-panel.I,args['rho'])
+	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)
+	if AMA_1AR is None:
+		return
+	GMA=lag_matr(panel.zero,args['psi'])	
+	GAR_1MA,GAR_1=solve_mult(-args['gamma'], GMA, panel.I)
+	if GAR_1MA is None:
+		return
+	return AMA_1,AMA_1AR,GAR_1,GAR_1MA
 	
 def solve_mult(args,b,I):
 	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
@@ -227,13 +212,16 @@ def solve_mult(args,b,I):
 
 	return X_1b,X_1
 
-def inv_banded(X,k,panel):
-	n=len(X)
-	X_b=np.zeros((k+1,n))
-	for i in range(k+1):
-		X_b[i,:n-i]=np.diag(X,-i)
-	
-	return scipy.linalg.solve_banded((k,0), X_b, panel.I)	
+
+def add_to_matrices(X_1,X_1b,a,ab,r):
+	for i in range(0,len(a)):	
+		if i>0:
+			d=(r[i:],r[:-i])
+			X_1[d]=a[i]
+		else:
+			d=(r,r)
+		X_1b[d]=ab[i]	
+	return X_1,X_1b
 
 def lag_matr(L,args):
 	k=len(args)
@@ -415,7 +403,7 @@ def remove_constants(panel,G,include,constr,out,names):
 	for i in range(1,k):
 		if v[i]==0:
 			include[i]=False
-			constr.add(i,0)
+			constr.set(i,0)
 			out.add(names[i],0,'NA','constant')	
 
 
@@ -562,7 +550,7 @@ def remove(d,assoc,set_to,include,out,constr,names,r_type):
 		a=set_to[d]
 	else:
 		a=set_to
-	constr.add(d,a,assoc=assoc)
+	constr.set(d,a,assoc=assoc)
 	if not include is None:
 		include[d]=False	
 	if not assoc is None:
@@ -576,7 +564,9 @@ def add_constraints(G,panel,ll,constr,mc_limit,dx_conv,dx_conv_old,hessian,k,its
 	args=ll.args_v
 	N,T,h=G.shape
 	include=np.ones(h,dtype=bool)
-	add_user_constraints(panel,constr,names,include,user_constraints,its,ll)
+	add_other_constraints(constr,user_constraints,ll)
+	general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
+	add_other_constraints(constr,general_constraints,ll)
 	add_initial_constraints(panel,constr,out,names,ll,include,its)
 	remove_constants(panel, G, include,constr,out,names)	
 
@@ -597,6 +587,7 @@ def add_constraints(G,panel,ll,constr,mc_limit,dx_conv,dx_conv_old,hessian,k,its
 	return hessian, reset
 
 def add_initial_constraints(panel,constr,out,names,ll,include,its):
+	""" "Removes" variables by constraining them to specific values initially """
 	args=panel.args
 	if its<-3:
 		for a in ['beta','rho','gamma','psi','lambda']:
@@ -608,27 +599,29 @@ def add_initial_constraints(panel,constr,out,names,ll,include,its):
 		for i in args.positions['beta']:
 			remove(i, None, beta[i][0], include, out, constr, names, 'initial')	
 
-def add_user_constraints(panel,constr,names,include,user_constraints,its,ll):
-	if user_constraints is None:
-		return
-	if type(user_constraints)!=list:
-		if its==1:
-			print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")
-		return
-	else:
-		if type(user_constraints[0])!=list:
-			user_constraints=[user_constraints]
-		for i in user_constraints:
-			if type(i[0])==str:
-				pos=names.index(i[0])
-			else:
-				pos=i[0]
-			if len(i)>2:
-				maximum=i[2]
-				
-			else:
-				maximum=None
-			constr.add(pos, i[1],maximum)
+def add_other_constraints(constr,constraints,ll):
+	for i in constraints:
+		add_other_constraint(constr,i,ll)
+		
+		
+def add_other_constraint(constr,constraint,ll):
+	"""Adds a user constraint\n\n
+		constraint shall be on the format (name, minimum_or_value, maximum,index)
+		where maximum and index are not required. If maximum is not supplied, minimum_or_value
+		is a binding constraint. index is  the sequence of the variable within the group given
+		by name. A constraint on the 'beta' variables at position 2 is indicated by submitting 2
+		as the index argument."""		
+	constraint=(list(constraint)+[None]*2)[:4]#in case one or both last arguments are not submitted
+	name, minimum_or_value, maximum,index=constraint
+	if ((type(minimum_or_value)==str) or (type(maximum)==str)) and ll is None:
+		return	
+	elif type(minimum_or_value)==str:
+		minimum_or_value=eval(minimum_or_value,globals(),ll.__dict__)
+	elif type(maximum)==str:
+		maximum=eval(maximum,globals(),ll.__dict__)		
+
+	constr.set_named(name, minimum_or_value,maximum,index)
+
 
 
 class output:
@@ -641,7 +634,10 @@ class output:
 	def add(self,variable,set_to,assco,cause):
 		if (not (variable in self.variable)) or (not (cause in self.cause)):
 			self.variable.append(variable)
-			self.set_to.append(str(round(set_to,8)))
+			if type(set_to)==str:
+				self.set_to.append(set_to)
+			else:
+				self.set_to.append(str(round(set_to,8)))
 			self.assco.append(assco)
 			self.cause.append(cause)
 
@@ -674,7 +670,7 @@ class constraints:
 			self.old_constr=old_constr.constraints
 
 
-	def add(self,positions, minimum_or_value,maximum=None,replace=True,assoc=None):
+	def set(self,positions, minimum_or_value,maximum=None,replace=True,assoc=None):
 		"""Adds a constraint. 'positions' is either an integer or an iterable of integer specifying the position(s) 
 		for which the constraints shall apply. If 'positions' is a string, it is assumed to be the name of a category \n\n
 
@@ -701,7 +697,14 @@ class constraints:
 			if not category in self.categories:
 				self.categories.append(category)
 
-
+	def set_named(self,name,minimum_or_value,maximum=None,index=None):
+		if index is None:
+			positions=self.args.positions[name]
+		else:
+			positions=self.args.positions[name][index]
+		self.set(positions, minimum_or_value,maximum)
+		return
+		
 	def constraints_to_arrays(self):
 		c=[]
 		c_eq=[]
@@ -711,11 +714,6 @@ class constraints:
 			else:
 				c.append(self.constraints[i]+[i])
 		return c,c_eq
-
-	def remove(self):
-		"""Removes arbitrary constraint"""
-		k=list(self.constraints.keys())[0]
-		self.constraints.pop(k)
 
 
 

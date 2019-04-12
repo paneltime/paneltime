@@ -109,9 +109,9 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 	if 'ones' in dataframe.keys():
 		print ("Warning: variable 'ones' is replaced by a constant vector of ones. Do not give any variable this name if you want to avoid this.")
 	dataframe['ones']=np.ones((n,1))
-	fu.exec_strip(transforms,globals(),dataframe)	
+	exec(transforms,globals(),dataframe)	
 	n=filter_data(filters, dataframe,n)
-	fu.exec_strip(transforms,globals(),dataframe)
+	exec(transforms,globals(),dataframe)
 	for i in list(dataframe.keys()):
 		if callable(dataframe[i]):
 			dataframe.pop(i)		
@@ -268,14 +268,9 @@ def dim_check(V,arg_name,v_names=None,dict_check=False):
 	return v_names
 
 
-def check_sign(panel,sign,category,old_lim,constraints,sign_level,min_level=0):
+def check_sign(panel,sign,category,old_lim,sign_level,min_level=0):
 	"Checks whether the higest order of category is significant. If it is not, lim is set to True"
 	sign=sign[panel.args.positions[category]]
-	if category in constraints.categories:
-		j=len(sign)
-		if has_same_cat_assoc(constraints, panel, category):
-			j=j-1
-		return j,True
 	if old_lim:
 		return len(sign),True
 	lim=False
@@ -286,11 +281,3 @@ def check_sign(panel,sign,category,old_lim,constraints,sign_level,min_level=0):
 		j=len(sign)+1
 	return j,lim
 
-def has_same_cat_assoc(constraints,panel,category):
-	for i in constraints.constraints:
-		check_cat=panel.args.map_to_categories[i]
-		if check_cat==category and i in constraints.associates:
-			assoc_cat=panel.args.map_to_categories[constraints.associates[i]]
-			if assoc_cat==check_cat:
-				return True	
-	return False

@@ -130,14 +130,6 @@ class panel:
 		return True
 
 
-
-	def de_arrayize(self,X,init_obs):
-		"""X is N x T x k"""
-		(N,T,k)=X.shape
-		x_arr=[X[i,init_obs:self.T_arr[i][0]] for i in range(N)]
-		ret=np.concatenate(x_arr,0)
-		return ret	
-
 	def arrayize(self,X,Y,W,IDs):
 		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs,
 		and returns the matrix arrays and their row number"""
@@ -161,6 +153,7 @@ class panel:
 			Warr=[]
 			k=0
 			T_used=[]
+			idremoved=[]
 			for i in sel:
 				obs_count=np.sum(i)
 				if obs_count>self.lost_obs+5:
@@ -169,8 +162,11 @@ class panel:
 					Yarr.append(rp.fillmatr(Y[i],max_T))
 					Warr.append(rp.fillmatr(W[i],max_T))
 				else:
-					print("Warning: ID %s removed because of too few observations" %(k))
+					idremoved.append(k)
 				k+=1
+			if len(idremoved):
+				s=fu.formatarray(idremoved,90,', ')
+				print("Warning: The following ID's were removed because of insufficient observations:\n %s" %(s))
 			T=np.array(T_used)
 			N=len(T)
 		return np.array(Xarr),np.array(Yarr),np.array(Warr),max_T,T.reshape((N,1)),N
@@ -179,45 +175,17 @@ class panel:
 		global h
 		if h_definition is None:
 			h_definition="""
-	def h(e,z):
-		ez2=e**2+z**2+1e-15
-		h_val		=	 np.log(ez2)	
-		h_e_val		=	 2*e/ez2
-		h_2e_val	=	 2*(z**2-e**2)/(ez2**2)
-		h_z_val		=	 2*z/ez2
-		h_2z_val	=	2*(e**2-z**2)/(ez2**2)
-		h_ez_val	=	-4*e*z/ez2**2
-		return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
+def h(e,z):
+	ez2=e**2+z**2+1e-15
+	h_val		=	 np.log(ez2)	
+	h_e_val		=	 2*e/ez2
+	h_2e_val	=	 2*(z**2-e**2)/(ez2**2)
+	h_z_val		=	 2*z/ez2
+	h_2z_val	=	2*(e**2-z**2)/(ez2**2)
+	h_ez_val	=	-4*e*z/ez2**2
+	return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
 	"""	
-		n=h_definition.find('def h(e,z)')
-		for i in ['h(e,z)']:
-			n=h_definition.find(i)
-		
-		h_definition=h_definition.replace('\t','    ')
-		h_list=h_definition.split('\n')
-		k=len(h_list)
-		for i in range(k):
-			n=h_list[i].find('def h(')
-			if n>0:
-				h_list[i]=h_list[i][:n+5]+h_list[i][n+5:].replace(' ','')
-				n=h_list[i].find('def h(e,z)')
-			if n>-1:
-				break
-		if n<0:
-			raise RuntimeError('The h-function must be defined as  "def h(e,z)..."')
-		for i in range(len(h_list)):
-			h_list[i]=h_list[i][n:]
-		h_definition='\n'.join(h_list)
-		try:
-			exec(h_definition)
-		except IndentationError:
-			raise RuntimeError("""IndentationError in your custom h-function: 
-		    You might have a mix of spaces and tabs. 
-		    Space indentation only is recommended. 
-		    Tab-size four is assumed""")
-		s='ret=h(e,z)'
-		s='\n\n'+s
-		self.h_def=h_definition+s
+		self.h_def=h_definition+'\nret=h(e,z)'
 		
 	def mean(self,X,axis=None):
 		dims=list(X.shape)
@@ -265,21 +233,26 @@ class arguments:
 	def __init__(self,p, d, q, m, k, panel, args,has_intercept,user_constraints):
 		self.categories=['beta','rho','lambda','gamma','psi','omega','mu','z']
 		self.args_old=args
+		self.panel=panel
 		self.set_init_args(p, d, q, m, k,panel,has_intercept,user_constraints)
 		self.make_namevector(panel,p, q, m, k)
 		self.position_defs()
 		N,T,b=panel.X.shape
 		self.n_args=b+p+q+m+k+(m>0)*2+panel.W.shape[2]-(N==1)
-		self.apply_user_constraints(panel, user_constraints)
+		#self.apply_user_constraints(panel, user_constraints)
 
 	def initargs(self,p,d,q,m,k,panel):
+		if self.args_old is None:
+			armacoefs=0
+		else:
+			armacoefs=0
 		args=dict()
 		args['beta']=np.zeros((panel.X.shape[2],1))
 		args['omega']=np.zeros((panel.W.shape[2],1))
-		args['rho']=np.zeros(p)
-		args['lambda']=np.zeros(q)
-		args['psi']=np.zeros(m)
-		args['gamma']=np.zeros(k)
+		args['rho']=np.ones(p)*armacoefs
+		args['lambda']=np.ones(q)*armacoefs
+		args['psi']=np.ones(m)*armacoefs
+		args['gamma']=np.ones(k)*armacoefs
 		args['mu']=np.array([])
 		args['z']=np.array([])	
 		if m>0 and panel.N>1:
@@ -301,7 +274,7 @@ class arguments:
 		args['omega'][0][0]=np.log(np.var(e*panel.included)*len(e[0])/np.sum(panel.included))
 		if m>0:
 			if panel.N>1:
-				args['mu']=np.array([0.0])
+				args['mu']=np.array([1.0])
 			args['z']=np.array([1.0])	
 		self.args_start=fu.copy_array_dict(args)
 		if not self.args_old is None: 
@@ -356,23 +329,26 @@ class arguments:
 		return d
 
 
-	def conv_to_vector(self,panel,args):
-		"""Converts a dict argument args to vector argument. if args is a vector, it is returned unchanged"""
-		if type(args)==dict:
-			v=np.array([])
-			for i in self.categories:
-				s=args[i]
-				if type(s)==np.ndarray:
-					s=s.flatten()
-
-				v=np.concatenate((v,s))
-			return v
-		else:
+	def conv_to_vector(self,args=None):
+		"""Converts a dict argument args to vector argument. if args is a vector, it is returned unchanged.\n
+		If args=None, the vector of self.args is returned"""
+		if type(args)==list or type(args)==np.ndarray:
 			return args
+		if args is None:
+			args=self.args
+		v=np.array([])
+		for i in self.categories:
+			s=args[i]
+			if type(s)==np.ndarray:
+				s=s.flatten()
+			v=np.concatenate((v,s))
+		return v
 
 
 	def make_namevector(self,panel,p, q, m, k):
-		"""Creates a vector of the names of all regression varaibles, including variables, ARIMA and GARCH terms"""
+		"""Creates a vector of the names of all regression varaibles, 
+		including variables, ARIMA and GARCH terms. This defines the positions
+		of the variables througout the estimation."""
 		d=dict()
 		names=panel.x_names[:]#copy variable names
 		d['beta']=names
@@ -394,28 +370,28 @@ class arguments:
 		self.names_d=d
 		
 	def apply_user_constraints(self,panel,user_constraints):
-		if user_constraints is None:
+		"""Applies binding constraints to arguments\n\n
+		user_constraints shall be on the format (name, minimum_or_value, maximum,index)
+		where maximum and index are not required. If maximum is not supplied, minimum_or_value
+		is a binding constraint. index is  the sequence of the variable within the group given
+		by name. A constraint on the 'beta' variables at position 2 is indicated by submitting 2
+		as the index argument."""
+		if len(user_constraints)==0:
 			return	
-		if type(user_constraints)!=list:
-			print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
 		names_v=self.names_v
 		names_d=self.names_d
-		if type(user_constraints[0])!=list:
-			user_constraints=[user_constraints]	
 		for i in user_constraints:
-			if len(i)==2:
-				if type(i[0])!=str:
-					name=names[i[0]]
-				else:
-					name=i[0]
-			for c in self.categories:
-				if name in names_d[c]:
-					j=names_d[c].index(name)
-					self.args_start[c][j]=i[1]
-					self.args[c][j]=i[1]
-					self.args_restricted[c][j]=i[1]
-					self.args_OLS[c][j]=i[1]
-					break
+			i=(list(i)+[None]*2)[:4]#in case one or both last arguments are not submitted
+			name, minimum_or_value, maximum,index=i
+			if (not maximum is None) or type(minimum_or_value)==str: #non-binding constraint
+				return
+			if index is None:
+				index=list(range(len(names_d[name])))				
+			self.args_start[name][index]=minimum_or_value
+			self.args[name][index]=minimum_or_value
+			self.args_restricted[name][index]=minimum_or_value
+			self.args_OLS[name][index]=minimum_or_value
+
 			
 
 			

@@ -148,8 +148,10 @@ def goodness_of_fit(panel,ll):
 		LL_ratio_OLS=None
 	LL_args_restricted=logl.LL(panel.args.args_restricted,panel)
 	if not LL_args_restricted is None:
-		LL_args_restricted=LL_args_restricted.LL
-		LL_ratio=2*(ll.LL-LL_args_restricted)
+		if not LL_args_restricted.LL is None:
+			LL_ratio=2*(ll.LL-LL_args_restricted.LL)
+		else:
+			LL_ratio=None
 	else:
 		LL_ratio=None
 	return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS
@@ -216,7 +218,8 @@ def JB_normality_test(e,panel):
 	S=mu3/s**3
 	C=mu4/s**4
 	JB=df*((S**2)+0.25*(C-3)**2)/6.0
-	return 1.0-chisq_dist(JB,2)
+	p=1.0-chisq_dist(JB,2)
+	return p
 
 
 def correl(X,panel=None):

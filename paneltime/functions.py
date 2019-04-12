@@ -150,33 +150,10 @@ def clean_str(s,cleanchrs,split=''):
 	return s
 
 
-def exec_strip(exestr,glob,loc):
-	"""Identical to exec, except leading spaces/tabs are stripped in order to avoid indentation error"""
-	if exestr is None:
-		return
-	lines=exestr.split('\n')
-	if len(lines)==1:
-		exec(exestr, glob, loc)
-	k=len(exestr)
-	i=0
-	while i<len(lines):
-		s=lines[i]
-		if len(s.lstrip())>0:
-			k=min((s.find(s.lstrip()),k))
-			i+=1
-		else:
-			lines.pop(i)
-
-	if k==0 or k==len(exestr):
-		exec(exestr, glob, loc)
-	r=''
-	for s in lines:
-		if lines[0][:k]!=s[:k]:
-			raise RuntimeError("It appears that the indentation is not uniform for the string. It must either be tabs only or spaces only")
-	for s in lines:
-		r=r+s[k:]+'\n'
-	exec(r, glob, loc)
-
+def formatarray(array,linelen,sep):
+	s=sep.join([str(i) for i in array])
+	s='\n'.join(s[n:n + linelen] for n in range(0, len(s), linelen))	
+	return s
 
 def replace_many(string,oldtext_list,newtext):
 	for i in oldtext_list:

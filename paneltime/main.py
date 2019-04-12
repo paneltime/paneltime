@@ -43,27 +43,46 @@ class results:
 
 
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
-            descr="project_1",
+            descr=None,
             fixed_random_eff=2, w_names=None, loadargs=1,direction_testing=True,add_intercept=True,
-            h=None,user_constraints=None
+            h=None,user_constraints=[]
             ):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 
-	if direction_testing and loadargs:
-		direction_testing=False
-		
-	X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
-	
-	mp=mp_check(direction_testing, X)
-		
-	args_archive=tempstore.args_archive(model_string+descr, loadargs)
+	(direction_testing,
+	 X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept,
+	 mp,descr,args_archive, args,user_constraints)=setvars(direction_testing,loadargs,dataframe,model_string,
+	                                      IDs_name,w_names,add_intercept,time_name,descr,user_constraints)
 	if loadargs==2:
 		p,q,m,k=get_args_lags(args_archive.args, loadargs)
+
 	results_obj=results(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
 	                                            fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
-	                                            args_archive,model_string,user_constraints,direction_testing,args_archive.args,mp)
+	                                            args_archive,model_string,user_constraints,direction_testing,args,mp)
 	return results_obj
+	
+def setvars(direction_testing,loadargs,dataframe,model_string,IDs_name,w_names,add_intercept,time_name,descr,user_constraints):
+	if direction_testing and loadargs:
+		direction_testing=False
+	t=type(user_constraints)
+	if t!=list and t!=tuple:
+		print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
+		
+	
+	X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
+
+	mp=mp_check(direction_testing, X)
+	if descr==None:
+		descr=model_string[:50]
+	args_archive=tempstore.args_archive(descr, loadargs)
+
+	args=args_archive.args
+	
+	return (direction_testing,
+	 X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept,
+	 mp,descr,args_archive,args,user_constraints)
+	
 	
 class results:
 	def __init__(self,p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
@@ -104,21 +123,20 @@ def get_args_lags(args,loadargs):
 
 	
 def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
-            descr="project_1",
+            descr=None,
             fixed_random_eff=2, w_names=None, loadargs=True,direction_testing=True,add_intercept=True,
-            h=None,user_constraints=None
+            h=None,user_constraints=[]
             ):
-	if direction_testing and loadargs:
-		direction_testing=False
-		
-	X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
-	mp=mp_check(direction_testing, X)
-		
-	args_archive=tempstore.args_archive(model_string+descr, loadargs)
+	"""Same as execute, except iterates over ARIMA and GARCH coefficients to find best match"""
 	
-	p,q,m,k=get_args_lags(args_archive.args, loadargs)
+	(direction_testing,
+	 X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept,
+	 mp,descr,args_archive, args,user_constraints)=setvars(direction_testing,loadargs,dataframe,model_string,
+	                                      IDs_name,w_names,add_intercept,time_name,descr,user_constraints)
+
+	p,q,m,k=get_args_lags(args_archive.args, loadargs)	
 	p_lim,q_lim,m_lim,k_lim=False,False,False,False
-	args=args_archive.args
+
 	while True:
 		results_obj=results(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
 	                                            fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
@@ -132,10 +150,10 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 		#Testing whether the highest order of each category is significant. If it is not, it is assumed
 		#the maximum order for the category is found, and the order is reduced by one.  When the maximum order
 		#is found for all categories, the loop ends
-		p,p_lim=model_parser.check_sign(panel,diag.tsign,'rho',		p_lim,constraints,process_sign_level)
-		q,q_lim=model_parser.check_sign(panel,diag.tsign,'lambda',	q_lim,constraints,process_sign_level)
-		m,m_lim=model_parser.check_sign(panel,diag.tsign,'psi',		m_lim,constraints,process_sign_level,1)
-		k,k_lim=model_parser.check_sign(panel,diag.tsign,'gamma',	k_lim,constraints,process_sign_level,1)
+		p,p_lim=model_parser.check_sign(panel,diag.tsign,'rho',		p_lim,process_sign_level)
+		q,q_lim=model_parser.check_sign(panel,diag.tsign,'lambda',	q_lim,process_sign_level)
+		m,m_lim=model_parser.check_sign(panel,diag.tsign,'psi',		m_lim,process_sign_level,1)
+		k,k_lim=model_parser.check_sign(panel,diag.tsign,'gamma',	k_lim,process_sign_level,1)
 		loadargs=True
 		if p_lim and q_lim and m_lim and k_lim:
 			break
@@ -158,7 +176,7 @@ def mp_check(direction_testing,X):
 	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24) or True:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
 		modules=[['regprocs','rp']]
 		if direction_testing:
-			mp=mc.multiprocess(os.cpu_count(),modules)
+			mp=mc.multiprocess(os.cpu_count(),modules,holdbacks=['AMAp','AMAq','GARM','GARK'])
 		else:
 			mp=mc.multiprocess(4,modules)
 		

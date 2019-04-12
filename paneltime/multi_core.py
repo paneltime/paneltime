@@ -6,8 +6,7 @@ import sys
 import subprocess
 import struct
 import pickle
-import time
-import functions as fu
+import datetime
 from queue import Queue
 from threading import Thread
 
@@ -15,29 +14,30 @@ from threading import Thread
 
 class master():
 	"""creates the slaves"""
-	def __init__(self,modules,max_nodes):
+	def __init__(self,modules,max_nodes, holdbacks):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
 		if max_nodes is None:
 			self.cpu_count=os.cpu_count()#assignment to self allows for the possibility to manipulate the count
 		else:
-			self.cpu_count=min((os.cpu_count(),max_nodes))
+			self.cpu_count=max_nodes
 		n=self.cpu_count
-		self.slaves=[slave(modules,i) for i in range(n)]
+		fpath=obtain_fname('./output/')
+		self.slaves=[slave(modules,i,fpath) for i in range(n)]
 		pids=[]
 		for i in range(n):
 			pid=str(self.slaves[i].p_id)
 			if int(i/5.0)==i/5.0:
 				pid='\n'+pid
 			pids.append(pid)
-		info=tuple([n]+[os.getpid()] +pids)
+		self.send_holdbacks(holdbacks)
 		pstr="""Multi core processing enabled using %s cores. \n
-		Master PID: %s \n
-		Slave PIDs: %s""" + ((n-1)*'%s, ')[:-2]
-		
-		print (pstr %info)	
+Master PID: %s \n
+Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
+		print (pstr)
 
-	def send_dict(self, d,instructions):
+	def send_dict(self, d,instructions='dynamic dictionary'):
+		#todo: disable static dictionary
 		if instructions!='static dictionary':
 			instructions='dynamic dictionary'
 		for s in self.slaves:
@@ -46,6 +46,8 @@ class master():
 
 	def send_holdbacks(self, key_arr):
 		"""Sends a list with keys to variables that are not to be returned by the slaves"""
+		if key_arr is None:
+			return
 		for s in self.slaves:
 			s.send('holdbacks',key_arr)
 			res=s.receive()
@@ -94,7 +96,7 @@ class slave():
 	command = [sys.executable, "-u", "-m", "slave.py"]
 
 
-	def __init__(self,modules,slave_id):
+	def __init__(self,modules,slave_id,fpath):
 		"""Starts local worker"""
 		cwdr=os.getcwd()
 		os.chdir(__file__.replace(__name__+'.py',''))
@@ -103,8 +105,7 @@ class slave():
 		self.t=transact(self.p.stdout,self.p.stdin)
 		self.p_id = self.receive()
 		self.slave_id=slave_id
-		f_node_name=fu.obtain_fname('./output/slaves/%s.txt' %(slave_id,))
-		self.send('init_transact',(modules,slave_id,f_node_name))
+		self.send('init_transact',(modules,slave_id,fpath))
 		pass
 
 	def send(self,msg,obj):
@@ -146,7 +147,15 @@ class transact():
 	def receive(self):
 		r=getattr(self.r,'buffer',self.r)
 		u= pickle.Unpickler(r)
-		return u.load()
+		try:
+			return u.load()
+		except EOFError as e:
+			if e.args[0]=='Ran out of input':
+				raise RuntimeError("""An error occured in one of the spawned sub-processes. 
+Check the output in "slave_errors.txt' in your working directory or 
+run without multiprocessing\n %s""" %(datetime.datetime.now()))
+			else:
+				raise RuntimeError('EOFError:'+e.args[0])
 
 def write(f,txt):
 	f.write(str(txt)+'\n')
@@ -154,17 +163,20 @@ def write(f,txt):
 
 
 class multiprocess:
-	def __init__(self,max_nodes=None,modules=[]):
-		#self.master=master([['regprocs','rp'],['maximize','mx'],['loglikelihood','logl']])#for paralell computing
-		self.master=master(modules,max_nodes)#for paralell computing
+	def __init__(self,max_nodes=None,modules=[],run_multiprocess=True,holdbacks=None):
 		self.d=dict()
-		if not self.master is None:
-			self.master.send_holdbacks(['AMAp','AMAq','GARM','GARK'])
+		self.run_multiprocess=run_multiprocess
+		if run_multiprocess:
+			self.master=master(modules,max_nodes,holdbacks)#for paralell computing
+
+		else:
+			self.master=None
+
 
 	def execute(self,expr,run_mp=True):
 		"""For submitting multiple functionsargs is an array of argument arrays where the first element in each 
 		argument array is the function to be evaluated"""
-		if not run_mp:#For debugging purposes
+		if not run_mp or (not self.run_multiprocess):#For debugging purposes
 			for i in expr:
 				exec(i,None,self.d)#the first element in i is the function, the rest are arguments
 		else:
@@ -183,7 +195,7 @@ class multiprocess:
 		res=[]
 		return self.d
 
-	def send_dict(self,d,instructions):
+	def send_dict(self,d,instructions='dynamic_dictionary'):
 		for i in d:
 			self.d[i]=d[i]
 		if str(type(self.master))=="<class 'multi_core.master'>":
@@ -209,3 +221,13 @@ def format_args(x,run_mp):
 			newx.append(j[n:])
 	newx='\n'.join(newx)
 	return newx
+
+
+def obtain_fname(name):
+
+	path=os.path.abspath(name)
+	path_dir=os.path.dirname(path)
+	if not os.path.exists(path_dir):
+		os.makedirs(path_dir)	
+
+	return path

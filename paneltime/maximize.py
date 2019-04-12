@@ -96,7 +96,7 @@ def maximize(panel,direction,mp,direction_testing,args_archive,args=None,_print=
 		f0=ll
 		LL0=round_sign(ll.LL,digits_precision)
 		dx_conv=(ll.args_v!=0)*np.abs(dx)*(constrained==0)/(np.abs(ll.args_v)+(ll.args_v==0))
-		dx_conv=(ll.args_v==0)*dx+dx_conv
+		dx_conv=(ll.args_v<1e-2)*np.abs(dx)+(ll.args_v>=1e-2)*dx_conv
 		printout(_print, ll, dx_conv,panel,its)
 		#Convergence test:
 		if np.max(dx_conv) < convergence_limit and (its>3 or  np.sum(constrained)<=2):  #max direction smaller than convergence_limit -> covergence

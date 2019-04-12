@@ -20,7 +20,7 @@ import functions as fu
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
             descr="project_1",
             fixed_random_eff=2, w_names=None, loadargs=True,direction_testing=True,add_intercept=True,
-            h=None,user_constraints=None
+            h=None,user_constraints=[('z',1e-15,'10*np.max(u)')]
             ):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
@@ -34,12 +34,12 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
             descr="project_1",
             fixed_random_eff=2, w_names=None, loadargs=True,direction_testing=True,add_intercept=True,
-            h=None,user_constraints=None
+            h=None,user_constraints=[]
             ):
 	return main.autofit(dataframe, model_string, d,process_sign_level, IDs_name, time_name,
 		               descr,
 		               fixed_random_eff, w_names, loadargs,direction_testing,add_intercept,
-		               h,user_constraints
+		               h,user_constraints=[('z',1e-15,'10*np.max(u)')]
 		               )	
 	
 def execute_model(model, p=1, d=0, q=1, m=1, k=1, 
