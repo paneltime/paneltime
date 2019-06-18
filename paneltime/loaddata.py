@@ -68,7 +68,7 @@ def make_numeric(a,name,r):
 		d=np.unique(a)
 		dt,is_datetime=extract_date_time(d)
 		if is_datetime:
-			print ("""Converting categorical variable %s to days since 2000 ...""" %(name,))
+			print ("""Converting categorical variable %s to days since 1900 ...""" %(name,))
 			d=dict(zip(d, dt.flatten()))
 		else:
 			print ("""Converting categorical variable %s to integers ...""" %(name,))
@@ -96,7 +96,7 @@ def extract_date_time(d):
 			return d,False#Abort if both time and date parsing fails
 	hours,minutes,seconds=analyze_time(r)
 	years,days,months=analyze_date(r)
-	days_since=date_time.days_since(years,months,days,hours,minutes,seconds,2000)
+	days_since=date_time.days_since(years,months,days,hours,minutes,seconds,1900)
 	return days_since,True
 
 def analyze_time(r):

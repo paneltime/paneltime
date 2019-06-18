@@ -50,9 +50,9 @@ def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=Fals
 				e2_dezeta_dexi  = panel.mean(de_xi*de_zeta*h_2e_val,1)					
 			else:
 				avg_e2,davg_lne2,incl =ll.avg_e2.reshape(N,1,1,1),ll.davg_lne2.reshape(N,T,1,1),panel.included.reshape((N,T,1,1))	
-				e_de2_zeta_xi   = panel.mean(davg_lne2 * de2_zeta_xi,1)
-				e2_dezeta_dexi  = 2*panel.mean(de_xi*de_zeta/avg_e2,1)
-				e2_dezeta_dexi -= panel.mean(davg_lne2*de_xi,1)*panel.mean(davg_lne2*de_zeta,1)
+				e_de2_zeta_xi   = panel.group_var_wght*panel.mean(davg_lne2 * de2_zeta_xi,1)
+				e2_dezeta_dexi  = panel.group_var_wght*2*panel.mean(de_xi*de_zeta/avg_e2,1)
+				e2_dezeta_dexi -= panel.group_var_wght*panel.mean(davg_lne2*de_xi,1)*panel.mean(davg_lne2*de_zeta,1)
 
 			d2lnv_zeta_xi_e = (e_de2_zeta_xi+e2_dezeta_dexi).reshape(N,1,m,k)
 			
@@ -89,7 +89,7 @@ def dd_func_lags(panel,ll,L,d,dLL,addavg=0, transpose=False):
 			x=x+np.swapaxes(x,2,3)#adds the transpose
 	elif len(L.shape)==2:
 		x=fu.dot(L,d).reshape(N,T,1,m)
-	if addavg:
+	if addavg:#for mu
 		addavg=(addavg*panel.mean(d,1)).reshape(N,1,1,m)
 		x=x+addavg
 	dLL=dLL.reshape((N,T,1,1))
@@ -124,12 +124,6 @@ def prod(iterable,ignore=False):
 			if not ignore:
 				return None
 	return x
-
-def fillmatr(X,max_T):
-	k=len(X[0])
-	z=np.zeros((max_T-len(X),k))
-	X=np.concatenate((X,z),0)
-	return X
 
 def concat_matrix(block_matrix):
 	m=[]

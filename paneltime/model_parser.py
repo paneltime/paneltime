@@ -45,16 +45,17 @@ def get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_nam
 	
 	sort(dataframe,time_name,IDs_name)
 	y_name,x_names=parse_model(model_string)
+	timevar,time_name,void=check_var(dataframe,time_name,'time_name')
 	IDs,IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
 	dataframe['L']=lag_object(IDs).lag#allowing for lag operator in model input
-	W,w_names,void=check_var(dataframe,w_names,'w_names',intercept_name='log variance (constant)',raise_error=False,intercept_variable=True)
+	W,w_names,void=check_var(dataframe,w_names,'w_names',intercept_name='log variance constant',raise_error=False,intercept_variable=True)
 	intercept_name=None
 	if add_intercept:
 		intercept_name='Intercept'
 	X,x_names,has_intercept=check_var(dataframe,x_names,'x_names',intercept_name=intercept_name,raise_error=True,intercept_variable=True)
 	Y,y_names,void=check_var(dataframe,y_name,'y_name',raise_error=True)
 	
-	return X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept
+	return X,x_names,Y,y_name,IDs,IDs_name,timevar,time_name,W,w_names,has_intercept
 
 class lag_object:
 
@@ -268,16 +269,23 @@ def dim_check(V,arg_name,v_names=None,dict_check=False):
 	return v_names
 
 
-def check_sign(panel,sign,category,old_lim,sign_level,min_level=0):
+def check_sign(results,stats,category,oldp,fixed,maxp=1000,sign_level=0.05):
 	"Checks whether the higest order of category is significant. If it is not, lim is set to True"
-	sign=sign[panel.args.positions[category]]
-	if old_lim:
-		return len(sign),True
-	lim=False
-	if sign[-1]>sign_level:
-		lim=True
-		j=max((len(sign)-1,min_level))
-	else:
-		j=len(sign)+1
-	return j,lim
+	sign=stats.output.tsign[results.panel.args.positions[category]]
+	if len(sign)==0:
+		return 1,fixed
+	members=results.panel.args.map_from_categories[category]
+	a=list(results.constraints.fixed)
+	b=list(results.constraints.associates)
+	c=np.unique(a+b)
+	n=len(sign)
+	sign=sign[::-1]
+	for i in range(n):
+		constrained=np.any([j in c for j in members])
+		if np.all(sign[i:])<sign_level and not constrained:
+			if n-i<oldp or n-i+1>maxp:
+				return n-i,True
+			else:
+				return n-i+1,False
+	return 1,fixed
 

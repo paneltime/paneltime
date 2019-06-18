@@ -14,17 +14,19 @@ max_sessions=20
 class args_archive:
 
 	def __init__(self,model_string,loadargs):
-		"""Load parameters if a similar model has been estimated before"""  
+		"""Loads parameters if a similar model has been estimated before. Stored parameters are accessed by
+		creating an instance of this class"""  
+		
 		self.model_key=model_string# possibility for determening model based on data: get_model_key(X, Y, W)
 		self.session_db=load_obj()
 		if (not loadargs) or (self.session_db is None):
-			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=(None,0,None,None)
+			(self.args,self.conv,self.arimagarch,self.not_in_use2)=(None,0,(0,0,0,0,0),None)
 			return
 		(d,a)=self.session_db
 		if self.model_key in d.keys():
-			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=d[self.model_key]
+			(self.args,self.conv,self.arimagarch,self.not_in_use2)=d[self.model_key]
 		else:
-			(self.args,self.conv,self.not_in_use1,self.not_in_use2)=(None,0,None,None)
+			(self.args,self.conv,self.arimagarch,self.not_in_use2)=(None,0,(0,0,0,0,0),None)
 
 	def load(self):#for debugging
 		session_db=load_obj()
@@ -34,7 +36,7 @@ class args_archive:
 		else:
 			return (None,0,None,None)		
 
-	def save(self,args,conv,not_in_use1=None,not_in_use2=None):
+	def save(self,args,conv,arimagarch,not_in_use2=None):
 		"""Saves the estimated parameters for later use"""
 		f=open(fname, "w+b")
 		if not self.session_db is None:
@@ -44,7 +46,7 @@ class args_archive:
 		else:
 			d=dict()
 			a=[]
-		d[self.model_key]=(args,conv,not_in_use1,not_in_use2)
+		d[self.model_key]=(args,conv,arimagarch,not_in_use2)
 		if self.model_key in a:
 			a.remove(self.model_key)
 		a.append(self.model_key)		

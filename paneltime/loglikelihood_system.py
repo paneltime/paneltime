@@ -20,15 +20,12 @@ import scipy
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and creates an object
 	that store dynamic variables that depend on the \n
-	If args is a dictionary, the ARMA-GARCH orders are 
-	determined from the dictionary. If args is a vector, the ARMA-GARCH order needs to be consistent
-	with the  panel object
+	
 	"""
-	def __init__(self,args,panel,X=None,constraints=None):
+	def __init__(self,argss,panels,Xs=None,constraintss=None):
 		self.errmsg=''
 		self.errmsg_h=''
-		self.panel=panel
-		self.re_obj=re.re_obj(panel)
+
 		if args is None:
 			args=panel.args.args
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
@@ -51,11 +48,31 @@ class LL:
 		if not self.LL is None:
 			if np.isnan(self.LL):
 				self.LL=None
+				
+	def calc_LL(self):
 		
-		
+		LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+				
+				
+class calc:
+	"""Calculates variables neccesary for calculating the log likelihood"""
+	def __init__(self,args,panel,X=None,constraints=None):
+
+		self.panel=panel
+		self.re_obj=re.re_obj(panel)
+		if args is None:
+			args=panel.args.args
+		self.args_v=panel.args.conv_to_vector(args)
+		if not constraints is None:
+			constraints.within(self.args_v,True)	
+			constraints.set_fixed(self.args_v)
+		self.args_d=panel.args.conv_to_dict(self.args_v)
+		self.h_err=""
+		self.h_def=panel.h_def
+		self.calc(panel, X)
 
 
-	def LL_calc(self,panel,X=None):
+	def calc(self,panel,X):
 		args=self.args_d#using dictionary arguments
 		if X is None:
 			X=panel.X
@@ -78,7 +95,7 @@ class LL:
 		v_inv = np.exp(-lnv)*panel.a	
 		e_RE = self.re_obj.RE(e)
 		e_REsq = e_RE**2
-		LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+		
 		
 		if abs(LL)>1e+100: 
 			return None

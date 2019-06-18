@@ -85,58 +85,91 @@ def hess_debug_detail(f0,panel,g,H,d,varname1,varname2,pos1=0,pos2=0):
 	ddL=(f3.LL-f2.LL-f1.LL+f0.LL)/(d**2)
 	a=0
 	
+	
+def LL_calc2(ll,panel,d,X=None):
+	self=ll
+	args=self.args_d#using dictionary arguments
+	args['beta'][3]+=d
+	if X is None:
+		X=panel.X
+	matrices=lgl.set_garch_arch(panel,args)
+	if matrices is None:
+		return None		
+
+	AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
+	(N,T,k)=X.shape
+
+	u = panel.Y-fu.dot(X,args['beta'])
+	e = fu.dot(AMA_1AR,u)
+	lnv_ARMA = self.garch(panel, args, GAR_1MA,e)
+	W_omega = fu.dot(panel.W_a,args['omega'])
+	lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
+	grp = self.group_variance(panel, lnv, e,args)
+	lnv+=grp
+	lnv = np.maximum(np.minimum(lnv,100),-100)
+	v = np.exp(lnv)*panel.a
+	v_inv = np.exp(-lnv)*panel.a	
+	e_RE = self.re_obj.RE(e)
+	return e_RE
+	e_REsq = e_RE**2
+	LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+	
+	if abs(LL)>1e+100: 
+		return None
+	self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
+	self.u,self.e, self.lnv_ARMA        = u,         e,       lnv_ARMA
+	self.lnv,self.v,self.v_inv          = lnv,       v,       v_inv
+	self.e_RE,self.e_REsq               = e_RE,      e_REsq
+
+	return LL
 
 def LL_calc(ll,panel,d,X=None):
 	self=ll
 	args=self.args_d#using dictionary arguments
 	if X is None:
 		X=panel.X
-	matrices=set_garch_arch(panel,args)
+	matrices=lgl.set_garch_arch(panel,args)
 	if matrices is None:
 		return None		
 
 	AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
-	(N,T,k)=panel.X.shape
+	(N,T,k)=X.shape
 
-	u=panel.Y-fu.dot(panel.X,args['beta'])
-	e=fu.dot(AMA_1AR,u)
-
-	if panel.m>0:
-		h_res=self.h(e, args['z'][0])
-		if h_res==None:
-			return None
-		(h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val)=[i*panel.included for i in h_res]
-		lnv_ARMA=fu.dot(GAR_1MA,h_val)
-	else:
-		(h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val,avg_h)=(0,0,0,0,0,0,0)
-		lnv_ARMA=0	
-
-	W_omega=fu.dot(panel.W_a,args['omega'])
-	lnv=W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	if panel.m>0:
-		avg_e2=panel.mean(e**2,1).reshape((N,1,1))
-		avg_lne2=np.log(avg_e2)
-		if panel.N>1:
-			lnv=lnv+args['mu'][0]*avg_lne2*panel.a
-		lnv=np.maximum(np.minimum(lnv,100),-100)
-	v=np.exp(lnv)*panel.a
-	v_inv=np.exp(-lnv)*panel.a	
-	e_RE=self.re_obj.RE(e)
-	e_REsq=e_RE**2
-	LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
-
+	u = panel.Y-fu.dot(X,args['beta'])
+	e = fu.dot(AMA_1AR,u)
+	lnv_ARMA = self.garch(panel, args, GAR_1MA,e)
+	W_omega = fu.dot(panel.W_a,args['omega'])
+	lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
+	grp = self.group_variance(panel, lnv, e,args)
+	lnv+=grp
+	lnv = np.maximum(np.minimum(lnv,100),-100)
+	v = np.exp(lnv)*panel.a
+	v_inv = np.exp(-lnv)*panel.a	
+	e_RE = self.re_obj.RE(e)+d*panel.included
+	e_REsq = e_RE**2
+	return -0.5*((lnv+(e_REsq)*v_inv)*panel.included)
+	LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+	
 	if abs(LL)>1e+100: 
 		return None
 	self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
-	self.u,self.e,self.h_e_val,self.h_val, self.lnv_ARMA        = u,e,h_e_val,h_val, lnv_ARMA
-	self.lnv,self.avg_e2,self.v,self.v_inv,self.e_RE,self.e_REsq = lnv,avg_e2,v,v_inv,e_RE,e_REsq
-	self.h_2e_val,self.h_z_val,self.h_ez_val,self.h_2z_val      = h_2e_val,h_z_val,h_ez_val,h_2z_val
-	self.e_st,self.avg_lne2=e_RE*v_inv,avg_lne2
+	self.u,self.e, self.lnv_ARMA        = u,         e,       lnv_ARMA
+	self.lnv,self.v,self.v_inv          = lnv,       v,       v_inv
+	self.e_RE,self.e_REsq               = e_RE,      e_REsq
 
 	return LL
-	
-	a=0
 
+def LL_calc_custom(ll,panel,d,X=None):
+	f0=LL_calc(ll,panel,0,X=None)
+	f1=LL_calc(ll,panel,d,X=None)
+	dLLeRE=(f1-f0)/d
+	
+	f0=LL_calc2(ll,panel,0,X=None)
+	f1=LL_calc2(ll,panel,d,X=None)
+	deRE=(f1-f0)/d
+	return dLLeRE,deRE
+
+	
 
 def LL_calc_debug(ll,panel,g,d):
 	f0=LL_calc(ll, panel,0)
@@ -153,3 +186,5 @@ def LL_calc_debug(ll,panel,g,d):
 	
 	#dd=np.sum(f2[2]-2*f1[2]+f0[2])/(d**2)
 	a=0
+	
+	

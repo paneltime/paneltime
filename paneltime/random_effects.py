@@ -3,6 +3,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import functions as fu
 
 class re_obj:
 	def __init__(self,panel):
@@ -42,7 +43,7 @@ class re_obj:
 			self.de_var=dict()
 			self.dv_var=dict()
 	
-		if self.panel.FE_RE==0:
+		if self.panel.FE_RE==0 or dx is None:
 			return dx
 		elif self.panel.FE_RE==1:
 			return self.FRE(dx)	
@@ -61,7 +62,7 @@ class re_obj:
 		self.dtheta[vname]=(self.dtheta_de_var*self.de_var[vname]+self.dtheta_dv_var*self.dv_var[vname])
 		
 		dRE0=self.FRE(dx,self.theta)
-		dRE1=self.FRE(x,self.dtheta[vname],True)
+		dRE1=self.FRE(x,self.dtheta[vname],True,False)
 		return (dRE0+dRE1)*self.panel.included
 	
 	def ddRE(self,ddx,dx1,dx2,x,vname1,vname2):
@@ -116,7 +117,7 @@ class re_obj:
 		dRE11=self.FRE(x.reshape(N,T,1,1),ddtheta,True)
 		return (dRE00+dRE01+dRE10+dRE11)*panel.included.reshape(N,T,1,1)
 	
-	def FRE(self,x,w=1,d=False):
+	def FRE(self,x,w=1,d=False,timeeff=True):
 		"""returns x after fixed effects, and set lost observations to zero"""
 		#assumes x is a "N x T x k" matrix
 		if x is None:
@@ -133,7 +134,27 @@ class re_obj:
 		sum_ec=np.sum(ec,1).reshape(s[0])
 		sum_ec_all=np.sum(sum_ec,0)	
 		dFE=(w*(sum_ec/T_i-sum_ec_all/self.panel.NT))*self.panel.included.reshape(s[1])
+		dtFE=self.time_FE(ec,s,timeeff)
 		if d==False:
-			return ec*self.panel.included.reshape(s[1])-dFE
+			r=ec*self.panel.included.reshape(s[1])-dFE-dtFE
 		else:
-			return -dFE
+			r=-dFE-dtFE
+		return r
+	
+	def time_FE(self,X,s,timeeff):
+		
+		tmap=self.panel.time_map
+		w=self.panel.time_map_w
+		if tmap is None or timeeff==False:
+			return 0
+		X_mean_t_map=np.zeros(len(tmap)).reshape((len(tmap),1))
+		dFE=np.zeros(X.shape)
+		X_mean=self.panel.mean(X,(0,1))
+		for i in range(len(tmap)):
+			m=np.mean(X[tmap[i]],0)	
+			dFE[tmap[i]]=w[i]*(m-X_mean)
+		
+		r=dFE*self.panel.included.reshape(s[1])
+		return r
+
+	

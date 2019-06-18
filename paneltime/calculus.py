@@ -43,7 +43,12 @@ class gradient:
 			if self.panel.N>1:
 				mu=ll.args_d['mu']
 			#dlnv_e=dlnv_sigma_G+mu*panel.mean(x,1).reshape((N,1,k))*self.panel.a#adds also the average inverted error ter
-			dlnv_e=dlnv_sigma_G+mu*panel.mean(x,1).reshape((N,1,k))*self.panel.a #adds also the average inverted error ter
+			if ll.zmu:
+				mueff=panel.mean(x,1).reshape((N,1,k))
+			else:
+				mueff=panel.mean(ll.davg_lne2*d,1).reshape((N,1,k))
+		
+			dlnv_e=dlnv_sigma_G+mu*mueff*self.panel.a #adds also the average inverted error ter
 			return dlnv_e,dlnv_sigma_G
 		else:
 			return None,None
@@ -107,11 +112,13 @@ class gradient:
 		dLL_z=rp.prod((self.dlnv_z,dLL_lnv))
 
 		G=rp.concat_marray((dLL_beta,dLL_rho,dLL_lambda,dLL_gamma,dLL_psi,dLL_omega,dLL_mu,dLL_z))
-		g=np.sum(np.sum(G,0),0)
+		g=np.sum(G,(0,1))
+		#For debugging:
 		#print (g)
 		#gn=debug.grad_debug(ll,panel,0.0000001)#debugging
 		#print(gn)
-		#debug.grad_debug_detail(ll,panel,self,0.00000001,'rho')
+		#debug.grad_debug_detail(ll,panel,self,0.00000001,'beta',3)
+		#dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
 		if return_G:
 			return  g,G
 		else:
@@ -127,7 +134,7 @@ class hessian:
 		
 	
 	def get(self,ll,mp):	
-		if mp is None:
+		if mp is None or True:
 			return self.hessian(ll)
 		else:
 			return self.hessian_mp(ll,mp)
@@ -165,7 +172,9 @@ class hessian:
 			d2lnv_mu_rho			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.davg_lne2,g.de_rho)),		g.dLL_lnv, 	addavg=1) 
 			d2lnv_mu_lambda			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.davg_lne2,g.de_lambda)),	g.dLL_lnv, 	addavg=1) 
 			d2lnv_mu_beta			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.davg_lne2,g.de_beta)),		g.dLL_lnv, 	addavg=1) 
-			d2lnv_mu_z				=	rp.dd_func_lags(panel,ll,None, 		ll.h_z_val,								g.dLL_lnv, 	addavg=1)*ll.zmu 
+			d2lnv_mu_z=None
+			if ll.zmu:
+				d2lnv_mu_z			=	rp.dd_func_lags(panel,ll,None, 		ll.h_z_val,								g.dLL_lnv, 	addavg=1)
 			mu=ll.args_d['mu']
 	
 		d2lnv_z2				=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, ll.h_2z_val,						g.dLL_lnv) 
@@ -241,9 +250,9 @@ class hessian:
 
 		H=rp.concat_matrix(H)
 		#for debugging:
-		Hn=debug.hess_debug(ll,panel,g,0.00000001)#debugging
+		#Hn=debug.hess_debug(ll,panel,g,0.00000001)#debugging
 		#debug.hess_debug_detail(self,ll,self.g,self,0.0000001)
-		print (time.clock()-tic)
+		#print (time.clock()-tic)
 		self.its+=1
 		if np.any(np.isnan(H)):
 			return None
@@ -310,7 +319,9 @@ class hessian:
 									d2lnv_mu_rho			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.davg_lne2,g.de_rho)),		g.dLL_lnv, 	addavg=1) 
 									d2lnv_mu_lambda			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.davg_lne2,g.de_lambda)),	g.dLL_lnv, 	addavg=1) 
 									d2lnv_mu_beta			=	rp.dd_func_lags(panel,ll,None, 		rp.prod((ll.davg_lne2,g.de_beta)),		g.dLL_lnv, 	addavg=1) 
-									d2lnv_mu_z				=	rp.dd_func_lags(panel,ll,None, 		ll.h_z_val,								g.dLL_lnv, 	addavg=1)*ll.zmu 
+									d2lnv_mu_z=None
+									if ll.zmu:
+										d2lnv_mu_z			=	rp.dd_func_lags(panel,ll,None, 		ll.h_z_val,								g.dLL_lnv, 	addavg=1)
 									mu=ll.args_d['mu']
 	
 								d2lnv_z2				=	rp.dd_func_lags(panel,ll,ll.GAR_1MA, ll.h_2z_val,						g.dLL_lnv) 
@@ -403,7 +414,7 @@ H= [[D2LL_beta2,			D2LL_beta_rho,		D2LL_beta_lambda,		D2LL_beta_gamma,	D2LL_beta
 		#Hn=debug.hess_debug(ll,panel,self.g,0.000000001)#debugging
 		#H_debug=hessian(self, ll)
 		#debug.LL_debug_detail(self,ll,0.0000001)
-		print (time.clock()-tic)
+		#print (time.clock()-tic)
 		self.its+=1
 		return H 
 	

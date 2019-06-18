@@ -5,20 +5,18 @@
 
 
 
-
-
 import statproc as stat
 import numpy as np
 import time
 import threading
 import debug
-import regprocs as rp
 import functions as fu
 import model_parser
 import calculus
 import copy
 import loglikelihood as logl
 from scipy import sparse as sp
+import random_effects as re
 
 
 min_AC=0.000001
@@ -28,7 +26,10 @@ def posdef(a,da):
 	return list(range(a,a+da)),a+da
 
 class panel:
-	def __init__(self,p,d,q,m,k,X,Y,IDs,x_names,y_name,IDs_name,fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,model_string,user_constraints,args):
+	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,x_names,y_name,IDs_name,
+	             fixed_random_eff,time_fixed_eff,W,w_names,descr,dataframe,h,
+	             has_intercept,model_string,user_constraints,args,loadargs
+	             ):
 		"""
 		No effects    : fixed_random_eff=0\n
 		Fixed effects : fixed_random_eff=1\n
@@ -37,10 +38,19 @@ class panel:
 		"""
 		if IDs_name is None:
 			fixed_random_eff=0
+			
+		self.m_zero = False
+		if  m==0 and k>0:
+			self.m_zero = True
+			m=1
+			
+		if not time_fixed_eff:
+			timevar=None
 
-		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,w_names,descr,fixed_random_eff,model_string)
+		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,
+		                  IDs_name,w_names,descr,fixed_random_eff,model_string,loadargs)
 		
-		self.X,self.Y,self.W,self.max_T,self.T_arr,self.N=self.arrayize(X, Y, W, IDs)
+		self.arrayize(X, Y, W, IDs,timevar)
 
 		self.masking()
 		self.lag_variables(max((q,p,k,m)))
@@ -50,18 +60,19 @@ class panel:
 
 
 	def masking(self):
-		self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
+		
 		#"initial observations" mask: 
 		self.a=np.array([self.date_counter<self.T_arr[i] for i in range(self.N)])# sets observations that shall be zero to zero by multiplying it with the arrayized variable
 	
 		#"after lost observations" masks: 
-		self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])# sets observations that shall be zero after lost observations to zero by multiplying it with the arrayized variable
 		self.T_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
 		self.T_i=self.T_i+(self.T_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		self.N_t=np.sum(self.included,0).reshape((1,self.max_T,1))#number of observations for each i
-		self.N_t=self.N_t+(self.N_t<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case		
+		self.N_t=self.N_t+(self.N_t<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
+		self.group_var_wght=1-1/np.maximum(self.T_i-1,1)
 		
-	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,w_names,descr,fixed_random_eff,model_string):
+	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,
+	                 w_names,descr,fixed_random_eff,model_string,loadargs):
 		self.has_intercept=has_intercept
 		self.dataframe=dataframe
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
@@ -79,6 +90,7 @@ class panel:
 		self.IDs=IDs	
 		self.len_data=len(X)
 		self.define_h_func(h)
+		self.loadargs=loadargs
 		
 		
 		
@@ -94,6 +106,8 @@ class panel:
 		self.xmin=np.min(X,0).reshape((1,X.shape[1]))
 		self.xmax=np.max(X,0).reshape((1,X.shape[1]))
 		self.args=arguments(p, d, q, m, k, self, args,self.has_intercept,user_constraints)
+		
+	
 
 	def lag_variables(self,max_lags):
 		T=self.max_T
@@ -130,46 +144,77 @@ class panel:
 		return True
 
 
-	def arrayize(self,X,Y,W,IDs):
+	def arrayize(self,X,Y,W,IDs,timevar):
 		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs,
 		and returns the matrix arrays and their row number"""
 		NT,k=X.shape
 		if IDs is None:
-			Xarr=X.reshape((1,NT,k))
-			Yarr=Y.reshape((1,NT,1))
+			self.X=X.reshape((1,NT,k))
+			self.Y=Y.reshape((1,NT,1))
 			NTW,k=W.shape
-			Warr=W.reshape((1,NT,k))
-			N=1
-			max_T=NT
-			T=np.array([[NT]])
+			self.W=W.reshape((1,NT,k))
+			self.time_map=None
+			self.N=1
+			self.max_T=NT
+			self.T_arr=np.array([[NT]])
 		else:
 			sel=np.unique(IDs)
 			N=len(sel)
 			sel=(IDs.T==sel.reshape((N,1)))
 			T=np.sum(sel,1)
-			max_T=np.max(T)
-			Xarr=[]
-			Yarr=[]
-			Warr=[]
-			k=0
-			T_used=[]
-			idremoved=[]
-			for i in sel:
-				obs_count=np.sum(i)
-				if obs_count>self.lost_obs+5:
-					T_used.append(obs_count)
-					Xarr.append(rp.fillmatr(X[i],max_T))
-					Yarr.append(rp.fillmatr(Y[i],max_T))
-					Warr.append(rp.fillmatr(W[i],max_T))
-				else:
-					idremoved.append(k)
-				k+=1
+			self.max_T=np.max(T)
+			idincl=T>self.lost_obs+5
+			self.X=arrayize(X, N,self.max_T,T, idincl,sel)
+			self.Y=arrayize(Y, N,self.max_T,T, idincl,sel)
+			self.W=arrayize(W, N,self.max_T,T, idincl,sel)
+			self.N=np.sum(idincl)
+			self.T_arr=T[idincl].reshape((self.N,1))
+			self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
+			self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
+			self.get_time_map(timevar, N,T, idincl,sel)
+			
+	
+			idremoved=np.arange(N)[idincl==False]
 			if len(idremoved):
 				s=fu.formatarray(idremoved,90,', ')
 				print("Warning: The following ID's were removed because of insufficient observations:\n %s" %(s))
-			T=np.array(T_used)
-			N=len(T)
-		return np.array(Xarr),np.array(Yarr),np.array(Warr),max_T,T.reshape((N,1)),N
+
+	
+	def get_time_map(self,timevar, N,T, idincl,sel):
+		if timevar is None:
+			return None
+		unq,ix=np.unique(timevar,return_inverse=True)
+		t=arrayize(np.array((ix,)).T+1, N,self.max_T,T, idincl,sel,int)
+		N,T,k=t.shape
+		t=t.reshape(N*T)
+		t=np.array((t,np.arange(N*T))).T
+		t=t[np.nonzero(self.included.reshape(N*T))]
+		a=np.argsort(t[:,0])
+		t=t[a]
+		grp=np.array(t[:,1]/self.max_T,dtype=int)
+		day=t[:,1]-grp*self.max_T
+		t=np.array((t[:,0]-1,grp,day)).T
+	
+		tid=t[:,0]
+		t_map=[[] for i in range(np.max(tid)+1)]
+		for i in range(len(tid)):
+			t_map[tid[i]].append(t[i,1:])
+		t_map_tuple=[]
+		tcnt=[]
+		for i in range(len(t_map)):
+			a=np.array(t_map[i]).T
+			if len(a):
+				t_map_tuple.append((tuple(a[0]),tuple(a[1])))	
+				tcnt.append(len(a[0]))
+		tcnt=np.array(tcnt)
+		#A full random effects calculation is infeasible because of complexity and computing costs. 
+		#Aquazi random effects weighting is used. It  is more conservative than the full
+		#RE weight theta=1-sd_pooled/(sd_pooled+sd_within/T)**0.5
+		#If the weights are too generous, the RE adjustment may add in stead of reducing noise. 
+		w=1-1/np.maximum(tcnt-1,1)
+		self.time_map=t_map_tuple
+		self.time_map_w=w
+	
 	
 	def define_h_func(self,h_definition):
 		global h
@@ -190,6 +235,7 @@ def h(e,z):
 	def mean(self,X,axis=None):
 		dims=list(X.shape)
 		dims[2:]=[1]*(len(dims)-2)
+		#X=X*self.included.reshape(dims)
 		if axis==None:
 			return np.sum(X)/self.NT
 		if axis==1:
@@ -209,24 +255,48 @@ def h(e,z):
 			m=self.mean(X, axis)
 		else:
 			m=mean
+
 		if axis==None:
 			return np.sum((X-m)**2)/(self.NT-k)
 		count=[]
 		if axis==1:
 			dims_m[1]=1
-			m=m.reshape(dims_m)
 			dims.pop(1)
-			return np.sum((X-m)**2,1)/np.maximum(self.T_i-k,1).reshape(dims)
+			m=m.reshape(dims_m)
+			Xm=(X-m)#*self.included.reshape(dims)			
+			return np.sum((Xm)**2,1)/np.maximum(self.T_i-k,1).reshape(dims)
 		if axis==0:
 			dims_m[0]=1		
-			m=m.reshape(dims_m)
 			dims.pop(0)
-			return np.sum((X-m)**2,0)/np.maximum(self.N_t-k,1).reshape(dims)
+			m=m.reshape(dims_m)
+			Xm=(X-m)#*self.included.reshape(dims)			
+			return np.sum((Xm)**2,0)/np.maximum(self.N_t-k,1).reshape(dims)
 		if axis==(0,1):
 			dims_m[0:2]=1
 			m=m.reshape(dims_m)
-			return np.sum((X-m)**2,axis)/(self.NT-k)
-			
+			Xm=(X-m)#*self.included.reshape(dims)			
+			return np.sum((Xm)**2,axis)/(self.NT-k)
+
+def arrayize(X,N,max_T,T,idincl,sel,dtype=None):
+	if X is None:
+		return None
+	NT,k=X.shape
+	if dtype is None:
+		Xarr=np.zeros((N,max_T,k))
+	else:
+		Xarr=np.zeros((N,max_T,k),dtype=dtype)
+	T_used=[]
+	k=0
+	for i in range(len(sel)):
+		if idincl[i]:
+			Xarr[k,:T[i]]=X[sel[i]]
+			k+=1
+	Xarr=Xarr[:k]
+	return Xarr
+
+
+
+
 
 class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
@@ -257,8 +327,10 @@ class arguments:
 		args['z']=np.array([])	
 		if m>0 and panel.N>1:
 			args['mu']=np.array([1.0])
+			args['omega'][0][0]=0
 		if m>0:
-			args['z']=np.array([1.0])	
+			args['psi'][0]=0.00001
+			args['z']=np.array([0.00001])	
 
 		return args
 
@@ -271,11 +343,10 @@ class arguments:
 
 		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
 		args['beta']=beta
-		args['omega'][0][0]=np.log(np.var(e*panel.included)*len(e[0])/np.sum(panel.included))
-		if m>0:
-			if panel.N>1:
-				args['mu']=np.array([1.0])
-			args['z']=np.array([1.0])	
+		if not panel.m_zero:
+			args['omega'][0]=np.log(np.sum(e**2*panel.included)/np.sum(panel.included))
+
+	
 		self.args_start=fu.copy_array_dict(args)
 		if not self.args_old is None: 
 			args['beta']=insert_arg(args['beta'],self.args_old['beta'])
@@ -284,8 +355,11 @@ class arguments:
 			args['lambda']=insert_arg(args['lambda'],self.args_old['lambda'])
 			args['psi']=insert_arg(args['psi'],self.args_old['psi'])
 			args['gamma']=insert_arg(args['gamma'],self.args_old['gamma'])
-			args['mu']=insert_arg(args['mu'],self.args_old['mu'])
 			args['z']=insert_arg(args['z'],self.args_old['z'])
+			if len(args['mu'])>len(self.args_old['mu']):
+				args['omega'][0][0]=0
+			args['mu']=insert_arg(args['mu'],self.args_old['mu'])
+			
 		self.args=args
 		self.set_restricted_args(p, d, q, m, k,panel,e,beta)
 		
@@ -302,14 +376,16 @@ class arguments:
 		"""Defines positions in vector argument"""
 
 		self.positions=dict()
-		self.map_to_categories=dict()
+		self.map_to_categories=dict()#a dictionary of indicies containing the string name and sub-position of index within the category
+		self.map_from_categories=dict()#a dictionary of category strings containing the index range of the category
 		k=0
 		for i in self.categories:
 			n=len(self.args[i])
 			rng=range(k,k+n)
 			self.positions[i]=rng
+			self.map_from_categories[i]=list(range(k,k+n))
 			for j in rng:
-				self.map_to_categories[j]=i
+				self.map_to_categories[j]=[i,j-k]
 			k+=n
 	
 	def conv_to_dict(self,args):

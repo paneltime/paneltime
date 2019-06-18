@@ -20,7 +20,8 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 	ub=len(XXNorm)     
 	d,EVec=np.linalg.eig(XXNorm)
 	if np.any(np.round(d.imag,15)!=len(d)*[0]):
-		print( "non-real XX matrix")
+		pass
+		#print( "non-real XX matrix")
 		
 	d=d.real;EVec=EVec.real
 	d=np.abs(d)**0.5+1e-100
@@ -173,7 +174,6 @@ def breusch_godfrey_test(panel,ll, lags):
 	BGStat=T*Rsq
 	rho=Beta[len(X[0]):]
 	ProbNoAC=1.0-chisq_dist(BGStat,lags)
-	print( 'BG-test R-squared: %s  Prob. no AC: %s' %(Rsq,ProbNoAC))
 	return ProbNoAC, rho, Rsq #The probability of no AC given H0 of AC.
 
 

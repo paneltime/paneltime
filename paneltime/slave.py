@@ -8,18 +8,11 @@ import traceback
 import datetime
 
 
-def main(t,modules,s_id,fpath):
+def main(t,initcommand,s_id,fpath):
 	fname=os.path.join(fpath,'slaves/%s.txt' %(s_id,))
 	f=open(fname,'w',1)
-	aliases=[]
 	d_init=dict()
-	for module,alias in modules:
-		if alias=='':
-			exec('import '+module,globals(),d_init)
-			aliases.append(module,globals(),d_init)
-		else:
-			exec('import '+module +' as ' + alias,globals(),d_init)
-
+	exec(initcommand,globals(),d_init)
 	d=d_init
 	d_list=list(d_init.keys())
 	holdbacks=[]
@@ -68,15 +61,15 @@ def release_dict(d,d_list,holdbacks):
 	return response
 
 try: 
-	
+
 	t=multi_core.transact(sys.stdin, sys.stdout)
 	#Handshake:
 	t.send(os.getpid())
-	msg,(modules,s_id,fpath)=t.receive()
+	msg,(initcommand,s_id,fpath)=t.receive()
 	fname=os.path.join(fpath,'slave_errors.txt')
 	f=open(fname,'w')
 	#Wait for instructions:
-	main(t,modules,s_id,fpath)
+	main(t,initcommand,s_id,fpath)
 except Exception as e:
 	f.write('SID: %s      TIME:%s \n' %(s_id,datetime.datetime.now()))
 	traceback.print_exc(file=f)

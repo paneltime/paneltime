@@ -11,6 +11,9 @@ import csv
 from scipy import sparse as sp
 import re
 
+def currentdir():
+	path=os.path.dirname(__file__)
+	return path
 
 def timer(tic, a):
 	if a is None:
@@ -64,6 +67,8 @@ def dot(a,b,reduce_dims=True):
 			#x2=np.array([[np.dot(a[i],b[j]) for j in range(b.shape[0])] for i in range(a.shape[0])])
 			#x2=np.moveaxis(x2,0,2)	
 			return x
+
+			
 	elif len(a.shape)==2 and len(b.shape)==4:
 		if a.shape[1]!=b.shape[1] or a.shape[1]!=a.shape[0]:
 			raise RuntimeError("dimensions do not match")

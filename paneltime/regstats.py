@@ -18,43 +18,57 @@ import functions as fu
 import loglikelihood as logl
 
 class statistics:
-	def __init__(self,results_obj,robustcov_lags=100,correl_vars=None,descriptives_vars=None,simple_statistics=False):
+	def __init__(self,results,robustcov_lags=100,correl_vars=None,descriptives_vars=None,simple_statistics=False):
 		"""This class calculates, stores and prints statistics and statistics"""		
 
-		self.G=results_obj.gradient_matrix
-		self.H=results_obj.hessian
-		self.ll=results_obj.ll
-		self.panel=results_obj.panel
+		self.G=results.gradient_matrix
+		self.H=results.hessian
+		self.ll=results.ll
+		self.panel=results.panel
 		self.ll.standardize()
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(self.panel,self.ll)
 		self.LL_restricted=logl.LL(self.panel.args.args_restricted, self.panel).LL
 		self.LL_OLS=logl.LL(self.panel.args.args_OLS, self.panel).LL		
-		(self.reg_output,
-		 self.names,
-		 self.args,
-		 self.se_robust,
-		 self.se_st,
-		 self.tstat,
-		 self.tsign,
-		 sign_codes)=self.coeficient_output(self.H,self.G,robustcov_lags,self.ll)
 		
 		
-		if simple_statistics:		
+		
+		if simple_statistics:	
+			self.output=self.arrange_output(robustcov_lags,results.constraints,direction=results.dx_conv)
 			return	
-		self.coeficient_printout(sign_codes)
+		
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(self.panel,self.ll,10)
 		self.norm_prob=stat.JB_normality_test(self.ll.e_st,self.panel)		
-
+		self.output=self.arrange_output(robustcov_lags,results.constraints,self.norm_prob,self.no_ac_prob,direction=results.dx_conv)
+		self.reg_output=self.output.outputmatrix
 		self.multicollinearity_check(self.G)
 
 		self.data_correlations,self.data_statistics=self.correl_and_statistics(correl_vars,descriptives_vars)
 		
 		scatterplots(self.panel)
 
-		print ( 'LL: %s' %(self.ll.LL,))
-	
 		self.adf_test=stat.adf_test(self.panel,self.ll,10)
-		self.save_stats(self.ll)
+		self.save_stats()
+		
+	def arrange_output(self,robustcov_lags,constraints,norm_prob,ac_prob,direction):
+		panel,H,G,ll=self.panel,self.H,self.G,self.ll
+		l=10
+		pr=[['names','namelen',False,'Variable names',False,False],
+	        ['args',l,True,'Coef',True,False],
+	        ['se_robust',l,True,'sandwich',False,False],
+	        ['se_st',l,True,'standard',False,False],
+	        ['tstat',l,True,'t-stat.',True,False],
+	        ['tsign',l,True,'sign.',False,False],
+	        ['sign_codes',4,False,'',False,True],
+		    ['direction',l,True,'last direction',True,False],
+		    ['set_to',6,False,'set to',False,True],
+		    ['assco',20,False,'associated variable',False,True],
+		    ['cause',l,False,'cause',False,False]]
+		o=output(pr, panel, H, G, robustcov_lags, ll, constraints,direction=direction)
+		o.add_heading(top_header=' '*40 + '_'*11+'SE'+'_'*11+" "*48+"_"*9+"restricted variables"+"_"*9,
+		              statistics= [['Normality',norm_prob,3,'%'], 
+		                           ['P(no AC)',ac_prob,3,'%']])
+		o.add_footer("Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001")
+		return o	
 	
 	def correl_and_statistics(self,correl_vars,descriptives_vars):
 		panel=self.panel
@@ -77,78 +91,6 @@ class statistics:
 		c=np.concatenate((correl_names,c),1)
 
 		return c,vstat
-		
-	
-	def coeficient_output(self,H,G,robustcov_lags,ll):
-		panel=self.panel
-		args=ll.args_v
-		robust_cov_matrix,cov=rp.sandwich(H,G,robustcov_lags,ret_hessin=True)
-		se_robust=np.maximum(np.diag(robust_cov_matrix).flatten(),1e-200)**0.5
-		se_st=np.maximum(np.diag(cov).flatten(),1e-200)**0.5
-		names=np.array(panel.args.names_v)
-
-		T=len(se_robust)
-		output=[]
-		tstat=np.maximum(np.minimum((args)/((se_robust<=0)*args*1e-15+se_robust),3000),-3000)
-		tsign=1-scstats.t.cdf(np.abs(tstat),panel.df)
-		sign_codes=get_sign_codes(tsign)
-		
-		output=np.concatenate((names.reshape((T,1)),
-		                      args.reshape((T,1)),
-		                      se_robust.reshape((T,1)),
-		                      se_st.reshape((T,1)),
-		                      tstat.reshape((T,1)),
-		                      tsign.reshape((T,1)),
-		                      sign_codes.reshape((T,1))),1)
-		output=np.concatenate(([['Regressor:','coef:','SE sandwich:','SE standard:','t-value:','t-sign:','sign codes:']],output),0)
-		
-		
-		return output,names,args,se_robust,se_st,tstat,tsign,sign_codes
-
-	def coeficient_printout(self,sign_codes):
-		names,args,se,se_st,tstat,tsign=self.names,self.args,self.se_robust,self.se_st,self.tstat,self.tsign
-		T=len(se)
-		printout=np.zeros((T,6),dtype='<U24')
-		maxlen=0
-		for i in names:
-			maxlen=max((len(i)+1,maxlen))
-		printout[:,0]=[s.ljust(maxlen) for s in names]
-		
-		rndlen=10
-		rndlen0=8
-		args=np.round(args,rndlen0).astype('<U'+str(rndlen))
-		tstat=np.round(tstat,rndlen0).astype('<U'+str(rndlen))
-		se=np.round(se,rndlen0).astype('<U'+str(rndlen))
-		se_st=np.round(se_st,rndlen0).astype('<U'+str(rndlen))
-		tsign=np.round(tsign,rndlen0).astype('<U'+str(rndlen))
-		sep='   '
-		prstr=' '*(maxlen+rndlen+2*len(sep)) + '_'*int(rndlen+1)+'SE'+'_'*int(rndlen)+'\n'
-		prstr+='Variable names'.ljust(maxlen)[:maxlen]+sep
-		prstr+='Coef'.ljust(rndlen)[:rndlen]+sep
-		prstr+='sandwich'.ljust(rndlen)[:rndlen]+sep
-		prstr+='standard'.ljust(rndlen)[:rndlen]+sep
-		prstr+='t-stat.'.ljust(rndlen)[:rndlen]+sep
-		prstr+='sign.'.ljust(rndlen)[:rndlen]+sep
-		prstr+='\n'
-		for i in range(T):
-			b=str(args[i])
-			t=str(tstat[i])
-			if b[0]!='-':
-				b=' '+b
-				t=' '+t
-			prstr+=names[i].ljust(maxlen)[:maxlen]+sep
-			prstr+=b.ljust(rndlen)[:rndlen]+sep
-			prstr+=se[i].ljust(rndlen)[:rndlen]+sep
-			prstr+=se_st[i].ljust(rndlen)[:rndlen]+sep
-			prstr+=t.ljust(rndlen)[:rndlen]+sep
-			prstr+=tsign[i].ljust(rndlen)[:rndlen]+sep
-			prstr+=sign_codes[i]
-			prstr+='\n'
-		prstr+='\n'+"Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001"
-		print(prstr)
-
-
-
 				
 	def multicollinearity_check(self,G):
 		"Returns a variance decompostition matrix with headings"
@@ -162,9 +104,9 @@ class statistics:
 		matr=np.concatenate(([vNames],matr))
 		self.MultiColl=matr
 
-
-	def save_stats(self,ll,strappend=''):
+	def save_stats(self):
 		"""Saves the various statistics assigned to self"""
+		ll=self.ll
 		panel=self.panel
 		N,T,k=panel.X.shape
 		output=dict()
@@ -208,9 +150,26 @@ class statistics:
 			output_positions.append('%s~%s~%s~%s' %(i,pos,len(output[i]),len(output[i][0])))
 		output_table[0]=output_positions
 		
-		fu.savevar(output_table,panel.descr+strappend+'.csv')
+		fu.savevar(output_table,panel.descr+'.csv')
 		
-		self.output=output
+		self.output_dict=output
+		
+		
+		
+	
+def t_stats(panel,args,H,G,robustcov_lags,):
+
+	robust_cov_matrix,cov=rp.sandwich(H,G,robustcov_lags,ret_hessin=True)
+	se_robust=np.maximum(np.diag(robust_cov_matrix).flatten(),1e-200)**0.5
+	se_st=np.maximum(np.diag(cov).flatten(),1e-200)**0.5
+	names=np.array(panel.args.names_v)
+	
+	tstat=np.maximum(np.minimum((args)/((se_robust<=0)*args*1e-15+se_robust),3000),-3000)
+	tsign=1-scstats.t.cdf(np.abs(tstat),panel.df)
+	sign_codes=get_sign_codes(tsign)
+	
+	return names,se_robust,se_st,tstat,tsign,sign_codes
+	
 
 def add_variable(name,panel,names,variables):
 	if name in panel.dataframe.keys():
@@ -309,3 +268,129 @@ def remove_illegal_signs(name):
 		if i in name:
 			name=name.replace(i,'_')
 	return name
+
+
+def constraints_printout(constr,T):
+	set_to,assco,cause=['']*T,['']*T,['']*T
+	c=constr.fixed
+	for i in c:
+		set_to[i]=c[i].value_str
+		assco[i]=c[i].assco_name
+		cause[i]=c[i].cause	
+		
+	c=constr.intervals
+	for i in c:
+		if not c[i].intervalbound is None:
+			set_to[i]=c[i].intervalbound
+			assco[i]='NA'
+			cause[i]=c[i].cause		
+			
+	return set_to,assco,cause
+		
+
+
+class output:
+	def __init__(self,pr,panel,H,G,robustcov_lags,ll,constr,
+	             sep='   ',startspace='',direction=None):
+		args=ll.args_v		
+		T=len(args)
+		(names,se_robust,se_st,tstat,tsign,
+		 sign_codes)=t_stats(panel, args, H, G,robustcov_lags)
+
+		set_to,assco,cause=constraints_printout(constr,T)
+		if direction is None:
+			direction=T*['']		
+		namelen=max([len(i) for i in names])
+		for i in range(len(pr)):
+			pr[i][0]=vars()[pr[i][0]]
+			if type(pr[i][1])==str:
+				pr[i][1]=vars()[pr[i][1]]
+
+	
+		output=[]
+		output=np.concatenate([np.array(i[0]).reshape((T,1)) for i in pr],1)
+		headings=[i[3] for i in pr]
+		output=np.concatenate(([headings],output),0)
+		
+		self.printstring=coeficient_printout(pr,sep,startspace)
+		
+		self.outputmatrix=output
+		self.names=names
+		self.args=args
+		self.se_robust=se_robust
+		self.se_st=se_st
+		self.tstat=tstat
+		self.tsign=tsign
+		self.sign_codes=sign_codes
+		self.ll=ll
+	
+	def print(self,window=None):
+		if window is None:
+			print(self.printstring)
+		else:
+			window.update(self.printstring)
+	
+	def add_heading(self,Iterations=None,top_header=None,statistics=None):
+		s=("LL: "+str(self.ll.LL)+'  ').ljust(23)
+		if not Iterations is None:
+			s+="Iteration: "+ str(Iterations).ljust(7)		
+		if not statistics is None:
+			for i in statistics:
+				if not i[1] is None:
+					if type(i[3])==str:
+						value=str(np.round(i[1]*100,i[2]))+i[3]
+					else:
+						value=np.round(i[1],i[2])
+					s+=("%s: %s " %(i[0],value)).ljust(16)
+		s+='\n'
+		if not top_header is None:
+			s+=top_header+'\n'
+		self.printstring=s+self.printstring
+			
+	def add_footer(self,text):
+		self.printstring=self.printstring+'\n'+text
+		
+		
+			
+	
+		
+		
+		
+		
+		
+def coeficient_printout(pr, sep='   ',startspace=''):
+	"""Prints output. pr is a list of a list for each statistic to be printed. The list for each statistic
+	must have the format:\n
+	[\n
+	is not a string (boolean),
+	variable, \n
+	column width, \n
+	name (string), \n
+	correction for negative numbers (boolean),\n
+	mid adjusted (True) or left adjusted (False)\n
+	]"""
+
+	T=len(pr[0][0])
+
+	prstr=' '*4
+	for i in range(len(pr)):#Headings
+		a, l,notstr,name,neg,midjust=pr[i]
+		if notstr:
+			pr[i][0]=np.round(a,l-2).astype('<U'+str(l))
+		prstr+=name.ljust(l)[:l]+sep
+	prstr+='\n'
+	for j in range(T):#Data:
+		prstr+=startspace + (str(j)+'.').ljust(4)
+		for i in range(len(pr)):
+			a, l,notstr,name,neg,midjust=pr[i]
+			v=str(a[j])
+			if neg:
+				if v[0]!='-':
+					v=' '+v
+			if midjust:
+				prstr+=v.center(l)[:l]+sep
+			else:
+				prstr+=v.ljust(l)[:l]+sep
+		prstr+='\n'
+
+	return prstr

@@ -15,39 +15,65 @@ sys.path.append(__file__.replace("__init__.py",''))
 import main
 import sim_module
 import functions as fu
+import gui
 
-
+winwidth=1000
+winheight=500
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
-            descr="project_1",
-            fixed_random_eff=2, w_names=None, loadargs=True,direction_testing=True,add_intercept=True,
-            h=None,user_constraints=[('z',1e-15,'10*np.max(u)')]
+            descr=None,
+            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
+            h=None,user_constraints=[('z',1e-15,'10*np.max(u)')],close_when_finished=False
             ):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
+	print ("Executing:")
+	iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
+	w=gui.window("Optimization procedure",iconpath,winheight,winwidth)
+	w.run(
+	    main.execute,
+	    (dataframe, model_string, p, d, q, m, k, IDs_name, time_name,
+	     descr,group_fixed_random_eff, time_fixed_eff, w_names, loadargs,add_intercept,
+	     h,user_constraints,w),
+	    close_when_finished=close_when_finished
+	)
+	r=w.get()
 	
-	return main.execute(dataframe, model_string, p, d, q, m, k, IDs_name, time_name,
-		           descr,
-		           fixed_random_eff, w_names, loadargs,direction_testing,add_intercept,
-		           h,user_constraints
-		           )
+	return r
 
 def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
-            descr="project_1",
-            fixed_random_eff=2, w_names=None, loadargs=True,direction_testing=True,add_intercept=True,
-            h=None,user_constraints=[]
+            descr=None,
+            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
+            h=None,user_constraints=[('z',1e-15,'10*np.max(u)')]
             ):
-	return main.autofit(dataframe, model_string, d,process_sign_level, IDs_name, time_name,
-		               descr,
-		               fixed_random_eff, w_names, loadargs,direction_testing,add_intercept,
-		               h,user_constraints=[('z',1e-15,'10*np.max(u)')]
-		               )	
+	
+	print ("Executing autofit:")
+	iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
+	w=gui.window("Optimization procedure",iconpath,pnl.len_args+12)
+	w.run(
+	    main.autofit,(dataframe, model_string, d,process_sign_level, IDs_name, time_name,
+             descr,
+             group_fixed_random_eff, time_fixed_eff, w_names, loadargs,add_intercept,
+             h,user_constraints,w
+             )	
+	)
+	r=w.get()	
+	return r
 	
 def execute_model(model, p=1, d=0, q=1, m=1, k=1, 
-            fixed_random_eff=2, loadargs=True,add_intercept=True,
+            group_fixed_random_eff=2, time_fixed_eff=True, loadargs=True,add_intercept=True,
             h=None
             ):
-	return main.execute(model.dataframe, model.model_string,
-	               p,d,q,m,k,model.IDs_name,model.time_name,model.descr,fixed_random_eff,model.w_names,loadargs,add_intercept,h)
+	print ("Executing model:")
+	iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
+	w=gui.window("Optimization procedure",iconpath,pnl.len_args+12)
+	w.run(
+	    main.execute,(model.dataframe, model.model_string,
+             p,d,q,m,k,model.IDs_name,model.time_name,
+	         model.descr,group_fixed_random_eff, time_fixed_eff,model.w_names,
+	         loadargs,add_intercept,h,model.user_constraints,w)
+	)
+	r=w.get()	
+	return 
 	
 
 def statistics(results,robustcov_lags=100,correl_vars=None,descriptives_vars=None):
@@ -60,7 +86,8 @@ class model:
 		(a string specifying the model), *IDs* (the name of the IDing variable, if specified) and *w_names* (the name of the 
 		custom variance weighting variable, if specified)
 		"""
-	def __init__(self,X,Y,x_names=None,y_name=None,IDs=None,IDs_name=None,W=None,w_names=None,filters=None,transforms=None,descr="project_1",time_name=None):
+	def __init__(self,X,Y,x_names=None,y_name=None,IDs=None,IDs_name=None,W=None,w_names=None,
+	             filters=None,transforms=None,descr="project_1",time_name=None,user_constraints=None):
 
 
 		dataframe, model_string, w_names, IDs_name=main.model_parser.get_data_and_model(X,Y,W,IDs,x_names,y_name,w_names,IDs_name,filters,transforms)	
@@ -70,6 +97,7 @@ class model:
 		self.IDs_name=IDs_name
 		self.descr=descr
 		self.time_name=time_name
+		self.user_constraints=user_constraints
 
 
 def load(fname,sep=None,filters=None,transforms=None):

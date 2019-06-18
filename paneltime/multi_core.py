@@ -14,7 +14,7 @@ from threading import Thread
 
 class master():
 	"""creates the slaves"""
-	def __init__(self,modules,max_nodes, holdbacks):
+	def __init__(self,initcommand,max_nodes, holdbacks):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
 		if max_nodes is None:
@@ -23,7 +23,7 @@ class master():
 			self.cpu_count=max_nodes
 		n=self.cpu_count
 		fpath=obtain_fname('./output/')
-		self.slaves=[slave(modules,i,fpath) for i in range(n)]
+		self.slaves=[slave(initcommand,i,fpath) for i in range(n)]
 		pids=[]
 		for i in range(n):
 			pid=str(self.slaves[i].p_id)
@@ -96,16 +96,16 @@ class slave():
 	command = [sys.executable, "-u", "-m", "slave.py"]
 
 
-	def __init__(self,modules,slave_id,fpath):
+	def __init__(self,initcommand,slave_id,fpath):
 		"""Starts local worker"""
 		cwdr=os.getcwd()
-		os.chdir(__file__.replace(__name__+'.py',''))
+		os.chdir(os.path.dirname(__file__))
 		self.p = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		os.chdir(cwdr)
 		self.t=transact(self.p.stdout,self.p.stdin)
 		self.p_id = self.receive()
 		self.slave_id=slave_id
-		self.send('init_transact',(modules,slave_id,fpath))
+		self.send('init_transact',(initcommand,slave_id,fpath))
 		pass
 
 	def send(self,msg,obj):
@@ -163,11 +163,11 @@ def write(f,txt):
 
 
 class multiprocess:
-	def __init__(self,max_nodes=None,modules=[],run_multiprocess=True,holdbacks=None):
+	def __init__(self,max_nodes=None,initcommand='',run_multiprocess=True,holdbacks=None):
 		self.d=dict()
 		self.run_multiprocess=run_multiprocess
 		if run_multiprocess:
-			self.master=master(modules,max_nodes,holdbacks)#for paralell computing
+			self.master=master(initcommand,max_nodes,holdbacks)#for paralell computing
 
 		else:
 			self.master=None
@@ -198,7 +198,7 @@ class multiprocess:
 	def send_dict(self,d,instructions='dynamic_dictionary'):
 		for i in d:
 			self.d[i]=d[i]
-		if str(type(self.master))=="<class 'multi_core.master'>":
+		if 'multi_core.master' in str(type(self.master)):
 			self.master.send_dict(d,instructions)
 
 def format_args_array(arg_array,run_mp=True):
@@ -221,7 +221,6 @@ def format_args(x,run_mp):
 			newx.append(j[n:])
 	newx='\n'.join(newx)
 	return newx
-
 
 def obtain_fname(name):
 

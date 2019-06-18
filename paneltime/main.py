@@ -20,90 +20,78 @@ import model_parser
 import maximize
 import tempstore
 import os
-import loglikelihood as logl
+import direction as drctn
 
 
 warnings.filterwarnings('error')
 np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
-class results:
-	def __init__(self, p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
-                         fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
-                         args_archive,model_string,user_constraints,
-                         direction_testing,args,mp):
-		ll,g,G,H, conv=maximize(panel, direction, mp, direction_testing, 
-		                        args_archive,args,True,user_constraints)
-		self.ll=ll
-		self.g=g
-		self.G=G
-		self.H=H
-		self.conv=conv
-		self.constraints=direction.constr
-
 
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
             descr=None,
-            fixed_random_eff=2, w_names=None, loadargs=1,direction_testing=True,add_intercept=True,
-            h=None,user_constraints=[]
+            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=1,add_intercept=True,
+            h=None,user_constraints=None,window=None
             ):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 
-	(direction_testing,
-	 X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept,
-	 mp,descr,args_archive, args,user_constraints)=setvars(direction_testing,loadargs,dataframe,model_string,
+	(X,x_names,Y,y_name,
+	 IDs,IDs_name,timevar,time_name,
+	 W,w_names,has_intercept,
+	 mp,descr,args_archive, args,user_constraints)=setvars(loadargs,dataframe,model_string,
 	                                      IDs_name,w_names,add_intercept,time_name,descr,user_constraints)
 	if loadargs==2:
-		p,q,m,k=get_args_lags(args_archive.args, loadargs)
+		p,q,m,k,d=args_archive.arimagarch
 
-	results_obj=results(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
-	                                            fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
-	                                            args_archive,model_string,user_constraints,direction_testing,args,mp)
+	results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name, time_name,
+	                                            group_fixed_random_eff, time_fixed_eff,W,w_names,descr,dataframe,h,has_intercept,
+	                                            args_archive,model_string,user_constraints,args,mp,window,loadargs)
 	return results_obj
 	
-def setvars(direction_testing,loadargs,dataframe,model_string,IDs_name,w_names,add_intercept,time_name,descr,user_constraints):
-	if direction_testing and loadargs:
-		direction_testing=False
+def setvars(loadargs,dataframe,model_string,IDs_name,w_names,add_intercept,time_name,descr,user_constraints):
 	t=type(user_constraints)
 	if t!=list and t!=tuple:
 		print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
 		
 	
-	X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
+	(X,x_names,Y,y_name,
+	 IDs,IDs_name,timevar,time_name,
+	 W,w_names,has_intercept)=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
 
-	mp=mp_check(direction_testing, X)
+	mp=mp_check(X)
 	if descr==None:
 		descr=model_string[:50]
 	args_archive=tempstore.args_archive(descr, loadargs)
 
 	args=args_archive.args
 	
-	return (direction_testing,
-	 X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept,
-	 mp,descr,args_archive,args,user_constraints)
+	return (X,x_names,Y,y_name,IDs,
+	        IDs_name,timevar,time_name,
+	        W,w_names,has_intercept,
+	        mp,descr,args_archive,args,user_constraints)
 	
 	
 class results:
-	def __init__(self,p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
-		                     fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
+	def __init__(self,p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
+		                     group_fixed_random_eff, time_fixed_eff, W, w_names, descr, dataframe, h, has_intercept,
 		                     args_archive,model_string,user_constraints,
-		                     direction_testing,args,mp):
+		                     args,mp,window,loadargs):
 		print ("Creating panel")
-		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,fixed_random_eff,W,
-			            w_names,descr,dataframe,h,has_intercept,model_string,user_constraints,args)
+		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,group_fixed_random_eff, time_fixed_eff,W,
+			            w_names,descr,dataframe,h,has_intercept,model_string,user_constraints,args,loadargs)
 		
-		direction=logl.direction(pnl)
+		direction=drctn.direction(pnl)
 		if not mp is None:
 			mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')
-			
-		 
 	
-		print ("Maximizing:")
-	
-	
-		ll,g,G,H, conv = maximize.maximize(pnl,direction,mp,direction_testing,args_archive,pnl.args.args,_print=True,user_constraints=user_constraints)	
-		
+		ll,g,G,H, conv,pr,constraints,dx_conv=maximize.maximize(pnl,direction,mp,
+		                        args_archive,pnl.args.args,True,
+		                        user_constraints,window)	
+
+		self.outputstring=pr
+		self.dx_conv=dx_conv
+		self.constraints=constraints
 		self.ll=ll
 		self.gradient=g
 		self.gradient_matrix=G
@@ -111,42 +99,38 @@ class results:
 		self.converged=conv
 		self.constraints=direction.constr
 		self.panel=pnl
-	
-
-
-def get_args_lags(args,loadargs):
-	if loadargs and (not args is None):
-		p,q,m,k=len(args['rho']),len(args['lambda']),len(args['gamma']),len(args['psi'])		
-	else:
-		p,q,m,k=1,1,1,1	
-	return p,q,m,k
 
 	
 def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
             descr=None,
-            fixed_random_eff=2, w_names=None, loadargs=True,direction_testing=True,add_intercept=True,
-            h=None,user_constraints=[]
+            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
+            h=None,user_constraints=None,window=None
             ):
 	"""Same as execute, except iterates over ARIMA and GARCH coefficients to find best match"""
 	
-	(direction_testing,
-	 X,x_names,Y,y_name,IDs,IDs_name,W,w_names,has_intercept,
-	 mp,descr,args_archive, args,user_constraints)=setvars(direction_testing,loadargs,dataframe,model_string,
+	(X,x_names,Y,y_name,
+	 IDs,IDs_name,timevar,time_name,
+	 W,w_names,has_intercept,
+	 mp,descr,args_archive, args,user_constraints)=setvars(loadargs,dataframe,model_string,
 	                                      IDs_name,w_names,add_intercept,time_name,descr,user_constraints)
-
-	p,q,m,k=get_args_lags(args_archive.args, loadargs)	
+	p,q,m,k=(1,1,1,1)
+	if loadargs:
+		p,q,m,k,dtmp=args_archive.arimagarch
+		if dtmp!=d:
+			print("difference argument d changed, cannot load arguments")
+			args=None
+		
 	p_lim,q_lim,m_lim,k_lim=False,False,False,False
 
 	while True:
-		results_obj=results(p, d, q, m, k, X, Y, IDs,x_names,y_name,IDs_name,
-	                                            fixed_random_eff,W,w_names,descr,dataframe,h,has_intercept,
+		results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
+	                                            group_fixed_random_eff, time_fixed_eff,W,w_names,descr,dataframe,h,has_intercept,
 	                                            args_archive,model_string,user_constraints,
-		                                        direction_testing,args,mp)
+		                                        args,mp,window,loadargs)
 		panel=results_obj.panel
 		constraints=results_obj.constraints
 		args=results_obj.ll.args_d
-		direction_testing=False
-		diag=regstats.statistics(results_obj,3,simple_statistics=True)	
+		diag=regstats.statistics(results_obj,3,simple_statistics=True,printout=False)	
 		#Testing whether the highest order of each category is significant. If it is not, it is assumed
 		#the maximum order for the category is found, and the order is reduced by one.  When the maximum order
 		#is found for all categories, the loop ends
@@ -154,7 +138,6 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 		q,q_lim=model_parser.check_sign(panel,diag.tsign,'lambda',	q_lim,process_sign_level)
 		m,m_lim=model_parser.check_sign(panel,diag.tsign,'psi',		m_lim,process_sign_level,1)
 		k,k_lim=model_parser.check_sign(panel,diag.tsign,'gamma',	k_lim,process_sign_level,1)
-		loadargs=True
 		if p_lim and q_lim and m_lim and k_lim:
 			break
 		a_lim,a_incr=[],[]
@@ -170,15 +153,13 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 	return results_obj
 
 
-def mp_check(direction_testing,X):
+def mp_check(X):
 	N,k=X.shape
 	mp=None
 	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24) or True:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
-		modules=[['regprocs','rp']]
-		if direction_testing:
-			mp=mc.multiprocess(os.cpu_count(),modules,holdbacks=['AMAp','AMAq','GARM','GARK'])
-		else:
-			mp=mc.multiprocess(4,modules)
+		modules='import regprocs as rp'
+		mp=mc.multiprocess(4,modules)
 		
 	return mp
+	
 	
