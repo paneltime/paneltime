@@ -11,71 +11,170 @@ except ImportError as e:
 	c=None
 import numpy as np
 import functions as fu
-import regprocs as rp
-import statproc as stat
+import calculus_functions as cf
+import stat_functions as stat
 import random_effects as re
 from scipy import sparse as sp
 import scipy
+import system_arguments as arguments
 
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and creates an object
 	that store dynamic variables that depend on the \n
 	
 	"""
-	def __init__(self,argss,panels,Xs=None,constraintss=None):
+	def __init__(self,args,panel,constraints=None):
 		self.errmsg=''
-		self.errmsg_h=''
-
-		if args is None:
-			args=panel.args.args
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
-	
-		self.args_v=panel.args.conv_to_vector(args)
-		if not constraints is None:
-			constraints.within(self.args_v,True)	
-			constraints.set_fixed(self.args_v)
-		self.args_d=panel.args.conv_to_dict(self.args_v)
-		self.h_err=""
-		self.h_def=panel.h_def
+		
+		self.LL_calc(args,panel,constraints)
 		try:
-			self.LL=self.LL_calc(panel,X)
+			self.LL_calc(args,panel,constraints)
 			
 		except Exception as e:
-			self.LL=None
-			self.errmsg=self.errmsg_h
-			if self.errmsg=='':
-				self.errmsg=str(e)
+			self.errhandling(e)
+
 		if not self.LL is None:
 			if np.isnan(self.LL):
 				self.LL=None
 				
-	def calc_LL(self):
+				
+	def LL_calc(self,args_d,panel,constraints):	
+		args_v=panel.args.system_conv_to_vector(args_d)
+		if not constraints is None:
+			constraints.within(args_v,True)	
+			constraints.set_fixed(args_v)
+		self.args_d=panel.args.system_conv_to_dicts(args_v)	
+		self.args_v=args_v
+		lls, v_inv,lnv,e_RE=[],[],[],[]
+		for i in range(panel.args.n_equations):
+			ll=calc(self.args_d, panel, constraints,i)
+			if ll is None:
+				return None
+			lls.append(ll)
+			v_inv.append(ll.v_inv)
+			lnv.append(ll.lnv)
+			e_RE.append(ll.e_RE)
+
+		s=system(panel,self.args_d['rho'],e_RE,v_inv,lnv)
+		self.LL = self.LL_const-0.5*np.sum((lnv+s.rho_lndet+s.e_rho_e)*panel.included)
 		
-		LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+		self.system = s
+		self.lls = lls
 				
 				
+	def errhandling(self,e):
+		self.LL=None
+		for i in self.lls:
+			if i.errmsg_h!='':
+				self.errmsg=i.errmsg_h
+				break
+		if self.errmsg=='':
+			self.errmsg=str(e)
+	
+		
+	
+
+
+class system():
+	def __init__(self,panel,rho,e_RE,v_inv,lnv):
+		self.rho=rho
+		self.panel=panel
+		self.rho_properties()
+		e_RE,v_inv,lnv=np.array(e_RE),np.array(v_inv),np.array(lnv)
+		self.v_inv=v_inv
+		self.e_RE=e_RE
+		self.n_eq=e_RE.shape[0]
+		self.data_shape=e_RE.shape
+		self.e_norm=e_RE*v_inv
+		self.e_rho_prod()	
+		#gradient:
+		self.dLL_e=-self.e_rho*v_inv*self.panel.included
+		self.dLL_lnv=-0.5*(1-self.e_rho*self.e_norm)*self.panel.included
+		self.hessian()
+		
+	def hessian(self):
+		shape=[self.n_eq]+list(self.data_shape)
+		d2LL_de2=np.zeros(shape)
+		self.d2LL_dln_de=np.zeros(shape)
+		self.d2LL_de_dln=np.zeros(shape)
+		self.d2LL_dln2=np.zeros(shape)
+		
+		for i in range(self.n_eq):
+			for j in range(self.n_eq):
+				d2LL_de2[i,j]=-self.rho_inv[i,j]*self.v_inv[i]*self.v_inv[j]*self.panel.included
+				self.d2LL_dln_de[i,j]=0.5*self.e_RE[i]*self.rho_inv[i,j]*self.v_inv[i]*self.v_inv[j]*self.panel.included
+				self.d2LL_de_dln[i,j]=0.5*self.e_RE[j]*self.rho_inv[i,j]*self.v_inv[i]*self.v_inv[j]*self.panel.included
+				self.d2LL_dln2[i,j]= - 0.25*self.e_RE[j]*self.e_RE[i]*self.rho_inv[i,j]*self.v_inv[i]*self.v_inv[j]*self.panel.included
+			self.d2LL_dln_de[i,i]+=0.5*self.e_rho[i]*self.v_inv[i]*self.panel.included
+			self.d2LL_de_dln[i,i]+=0.5*self.e_rho[i]*self.v_inv[i]*self.panel.included
+			self.d2LL_dln2[i,i]+=0.5*self.e_rho[i]*self.e_norm[i]*self.panel.included
+		
+		
+	def e_rho_prod(self):
+		e_rho=np.zeros(self.data_shape)
+		e_rho_e=np.zeros(self.data_shape[1:])
+		for i in range(self.n_eq):
+			for j in range(self.n_eq):
+				e_rho[i]+=self.e_norm[j]*self.rho_inv[j,i]
+		for i in range(self.n_eq):
+			e_rho_e+=e_rho[i]*self.e_norm[i]
+		self.e_rho=np.array(e_rho)
+		self.e_rho_e=np.array(e_rho_e)
+		
+		
+	def rho_properties(self):
+		self.rho_inv=np.linalg.inv(self.rho)
+		self.rho_det=np.linalg.det(self.rho)
+		self.rho_lndet=np.log(self.rho_det)
+		self.rho_cofactors=np.zeros(self.rho.shape)
+		if len(self.rho)>1:
+			for i in range(len(self.rho)):
+				for j in range(i):
+					c=np.delete(self.rho,i,0)
+					c=np.delete(c,j,1)
+					self.rho_cofactors[i,j]=np.linalg.det(c)
+					self.rho_cofactors[j,i]=self.rho_cofactors[i,j]		
+					
+	def rho_derivatives(self):
+		for i in range(self.n_eq):
+			for i in range(i):
+				a=0
+				
+				
+				
+def cofactor(X,m,k,mmap=None):
+	if not mmap is None:
+		nz=np.nonzero(mmap==str([m,k]))
+		n=len(nz[0])
+		m=nz[0][0]
+		k=nz[1][0]
+	c=np.delete(X,m,0)
+	c=np.delete(c,k,1)
+	cf=n*(-1)**(m+k)*np.linalg.det(c)
+		
+	
+	
+	
+	
+		
+
 class calc:
 	"""Calculates variables neccesary for calculating the log likelihood"""
-	def __init__(self,args,panel,X=None,constraints=None):
+	def __init__(self,args,panel,constraints,i):
 
-		self.panel=panel
 		self.re_obj=re.re_obj(panel)
-		if args is None:
-			args=panel.args.args
-		self.args_v=panel.args.conv_to_vector(args)
-		if not constraints is None:
-			constraints.within(self.args_v,True)	
-			constraints.set_fixed(self.args_v)
-		self.args_d=panel.args.conv_to_dict(self.args_v)
+		self.args_d=args
 		self.h_err=""
 		self.h_def=panel.h_def
-		self.calc(panel, X)
+		self.calc(panel,i)
+		self.id=i
 
 
-	def calc(self,panel,X):
-		args=self.args_d#using dictionary arguments
-		if X is None:
-			X=panel.X
+	def calc(self,panel,i):
+		args=self.args_d[i]#using dictionary arguments
+		X=panel.X[i]
+		Y=panel.Y[i]
 		matrices=set_garch_arch(panel,args)
 		if matrices is None:
 			return None		
@@ -83,10 +182,10 @@ class calc:
 		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 		(N,T,k)=X.shape
 
-		u = panel.Y-fu.dot(X,args['beta'])
-		e = fu.dot(AMA_1AR,u)
+		u = Y-cf.dot(X,args['beta'])
+		e = cf.dot(AMA_1AR,u)
 		lnv_ARMA = self.garch(panel, args, GAR_1MA,e)
-		W_omega = fu.dot(panel.W_a,args['omega'])
+		W_omega = cf.dot(panel.W_a,args['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		grp = self.group_variance(panel, lnv, e,args)
 		lnv+=grp
@@ -95,17 +194,11 @@ class calc:
 		v_inv = np.exp(-lnv)*panel.a	
 		e_RE = self.re_obj.RE(e)
 		e_REsq = e_RE**2
-		
-		
-		if abs(LL)>1e+100: 
-			return None
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e, self.lnv_ARMA        = u,         e,       lnv_ARMA
 		self.lnv,self.v,self.v_inv          = lnv,       v,       v_inv
 		self.e_RE,self.e_REsq               = e_RE,      e_REsq
 
-		return LL
-	
 	def garch(self,panel,args,GAR_1MA,e):
 		if panel.m>0:
 			h_res=self.h(e, args['z'][0])
@@ -114,7 +207,7 @@ class calc:
 			(self.h_val,     self.h_e_val,
 			 self.h_2e_val,  self.h_z_val,
 			 self.h_2z_val,  self.h_ez_val)=[i*panel.included for i in h_res]
-			return fu.dot(GAR_1MA,self.h_val)
+			return cf.dot(GAR_1MA,self.h_val)
 		else:
 			(self.h_val,    self.h_e_val,
 			 self.h_2e_val, self.h_z_val,
@@ -151,9 +244,9 @@ class calc:
 		panel=self.panel
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
-		Y=fu.dot(self.AMA_1AR,panel.Y)
+		Y=cf.dot(self.AMA_1AR,panel.Y)
 		Y=self.re_obj.RE(Y,False)*sd_inv
-		X=fu.dot(self.AMA_1AR,panel.X)
+		X=cf.dot(self.AMA_1AR,panel.X)
 		X=self.re_obj.RE(X,False)*sd_inv
 		self.e_st=self.e_RE*sd_inv
 		self.Y_st=Y
@@ -235,7 +328,7 @@ def solve_mult(args,b,I):
 		X_1=scipy.linalg.solve_banded((q,0), X, I)
 		if np.any(np.isnan(X_1)):
 			return None,None			
-		X_1b=fu.dot(X_1, b)
+		X_1b=cf.dot(X_1, b)
 	except:
 		return None,None
 

@@ -3,20 +3,53 @@
 import numpy as np
 import functions as fu
 import date_time
+from datetime import datetime
+import tempstore
 
-def load(fname,sep):
+def load(fname,sep,dateformat,load_tmp_data):
 	fname=fu.obtain_fname(fname)
+	if load_tmp_data:
+		data=tempstore.loaddata(fname)
+		if not data is None:
+			return data
 	heading,s=get_head_and_sep(fname,sep)
 	print ("opening file ...")
-	data=np.loadtxt(fname,delimiter=s,skiprows=1,dtype=np.str)
+	data=np.loadtxt(fname,delimiter=s,skiprows=1,dtype=bytes)
+	data=data.astype(str)
 	print ("... done")
-	data=np.char.rstrip(np.char.lstrip(data,"b'"),"'")
-	data=convert_to_numeric(data,heading)
-	d=dict()
-	for i in range(data.shape[1]):
-		d[heading[i]]=data[:,i:i+1]
-	return d
+	data=convert_to_numeric_dict(data,heading,dateformat)
+	tempstore.savedata(fname,data)
+	return data
 
+def load_SQL(conn,sql_string,dateformat,load_tmp_data):
+	if load_tmp_data:
+		data=tempstore.loaddata(sql_string)
+		if not data is None:
+			return data
+	crsr=conn.cursor()
+	crsr.execute(sql_string)
+	print ("fetching SQL data ...")
+	data=np.array(crsr.fetchall())
+	print ("... done")
+	heading=[]
+	dtypes=[]
+	for i in crsr.description:
+		heading.append(i[0])
+		if i[1] in SQL_type_dict:
+			dtypes.append(i[1])
+		else:
+			dtypes.append(None)
+	data=convert_to_numeric_dict(data,heading,dateformat,dtypes)
+	tempstore.savedata(sql_string,data)
+	return data
+	
+
+
+	
+
+	
+	
+	
 def get_name(x,x_names,default):
 	x=get_names(x,x_names)
 	if x==[]:
@@ -54,113 +87,57 @@ def is_number(s):
 	except ValueError:
 		return False
 	
-def convert_to_numeric(r_old,name):
-	N,k=r_old.shape
-	r=None
+def convert_to_numeric_dict(a,name,dateformat,dtypes=None):
+	N,k=a.shape
+	df=dict()
+	if dtypes is None:
+		dtypes=k*[None]
 	for i in range(k):
-		r=make_numeric(r_old[:,i:i+1],name[i],r)	
-	return r
+		make_numeric(a[:,i:i+1],name[i],df,dateformat,dtypes[i])	
+	return df
 	
-def make_numeric(a,name,r):
+def make_numeric(a,name,df,dateformat,dtype):
+	if not dtype is None and dtype in SQL_type_dict:
+		df[name]=np.array(a,dtype=SQL_type_dict[dtype])
+		return
 	try:
-		b=np.array(a,dtype=np.float64)
-	except ValueError:	
-		d=np.unique(a)
-		dt,is_datetime=extract_date_time(d)
-		if is_datetime:
-			print ("""Converting categorical variable %s to days since 1900 ...""" %(name,))
-			d=dict(zip(d, dt.flatten()))
-		else:
-			print ("""Converting categorical variable %s to integers ...""" %(name,))
-			d=dict(zip(d, range(len(d))))
-		a=a.flatten()
-		b=np.array([d[k] for k in a],dtype=float)
-		b=b.reshape(len(b),1)
-	if r is None:
-		r=b
-	else:
-		r=np.append(r,b,1)
-	return r
-
-def extract_date_time(d):
-	n=len(d)
-	r=np.zeros((n,7),dtype=np.float)
-	OK=True
-	for i in range(len(d)):
-		dt_str=d[i]
-		v=dt_str.split()
-		r[i][0:3],date_OK=extract_date(v[0])
-		r[i][3:7],time_OK=extract_time(v[len(v)==2])
-		if date_OK==False and time_OK==False:
-			OK=False
-			return d,False#Abort if both time and date parsing fails
-	hours,minutes,seconds=analyze_time(r)
-	years,days,months=analyze_date(r)
-	days_since=date_time.days_since(years,months,days,hours,minutes,seconds,1900)
-	return days_since,True
-
-def analyze_time(r):
-	if np.sum(r[:,3:7])==0:
-		return 0,0,0
-	hours=r[:,3:4]
-	minutes=r[:,4:5]
-	seconds=r[:,5:6]
-	am_pm==r[:,6:7]
-	if np.sum(am_pm)>0:
-		hours=hours*(am_pm==1)+(12+hours)*(am_pm==2)
-	if np.max(hours)>24.0 or np.max(minutes)>60.0 or np.max(seconds)<0 or  np.min(months)<0:
-		raise RuntimeError("There is something wrong with a string variable that is formatted like a date-time variable")
-	return hours,minutes,seconds
-	
-
-def analyze_date(r):
-	if np.sum(r[:,0:3])==0:
-		return 0,0,0	
-	x1=None
-	for i in range(3):
-		if np.max(r[:,i:i+1])>31:#this is the year
-			years=r[:,i:i+1]
-		else:
-			if x1 is None:
-				x1=r[:,i:i+1]
-			else:
-				x2=r[:,i:i+1]
-
-	if np.max(x1)>12:#this is the day
-		days=x1
-		months=x2
-	else:
-		days=x2
-		months=x1
-
-	return years,days, months
+		try_float_int(a, df, name)
+	except ValueError:
+		try:
+			check_dateness(a,df,name,dateformat)
+		except ValueError:
+			convert_cat_to_int(a,df,name)
 			
-		
-def extract_date(dt):
-	if '-' in dt:
-		d=dt.split('-')
-	elif '/' in dt:
-		d=dt.split('/')	
-	else:
-		return (0,0,0),False
-	if len(d)!=3:
-		return (0,0,0),False
-	return d,True
+def try_float_int(a,df,name):
+	a=a.astype(float)
+	if np.all(np.equal(np.mod(a, 1), 0)):
+		a=a.astype(int)
+	df[name]=a	
 
+def convert_cat_to_int(a,df,name):
+	print ("""Converting categorical variable %s to integers ...""" %(name,))
+	q=np.unique(a)
+	d=dict(zip(q, range(len(q))))
+	df[name]=np.array([[d[k[0]]] for k in a],dtype=int)
 	
-def extract_time(t):
-	if not ':' in t:
-		return (0,0,0,0),False
-	v=t.split(':')
-	if len(v)!=3:
-		return (0,0,0,0),False
-	am_pm=0
-	if v[2][-2].lower()=='am': 
-		am_pm=1
-	elif v[2][-2].lower()=='pm':
-		am_pm=2
-	v[2]=v[2][:2]
-	return v,True
+
+def check_dateness(a,df,name,dateformat):
+	n,k=a.shape
+	dts=np.unique(a)
+	d=dict()
+	lst=[]
+	for dt in dts:
+		d[dt]=(datetime.strptime(dt,dateformat)-datetime(1900,1,1)).days
+		lst.append(d[dt])
+	if np.max(lst)-np.min(lst)<3:#seconds
+		for dt in dts:
+			d[dt]=(datetime.strptime(dt,dateformat)-datetime(2000,1,1)).seconds	
+	df[name]=np.array([[d[k[0]]] for k in a])
+	a=0
+
+
+
+
 	
 def get_best_sep(string,sep):
 	"""Finds the separator that gives the longest array"""
@@ -237,6 +214,15 @@ def filter_data(filters,data,data_dict):
 				
 				
 				
-			
-			
-			
+SQL_type_dict={0: float,
+ 1: int,
+ 2: int,
+ 3: int,
+ 4: float,
+ 5: float,
+ 6: float,
+ 8: int,
+ 9: int,
+ 16: int,
+ 246: int
+ }

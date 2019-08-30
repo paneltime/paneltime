@@ -8,7 +8,6 @@ import numpy as np
 import sys
 import os
 import csv
-from scipy import sparse as sp
 import re
 
 def currentdir():
@@ -22,74 +21,6 @@ def timer(tic, a):
 	tac=time.clock()
 	a.append(tic-tac)
 	return tac,a
-
-def dot(a,b,reduce_dims=True):
-	"""returns the dot product of a*b where either a or be or both to be
-	arrays of matrices"""
-	if type(a)==sp.csc_matrix:
-		return a.multiply(b)
-	if a is None or b is None:
-		return None
-	if len(a.shape)==2 and len(b.shape)==2:
-		if a.shape[1]!=b.shape[0] and a.shape[0]==b.shape[0]:
-			return np.dot(a.T,b)
-		return np.dot(a,b)
-	if len(a.shape)==2 and len(b.shape)==3:
-		N,T,k=b.shape
-		x=np.moveaxis(b, 1, 0)
-		x=x.reshape((T,N*k))
-		x=np.dot(a,x)
-		x.resize((T,N,k))
-		x=np.moveaxis(x,0,1)
-		#slower alternative:
-		#x2=np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
-		return x
-	elif len(a.shape)==3 and len(b.shape)==2:
-		return np.array([np.dot(a[i],b) for i in range(a.shape[0])])
-	elif len(a.shape)==3 and len(b.shape)==3:
-		if a.shape[1]!=b.shape[1]:
-			raise RuntimeError("dimensions do not match")
-		elif a.shape[0]==b.shape[0] and reduce_dims:
-			x=np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
-			return x
-		elif a.shape[2]==b.shape[1]:
-			k,Ta,Ta2=a.shape
-			if Ta2!=Ta:
-				raise RuntimeError("hm")
-			N,T,m=b.shape
-			b_f=np.moveaxis(b, 1, 0)
-			a_f=a.reshape((k*T,T))
-			b_f=b_f.reshape((T,N*m))
-			x=np.dot(a_f,b_f)
-			x.resize((k,T,N,m))	
-			x=np.swapaxes(x, 2, 0)
-			#slower:
-			#x2=np.array([[np.dot(a[i],b[j]) for j in range(b.shape[0])] for i in range(a.shape[0])])
-			#x2=np.moveaxis(x2,0,2)	
-			return x
-
-			
-	elif len(a.shape)==2 and len(b.shape)==4:
-		if a.shape[1]!=b.shape[1] or a.shape[1]!=a.shape[0]:
-			raise RuntimeError("dimensions do not match")
-		else:
-			N,T,k,m=b.shape
-			x=np.moveaxis(b, 1, 0)
-			x=x.reshape((T,N*k*m))
-			x=np.dot(a,x)
-			x.resize((T,N,k,m))
-			x=np.moveaxis(x,0,1)
-
-			#slower alternatives:
-			#x=np.array([[np.dot(a,b[i,:,j]) for i in range(b.shape[0])] for j in range(b.shape[2])])
-			#x=np.moveaxis(x,0,2)
-				#or
-			#x2=np.zeros(b.shape)		
-			#r=c.dot(a,b,b.shape,x2)		
-			return x
-
-	else:
-		raise RuntimeError("this multiplication is not supported by dot")
 
 
 def clean(string,split='',cleanchrs=['\n','\t',' ']):
@@ -205,3 +136,8 @@ def copy_array_dict(d):
 	for i in d:
 		r[i]=np.array(d[i])
 	return r
+
+
+def append(arr,values):
+	for i in range(len(arr)):
+		arr[i].append(values[i])

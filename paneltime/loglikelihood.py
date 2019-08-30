@@ -11,8 +11,8 @@ except ImportError as e:
 	c=None
 import numpy as np
 import functions as fu
-import regprocs as rp
-import statproc as stat
+import calculus_functions as cf
+import stat_functions as stat
 import random_effects as re
 from scipy import sparse as sp
 import scipy
@@ -24,13 +24,12 @@ class LL:
 	determined from the dictionary. If args is a vector, the ARMA-GARCH order needs to be consistent
 	with the  panel object
 	"""
-	def __init__(self,args,panel,X=None,constraints=None):
+	def __init__(self,args,panel,constraints=None):
 		self.errmsg=''
 		self.errmsg_h=''
 		self.panel=panel
-		self.re_obj=re.re_obj(panel)
-		if args is None:
-			args=panel.args.args
+		self.re_obj_i=re.re_obj(panel,True)
+		self.re_obj_t=re.re_obj(panel,False)
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
 	
 		self.args_v=panel.args.conv_to_vector(args)
@@ -40,8 +39,9 @@ class LL:
 		self.args_d=panel.args.conv_to_dict(self.args_v)
 		self.h_err=""
 		self.h_def=panel.h_def
+		self.LL=self.LL_calc(panel)
 		try:
-			self.LL=self.LL_calc(panel,X)
+			self.LL=self.LL_calc(panel)
 			
 		except Exception as e:
 			self.LL=None
@@ -55,10 +55,9 @@ class LL:
 		
 
 
-	def LL_calc(self,panel,X=None):
+	def LL_calc(self,panel):
 		args=self.args_d#using dictionary arguments
-		if X is None:
-			X=panel.X
+		X=panel.X
 		matrices=set_garch_arch(panel,args)
 		if matrices is None:
 			return None		
@@ -66,17 +65,17 @@ class LL:
 		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 		(N,T,k)=X.shape
 
-		u = panel.Y-fu.dot(X,args['beta'])
-		e = fu.dot(AMA_1AR,u)
+		u = panel.Y-cf.dot(X,args['beta'])
+		e = cf.dot(AMA_1AR,u)
 		lnv_ARMA = self.garch(panel, args, GAR_1MA,e)
-		W_omega = fu.dot(panel.W_a,args['omega'])
+		W_omega = cf.dot(panel.W_a,args['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		grp = self.group_variance(panel, lnv, e,args)
 		lnv+=grp
 		lnv = np.maximum(np.minimum(lnv,100),-100)
 		v = np.exp(lnv)*panel.a
 		v_inv = np.exp(-lnv)*panel.a	
-		e_RE = self.re_obj.RE(e)
+		e_RE = e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e)
 		e_REsq = e_RE**2
 		LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
 		
@@ -97,7 +96,7 @@ class LL:
 			(self.h_val,     self.h_e_val,
 			 self.h_2e_val,  self.h_z_val,
 			 self.h_2z_val,  self.h_ez_val)=[i*panel.included for i in h_res]
-			return fu.dot(GAR_1MA,self.h_val)
+			return cf.dot(GAR_1MA,self.h_val)
 		else:
 			(self.h_val,    self.h_e_val,
 			 self.h_2e_val, self.h_z_val,
@@ -134,10 +133,10 @@ class LL:
 		panel=self.panel
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
-		Y=fu.dot(self.AMA_1AR,panel.Y)
-		Y=self.re_obj.RE(Y,False)*sd_inv
-		X=fu.dot(self.AMA_1AR,panel.X)
-		X=self.re_obj.RE(X,False)*sd_inv
+		Y=cf.dot(self.AMA_1AR,panel.Y)
+		Y=(Y+self.re_obj_i.RE(Y,False)+self.re_obj_t.RE(Y,False))*sd_inv
+		X=cf.dot(self.AMA_1AR,panel.X)
+		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))*sd_inv
 		self.e_st=self.e_RE*sd_inv
 		self.Y_st=Y
 		self.X_st=X
@@ -218,7 +217,7 @@ def solve_mult(args,b,I):
 		X_1=scipy.linalg.solve_banded((q,0), X, I)
 		if np.any(np.isnan(X_1)):
 			return None,None			
-		X_1b=fu.dot(X_1, b)
+		X_1b=cf.dot(X_1, b)
 	except:
 		return None,None
 

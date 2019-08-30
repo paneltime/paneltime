@@ -44,7 +44,7 @@ def get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_nam
 	print ("Analyzing variables ...")
 	
 	sort(dataframe,time_name,IDs_name)
-	y_name,x_names=parse_model(model_string)
+	
 	timevar,time_name,void=check_var(dataframe,time_name,'time_name')
 	IDs,IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
 	dataframe['L']=lag_object(IDs).lag#allowing for lag operator in model input
@@ -52,10 +52,23 @@ def get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_nam
 	intercept_name=None
 	if add_intercept:
 		intercept_name='Intercept'
-	X,x_names,has_intercept=check_var(dataframe,x_names,'x_names',intercept_name=intercept_name,raise_error=True,intercept_variable=True)
-	Y,y_names,void=check_var(dataframe,y_name,'y_name',raise_error=True)
-	
+	if type(model_string)==str:
+		X,x_names,has_intercept,Y,y_name=parse_and_check(dataframe,model_string,intercept_name)
+	else:
+		a=[],[],[],[],[]
+		for s in model_string:
+			fu.append(a, parse_and_check(dataframe,s,intercept_name))
+		X,x_names,has_intercept,Y,y_name=a
 	return X,x_names,Y,y_name,IDs,IDs_name,timevar,time_name,W,w_names,has_intercept
+
+
+	
+
+def parse_and_check(dataframe,model_string,intercept_name):
+	y_name,x_names=parse_model(model_string)
+	X,x_names,has_intercept=check_var(dataframe,x_names,'x_names',intercept_name=intercept_name,raise_error=True,intercept_variable=True)
+	Y,y_name,void=check_var(dataframe,y_name,'y_name',raise_error=True)	
+	return X,x_names,has_intercept,Y,y_name
 
 class lag_object:
 
@@ -110,7 +123,8 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 	if 'ones' in dataframe.keys():
 		print ("Warning: variable 'ones' is replaced by a constant vector of ones. Do not give any variable this name if you want to avoid this.")
 	dataframe['ones']=np.ones((n,1))
-	exec(transforms,globals(),dataframe)	
+	if not transforms is None:
+		exec(transforms,globals(),dataframe)	
 	n=filter_data(filters, dataframe,n)
 	exec(transforms,globals(),dataframe)
 	for i in list(dataframe.keys()):
@@ -274,7 +288,7 @@ def check_sign(results,stats,category,oldp,fixed,maxp=1000,sign_level=0.05):
 	sign=stats.output.tsign[results.panel.args.positions[category]]
 	if len(sign)==0:
 		return 1,fixed
-	members=results.panel.args.map_from_categories[category]
+	members=results.panel.args.positions[category]
 	a=list(results.constraints.fixed)
 	b=list(results.constraints.associates)
 	c=np.unique(a+b)

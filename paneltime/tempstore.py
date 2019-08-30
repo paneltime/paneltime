@@ -3,12 +3,12 @@
 import sys
 import pickle
 import tempfile
+import os
 
 
-if 'win' in sys.platform:
-	fname=tempfile.gettempdir()+'\\paneltime.panel'
-else:
-	fname=tempfile.gettempdir()+'/paneltime.panel'
+fname_args=os.path.join(tempfile.gettempdir(),'paneltime.args')
+fname_data=os.path.join(tempfile.gettempdir(),'paneltime.data')
+fname_key=os.path.join(tempfile.gettempdir(),'paneltime.key')
 max_sessions=20
 
 class args_archive:
@@ -18,7 +18,7 @@ class args_archive:
 		creating an instance of this class"""  
 		
 		self.model_key=model_string# possibility for determening model based on data: get_model_key(X, Y, W)
-		self.session_db=load_obj()
+		self.session_db=load_obj(fname_args)
 		if (not loadargs) or (self.session_db is None):
 			(self.args,self.conv,self.arimagarch,self.not_in_use2)=(None,0,(0,0,0,0,0),None)
 			return
@@ -29,7 +29,7 @@ class args_archive:
 			(self.args,self.conv,self.arimagarch,self.not_in_use2)=(None,0,(0,0,0,0,0),None)
 
 	def load(self):#for debugging
-		session_db=load_obj()
+		session_db=load_obj(fname_args)
 		(d,a)=session_db
 		if self.model_key in d.keys():
 			return d[self.model_key]
@@ -38,7 +38,6 @@ class args_archive:
 
 	def save(self,args,conv,arimagarch,not_in_use2=None):
 		"""Saves the estimated parameters for later use"""
-		f=open(fname, "w+b")
 		if not self.session_db is None:
 			d,a=self.session_db#d is d dictionary, and a is a sequental list that allows us to remove the oldest entry when the database is full
 			if (len(a)>max_sessions) and (not self.model_key in d):
@@ -54,11 +53,33 @@ class args_archive:
 			a=list(d.keys())
 		a.append(self.model_key)
 		self.session_db=(d,a)
-		pickle.dump((self.session_db),f)   
-		f.flush() 
-		f.close()
+		save_obj(fname_args,self.session_db)
 
-def load_obj():
+
+
+def loaddata(key):
+	"""Loads data if a similar data was loaded before. """  
+	
+	current_key=load_obj(fname_key)
+	if key==current_key:
+		return load_obj(fname_data)
+	
+	
+def savedata(key,data):
+	"""Loads data if a similar data was loaded before. """  
+	save_obj(fname_key,key)
+	save_obj(fname_data,data)
+	
+
+def load(self):#for debugging
+	session_db=load_obj(datafname)
+	(d,a)=session_db
+	if self.model_key in d.keys():
+		return d[self.model_key]
+	else:
+		return (None,0,None,None)		
+
+def load_obj(fname):
 	try:
 		f=open(fname, "r+b")
 		u= pickle.Unpickler(f)
@@ -67,7 +88,13 @@ def load_obj():
 		return u 
 	except:
 		return None
-
+	
+	
+def save_obj(fname,obj):
+	f=open(fname, "w+b")
+	pickle.dump(obj,f)   
+	f.flush() 
+	f.close()	
 
 def get_model_key(X,Y, IDs,W):
 	"""Creates a string that is unique for the dataframe and arguments. Used to load starting values for regressions that

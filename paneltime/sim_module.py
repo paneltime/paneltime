@@ -4,7 +4,7 @@
 #simulalte a panel data GARCH model
 
 import numpy as np
-import regprocs as rp
+import calculus_functions as cf
 import functions as fu
 
 
@@ -34,12 +34,12 @@ class simulation:
 		matrices=self.set_garch_arch_LL()
 		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
 
-		u=Y-fu.dot(X,args['beta'])
-		e=fu.dot(AMA_1AR,u)
+		u=Y-cf.dot(X,args['beta'])
+		e=cf.dot(AMA_1AR,u)
 		e=u#fix this bug
 		if self.m>0:
 			h=np.log(e**2+args['z'])
-			lnv_ARMA=fu.dot(GAR_1MA,h)
+			lnv_ARMA=cf.dot(GAR_1MA,h)
 		else:
 			lnv_ARMA=0
 		lnv=args['omega']+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
@@ -61,13 +61,13 @@ class simulation:
 		else:
 			eRE=e
 	
-		self.eRE=fu.dot(self.AAR_1MA,eRE)#BUG u is currently not reused
+		self.eRE=cf.dot(self.AAR_1MA,eRE)#BUG u is currently not reused
 	
 	
 		if self.m>0:
 			h=np.log(self.eRE**2+args['z'])
 			ID_eff=np.random.normal(0,1,(self.N,1,1))*args['mu']
-			lnv=fu.dot(self.GAR_1MA,h)+ID_eff+args['omega']
+			lnv=cf.dot(self.GAR_1MA,h)+ID_eff+args['omega']
 		else:
 			lnv=0	
 	
@@ -78,7 +78,7 @@ class simulation:
 
 		X=np.random.normal(0,1,(self.N,self.T,self.beta_len-1))
 		X=np.concatenate((np.ones((self.N,self.T,1)),X),2)
-		Y_pred=fu.dot(X,args['beta'])
+		Y_pred=cf.dot(X,args['beta'])
 		Y=Y_pred+self.eRE_GARCH
 		
 		X=reshape(X,self.max_lags+1)
@@ -124,33 +124,33 @@ class simulation:
 		
 	def set_garch_arch(self):
 		args,p,q,m,k=self.args,self.p,self.q,self.m,self.k
-		AMA=rp.lag_matr(self.I,args['lambda'])
-		X=-rp.lag_matr(-self.I,args['rho'])
+		AMA=cf.lag_matr(self.I,args['lambda'])
+		X=-cf.lag_matr(-self.I,args['rho'])
 		AAR_1=np.linalg.inv(X)
-		AAR_1MA=fu.dot(AAR_1,AMA)
-		X=-rp.lag_matr(self.I,args['gamma'])
+		AAR_1MA=cf.dot(AAR_1,AMA)
+		X=-cf.lag_matr(self.I,args['gamma'])
 		GAR_1=np.linalg.inv(X)
-		GMA=rp.lag_matr(self.zero,args['psi'])	
-		GAR_1MA=fu.dot(GAR_1,GMA)
+		GMA=cf.lag_matr(self.zero,args['psi'])	
+		GAR_1MA=cf.dot(GAR_1,GMA)
 		return AAR_1MA, GAR_1MA
 	
 	
 	def set_garch_arch_LL(self):
 		args,p,q,m,k=self.args,self.p,self.q,self.m,self.k
-		X=rp.lag_matr(self.I,args['lambda'])
+		X=cf.lag_matr(self.I,args['lambda'])
 		try:
 			AMA_1=np.linalg.inv(X)
 		except:
 			return None
-		AAR=-rp.lag_matr(-self.I,args['rho'])
-		AMA_1AR=fu.dot(AMA_1,AAR)
-		X=-rp.lag_matr(-self.I,args['gamma'])
+		AAR=-cf.lag_matr(-self.I,args['rho'])
+		AMA_1AR=cf.dot(AMA_1,AAR)
+		X=-cf.lag_matr(-self.I,args['gamma'])
 		try:
 			GAR_1=np.linalg.inv(X)
 		except:
 			return None
-		GMA=rp.lag_matr(self.zero,args['psi'])	
-		GAR_1MA=fu.dot(GAR_1,GMA)
+		GMA=cf.lag_matr(self.zero,args['psi'])	
+		GAR_1MA=cf.dot(GAR_1,GMA)
 		return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA	
 	
 

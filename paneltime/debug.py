@@ -3,8 +3,8 @@
 
 #used for debugging
 import numpy as np
-import statproc as stat
-import regprocs as rp
+import stat_functions as stat
+import calculus_functions as cf
 import time
 import functions as fu
 import os
@@ -99,10 +99,10 @@ def LL_calc2(ll,panel,d,X=None):
 	AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 	(N,T,k)=X.shape
 
-	u = panel.Y-fu.dot(X,args['beta'])
-	e = fu.dot(AMA_1AR,u)
+	u = panel.Y-cf.dot(X,args['beta'])
+	e = cf.dot(AMA_1AR,u)
 	lnv_ARMA = self.garch(panel, args, GAR_1MA,e)
-	W_omega = fu.dot(panel.W_a,args['omega'])
+	W_omega = cf.dot(panel.W_a,args['omega'])
 	lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	grp = self.group_variance(panel, lnv, e,args)
 	lnv+=grp
@@ -135,10 +135,10 @@ def LL_calc(ll,panel,d,X=None):
 	AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 	(N,T,k)=X.shape
 
-	u = panel.Y-fu.dot(X,args['beta'])
-	e = fu.dot(AMA_1AR,u)
+	u = panel.Y-cf.dot(X,args['beta'])
+	e = cf.dot(AMA_1AR,u)
 	lnv_ARMA = self.garch(panel, args, GAR_1MA,e)
-	W_omega = fu.dot(panel.W_a,args['omega'])
+	W_omega = cf.dot(panel.W_a,args['omega'])
 	lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	grp = self.group_variance(panel, lnv, e,args)
 	lnv+=grp

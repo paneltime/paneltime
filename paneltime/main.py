@@ -11,7 +11,7 @@
 
 
 import numpy as np
-import regstats
+import output
 import panel
 import warnings
 import multi_core as mc
@@ -79,14 +79,14 @@ class results:
 		                     args,mp,window,loadargs):
 		print ("Creating panel")
 		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,group_fixed_random_eff, time_fixed_eff,W,
-			            w_names,descr,dataframe,h,has_intercept,model_string,user_constraints,args,loadargs)
+			            w_names,descr,dataframe,h,has_intercept,model_string,args,loadargs)
 		
 		direction=drctn.direction(pnl)
 		if not mp is None:
 			mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')
 	
 		ll,g,G,H, conv,pr,constraints,dx_conv=maximize.maximize(pnl,direction,mp,
-		                        args_archive,pnl.args.args,True,
+		                        args_archive,pnl.args.args_init,True,
 		                        user_constraints,window)	
 
 		self.outputstring=pr
@@ -130,7 +130,7 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 		panel=results_obj.panel
 		constraints=results_obj.constraints
 		args=results_obj.ll.args_d
-		diag=regstats.statistics(results_obj,3,simple_statistics=True,printout=False)	
+		diag=output.statistics(results_obj,3,simple_statistics=True,printout=False)	
 		#Testing whether the highest order of each category is significant. If it is not, it is assumed
 		#the maximum order for the category is found, and the order is reduced by one.  When the maximum order
 		#is found for all categories, the loop ends
@@ -157,7 +157,7 @@ def mp_check(X):
 	N,k=X.shape
 	mp=None
 	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24) or True:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
-		modules='import regprocs as rp'
+		modules='import calculus_functions as cf'
 		mp=mc.multiprocess(4,modules)
 		
 	return mp

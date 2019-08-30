@@ -93,7 +93,7 @@ def get_slave_dicts(d_arr):
 
 class slave():
 	"""Creates a slave"""
-	command = [sys.executable, "-u", "-m", "slave.py"]
+	command = [sys.executable, "-u", "-m", "multi_core_slave.py"]
 
 
 	def __init__(self,initcommand,slave_id,fpath):
@@ -208,7 +208,7 @@ def format_args_array(arg_array,run_mp=True):
 
 def format_args(x,run_mp):
 	if not run_mp:
-		x=x.replace('rp.','')
+		x=x.replace('cf.','')
 	x=x.replace('\t','    ')
 	n=0
 	xarr=x.split('\n')

@@ -1,27 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#This module contains classes used in the regression
+#This module contains the panel class containing the data structured 
+#as a pandel data set.
 
-
-
-import stat_functions as stat
 import numpy as np
-import time
-import threading
-import debug
 import functions as fu
 import calculus_functions as cf
-import model_parser
-import calculus
-import copy
-import loglikelihood as logl
 from scipy import sparse as sp
 import random_effects as re
-
+import system_arguments as arguments
 
 min_AC=0.000001
-
 
 def posdef(a,da):
 	return list(range(a,a+da)),a+da
@@ -29,7 +19,7 @@ def posdef(a,da):
 class panel:
 	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,x_names,y_name,IDs_name,
 	             fixed_random_eff,time_fixed_eff,W,w_names,descr,dataframe,h,
-	             has_intercept,model_string,args,loadargs
+	             has_intercept,user_constraints,args,loadargs
 	             ):
 		"""
 		No effects    : fixed_random_eff=0\n
@@ -49,7 +39,7 @@ class panel:
 			timevar=None
 
 		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,
-		                  IDs_name,w_names,descr,fixed_random_eff,model_string,loadargs)
+		                  IDs_name,w_names,descr,fixed_random_eff,loadargs)
 		
 		self.arrayize(X, Y, W, IDs,timevar)
 
@@ -73,7 +63,7 @@ class panel:
 		self.group_var_wght=1-1/np.maximum(self.T_i-1,1)
 		
 	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,
-	                 w_names,descr,fixed_random_eff,model_string,loadargs):
+	                 w_names,descr,fixed_random_eff,loadargs):
 		self.has_intercept=has_intercept
 		self.dataframe=dataframe
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
@@ -83,13 +73,13 @@ class panel:
 		self.raw_Y=Y
 		self.IDs_name=IDs_name
 		self.w_names=w_names		
-		self.p,self.d,self.q,self.m,self.k,self.nW,self.n_beta=p,d,q,m,k,W.shape[1],X.shape[1]
-		self.n_beta=len(X[0])
+		self.p,self.d,self.q,self.m,self.k,self.nW=p,d,q,m,k,W.shape[1]
+		self.n_beta=[len(i[0]) for i in X]
+		self.len_data=[len(i) for i in X]
 		self.descr=descr
 		self.its_reg=0
 		self.FE_RE=fixed_random_eff
 		self.IDs=IDs	
-		self.len_data=len(X)
 		self.define_h_func(h)
 		self.loadargs=loadargs
 		
@@ -102,7 +92,7 @@ class panel:
 		self.NT_before_loss=self.NT+self.tot_lost_obs				
 		self.number_of_RE_coef=self.N
 		self.number_of_FE_coef_in_variance=self.N
-		self.args=arguments(self, args)
+		self.args=arguments.arguments(self,args)
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_FE_coef_in_variance
 		
 		
@@ -146,10 +136,10 @@ class panel:
 	def arrayize(self,X,Y,W,IDs,timevar):
 		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs,
 		and returns the matrix arrays and their row number"""
-		NT,k=X.shape
+		NT,k=X[0].shape
 		if IDs is None:
-			self.X=X.reshape((1,NT,k))
-			self.Y=Y.reshape((1,NT,1))
+			self.X=[X[i].reshape((1,NT,self.n_beta[i])) for i in range(len(X))]
+			self.Y=[i.reshape((1,NT,1)) for i in Y]
 			NTW,k=W.shape
 			self.W=W.reshape((1,NT,k))
 			self.time_map=None
@@ -163,8 +153,8 @@ class panel:
 			T=np.sum(sel,1)
 			self.max_T=np.max(T)
 			idincl=T>self.lost_obs+5
-			self.X=arrayize(X, N,self.max_T,T, idincl,sel)
-			self.Y=arrayize(Y, N,self.max_T,T, idincl,sel)
+			self.X=[arrayize(i, N,self.max_T,T, idincl,sel) for i in X]
+			self.Y=[arrayize(i, N,self.max_T,T, idincl,sel) for i in Y]
 			self.W=arrayize(W, N,self.max_T,T, idincl,sel)
 			self.N=np.sum(idincl)
 			self.T_arr=T[idincl].reshape((self.N,1))
@@ -205,17 +195,14 @@ class panel:
 			if len(a):
 				t_map_tuple.append((tuple(a[0]),tuple(a[1])))	
 				tcnt.append(len(a[0]))
-		
+		tcnt=np.array(tcnt)
 		#A full random effects calculation is infeasible because of complexity and computing costs. 
 		#Aquazi random effects weighting is used. It  is more conservative than the full
 		#RE weight theta=1-sd_pooled/(sd_pooled+sd_within/T)**0.5
 		#If the weights are too generous, the RE adjustment may add in stead of reducing noise. 
-		n=len(tcnt)
-		self.n_dates=n
-		self.date_count=np.array(tcnt).reshape(n,1,1)
-		self.date_map=t_map_tuple
-		
-		
+		w=1-1/np.maximum(tcnt-1,1)
+		self.time_map=t_map_tuple
+		self.time_map_w=w
 	
 	
 	def define_h_func(self,h_definition):
@@ -247,7 +234,7 @@ def h(e,z):
 			dims.pop(0)
 			return np.sum(X,0)/self.N_t.reshape(dims)
 		if axis==(0,1):
-			return np.sum(np.sum(X,0),0)/self.NT
+			return np.sum(sum(X,0),0)/self.NT
 			
 	def var(self,X,axis=None,k=1,mean=None):
 		dims=list(X.shape)
@@ -295,173 +282,4 @@ def arrayize(X,N,max_T,T,idincl,sel,dtype=None):
 			k+=1
 	Xarr=Xarr[:k]
 	return Xarr
-
-
-
-
-
-class arguments:
-	"""Sets initial arguments and stores static properties of the arguments"""
-	def __init__(self,panel, args):
-		p, d, q, m, k=panel.p, panel.d, panel.q, panel.m, panel.k
-		self.categories=['beta','rho','lambda','gamma','psi','omega','mu','z']
-		self.args_old=args
-		self.panel=panel
-		self.set_init_args(p, d, q, m, k,panel)
-		self.make_namevector(panel,p, q, m, k)
-		self.position_defs()
-		self.args_v=self.conv_to_vector(self.args_init)
-		self.n_args=len(self.args_v)
-
-	def initargs(self,p,d,q,m,k,panel):
-		if self.args_old is None:
-			armacoefs=0
-		else:
-			armacoefs=0
-		args=dict()
-		args['beta']=np.zeros((panel.X.shape[2],1))
-		args['omega']=np.zeros((panel.W.shape[2],1))
-		args['rho']=np.ones(p)*armacoefs
-		args['lambda']=np.ones(q)*armacoefs
-		args['psi']=np.ones(m)*armacoefs
-		args['gamma']=np.ones(k)*armacoefs
-		args['mu']=np.array([])
-		args['z']=np.array([])	
-		if m>0 and panel.N>1:
-			args['mu']=np.array([0.0])
-			args['omega'][0][0]=0
-		if m>0:
-			args['psi'][0]=0
-			args['z']=np.array([0.00001])	
-
-		return args
-
-	def set_init_args(self,p,d,q,m,k,panel):
-		
-		args=self.initargs(p, d, q, m, k, panel)
-
-		#de2=np.roll(e**2,1)-e**2
-		#c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
-
-		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
-		args['beta']=beta
-		if not panel.m_zero:
-			args['omega'][0]=np.log(panel.var(e))
-
-	
-		self.args_start=fu.copy_array_dict(args)
-		if not self.args_old is None: 
-			args['beta']=insert_arg(args['beta'],self.args_old['beta'])
-			args['omega']=insert_arg(args['omega'],self.args_old['omega'])
-			args['rho']=insert_arg(args['rho'],self.args_old['rho'])
-			args['lambda']=insert_arg(args['lambda'],self.args_old['lambda'])
-			args['psi']=insert_arg(args['psi'],self.args_old['psi'])
-			args['gamma']=insert_arg(args['gamma'],self.args_old['gamma'])
-			args['z']=insert_arg(args['z'],self.args_old['z'])
-			if len(args['mu'])>len(self.args_old['mu']):
-				args['omega'][0][0]=0
-			args['mu']=insert_arg(args['mu'],self.args_old['mu'])
-			
-		self.args_init=args
-		self.set_restricted_args(p, d, q, m, k,panel,e,beta)
-		
-
-	def set_restricted_args(self,p, d, q, m, k, panel,e,beta):
-		self.args_restricted=self.initargs(p, d, q, m, k, panel)
-		self.args_OLS=self.initargs(p, d, q, m, k, panel)		
-		self.args_restricted['beta'][0][0]=np.mean(panel.Y)
-		self.args_restricted['omega'][0][0]=np.log(np.var(panel.Y))
-		self.args_OLS['beta']=beta
-		self.args_OLS['omega'][0][0]=np.log((np.var(e*panel.included)*len(e[0])/np.sum(panel.included)))
-		
-	def position_defs(self):
-		"""Defines positions in vector argument"""
-
-		self.positions=dict()
-		self.positions_map=dict()#a dictionary of indicies containing the string name and sub-position of index within the category
-		k=0
-		for i in self.categories:
-			n=len(self.args_init[i])
-			rng=range(k,k+n)
-			self.positions[i]=rng
-			for j in rng:
-				self.positions_map[j]=[0,i,j-k]#equation,category,position
-			k+=n
-	
-	def conv_to_dict(self,args):
-		"""Converts a vector argument args to a dictionary argument. If args is a dict, it is returned unchanged"""
-		if type(args)==dict:
-			return args
-		else:
-			d=dict()
-			k=0
-			for i in self.categories:
-				n=len(self.positions[i])
-				rng=range(k,k+n)
-				d[i]=args[rng]
-				if i=='beta' or i=='omega':
-					d[i]=d[i].reshape((n,1))
-				k+=n
-		return d
-
-
-	def conv_to_vector(self,args):
-		"""Converts a dict argument args to vector argument. if args is a vector, it is returned unchanged.\n
-		If args=None, the vector of self.args_init is returned"""
-		if type(args)==list or type(args)==np.ndarray:
-			return args
-		v=np.array([])
-		for i in self.categories:
-			s=args[i]
-			if type(s)==np.ndarray:
-				s=s.flatten()
-			v=np.concatenate((v,s))
-		return v
-
-
-	def make_namevector(self,panel,p, q, m, k):
-		"""Creates a vector of the names of all regression varaibles, 
-		including variables, ARIMA and GARCH terms. This defines the positions
-		of the variables througout the estimation."""
-		d=dict()
-		names=panel.x_names[:]#copy variable names
-		d['beta']=names
-		add_names(p,'AR term %s (p)','rho',d,names)
-		add_names(q,'MA term %s (q)','lambda',d,names)
-		add_names(m,'MACH term %s (m)','gamma',d,names)
-		add_names(k,'ARCH term %s (k)','psi',d,names)
-		
-		d['omega']=panel.w_names
-		names.extend(panel.w_names)
-		if m>0:
-			if panel.N>1:
-				d['mu']=['mu (var.ID eff.)']
-				names.extend(d['mu'])
-			d['z']=['z in h(e,z)']
-			names.extend(d['z'])
-			
-		self.names_v=names
-		self.names_d=d
-
-
-			
-
-			
-def add_names(T,namsestr,category,d,names):
-	a=[]
-	for i in range(T):
-		a.append(namsestr %(i,))
-	names.extend(a)
-	d[category]=a
-	
-
-def insert_arg(arg,add):
-	n=min((len(arg),len(add)))
-	arg[:n]=add[:n]
-	return arg
-
-
-
-
-
 

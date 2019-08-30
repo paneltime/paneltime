@@ -6,10 +6,11 @@ import numpy as np
 import functions as fu
 
 class re_obj:
-	def __init__(self,panel):
+	def __init__(self,panel,group):
 		"""Following Greene(2012) p. 413-414"""
 		self.panel=panel
 		self.sigma_u=0
+		self.group=group
 	
 	def RE(self,x,recalc=True):
 		panel=self.panel
@@ -22,7 +23,7 @@ class re_obj:
 			N,T,k=x.shape
 			T_i=self.panel.T_i.reshape(N,1,1)
 			self.avg_Tinv=np.mean(1/panel.T_i)
-			self.xFE=self.FRE(x)
+			self.xFE=x+self.FRE(x)
 			self.e_var=self.panel.mean(self.xFE**2)/(1-self.avg_Tinv)
 			self.v_var=self.panel.mean(x**2)-self.e_var
 			
@@ -50,7 +51,7 @@ class re_obj:
 		(N,T,k)=dx.shape
 		T_i=panel.T_i.reshape(N,1,1)		
 
-		self.dxFE[vname]=self.FRE(dx)
+		self.dxFE[vname]=dx+self.FRE(dx)
 		self.de_var[vname]=2*np.sum(np.sum(self.xFE*self.dxFE[vname],0),0)/(self.panel.NT*(1-self.avg_Tinv))
 		self.dv_var[vname]=(2*np.sum(np.sum(x*dx,0),0)/self.panel.NT)-self.de_var[vname]
 		
@@ -62,7 +63,7 @@ class re_obj:
 		self.dtheta[vname]=(self.dtheta_de_var*self.de_var[vname]+self.dtheta_dv_var*self.dv_var[vname])
 		
 		dRE0=self.FRE(dx,self.theta)
-		dRE1=self.FRE(x,self.dtheta[vname],True,False)
+		dRE1=self.FRE(x,self.dtheta[vname])
 		return (dRE0+dRE1)*self.panel.included
 	
 	def ddRE(self,ddx,dx1,dx2,x,vname1,vname2):
@@ -79,7 +80,7 @@ class re_obj:
 			ddx=0
 			hasdd=False
 		else:
-			ddxFE=self.FRE(ddx)
+			ddxFE=ddx+self.FRE(ddx)
 			hasdd=True
 			
 		dxFE1=self.dxFE[vname1].reshape(N,T,k,1)
@@ -117,44 +118,63 @@ class re_obj:
 		dRE11=self.FRE(x.reshape(N,T,1,1),ddtheta,True)
 		return (dRE00+dRE01+dRE10+dRE11)*panel.included.reshape(N,T,1,1)
 	
-	def FRE(self,x,w=1,d=False,timeeff=True):
+	def FRE(self,x,w=1,d=False):
+		if self.group:
+			return self.FRE_group(x,w,d)
+		else:
+			return self.FRE_time(x,w,d)
+	
+	def FRE_group(self,x,w,d):
 		"""returns x after fixed effects, and set lost observations to zero"""
 		#assumes x is a "N x T x k" matrix
 		if x is None:
 			return None
-		if len(x.shape)==3:
-			N,T,k=x.shape
-			s=((N,1,k),(N,T,1))
-			T_i=self.panel.T_i
-		elif len(x.shape)==4:
-			N,T,k,m=x.shape
-			s=((N,1,k,m),(N,T,1,1))
-			T_i=self.panel.T_i.reshape((N,1,1,1))
-		ec=x*self.panel.included.reshape(s[1])
-		sum_ec=np.sum(ec,1).reshape(s[0])
-		sum_ec_all=np.sum(sum_ec,0)	
-		dFE=(w*(sum_ec/T_i-sum_ec_all/self.panel.NT))*self.panel.included.reshape(s[1])
-		dtFE=self.time_FE(ec,s,timeeff)
-		if d==False:
-			r=ec*self.panel.included.reshape(s[1])-dFE-dtFE
-		else:
-			r=-dFE-dtFE
-		return r
+		T_i,s=self.get_subshapes(x,True)
+		sum_x=np.sum(x,1).reshape(s[0])
+		sum_x_all=np.sum(sum_x,0)	
+		dFE=(w*(sum_x_all/self.panel.NT-sum_x/T_i))*self.panel.included.reshape(s[1])#last product expands the T vector to a TxN matrix
+		return dFE
 	
-	def time_FE(self,X,s,timeeff):
-		
-		tmap=self.panel.time_map
-		w=self.panel.time_map_w
-		if tmap is None or timeeff==False:
-			return 0
-		X_mean_t_map=np.zeros(len(tmap)).reshape((len(tmap),1))
-		dFE=np.zeros(X.shape)
-		X_mean=self.panel.mean(X,(0,1))
-		for i in range(len(tmap)):
-			m=np.mean(X[tmap[i]],0)	
-			dFE[tmap[i]]=w[i]*(m-X_mean)
-		
-		r=dFE*self.panel.included.reshape(s[1])
-		return r
+	def FRE_time(self,x,w,d):
+		#assumes x is a "N x T x k" matrix
+		dmap=self.panel.date_map
+		n_dates=self.panel.n_dates
+		if x is None:
+			return None
+		date_count,s=self.get_subshapes(x,False)	
+		sum_x_dates=np.zeros(s[0])
+		for i in range(n_dates):
+			sum_x_dates[i]=np.sum(x[dmap[i]],0)	
+		sum_x_all=np.sum(sum_x_dates,0)
+		mean_x_dates=sum_x_dates/date_count
+		mean_x=np.zeros(x.shape)
+		for i in range(n_dates):
+			mean_x[dmap[i]]=mean_x_dates[i]
+		dFE=(w*(sum_x_all/self.panel.NT-mean_x))*self.panel.included.reshape(s[1])#last product expands the T vector to a TxN matrix
+		return dFE
+
 
 	
+	def get_subshapes(self,x,group):
+		if group:
+			if len(x.shape)==3:
+				N,T,k=x.shape
+				s=((N,1,k),(N,T,1))
+				T_i=self.panel.T_i
+			elif len(x.shape)==4:
+				N,T,k,m=x.shape
+				s=((N,1,k,m),(N,T,1,1))
+				T_i=self.panel.T_i.reshape((N,1,1,1))	
+			return T_i,s
+		else:
+			date_count=self.panel.date_count
+			n_dates=self.panel.n_dates
+			if len(x.shape)==3:
+				N,T,k=x.shape
+				s=((n_dates,1,k),(N,T,1))
+				
+			elif len(x.shape)==4:
+				N,T,k,m=x.shape
+				s=((n_dates,1,k,m),(N,T,1,1))
+				date_count=date_count.reshape((n_dates,1,1,1))	
+			return date_count,s			

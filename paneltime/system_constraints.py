@@ -10,20 +10,13 @@ def add_initial_constraints(constr,panel,user_constraints,ll,its):
 	add_custom_constraints(constr,user_constraints,ll)
 	general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
 	add_custom_constraints(constr,general_constraints,ll)
-	if panel.loadargs==False:
-		if panel.m_zero:
-			constr.add(panel.args.positions['psi'][0],None,'psi=1 constr',value=1)
-			if panel.k>0 and panel.k>0 and (panel.p>0 or panel.q>0) and its<3:
-				constr.add(panel.args.positions['gamma'][0],None,'gamma=0 constr',value=0)
-		else:
-			if panel.p>0 or panel.q>0:
-				if its<3 and panel.m>0:
-					constr.add(panel.args.positions['psi'][0],None,'psi=0 constr',value=0)				
-				if panel.k>0 and its<5:
-					constr.add(panel.args.positions['gamma'][0],None,'psi=0 constr',value=0)
-			elif panel.k>0 and its<3:
-				constr.add(panel.args.positions['gamma'][0],None,'gamma=0 constr',value=0)
-		
+	if panel.m_zero and panel.loadargs==False:
+		for eq in range(panel.args.n_equations):
+			if its<1:
+				constr.add(panel.args.positions['rho'][eq][0],None,'initial rho constr',value=0.3)
+			if its<3:
+				constr.add(panel.args.positions['gamma'][eq][0],None,'initial gamma constr',value=0.1)
+			constr.add(panel.args.positions['psi'][eq][0],None,'psi=0 constr',value=0.1)
 
 	
 	
@@ -62,15 +55,19 @@ def add_custom_constraint(constr,constraint,ll):
 	"""Adds a custom range constraint\n\n
 		constraint shall be on the format (name, minimum, maximum)"""
 	name, minimum, maximum=constraint
-	m=[minimum,maximum]
-	for i in range(2):
-		if type(m[i])==str:
-			if not ll is None:
-				m[i]=eval(m[i],globals(),ll.__dict__)
-			else:
-				return
-	[minimum,maximum]=m
-	constr.add_named(name,None,'user constraint', [minimum,maximum])
+	if ll is None and  (type(minimum)==str or type(maximum)==str):
+		return
+	if ll is None:
+		constr.add_named(name,None,'user constraint', [minimum,maximum])
+		return
+	for l in ll.lls:
+		m=[minimum,maximum]
+		for i in range(2):
+			if type(m[i])==str:
+				m[i]=eval(m[i],globals(),l.__dict__)
+				[minimum,maximum]=m
+				constr.add_named(name,None,'user constraint', [minimum,maximum],l.id)				
+
 
 
 
@@ -189,11 +186,36 @@ class constraints:
 		return True
 		
 
-	def add_named(self,name,assco,cause,interval):
-		positions=self.panel.args.positions[name]
-		for i in positions:
+	def add_all_named(self,name,assco,cause,interval,equation=None):
+		try:
+			positions=self.panel.args.positions[name]
+		except KeyError as e:
+			try:
+				i=self.panel.args.name_positions_map[name]
+			except  KeyError as e:
+				print("Unable to set constraints on %s, the name does not exist" %(name,))
+				return
 			self.add(i,assco,cause, interval)
-		return
+		if not equation is None:
+			positions=[positions[equation]]
+		for rng in positions:
+			for i in range(len(rng)):
+				self.add(i,assco,cause, interval)
+				
+				
+	def add_named(self,name,assco,cause,interval,equation=None):
+		try:
+			positions=self.panel.args.positions[name]
+		except KeyError as e:
+			try:
+				p=self.panel.args.name_positions_map[name]
+			except  KeyError as e:
+				print("Unable to set constraints on %s, the name does not exist" %(name,))
+				return
+			positions=[range(p,p+1)]
+		for rng in positions:
+			for i in range(len(rng)):
+				self.add(i,assco,cause, interval)
 	
 	def set_fixed(self,x):
 		"""Sets all elements of x that has fixed constraints to the constraint value"""

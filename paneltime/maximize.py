@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import statproc as stat
+import stat_functions as stat
 import loglikelihood as logl
 import os
 import time
-import regstats
+import output
 import sys
 
 
@@ -67,7 +67,7 @@ def lnsrch(f0, g, dx,panel,constr):
 def maximize(panel,direction,mp,args_archive,args,_print,user_constraints,window):
 	"""Maxmizes logl.LL"""
 
-	its, convergence_limit   = 0, 0.01
+	its, convergence_limit   = 0, 1e-8
 	digits_precision         = 12
 	k, m, dx_conv            = 0,     0,    None
 	H, prtstr, dxi           = None, '',    None
@@ -84,11 +84,11 @@ def maximize(panel,direction,mp,args_archive,args,_print,user_constraints,window
 			
 		#Convergence test:
 		if np.max(np.abs(dx_conv)) < convergence_limit and (its>4):  #max direction smaller than convergence_limit -> covergence
-			if m==3:
-				if _print: print("Convergence on zero gradient; maximum identified")
-				return ll,g,G,H,1,prtstr,constraints,dx_conv
-			m+=1
-			precise_hessian=precise_hessian==False
+			#if m==3:
+			if _print: print("Convergence on zero gradient; maximum identified")
+			return ll,g,G,H,1,prtstr,constraints,dx_conv
+			#m+=1
+			#precise_hessian=precise_hessian==False
 		else:
 			m=0
 			
@@ -145,7 +145,7 @@ def printout(_print,ll,dx_conv,panel,its,constraints,msg,window,H,G):
 		norm_prob=stat.JB_normality_test(ll.e_st,panel)		
 		no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(panel,ll,10)
 	
-	o=regstats.output(pr, panel, H, G, 10, ll, 
+	o=output.output(pr, panel, H, G, 10, ll, 
 	                             constraints,
 	                             startspace='   ',
 	                             direction=dx_conv)

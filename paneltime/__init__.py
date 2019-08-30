@@ -12,6 +12,7 @@
 import sys
 import os
 sys.path.append(__file__.replace("__init__.py",''))
+#import system_main as main
 import main
 import sim_module
 import functions as fu
@@ -77,7 +78,7 @@ def execute_model(model, p=1, d=0, q=1, m=1, k=1,
 	
 
 def statistics(results,robustcov_lags=100,correl_vars=None,descriptives_vars=None):
-	return main.regstats.statistics(results,robustcov_lags,correl_vars,descriptives_vars)
+	return main.output.statistics(results,robustcov_lags,correl_vars,descriptives_vars)
 
 
 
@@ -100,15 +101,26 @@ class model:
 		self.user_constraints=user_constraints
 
 
-def load(fname,sep=None,filters=None,transforms=None):
+def load(fname,sep=None,filters=None,transforms=None,dateformat='%Y-%m-%d',load_tmp_data=False):
 
 	"""Loads data from file <fname>, asuming column separator <sep>.\n
 	Returns a dataframe (a dictionary of numpy column matrices).\n
 	If sep is not supplied, the method will attemt to find it."""
 	try:
-		dataframe=main.loaddata.load(fname,sep)
+		dataframe=main.loaddata.load(fname,sep,dateformat,load_tmp_data)
 	except FileNotFoundError:
 		raise RuntimeError("File %s not found" %(fname))
+	main.model_parser.modify_dataframe(dataframe,transforms,filters)
+	print ("The following variables were loaded:"+str(list(dataframe.keys()))[1:-1])
+	return dataframe
+
+def load_SQL(conn,sql_string,filters=None,transforms=None,dateformat='%Y-%m-%d',load_tmp_data=False):
+
+	"""Loads data from an SQL server, using sql_string as query"""
+	try:
+		dataframe=main.loaddata.load_SQL(conn,sql_string,dateformat,load_tmp_data)
+	except RuntimeError as e:
+		raise RuntimeError(e)
 	main.model_parser.modify_dataframe(dataframe,transforms,filters)
 	print ("The following variables were loaded:"+str(list(dataframe.keys()))[1:-1])
 	return dataframe

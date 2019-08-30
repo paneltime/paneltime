@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 import calculus
 import numpy as np
-import constraints as cnstr
-import loglikelihood as logl
+import system_constraints as cnstr
+import system_loglikelihood as logl
 
 
 
@@ -61,12 +61,11 @@ class direction:
 		I=self.I
 		d2LL_de2=-ll.v_inv*self.panel.included
 		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included
-		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included	
+		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included		
 		if not numerical or self.hessian_num is None:
 			hessian=self.hessian.get(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
-			self.hessian_analytical=hessian
 		else:
-			hessian=self.nummerical_hessian(dxi,g)
+			hessian=self.nummerical_hessian(hessian, dxi,g)
 			return hessian
 		self.hessian_num=hessian
 		self.g_old=g
@@ -86,7 +85,7 @@ class direction:
 			return I
 
 		#print("Using numerical hessian")		
-		hessin_num=hessin(self.hessian_analytical)
+		hessin_num=hessin(self.hessian_num)
 		if hessin_num is None:
 			return I
 		hessin_num=nummerical_hessin(g,self.g_old,hessin_num,dxi)	
