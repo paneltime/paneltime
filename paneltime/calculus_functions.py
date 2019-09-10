@@ -35,6 +35,7 @@ def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=Fals
 		de2_zeta_xi_RE = np.sum(np.sum(de2_zeta_xi_RE,0),0)#and sum it
 
 	#GARCH: 
+	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
 	if panel.m>0:
 		de_xi   = de_xi.reshape((N,T,m,1))
 		de_zeta = de_zeta.reshape((N,T,1,k))
@@ -66,7 +67,7 @@ def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=Fals
 		
 		d2lnv_zeta_xi = d2lnv_zeta_xi_h + d_mu
 		
-		d2lnv_zeta_xi=np.sum(np.sum(d2lnv_zeta_xi*g.dLL_lnv.reshape((N,T,1,1)),0),0)
+		d2lnv_zeta_xi=np.sum(d2lnv_zeta_xi*dLL_lnv,(0,1))
 	else:
 		d2lnv_zeta_xi=None
 
@@ -401,5 +402,3 @@ def dot(a,b,reduce_dims=True):
 
 	else:
 		raise RuntimeError("this multiplication is not supported by dot")
-	
-	

@@ -5,8 +5,10 @@
 
 from scipy import stats as scstats
 from scipy import special as sc
-import calculus_functions as cf
+import regprocs as rp
 import numpy as np
+import regprocs as rp
+import functions as fu
 import loglikelihood as logl
 
 
@@ -18,8 +20,7 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 	ub=len(XXNorm)     
 	d,EVec=np.linalg.eig(XXNorm)
 	if np.any(np.round(d.imag,15)!=len(d)*[0]):
-		pass
-		#print( "non-real XX matrix")
+		print( "non-real XX matrix")
 		
 	d=d.real;EVec=EVec.real
 	d=np.abs(d)**0.5+1e-100
@@ -45,7 +46,7 @@ def square_and_norm(X):
 	Sumsq=np.sqrt(np.sum(np.sum(X**2,0),0))
 	Sumsq.resize((k,1))
 	Sumsq=Sumsq*Sumsq.T
-	norm=cf.dot(X,X)/(Sumsq+1e-200)
+	norm=fu.dot(X,X)/(Sumsq+1e-200)
 	return norm
 
 def singular_elim(panel,X):
@@ -106,18 +107,18 @@ def adf_test(panel,ll,p):
 	"""Returns the augmented dickey fuller test statistic and critical value"""
 	N,T,k=panel.X.shape
 	beta,y=OLS(panel,panel.X*panel.included,panel.Y*panel.included,return_e=True)
-	y=y+ll.re_obj_i.FRE(y)#+ll.re_obj_t.FRE(y)
+	y=ll.re_obj.FRE(y)
 	y_dev=deviation(panel,y)
 	s=panel.var(y_dev,1)**0.5
 	s=s.reshape(N,1,1)
 	y=y/(s+(s==0)*1e-17)
-	yl1=cf.roll(y,1,1)
+	yl1=rp.roll(y,1,1)
 	dy=y-yl1
 	date_var=np.arange(T).reshape((T,1))*panel.included	#date count
 	X=np.concatenate((panel.included,date_var,yl1),2)
 	dyL=[]
 	for i in range(p):
-		dyL.append(cf.roll(dy,i+1,1))
+		dyL.append(rp.roll(dy,i+1,1))
 	dyL=np.concatenate(dyL,2)
 	date_var=(date_var>p+1)
 	X=np.concatenate((X,dyL),2)
@@ -138,7 +139,7 @@ def goodness_of_fit(panel,ll):
 	y=deviation(panel,ll.Y_st)
 	v1=panel.var(y)
 	Rsq=1-v0/v1
-	Rsqadj=1-(v0/v1)*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
+	Rsqadj=1-(v0/v1)*(panel.NT-1)/(panel.NT-panel.len_args-1)
 	LL_OLS=logl.LL(panel.args.args_OLS,panel)
 	if not LL_OLS is None:
 		LL_OLS=LL_OLS.LL
@@ -147,10 +148,8 @@ def goodness_of_fit(panel,ll):
 		LL_ratio_OLS=None
 	LL_args_restricted=logl.LL(panel.args.args_restricted,panel)
 	if not LL_args_restricted is None:
-		if not LL_args_restricted.LL is None:
-			LL_ratio=2*(ll.LL-LL_args_restricted.LL)
-		else:
-			LL_ratio=None
+		LL_args_restricted=LL_args_restricted.LL
+		LL_ratio=2*(ll.LL-LL_args_restricted)
 	else:
 		LL_ratio=None
 	return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS
@@ -166,12 +165,13 @@ def breusch_godfrey_test(panel,ll, lags):
 	c=panel.included[:,lags:T]
 	for i in range(1,lags+1):
 		X_u=np.append(X_u,e[:,lags-i:T-i],2)
-	XX=cf.dot(X_u,X_u)
+	XX=fu.dot(X_u,X_u)
 	Beta,Rsq=OLS(panel,X_u,u,True,True,c=c)
 	T=(panel.NT-X_u.shape[2]-lags)
 	BGStat=T*Rsq
 	rho=Beta[len(X[0]):]
 	ProbNoAC=1.0-chisq_dist(BGStat,lags)
+	print( 'BG-test R-squared: %s  Prob. no AC: %s' %(Rsq,ProbNoAC))
 	return ProbNoAC, rho, Rsq #The probability of no AC given H0 of AC.
 
 
@@ -216,8 +216,7 @@ def JB_normality_test(e,panel):
 	S=mu3/s**3
 	C=mu4/s**4
 	JB=df*((S**2)+0.25*(C-3)**2)/6.0
-	p=1.0-chisq_dist(JB,2)
-	return p
+	return 1.0-chisq_dist(JB,2)
 
 
 def correl(X,panel=None):
@@ -231,7 +230,7 @@ def correl(X,panel=None):
 	else:
 		N,k=X.shape
 		mean=np.sum(X,0).reshape((1,k))/N
-	cov=cf.dot(X,X)/N
+	cov=fu.dot(X,X)/N
 	
 	cov=cov-(mean.T*mean)
 	stdx=(np.diag(cov)**0.5).reshape((1,k))
@@ -282,13 +281,13 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_
 		k=k+1
 	X=X*c
 	Y=Y*c
-	XX=cf.dot(X,X)
+	XX=fu.dot(X,X)
 	XXInv=np.linalg.inv(XX)
-	XY=cf.dot(X,Y)
-	beta=cf.dot(XXInv,XY)
+	XY=fu.dot(X,Y)
+	beta=fu.dot(XXInv,XY)
 
 	if return_rsq or return_e or return_se:
-		e=Y-cf.dot(X,beta)
+		e=Y-fu.dot(X,beta)
 		if return_rsq:
 			v0=np.var(e)
 			v1=np.var(Y)
@@ -322,11 +321,11 @@ def newey_west_wghts(L,X=None,err_vec=None,XErr=None):
 	if XErr is None:
 		XErr=X*err_vec
 	N,T,k=XErr.shape
-	S=cf.dot(XErr,XErr)#Whites heteroscedasticity consistent weighting matrix
+	S=fu.dot(XErr,XErr)#Whites heteroscedasticity consistent weighting matrix
 	for i in range(1,min(L,T)):
 		w=1-(i+1)/(L)
-		S+=w*cf.dot(XErr[:,i:],XErr[:,0:T-i])
-		S+=w*cf.dot(XErr[:,0:T-i],XErr[:,i:])
+		S+=w*fu.dot(XErr[:,i:],XErr[:,0:T-i])
+		S+=w*fu.dot(XErr[:,0:T-i],XErr[:,i:])
 	return S
 
 

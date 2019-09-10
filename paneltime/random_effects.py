@@ -6,28 +6,29 @@ import numpy as np
 import functions as fu
 
 class re_obj:
-	def __init__(self,panel,group):
+	def __init__(self,panel,group,T_i,T_i_count):
 		"""Following Greene(2012) p. 413-414"""
 		self.panel=panel
 		self.sigma_u=0
 		self.group=group
+		self.avg_Tinv=np.mean(1/T_i_count) #T_i_count is the total number of observations for each group (N,1)
+		self.T_i=T_i*panel.included#self.T_i is T_i_count at each observation (N,T,1)
 	
 	def RE(self,x,recalc=True):
 		panel=self.panel
 		if panel.FE_RE==0:
-			return x
+			return 0
 		if panel.FE_RE==1:
 			self.xFE=self.FRE(x)
 			return self.xFE
 		if recalc:
 			N,T,k=x.shape
-			T_i=self.panel.T_i.reshape(N,1,1)
-			self.avg_Tinv=np.mean(1/panel.T_i)
-			self.xFE=x+self.FRE(x)
+			
+			self.xFE=(x+self.FRE(x))*panel.included
 			self.e_var=self.panel.mean(self.xFE**2)/(1-self.avg_Tinv)
 			self.v_var=self.panel.mean(x**2)-self.e_var
 			
-			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*T_i)))*self.panel.included
+			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*self.T_i)))*self.panel.included
 			
 			if np.any(self.theta>1) or np.any(self.theta<0):
 				raise RuntimeError("WTF")
@@ -45,13 +46,12 @@ class re_obj:
 			self.dv_var=dict()
 	
 		if self.panel.FE_RE==0 or dx is None:
-			return dx
+			return None
 		elif self.panel.FE_RE==1:
 			return self.FRE(dx)	
-		(N,T,k)=dx.shape
-		T_i=panel.T_i.reshape(N,1,1)		
+		(N,T,k)=dx.shape	
 
-		self.dxFE[vname]=dx+self.FRE(dx)
+		self.dxFE[vname]=(dx+self.FRE(dx))*panel.included
 		self.de_var[vname]=2*np.sum(np.sum(self.xFE*self.dxFE[vname],0),0)/(self.panel.NT*(1-self.avg_Tinv))
 		self.dv_var[vname]=(2*np.sum(np.sum(x*dx,0),0)/self.panel.NT)-self.de_var[vname]
 		
@@ -59,7 +59,7 @@ class re_obj:
 		
 
 		self.dtheta_de_var=(-0.5*(1/self.e_var)*(1-self.theta)*self.theta*(2-self.theta))
-		self.dtheta_dv_var=(0.5*(T_i/self.e_var)*(1-self.theta)**3)
+		self.dtheta_dv_var=(0.5*(self.T_i/self.e_var)*(1-self.theta)**3)
 		self.dtheta[vname]=(self.dtheta_de_var*self.de_var[vname]+self.dtheta_dv_var*self.dv_var[vname])
 		
 		dRE0=self.FRE(dx,self.theta)
@@ -70,7 +70,7 @@ class re_obj:
 		"""Returns the first and second derivative of RE"""
 		panel=self.panel
 		if self.panel.FE_RE==0 or self.sigma_u<0:
-			return ddx
+			return None
 		elif self.panel.FE_RE==1:
 			return self.FRE(ddx)	
 		(N,T,k)=dx1.shape
@@ -80,7 +80,7 @@ class re_obj:
 			ddx=0
 			hasdd=False
 		else:
-			ddxFE=ddx+self.FRE(ddx)
+			ddxFE=(ddx+self.FRE(ddx))*panel.included.reshape(N,T,1,1)
 			hasdd=True
 			
 		dxFE1=self.dxFE[vname1].reshape(N,T,k,1)
@@ -92,7 +92,7 @@ class re_obj:
 		dtheta_de_var=self.dtheta_de_var.reshape(N,T,1,1)
 		dtheta_dv_var=self.dtheta_dv_var.reshape(N,T,1,1)
 		theta=self.theta.reshape(N,T,1,1)
-		T_i=panel.T_i.reshape(N,1,1,1)
+		T_i=self.T_i.reshape(N,T,1,1)
 		
 
 	
@@ -130,9 +130,11 @@ class re_obj:
 		if x is None:
 			return None
 		T_i,s=self.get_subshapes(x,True)
-		sum_x=np.sum(x,1).reshape(s[0])
-		sum_x_all=np.sum(sum_x,0)	
-		dFE=(w*(sum_x_all/self.panel.NT-sum_x/T_i))*self.panel.included.reshape(s[1])#last product expands the T vector to a TxN matrix
+		incl=self.panel.included.reshape(s[1])
+		
+		sum_x=np.sum(x*incl,1).reshape(s[0])
+		sum_x_all=np.sum(sum_x,0)
+		dFE=(w*(sum_x_all/self.panel.NT-sum_x/T_i))*incl#last product expands the T vector to a TxN matrix
 		return dFE
 	
 	def FRE_time(self,x,w,d):

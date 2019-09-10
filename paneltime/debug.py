@@ -16,20 +16,16 @@ def hess_debug(ll,panel,g,d):
 	"""Calculate the hessian nummerically, using the analytical gradient. For debugging. Assumes correct and debuggeed gradient"""
 	x=ll.args_v
 	n=len(x)
-	dx=np.abs(x.reshape(n,1))*d
-	dx=dx+(dx==0)*d
-	dx=np.identity(n)*dx
+	dx=np.identity(n)*d
 	H=np.zeros((n,n))
-	ll=lgl.LL(x,panel)
-	f0=g.get(ll)
+	ll0=lgl.LL(x,panel)
+	f0=g.get(ll0)
 	for i in range(n):
-		for j in range(5):
-			dxi=dx[i]*(0.5**j)		
-			ll=lgl.LL(x+dxi,panel)
-			if not ll is None:
-				f1=g.get(ll)
-				H[i]=(f1-f0)/dxi[i]
-				break
+		ll=lgl.LL(x+dx[i],panel)
+		if not ll is None:
+			f1=g.get(ll)
+			H[i]=(f1-f0)/d
+
 			
 	return H
 
@@ -55,7 +51,7 @@ def grad_debug(ll,panel,d):
 
 
 
-def grad_debug_detail(f0,panel,g,d,varname,pos=0):
+def grad_debug_allparams(f0,panel,g,d,varname,pos=0):
 	args=fu.copy_array_dict(f0.args_d)
 	args[varname][pos]+=d
 	f1=lgl.LL(args, panel)
@@ -71,7 +67,20 @@ def grad_debug_detail(f0,panel,g,d,varname,pos=0):
 	a=0
 	
 	
-def hess_debug_detail(f0,panel,g,H,d,varname1,varname2,pos1=0,pos2=0):
+def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
+	args1=fu.copy_array_dict(f0.args_d)
+	args1[varname1][pos1]+=d
+
+	f1=lgl.LL(args1, panel)
+
+	if type(llname)==list:
+		ddL=(f1.__dict__[llname[0]].__dict__[llname[1]]-f0.__dict__[llname[0]].__dict__[llname[1]])/d
+	else:
+		ddL=(f1.__dict__[llname]-f0.__dict__[llname])/d
+	return ddL
+	
+	
+def hess_debug_detail(f0,panel,d,llname,varname1,varname2,pos1=0,pos2=0):
 	args1=fu.copy_array_dict(f0.args_d)
 	args2=fu.copy_array_dict(f0.args_d)
 	args3=fu.copy_array_dict(f0.args_d)
@@ -82,8 +91,12 @@ def hess_debug_detail(f0,panel,g,H,d,varname1,varname2,pos1=0,pos2=0):
 	f1=lgl.LL(args1, panel)
 	f2=lgl.LL(args2, panel)
 	f3=lgl.LL(args3, panel)
-	ddL=(f3.LL-f2.LL-f1.LL+f0.LL)/(d**2)
-	a=0
+	if type(llname)==list:
+		ddL=(f3.__dict__[llname[0]].__dict__[llname[1]]-f2.__dict__[llname[0]].__dict__[llname[1]]
+		     -f1.__dict__[llname[0]].__dict__[llname[1]]+f0.__dict__[llname[0]].__dict__[llname[1]])/(d**2)
+	else:
+		ddL=(f3.__dict__[llname]-f2.__dict__[llname]-f1.__dict__[llname]+f0.__dict__[llname])/(d**2)
+	return ddL
 	
 	
 def LL_calc2(ll,panel,d,X=None):

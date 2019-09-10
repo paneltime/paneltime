@@ -215,27 +215,20 @@ class calc:
 			 self.avg_h)=(0,0,0,0,0,0,0)
 			return 0			
 	
+
 	def group_variance(self,panel,lnv,e,args):
 		N=panel.N
-		if panel.m==0 or N==1:
-			self.avg_lne2,self.davg_lne2,self.d2avg_lne2   = None,   None,  None
-			self.avg_e2, self.zmu =None,None
-			return 0
-		if False: #using average of h function as group variance
-			self.avg_h=panel.mean(self.h_val,1).reshape((N,1,1))*panel.a
-			self.avg_lne2,self.davg_lne2,self.d2avg_lne2   = self.avg_h,  self.h_e_val, self.h_2e_val
-			self.avg_e2, self.zmu                          = None,  1
+		e2=e**2
+		zeroe2=(e2==0)
+		lne2=np.log(e2+ze2)
+		self.lne2=(lne2-panel.mean(lne2))*panel.included
+		#the derivative, for later use
+		d_lne2=2*(zeroe2/(e+zeroe2))
+		self.d_lne2=(d_lne2-panel.mean(d_lne2))*panel.included
+		dd_lne2=-2*(zeroe2/(e**2+zeroe2))
+		self.d_lne2=(dd_lne2-panel.mean(dd_lne2))*panel.included
 
-		else: #using log average of e**2 function as group variance
-			avg_e2=panel.mean(e**2,1).reshape((N,1,1))
-			avg_lne2=panel.group_var_wght*np.log(avg_e2)*panel.a
-			#the derivative, for later use
-			davg_lne2=panel.group_var_wght*(2*e/avg_e2)	
-
-			self.avg_lne2,self.davg_lne2   = avg_lne2,  davg_lne2 
-			self.avg_e2, self.zmu          = avg_e2, 0	
-			
-		return args['mu'][0]*self.avg_lne2
+		return self.re_obj_i_vol.RE(self.lne2)
 
 
 	def standardize(self):

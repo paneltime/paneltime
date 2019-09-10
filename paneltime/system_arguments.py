@@ -13,7 +13,7 @@ class arguments:
 	def __init__(self,panel, args_d_old):
 		p, d, q, m, k=panel.p, panel.d, panel.q, panel.m, panel.k
 		self.args_d_old=args_d_old
-		self.categories=['beta','rho','lambda','gamma','psi','omega','mu','z']
+		self.categories=['beta','rho','lambda','gamma','psi','omega','z']
 		self.args_init,self.args_d_OLS, self.args_d_restricted=dict(),dict(),dict()
 		self.panel=panel
 		self.equations=[]
@@ -74,26 +74,34 @@ class arguments:
 		
 
 		
-def add_rho_names(names_v,n):
-	for i in range(n):
-		for j in range(i,n):
-			names_v.append('System reg. rho(%s,%s)' %(i,j))
+	def rho_definitions(self):
+		n=self.n_args_eq
+		self.rho_position_list=[]
+		r=range(n)
+		x=[[[min((i,j)),max((i,j))] for i in r] for j in r]
+		self.rho_position_matrix=np.array([[str(x[i,j]) for i in r] for j in r])
+		for i in range(n):
+			for j in range(i,n):
+				self.names_v.append('System reg. rho(%s,%s)' %(i,j))
+				self.rho_position_list.append[x[i,j]]
 	
 
-def rho_list_to_matrix(lst,n):
-	m=np.zeros((n,n))
-	for i in range(n):
-		for j in range(i,n):
-			m[i,j]=lst[i*n+j]
-			m[j,i]=lst[i*n+j]
-	return m
-	
-def rho_matrix_to_list(m,n):
-	lst=np.zeros(n**2)
-	for i in range(n):
-		for j in range(i,n):
-			lst[i*n+j]=m[i,j]
-	return lst
+	def rho_list_to_matrix(self,lst):
+		n=len(self.rho_position_list)
+		m=np.zeros((n,n))
+		for k in range(n):
+			i,j=self.rho_position_list[k]
+			m[i,j]=lst[k]
+			m[j,i]=lst[k]
+		return m
+		
+	def rho_matrix_to_list(self,m):
+		n=len(self.rho_position_list)
+		lst=np.zeros(n)
+		for k in range(n):
+			i,j=self.rho_position_list[k]
+			lst[k]=m[i,j]
+		return lst
 	
 	
 	
@@ -157,10 +165,8 @@ def initargs(X,Y,W,args_old,p,d,q,m,k,panel):
 	args['lambda']=np.ones(q)*armacoefs
 	args['psi']=np.ones(m)*armacoefs
 	args['gamma']=np.ones(k)*armacoefs
-	args['mu']=np.array([])
 	args['z']=np.array([])	
 	if m>0 and N>1:
-		args['mu']=np.array([1.0])
 		args['omega'][0][0]=0
 	if m>0:
 		args['psi'][0]=0.00001
@@ -193,9 +199,6 @@ def set_init_args(X,Y,W,args_old,p,d,q,m,k,panel):
 		args['psi']=insert_arg(args['psi'],args_old['psi'])
 		args['gamma']=insert_arg(args['gamma'],args_old['gamma'])
 		args['z']=insert_arg(args['z'],args_old['z'])
-		if len(args['mu'])>len(args_old['mu']):
-			args['omega'][0][0]=0
-		args['mu']=insert_arg(args['mu'],args_old['mu'])
 		
 	return args,args_OLS, args_restricted
 		
@@ -242,7 +245,7 @@ def get_namevector(panel,p, q, m, k,x_names,system,eq_num):
 
 	names_d=dict()
 	#sequence must match definition of categories in arguments.__init__:
-	#self.categories=['beta','rho','lambda','gamma','psi','omega','mu','z']
+	#self.categories=['beta','rho','lambda','gamma','psi','omega','z']
 	eq_prefix='%02d|' %(eq_num,)
 	names_v=[eq_prefix+i for i in x_names]#copy variable names
 	names_d['beta']=names_v
@@ -254,9 +257,6 @@ def get_namevector(panel,p, q, m, k,x_names,system,eq_num):
 	names_d['omega']=[eq_prefix+i for i in panel.w_names]#copy variable names
 	names_v.extend(names_d['omega'])
 	if m>0:
-		if panel.N>1:
-			names_d['mu']=[eq_prefix+'mu (var.ID eff.)']
-			names_v.extend(names_d['mu'])
 		names_d['z']=[eq_prefix+'z in h(e,z)']
 		names_v.extend(names_d['z'])
 		

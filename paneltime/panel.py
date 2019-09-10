@@ -200,14 +200,19 @@ class panel:
 			t_map[tid[i]].append(t[i,1:])
 		t_map_tuple=[]
 		tcnt=[]
+		self.date_count_mtrx=np.zeros((N,T,1))
 		for i in range(len(t_map)):
 			a=np.array(t_map[i]).T
 			if len(a):
-				t_map_tuple.append((tuple(a[0]),tuple(a[1])))	
-				tcnt.append(len(a[0]))
+				m=(tuple(a[0]),tuple(a[1]))
+				n_t=len(a[0])
+				t_map_tuple.append(m)	
+				tcnt.append(n_t)
+				self.date_count_mtrx[m]=n_t
+				
 		
 		#A full random effects calculation is infeasible because of complexity and computing costs. 
-		#Aquazi random effects weighting is used. It  is more conservative than the full
+		#A quazi random effects weighting is used. It  is more conservative than the full
 		#RE weight theta=1-sd_pooled/(sd_pooled+sd_within/T)**0.5
 		#If the weights are too generous, the RE adjustment may add in stead of reducing noise. 
 		n=len(tcnt)
@@ -253,6 +258,7 @@ def h(e,z):
 		dims=list(X.shape)
 		dims_m=np.array(X.shape)
 		dims[2:]=[1]*(len(dims)-2)	
+		#X=X*self.included.reshape(dims)
 		if mean is None:
 			m=self.mean(X, axis)
 		else:
@@ -459,9 +465,3 @@ def insert_arg(arg,add):
 	n=min((len(arg),len(add)))
 	arg[:n]=add[:n]
 	return arg
-
-
-
-
-
-

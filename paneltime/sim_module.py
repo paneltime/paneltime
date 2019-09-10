@@ -10,9 +10,9 @@ import functions as fu
 
 class simulation:
 	"""Creates an object that can simulate ARIMA-GARCH-timeseries data"""
-	def __init__(self,N,T,beta,rho=[0.5],lmbda=[-0.5],psi=[0.5],gamma=[-0.5],omega=0.1,mu=1,z=1,residual_sd=1,ID_sd=0,names=['x','const','Y','ID']):
+	def __init__(self,N,T,beta,rho=[0.5],lmbda=[-0.5],psi=[0.5],gamma=[-0.5],omega=0.1,z=1,residual_sd=1,ID_sd=0,names=['x','const','Y','ID']):
 
-		self.args,self.p,self.q,self.m,self.k,self.beta_len=self.new_args(beta,rho,lmbda,psi,gamma,omega,mu,z)
+		self.args,self.p,self.q,self.m,self.k,self.beta_len=self.new_args(beta,rho,lmbda,psi,gamma,omega,z)
 		self.T=T
 		self.names=['x','const','Y','ID']
 		self.N=N

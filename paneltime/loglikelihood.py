@@ -28,8 +28,8 @@ class LL:
 		self.errmsg=''
 		self.errmsg_h=''
 		self.panel=panel
-		self.re_obj_i=re.re_obj(panel,True)
-		self.re_obj_t=re.re_obj(panel,False)
+		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i)
+		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count)
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
 	
 		self.args_v=panel.args.conv_to_vector(args)
@@ -39,7 +39,7 @@ class LL:
 		self.args_d=panel.args.conv_to_dict(self.args_v)
 		self.h_err=""
 		self.h_def=panel.h_def
-		self.LL=self.LL_calc(panel)
+		
 		try:
 			self.LL=self.LL_calc(panel)
 			
@@ -134,9 +134,9 @@ class LL:
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
 		Y=cf.dot(self.AMA_1AR,panel.Y)
-		Y=(Y+self.re_obj_i.RE(Y,False)+self.re_obj_t.RE(Y,False))*sd_inv
+		Y=(Y+self.re_obj_i.RE(Y,False))*sd_inv#+self.re_obj_t.RE(Y,False))*sd_inv
 		X=cf.dot(self.AMA_1AR,panel.X)
-		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))*sd_inv
+		X=(X+self.re_obj_i.RE(X,False))*sd_inv#+self.re_obj_t.RE(X,False))*sd_inv
 		self.e_st=self.e_RE*sd_inv
 		self.Y_st=Y
 		self.X_st=X
