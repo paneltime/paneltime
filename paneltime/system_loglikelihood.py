@@ -166,7 +166,6 @@ class calc:
 		self.re_obj=re.re_obj(panel)
 		self.args_d=args
 		self.h_err=""
-		self.h_def=panel.h_def
 		self.calc(panel,i)
 		self.id=i
 
@@ -252,18 +251,16 @@ class calc:
 	def copy_args_d(self):
 		return fu.copy_array_dict(self.args_d)
 
-	
+
 	def h(self,e,z):
-		d={'e':e,'z':z}
 		try:
-			exec(self.h_def,globals(),d)
+			d=dict()
+			exec(self.panel.h_def,globals(),d)
+			return d['h'](e,z)
 		except Exception as err:
 			if self.h_err!=str(err):
 				self.errmsg_h="Warning,error in the ARCH error function h(e,z): %s" %(err)
 			h_err=str(e)
-			return None
-	
-		return d['ret']	
 
 def set_garch_arch(panel,args):
 	if c is None:

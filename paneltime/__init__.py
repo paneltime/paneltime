@@ -23,7 +23,7 @@ winheight=500
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
             descr=None,
             group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
-            h=None,user_constraints=[('z',1e-15,'10*np.max(u)')],close_when_finished=False
+            h_function=None,user_constraints={'z':[1e-15,'10*np.max(u)']},close_when_finished=False
             ):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
@@ -34,7 +34,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 	    main.execute,
 	    (dataframe, model_string, p, d, q, m, k, IDs_name, time_name,
 	     descr,group_fixed_random_eff, time_fixed_eff, w_names, loadargs,add_intercept,
-	     h,user_constraints,w),
+	     h_function,user_constraints,w),
 	    close_when_finished=close_when_finished
 	)
 	r=w.get()
@@ -44,7 +44,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
             descr=None,
             group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
-            h=None,user_constraints=[('z',1e-15,'10*np.max(u)')]
+            h_function=None,user_constraints=[('z',1e-15,'10*np.max(u)')]
             ):
 	
 	print ("Executing autofit:")
@@ -54,7 +54,7 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 	    main.autofit,(dataframe, model_string, d,process_sign_level, IDs_name, time_name,
              descr,
              group_fixed_random_eff, time_fixed_eff, w_names, loadargs,add_intercept,
-             h,user_constraints,w
+             h_function,user_constraints,w
              )	
 	)
 	r=w.get()	
@@ -62,7 +62,7 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 	
 def execute_model(model, p=1, d=0, q=1, m=1, k=1, 
             group_fixed_random_eff=2, time_fixed_eff=True, loadargs=True,add_intercept=True,
-            h=None
+            h_function=None
             ):
 	print ("Executing model:")
 	iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
@@ -71,7 +71,7 @@ def execute_model(model, p=1, d=0, q=1, m=1, k=1,
 	    main.execute,(model.dataframe, model.model_string,
              p,d,q,m,k,model.IDs_name,model.time_name,
 	         model.descr,group_fixed_random_eff, time_fixed_eff,model.w_names,
-	         loadargs,add_intercept,h,model.user_constraints,w)
+	         loadargs,add_intercept,h_function,model.user_constraints,w)
 	)
 	r=w.get()	
 	return 

@@ -29,8 +29,7 @@ def posdef(a,da):
 class panel:
 	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,x_names,y_name,IDs_name,
 	             fixed_random_eff,time_fixed_eff,W,w_names,descr,dataframe,h,
-	             has_intercept,model_string,args,loadargs
-	             ):
+	             has_intercept,model_string,args,loadargs,user_constraints):
 		"""
 		No effects    : fixed_random_eff=0\n
 		Fixed effects : fixed_random_eff=1\n
@@ -49,7 +48,8 @@ class panel:
 			timevar=None
 
 		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,
-		                  IDs_name,w_names,descr,fixed_random_eff,model_string,loadargs)
+		                  IDs_name,w_names,descr,fixed_random_eff,model_string,loadargs,
+		                  user_constraints)
 		
 		self.arrayize(X, Y, W, IDs,timevar)
 
@@ -73,7 +73,7 @@ class panel:
 		self.group_var_wght=1-1/np.maximum(self.T_i-1,1)
 		
 	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,
-	                 w_names,descr,fixed_random_eff,model_string,loadargs):
+	                 w_names,descr,fixed_random_eff,model_string,loadargs,user_constraints):
 		self.has_intercept=has_intercept
 		self.dataframe=dataframe
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
@@ -90,8 +90,11 @@ class panel:
 		self.FE_RE=fixed_random_eff
 		self.IDs=IDs	
 		self.len_data=len(X)
+		self.user_constraints=user_constraints
 		self.define_h_func(h)
 		self.loadargs=loadargs
+		self.minREvar=1e-6
+		
 		
 		
 		
@@ -224,20 +227,40 @@ class panel:
 	
 	
 	def define_h_func(self,h_definition):
-		global h
-		if h_definition is None:
-			h_definition="""
+
+		h_def="""
 def h(e,z):
-	ez2=e**2+z**2+1e-15
-	h_val		=	 np.log(ez2)	
-	h_e_val		=	 2*e/ez2
-	h_2e_val	=	 2*(z**2-e**2)/(ez2**2)
-	h_z_val		=	 2*z/ez2
-	h_2z_val	=	2*(e**2-z**2)/(ez2**2)
-	h_ez_val	=	-4*e*z/ez2**2
-	return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
-	"""	
-		self.h_def=h_definition+'\nret=h(e,z)'
+	e2			=	e**2+1e-5
+	h_val		=	np.log(e2)	
+	h_e_val		=	2*e/e2
+	h_2e_val	=	2/e2-4*e**2/e2**2
+
+	return h_val,h_e_val,h_2e_val,None,None,None
+		"""	
+		if h_definition is None:
+			h_definition=h_def
+		d=dict()
+		try:
+			exec(h_definition,globals(),d)
+			ret=d['h'](1,1)
+			if len(ret)!=6:
+				raise RuntimeError("""Your custom function must return exactly six arguments
+				(x, dx and ddx for both e and z. the z return values can be set to None)""")
+			self.h_def=h_definition
+		except Exception as e:
+			print('Something is wrong with your custom function, default is used:'+ str(e))
+			exec(h_def,globals(),d)
+			self.h_def=h_def
+		
+		self.z_active=True
+		for i in ret[3:]:
+			self.z_active=self.z_active and not (i is None)	
+			
+		if not self.z_active and 'z' in self.user_constraints:
+			self.user_constraints.pop('z')
+			
+
+		
 		
 	def mean(self,X,axis=None):
 		dims=list(X.shape)
@@ -310,7 +333,13 @@ class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
 	def __init__(self,panel, args):
 		p, d, q, m, k=panel.p, panel.d, panel.q, panel.m, panel.k
-		self.categories=['beta','rho','lambda','gamma','psi','omega','mu','z']
+		self.categories=['beta','rho','lambda','gamma','psi','omega']
+		if panel.z_active:
+			self.categories+=['z']
+		self.mu_removed=True
+		if not self.mu_removed:
+			self.categories+=['mu']
+		
 		self.args_old=args
 		self.panel=panel
 		self.set_init_args(p, d, q, m, k,panel)
@@ -318,6 +347,7 @@ class arguments:
 		self.position_defs()
 		self.args_v=self.conv_to_vector(self.args_init)
 		self.n_args=len(self.args_v)
+		
 
 	def initargs(self,p,d,q,m,k,panel):
 		if self.args_old is None:
@@ -331,14 +361,18 @@ class arguments:
 		args['lambda']=np.ones(q)*armacoefs
 		args['psi']=np.ones(m)*armacoefs
 		args['gamma']=np.ones(k)*armacoefs
+		args['omega'][0][0]=0
 		args['mu']=np.array([])
-		args['z']=np.array([])	
-		if m>0 and panel.N>1:
-			args['mu']=np.array([0.0])
-			args['omega'][0][0]=0
+		args['z']=np.array([])			
 		if m>0:
 			args['psi'][0]=0
-			args['z']=np.array([0.00001])	
+			
+		if m>0 and panel.z_active:
+			args['z']=np.array([1e-09])	
+
+		if panel.N>1 and not self.mu_removed:
+			args['mu']=np.array([0.0001])			
+			
 
 		return args
 
@@ -352,7 +386,7 @@ class arguments:
 		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
 		args['beta']=beta
 		if not panel.m_zero:
-			args['omega'][0]=np.log(panel.var(e))
+			args['omega'][0]=0#np.log(panel.var(e))
 
 	
 		self.args_start=fu.copy_array_dict(args)
@@ -363,10 +397,10 @@ class arguments:
 			args['lambda']=insert_arg(args['lambda'],self.args_old['lambda'])
 			args['psi']=insert_arg(args['psi'],self.args_old['psi'])
 			args['gamma']=insert_arg(args['gamma'],self.args_old['gamma'])
-			args['z']=insert_arg(args['z'],self.args_old['z'])
-			if len(args['mu'])>len(self.args_old['mu']):
-				args['omega'][0][0]=0
-			args['mu']=insert_arg(args['mu'],self.args_old['mu'])
+			if panel.z_active:
+				args['z']=insert_arg(args['z'],self.args_old['z'])
+			if not self.mu_removed:
+				args['mu']=insert_arg(args['mu'],self.args_old['mu'])
 			
 		self.args_init=args
 		self.set_restricted_args(p, d, q, m, k,panel,e,beta)
@@ -431,7 +465,7 @@ class arguments:
 		of the variables througout the estimation."""
 		d=dict()
 		names=panel.x_names[:]#copy variable names
-		d['beta']=names
+		d['beta']=list(names)
 		add_names(p,'AR term %s (p)','rho',d,names)
 		add_names(q,'MA term %s (q)','lambda',d,names)
 		add_names(m,'MACH term %s (m)','gamma',d,names)
@@ -440,11 +474,12 @@ class arguments:
 		d['omega']=panel.w_names
 		names.extend(panel.w_names)
 		if m>0:
-			if panel.N>1:
+			if panel.N>1 and not self.mu_removed:
 				d['mu']=['mu (var.ID eff.)']
 				names.extend(d['mu'])
-			d['z']=['z in h(e,z)']
-			names.extend(d['z'])
+			if panel.z_active:
+				d['z']=['z in h(e,z)']
+				names.extend(d['z'])
 			
 		self.names_v=names
 		self.names_d=d

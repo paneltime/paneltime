@@ -20,19 +20,19 @@ class direction:
 		self.I=np.diag(np.ones(panel.args.n_args))
 
 
-	def get(self,ll,args,dx_conv,its,mp=None,dxi=None,user_constraints=None,numerical=False,precise_hessian=False):
+	def get(self,ll,args,dx_norm,its,mp,dxi,numerical,precise_hessian):
 	
 		if its==0:
-			ll=self.init_ll(args,user_constraints)
+			ll=self.init_ll(args)
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.errmsg,))
 		self.constr=cnstr.constraints(self.panel,ll.args_v)
-		cnstr.add_initial_constraints(self.constr,self.panel,user_constraints,ll,its)			
+		cnstr.add_static_constraints(self.constr,self.panel,ll,its)			
 
 		g,G=self.get_gradient(ll)
-		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv,numerical,precise_hessian)
-		cnstr.add_constraints(G,self.panel,ll,self.constr,dx_conv,self.old_dx_conv,hessian,its,user_constraints)
-		self.old_dx_conv=dx_conv
+		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_norm,numerical,precise_hessian)
+		cnstr.add_constraints(G,self.panel,ll,self.constr,dx_norm,self.old_dx_conv,hessian,its)
+		self.old_dx_conv=dx_norm
 		dc=solve(self.constr,hessian, g, ll.args_v)
 		include=np.ones(len(g))
 		for j in range(len(dc)):
@@ -55,7 +55,7 @@ class direction:
 		return g,G
 		
 
-	def get_hessian(self,ll,mp,g,G,dxi,its,dx_conv,numerical,precise):
+	def get_hessian(self,ll,mp,g,G,dxi,its,dx_norm,numerical,precise):
 
 		hessian=None
 		I=self.I
@@ -71,10 +71,10 @@ class direction:
 		self.g_old=g
 		if precise:
 			return hessian
-		if dx_conv is None:
+		if dx_norm is None:
 			m=10
 		else:
-			m=max(dx_conv)**2
+			m=max(dx_norm)**2
 		hessian=(hessian+m*I*hessian)/(1+m)
 		return hessian
 
@@ -96,9 +96,9 @@ class direction:
 	
 	
 	
-	def init_ll(self,args,user_constraints):
+	def init_ll(self,args):
 		self.constr=cnstr.constraints(self.panel,args)
-		cnstr.add_initial_constraints(self.constr,self.panel,user_constraints,None,0)	
+		cnstr.add_static_constraints(self.constr,self.panel,None,0)	
 		ll=logl.LL(args, self.panel, constraints=self.constr)
 		if ll.LL is None:
 			print("""You requested stored arguments from a previous session 

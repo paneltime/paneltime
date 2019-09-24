@@ -79,18 +79,17 @@ class results:
 		                     args,mp,window,loadargs):
 		print ("Creating panel")
 		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,group_fixed_random_eff, time_fixed_eff,W,
-			            w_names,descr,dataframe,h,has_intercept,model_string,args,loadargs)
+			            w_names,descr,dataframe,h,has_intercept,model_string,args,loadargs,user_constraints)
 		
 		direction=drctn.direction(pnl)
 		if not mp is None:
 			mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')
 	
-		ll,g,G,H, conv,pr,constraints,dx_conv=maximize.maximize(pnl,direction,mp,
-		                        args_archive,pnl.args.args_init,True,
-		                        user_constraints,window)	
+		ll,g,G,H, conv,pr,constraints,dx_norm=maximize.maximize(pnl,direction,mp,
+		                        args_archive,pnl.args.args_init,True,window)	
 
 		self.outputstring=pr
-		self.dx_conv=dx_conv
+		self.dx_norm=dx_norm
 		self.constraints=constraints
 		self.ll=ll
 		self.gradient=g

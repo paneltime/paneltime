@@ -14,39 +14,69 @@ class direction:
 		self.panel=panel
 		self.constr=None
 		self.hessian_num=None
-		self.g_old=None
 		self.do_shocks=True
-		self.old_dx_conv=None
+		self.input_old=None
+		self.CI=1e+20
 		self.I=np.diag(np.ones(panel.args.n_args))
 
 
-	def get(self,ll,args,dx_conv,its,mp=None,dxi=None,user_constraints=None,numerical=False,precise_hessian=False):
+	def get(self,ll,args,dx_norm,its,mp,dxi,numerical,no_increses):
 	
+		
 		if its==0:
-			ll=self.init_ll(args,user_constraints)
+			ll=self.init_ll(args)
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.errmsg,))
+		self.constr_old=self.constr
+		
 		self.constr=cnstr.constraints(self.panel,ll.args_v)
-		cnstr.add_initial_constraints(self.constr,self.panel,user_constraints,ll,its)			
+		cnstr.add_static_constraints(self.constr,self.panel,ll,its)			
 
 		g,G=self.get_gradient(ll)
-		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_conv,numerical,precise_hessian)
-		cnstr.add_constraints(G,self.panel,ll,self.constr,dx_conv,self.old_dx_conv,hessian,its,user_constraints)
-		self.old_dx_conv=dx_conv
-		dc=solve(self.constr,hessian, g, ll.args_v)
-		include=np.ones(len(g))
-		for j in range(len(dc)):
-			s=dc*g*include
-			if np.sum(s)<0:#negative slope
-				s=np.argsort(s)
-				k=s[0]
-				self.constr.add(k, None, 'neg. slope')
-				include[k]=False
-				dc=solve(self.constr,hessian, g, ll.args_v)
-			else:
-				break
+		hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_norm,numerical,self.CI)
+		
+		dx=solve(self.constr,hessian, g, ll.args_v)
+		dx_norm=self.normalize(dx, ll.args_v)
+		cnstr.add_dynamic_constraints(G,self.panel,ll,self.constr,dx_norm,hessian,its,self.constr_old)		
+		g,G,hessian,ll=self.avoid_multicollinarity(g,G,hessian,ll)
+		dx=self.remove_neg_slope(g, hessian, ll)
+		dx_norm=self.normalize(dx, ll.args_v)
+		
 
-		return dc,g,G,hessian,self.constr,ll
+		return dx,g,G,hessian,self.constr,ll
+	
+	def avoid_multicollinarity(self,g,G,hessian,ll):
+		limit=10000	
+		if self.constr.CI>limit and (not self.input_old is None) and self.CI<limit and len(self.constr.collinears)>0:
+			g1,hessian1,ll1,CI1=self.input_old#reverting to previous state if condition index too high (but with new constraints)
+		
+			for i in range(0,15):
+				a=0.9*0.75**(i**2)
+				h=a*hessian+(1-a)*hessian1
+				c_index, var_prop,includemap=cnstr.decomposition(h, self.include())
+				if c_index[-1]<limit:
+					break
+			if c_index[-1]>limit:
+				a=0
+			ll=logl.LL(a*ll.args_v+(1-a)*ll1.args_v,self.panel,self.constr)
+			g,G=self.get_gradient(ll)
+			hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_norm,numerical,self.CI)
+			c_index, var_prop,includemap=cnstr.decomposition(hessian, self.include())
+			self.constr.reset_collinears(ll.args_v)		
+			self.CI=c_index[-1]
+			if self.CI<limit:
+				self.input_old=g,hessian,ll,self.constr.CI			
+		else:
+			self.CI=self.constr.CI
+		return g,G,hessian,ll
+		
+	
+	def include(self,all=False):
+		include=np.array(self.panel.args.n_args*[True])
+		if all:
+			return include
+		include[list(self.constr.constraints)]=False
+		return include	
 
 	def get_gradient(self,ll):
 		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
@@ -55,7 +85,7 @@ class direction:
 		return g,G
 		
 
-	def get_hessian(self,ll,mp,g,G,dxi,its,dx_conv,numerical,precise):
+	def get_hessian(self,ll,mp,g,G,dxi,its,dx_norm,numerical,CI):
 
 		hessian=None
 		I=self.I
@@ -70,12 +100,12 @@ class direction:
 			return hessian
 		self.hessian_num=hessian
 		self.g_old=g
-		if precise:
+		if (its>3) or CI<1e+10:
 			return hessian
-		if dx_conv is None:
+		if dx_norm is None:
 			m=10
 		else:
-			m=max(dx_conv)**2
+			m=max(dx_norm)**2
 		hessian=(hessian+m*I*hessian)/(1+m)
 		return hessian
 
@@ -97,9 +127,9 @@ class direction:
 	
 	
 	
-	def init_ll(self,args,user_constraints):
+	def init_ll(self,args):
 		self.constr=cnstr.constraints(self.panel,args)
-		cnstr.add_initial_constraints(self.constr,self.panel,user_constraints,None,0)	
+		cnstr.add_static_constraints(self.constr,self.panel,None,0)	
 		ll=logl.LL(args, self.panel, constraints=self.constr)
 		if ll.LL is None:
 			print("""You requested stored arguments from a previous session 
@@ -108,7 +138,28 @@ class direction:
 			arguments will be used. """)
 			ll=logl.LL(self.panel.args.args_init,self.panel,constraints=self.constr)	
 		return ll
+	
+	def normalize(self,dx,args_v):
+		dx_norm=(args_v!=0)*dx/(np.abs(args_v)+(args_v==0))
+		dx_norm=(args_v<1e-2)*dx+(args_v>=1e-2)*dx_norm	
+		return dx_norm	
 		
+
+	def remove_neg_slope(self,g,hessian,ll):
+		include=np.ones(len(g))
+		dx=solve(self.constr,hessian, g, ll.args_v)
+		#return dx
+		for j in range(len(dx)):
+			s=dx*g*include
+			if np.sum(s)<0:#negative slope
+				s=np.argsort(s)
+				k=s[0]
+				self.constr.add(k, None, 'neg. slope')
+				include[k]=False
+				dx=solve(self.constr,hessian, g, ll.args_v)
+			else:
+				break
+		return dx
 
 def hessin(hessian):
 	try:
@@ -195,3 +246,5 @@ def kuhn_tucker(c,i,j,n,H,g,x,xi,recalc=True):
 		if recalc:
 			xi=-np.linalg.solve(H,g).flatten()	
 	return xi
+
+

@@ -8,72 +8,89 @@ from scipy import sparse as sp
 
 
 
-def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=False, de_zeta_u=None):
+def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=False):
 	#de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"
 	
+	de_xi=g.__dict__['de_'+vname1]
+	de_zeta=g.__dict__['de_'+vname2]
+	if u_gradient:
+		de_zeta=-panel.X#for error beta-rho covariance, the u gradient must be used	
+	de2_zeta_xi_RE=None
 	if de_xi is None or de_zeta is None:
-		return None,None	
+		return None,None
 	(N,T,m)=de_xi.shape
 	(N,T,k)=de_zeta.shape
 	DLL_e=g.DLL_e.reshape(N,T,1,1)
 	u_calc=False
-	if de_zeta_u is None:
-		de_zeta_u=de_zeta#for error beta-rho covariance, the u derivative must be used
+
 	#ARIMA:
 	if not AMAL is None:
-		de2_zeta_xi=dot(AMAL,de_zeta_u,False)#"T x N x s x m"
+		de2_zeta_xi=dot(AMAL,de_zeta,False)#"T x N x s x m"
 		if transpose:#only happens if lags==k
 			de2_zeta_xi=de2_zeta_xi+np.swapaxes(de2_zeta_xi,2,3)#adds the transpose
-		de2_zeta_xi_RE=de2_zeta_xi+ll.re_obj_i.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)+ll.re_obj_t.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi_RE=de2_zeta_xi + ll.re_obj_i.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2) + ll.re_obj_t.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)
 	else:
 		de2_zeta_xi=0
-		de2_zeta_xi_RE=ll.re_obj_i.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2)+ll.re_obj_t.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi_RE=add(([ll.re_obj_i.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2),  ll.re_obj_t.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2)]),True)
 		if de2_zeta_xi_RE is None:
 			de2_zeta_xi_RE=None
-	if not de2_zeta_xi_RE is None:	
-		de2_zeta_xi_RE = de2_zeta_xi_RE * DLL_e
-		de2_zeta_xi_RE = np.sum(np.sum(de2_zeta_xi_RE,0),0)#and sum it
+
+	
+	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
+
+	#voaltility RE:
+	ddvolRE=0
+	groupeffect=None
+	incl=panel.included.reshape(N,T,1,1)
+	if panel.N>1 and panel.FE_RE>0:
+		de_xi_RE=g.__dict__['de_'+vname1+'_RE']
+		de_zeta_RE=g.__dict__['de_'+vname2+'_RE']	
+		de_xi_RE_r=de_xi_RE.reshape((N,T,m,1))
+		de_zeta_RE_r=de_zeta_RE.reshape((N,T,1,k))	
+		
+		dvRE_xi=g.__dict__['dvRE_'+vname1].reshape((N,T,m,1))
+		dvRE_zeta=g.__dict__['dvRE_'+vname2].reshape((N,T,1,k))			
+
+		
+		ddx=ll.ddvarRE_input.reshape(N,T,1,1)*de_xi_RE_r*de_zeta_RE_r
+		if not de2_zeta_xi_RE is None:
+			ddx+=ll.dvarRE_input.reshape(N,T,1,1)*de2_zeta_xi_RE
+		dx1=ll.dvarRE_input*de_xi_RE
+		dx2=ll.dvarRE_input*de_zeta_RE
+		ddmeane2= panel.mean(2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE,(0,1))*incl.reshape(N,T,1,1)
+		ddvRE_d_xi_zeta=panel.mean(ddx,(0,1)).reshape(1,1,m,k)*incl.reshape(N,T,1,1)
+		ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(ddx,dx1,dx2,ll.varRE_input,vname1,vname2),ll.re_obj_t_v.ddRE(ddx,dx1,dx2,ll.varRE_input,vname1,vname2)),True)
+		
+		dlnvRE,		ddlnvRE		=	ll.dlnvRE.reshape((N,T,1,1)),		ll.ddlnvRE.reshape((N,T,1,1))
+		groupeffect	=	dlnvRE*ddvRE_d_xi_zeta	+	ddlnvRE*dvRE_xi*dvRE_zeta
+		a=0
+
 
 	#GARCH: 
-	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
+	d2lnv_zeta_xi=None
 	if panel.m>0:
-		de_xi   = de_xi.reshape((N,T,m,1))
-		de_zeta = de_zeta.reshape((N,T,1,k))
+
 		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi
-		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi * de_zeta
+		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi.reshape((N,T,m,1)) * de_zeta.reshape((N,T,1,k))
 
 		d2lnv_zeta_xi_h = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
-		if panel.N>1:
-			if ll.zmu:
-				h_e_val,h_2e_val,incl =ll.h_e_val.reshape(N,T,1,1),ll.h_2e_val.reshape(N,T,1,1),panel.included.reshape((N,T,1,1))
-				e_de2_zeta_xi   = panel.mean(h_e_val * de2_zeta_xi,1)
-				e2_dezeta_dexi  = panel.mean(de_xi*de_zeta*h_2e_val,1)					
-			else:
-				avg_e2,davg_lne2,incl =ll.avg_e2.reshape(N,1,1,1),ll.davg_lne2.reshape(N,T,1,1),panel.included.reshape((N,T,1,1))	
-				e_de2_zeta_xi   = panel.group_var_wght*panel.mean(davg_lne2 * de2_zeta_xi,1)
-				e2_dezeta_dexi  = panel.group_var_wght*2*panel.mean(de_xi*de_zeta/avg_e2,1)
-				e2_dezeta_dexi -= panel.group_var_wght*panel.mean(davg_lne2*de_xi,1)*panel.mean(davg_lne2*de_zeta,1)
-
-			d2lnv_zeta_xi_e = (e_de2_zeta_xi+e2_dezeta_dexi).reshape(N,1,m,k)
-			
-			d_mu = ll.args_d['mu'] * d2lnv_zeta_xi_e  * incl
-
-		else:
-			d_mu=0
-		
-		
 		d2lnv_zeta_xi_h = dot(ll.GAR_1MA, d2lnv_zeta_xi_h)
 		
-		d2lnv_zeta_xi = d2lnv_zeta_xi_h + d_mu
+		d2lnv_zeta_xi = add((d2lnv_zeta_xi_h,  groupeffect), True)
 		
 		d2lnv_zeta_xi=np.sum(d2lnv_zeta_xi*dLL_lnv,(0,1))
-	else:
-		d2lnv_zeta_xi=None
+	elif not groupeffect is None:
+		d2lnv_zeta_xi=np.sum(groupeffect*dLL_lnv,(0,1))
+		
+	dLL_zeta_xi_RE=None
+	if not de2_zeta_xi_RE is None:	
+		dLL_zeta_xi_RE = de2_zeta_xi_RE * DLL_e	
+		dLL_zeta_xi_RE = np.sum(np.sum(dLL_zeta_xi_RE,0),0)
+	
+	return d2lnv_zeta_xi,dLL_zeta_xi_RE
 
-	return d2lnv_zeta_xi,de2_zeta_xi_RE
-
-def dd_func_lags(panel,ll,L,d,dLL,addavg=0, transpose=False):
+def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 	#d is "N x T x m" and L is "k x T x T"
 	if panel.m==0:
 		return None
@@ -88,22 +105,18 @@ def dd_func_lags(panel,ll,L,d,dLL,addavg=0, transpose=False):
 		x=dot(L,d,False)#"T x N x k x m"
 	elif len(L.shape)==2:
 		x=dot(L,d).reshape(N,T,1,m)
-	if addavg:#for mu
-		addavg=(addavg*panel.mean(d,1)).reshape(N,1,1,m)
-		x=x+addavg
 	dLL=dLL.reshape((N,T,1,1))
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	
-
 
 def add(iterable,ignore=False):
 	"""Sums iterable. If ignore=True all elements except those that are None are added. If ignore=False, None is returned if any element is None. """
 	x=None
-	for i in iterable:
-		if not i is None:
+	for i in range(len(iterable)):
+		if not iterable[i] is None:
 			if x is None:
-				x=i
+				x=iterable[i]
 			else:
-				x=x+i
+				x=x+iterable[i]
 		else:
 			if not ignore:
 				return None
@@ -123,6 +136,16 @@ def prod(iterable,ignore=False):
 			if not ignore:
 				return None
 	return x
+
+def sumNT(nparray):
+	if nparray is None:
+		return None
+	s=nparray.shape
+	if len(s)<3:
+		raise RuntimeError("Not enough dimensions")
+	
+	return np.sum(nparray.reshape(list(s)+[1]),(0,1))
+	
 
 def concat_matrix(block_matrix):
 	m=[]

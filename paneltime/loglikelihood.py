@@ -28,8 +28,12 @@ class LL:
 		self.errmsg=''
 		self.errmsg_h=''
 		self.panel=panel
-		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i)
-		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count)
+		runRE=True
+		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,runRE)
+		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,runRE)
+		self.re_obj_i_v=re.re_obj(panel,True,panel.T_i,panel.T_i,runRE)
+		self.re_obj_t_v=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,runRE)
+		
 		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
 	
 		self.args_v=panel.args.conv_to_vector(args)
@@ -38,8 +42,7 @@ class LL:
 			constraints.set_fixed(self.args_v)
 		self.args_d=panel.args.conv_to_dict(self.args_v)
 		self.h_err=""
-		self.h_def=panel.h_def
-		
+		#self.LL=self.LL_calc(panel)
 		try:
 			self.LL=self.LL_calc(panel)
 			
@@ -56,46 +59,50 @@ class LL:
 
 
 	def LL_calc(self,panel):
-		args=self.args_d#using dictionary arguments
 		X=panel.X
-		matrices=set_garch_arch(panel,args)
+		matrices=set_garch_arch(panel,self.args_d)
 		if matrices is None:
 			return None		
 		
 		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 		(N,T,k)=X.shape
 
-		u = panel.Y-cf.dot(X,args['beta'])
+		u = panel.Y-cf.dot(X,self.args_d['beta'])
 		e = cf.dot(AMA_1AR,u)
-		lnv_ARMA = self.garch(panel, args, GAR_1MA,e)
-		W_omega = cf.dot(panel.W_a,args['omega'])
+		
+		self.e_RE = e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e)
+		self.e_REsq = self.e_RE**2		
+
+		lnv_ARMA = self.garch(GAR_1MA, e)
+		W_omega = cf.dot(panel.W_a, self.args_d['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-		grp = self.group_variance(panel, lnv, e,args)
+		grp = self.variance_RE()
 		lnv+=grp
 		lnv = np.maximum(np.minimum(lnv,100),-100)
 		v = np.exp(lnv)*panel.a
 		v_inv = np.exp(-lnv)*panel.a	
-		e_RE = e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e)
-		e_REsq = e_RE**2
-		LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+
+		LL = self.LL_const-0.5*np.sum((lnv+(self.e_REsq)*v_inv)*panel.included)
 		
 		if abs(LL)>1e+100: 
 			return None
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e, self.lnv_ARMA        = u,         e,       lnv_ARMA
 		self.lnv,self.v,self.v_inv          = lnv,       v,       v_inv
-		self.e_RE,self.e_REsq               = e_RE,      e_REsq
+		self.W_omega=W_omega
+		self.grp=grp
 
 		return LL
 	
-	def garch(self,panel,args,GAR_1MA,e):
-		if panel.m>0:
-			h_res=self.h(e, args['z'][0])
-			if h_res==None:
-				return None
+	def garch(self,GAR_1MA,e):
+		if self.panel.m>0:
+			if self.panel.z_active:
+				h_res=self.h(e, self.args_d['z'][0])
+			else:
+				h_res=self.h(e, None)
 			(self.h_val,     self.h_e_val,
 			 self.h_2e_val,  self.h_z_val,
-			 self.h_2z_val,  self.h_ez_val)=[i*panel.included for i in h_res]
+			 self.h_2z_val,  self.h_ez_val)=[cf.prod((i,self.panel.included)) for i in h_res]
 			return cf.dot(GAR_1MA,self.h_val)
 		else:
 			(self.h_val,    self.h_e_val,
@@ -104,27 +111,41 @@ class LL:
 			 self.avg_h)=(0,0,0,0,0,0,0)
 			return 0			
 	
-	def group_variance(self,panel,lnv,e,args):
-		N=panel.N
-		if panel.m==0 or N==1:
-			self.avg_lne2,self.davg_lne2,self.d2avg_lne2   = None,   None,  None
-			self.avg_e2, self.zmu =None,None
+	def variance_RE(self):
+
+		self.vRE,self.lnvRE,self.dlnvRE=0,0,0
+		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=0,None,None
+		if self.panel.FE_RE==0:
 			return 0
-		if False: #using average of h function as group variance
-			self.avg_h=panel.mean(self.h_val,1).reshape((N,1,1))*panel.a
-			self.avg_lne2,self.davg_lne2,self.d2avg_lne2   = self.avg_h,  self.h_e_val, self.h_2e_val
-			self.avg_e2, self.zmu                          = None,  1
+		panel=self.panel
+		if panel.N==0:
+			return None
 
-		else: #using log average of e**2 function as group variance
-			avg_e2=panel.mean(e**2,1).reshape((N,1,1))
-			avg_lne2=panel.group_var_wght*np.log(avg_e2)*panel.a
-			#the derivative, for later use
-			davg_lne2=panel.group_var_wght*(2*e/avg_e2)	
+		meane2=panel.mean(self.e_REsq)
+		self.varRE_input=self.e_REsq-meane2*panel.included
+		self.dvarRE_input=2*self.e_RE*(1-1/panel.NT)
+		self.ddvarRE_input=2*(1-1/panel.NT)*panel.included
+		
+		mine2=1e-10
+		mu=0.00001
+		vRE=meane2*panel.included-self.re_obj_i_v.RE(self.varRE_input)-self.re_obj_t_v.RE(self.varRE_input)
+		self.vRE=vRE
+		small=vRE<=mine2
+		vREbig=(1-small)*vRE
+		vREsmall=small*vRE*panel.included
 
-			self.avg_lne2,self.davg_lne2   = avg_lne2,  davg_lne2 
-			self.avg_e2, self.zmu          = avg_e2, 0	
-			
-		return args['mu'][0]*self.avg_lne2
+		lnvREbig=np.log(vREbig+small+mu)
+		lnvREsmall=(np.log(mine2+mu)-1+(1/(mine2+mu))*vREsmall)
+		lnvRE=( (1-small)*lnvREbig  +  small*lnvREsmall )*panel.included
+		self.lnvRE=lnvRE
+		self.dlnvRE=(1-small)/(vREbig+mu+small)+(1/(mine2+mu))*small
+		self.dlnvRE=self.dlnvRE*panel.included
+		self.ddlnvRE=-(1-small)*panel.included/(vRE+mu+small)**2
+		
+		self.dlnvRE_mu=None#1/(vRE+mu)
+		self.ddlnvRE_mu_vRE=None#1/(vRE+mu)**2
+		return self.lnvRE
+		
 
 
 	def standardize(self):
@@ -150,16 +171,15 @@ class LL:
 
 	
 	def h(self,e,z):
-		d={'e':e,'z':z}
 		try:
-			exec(self.h_def,globals(),d)
+			d=dict()
+			exec(self.panel.h_def,globals(),d)
+			return d['h'](e,z)
 		except Exception as err:
 			if self.h_err!=str(err):
 				self.errmsg_h="Warning,error in the ARCH error function h(e,z): %s" %(err)
 			h_err=str(e)
-			return None
-	
-		return d['ret']	
+
 
 def set_garch_arch(panel,args):
 	if c is None:

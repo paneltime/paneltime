@@ -33,12 +33,12 @@ class statistics:
 		
 		
 		if simple_statistics:	
-			self.output=self.arrange_output(robustcov_lags,results.constraints,direction=results.dx_conv)
+			self.output=self.arrange_output(robustcov_lags,results.constraints,direction=results.dx_norm)
 			return	
 		
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(self.panel,self.ll,10)
 		self.norm_prob=stat.JB_normality_test(self.ll.e_st,self.panel)		
-		self.output=self.arrange_output(robustcov_lags,results.constraints,self.norm_prob,self.no_ac_prob,direction=results.dx_conv)
+		self.output=self.arrange_output(robustcov_lags,results.constraints,self.norm_prob,self.no_ac_prob,direction=results.dx_norm)
 		self.reg_output=self.output.outputmatrix
 		self.multicollinearity_check(self.G)
 

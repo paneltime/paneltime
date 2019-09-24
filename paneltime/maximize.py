@@ -9,12 +9,16 @@ import time
 import output
 import sys
 
+digits_precision=12
 
-def lnsrch(f0, g, dx,panel,constr):
+
+def lnsrch(args, g, dx,panel,constr):
+	
+	f0=logl.LL(args, panel,constr)
 
 	s=g*dx
 	slope=np.sum(s)					#ensuring positive slope (should not be negative unless errors in gradient and/or hessian)
-	if slope<=0:
+	if slope<=0 and False:
 		return f0,"Linesearch roundoff problem"
 	m=0.25
 	for i in range(15+len(dx)):#Setting lmda so that the largest step is valid. Set ll.LL to return None when input is invalid
@@ -64,55 +68,58 @@ def lnsrch(f0, g, dx,panel,constr):
 	return f0,'No increase in linesearch'#should never happen	
 		
 		
-def maximize(panel,direction,mp,args_archive,args,_print,user_constraints,window):
+def maximize(panel,direction,mp,args_archive,args,_print,window):
 	"""Maxmizes logl.LL"""
 
-	its, convergence_limit   = 0, 1e-8
-	digits_precision         = 12
-	k, m, dx_conv            = 0,     0,    None
-	H, prtstr, dxi           = None, '',    None
-	g, precise_hessian       = None, False
+	its, convergence_limit   = 0, 0.001
+	k, m, dx_norm            = 0,     0,    None
+	H, prtstr, dxi           = None, '',None
+	g       = None, False
 	direction.hessin_num, ll = None, None
 
 	while 1:  
-		dx,g,G,H,constraints,ll=direction.get(ll,args,dx_conv,its,mp,dxi=dxi,user_constraints=user_constraints,precise_hessian=precise_hessian)
+		
+		dx,g,G,H,constraints,ll=direction.get(ll,args,dx_norm,its,mp,dxi,False,k)
 		f0=ll
 		LL0=round_sign(ll.LL,digits_precision)
-		dx_conv=(ll.args_v!=0)*dx/(np.abs(ll.args_v)+(ll.args_v==0))
-		dx_conv=(ll.args_v<1e-2)*dx+(ll.args_v>=1e-2)*dx_conv
+		dx_norm=direction.normalize(dx,ll.args_v)
 		
 			
 		#Convergence test:
-		if np.max(np.abs(dx_conv)) < convergence_limit and (its>4):  #max direction smaller than convergence_limit -> covergence
+		if np.max(np.abs(dx_norm)) < convergence_limit*5*min((k,10)) and (its>4):  #max direction smaller than convergence_limit -> covergence
 			#if m==3:
 			if _print: print("Convergence on zero gradient; maximum identified")
-			return ll,g,G,H,1,prtstr,constraints,dx_conv
+			return ll,g,G,H,1,prtstr,constraints,dx_norm
 			#m+=1
 			#precise_hessian=precise_hessian==False
 		else:
 			m=0
 			
-		
-		ll,msg=lnsrch(ll,g,dx,panel,constraints) 
-		prtstr=printout(_print, ll, dx_conv,panel,its+1,constraints,msg,window,H,G)
+		ll,msg=lnsrch(ll.args_d,g,dx,panel,constraints) 
+		prtstr=printout(_print, ll, dx_norm,panel,its+1,constraints,msg,window,H,G,direction.CI)
 		if window.finalized:
 			print("Aborted")
-			return ll,g,G,H, 0 ,prtstr,constraints,dx_conv
+			return ll,g,G,H, 0 ,prtstr,constraints,dx_norm
 
 		args_archive.save(ll.args_d,0,(panel.p,panel.q,panel.m,panel.k,panel.d))
 		
 		dxi=f0.args_v-ll.args_v
-		if round_sign(ll.LL,digits_precision)==LL0:#happens when the functions has not increased or arguments not changed
-			if k==4:
+		if ll.LL<=LL0:#happens when the functions has not increased
+			if k>10 and False:
 				print("Unable to reach convergence")
-				return ll,g,G,H, 0 ,prtstr,constraints,dx_conv
+				return ll,g,G,H, 0 ,prtstr,constraints,dx_norm
+					
+			
 			k+=1
-			precise_hessian=precise_hessian==False
 		else:
 			k=0
 
 		its+=1
+		
 
+	
+	
+	
 def round_sign(x,n):
 	"""rounds to n significant digits"""
 	return round(x, -int(np.log10(abs(x)))+n-1)
@@ -124,7 +131,7 @@ def impose_OLS(ll,args_d,panel):
 	args_d['beta'][:]=beta
 	
 
-def printout(_print,ll,dx_conv,panel,its,constraints,msg,window,H,G):
+def printout(_print,ll,dx_norm,panel,its,constraints,msg,window,H,G,CI):
 
 	if not _print:
 		return
@@ -133,7 +140,7 @@ def printout(_print,ll,dx_conv,panel,its,constraints,msg,window,H,G):
 	pr=[['names','namelen',False,'Variable names',False,False],
 	    ['args',l,True,'Coef',True,False],
 	    ['direction',l,True,'last direction',True,False],
-	    ['se_robust',l,True,'t-stat',True,False],
+	    ['se_robust',l,True,'SE(sandw.)',True,False],
 	    ['sign_codes',5,False,'sign',False,False],
 	    ['set_to',6,False,'set to',False,True],
 	    ['assco',20,False,'associated variable',False,True],
@@ -148,12 +155,12 @@ def printout(_print,ll,dx_conv,panel,its,constraints,msg,window,H,G):
 	o=output.output(pr, panel, H, G, 10, ll, 
 	                             constraints,
 	                             startspace='   ',
-	                             direction=dx_conv)
+	                             direction=dx_norm)
 	o.add_heading(its,
-	              top_header=" "*75+"_"*8+"restricted variables"+"_"*9,
+	              top_header=" "*75+"_"*12+"restricted variables"+"_"*13,
 	              statistics=[['Normality',norm_prob,3,'%'],
 	                          ['P(no AC)',no_ac_prob,3,'%'],
-	                          ['Max condition index',constraints.CI,3,None]])
+	                          ['Max condition index',CI,3,None]])
 	o.add_footer(msg+'\n' + ll.errmsg)	
 	o.print(window)
 	return o.printstring

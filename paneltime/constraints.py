@@ -3,11 +3,12 @@
 
 import numpy as np
 import stat_functions as stat
+import functions as fu
 
 
-def add_initial_constraints(constr,panel,user_constraints,ll,its):
+def add_static_constraints(constr,panel,ll,its):
 	
-	add_custom_constraints(constr,user_constraints,ll)
+	add_custom_constraints(constr,panel.user_constraints,ll)
 	general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
 	add_custom_constraints(constr,general_constraints,ll)
 	if panel.loadargs==False:
@@ -27,14 +28,12 @@ def add_initial_constraints(constr,panel,user_constraints,ll,its):
 
 	
 	
-def add_constraints(G,panel,ll,constr,dx_conv,dx_conv_old,hessian,its,user_constraints):
+def add_dynamic_constraints(G,panel,ll,constr,dx_norm,hessian,its,old_constr):
 
-	#remove_constants(panel, G,constr,ll)
-	#remove_correl(panel, G, constr)
-	remove_all_multicoll(panel,hessian, constr)
+	remove_all_multicoll(panel,dx_norm,hessian, constr,old_constr)
 	remove_singularities(constr, hessian)
-	a=0
-	#remove_H_correl(panel,hessian,constr,True)
+
+
 	
 def remove_singularities(constr,hessian):
 	n=len(hessian)
@@ -111,6 +110,7 @@ class constraints:
 		self.intervals={}
 		self.constraints={}
 		self.associates={}
+		self.collinears={}
 		self.args=args
 		self.CI=None
 
@@ -133,7 +133,7 @@ class constraints:
 			if index in self.intervals:
 				c=self.constraints[index]
 				if not (c.min<value<c.max):
-					value=0.5*(c.min+c.max)
+					return False
 				else:
 					self.intervals.pop(index)
 		elif index in self.fixed: #this is an interval constraint
@@ -155,11 +155,19 @@ class constraints:
 			if not assco in self.associates:
 				self.associates[assco]=[index]
 			elif not index in self.associates[assco]:
-					self.associates[assco].append(index)
+				self.associates[assco].append(index)
+		if cause=='collinear':
+			self.collinears[index]=assco
+			
+			
 				
 
 		return True
 	
+	def reset_collinears(self,new_args):
+		for i in self.collinears:
+			self.constraints[i].value=new_args[i]
+		
 	def delete(self,index):
 		if not index in self.constraints:
 			return False
@@ -186,13 +194,18 @@ class constraints:
 				else:
 					j=np.nonzero(np.array(a[i])==index)[0][0]
 					a[i].pop(j)
+		if index in self.collinears:
+			self.collinears.pop(index)
 		return True
 		
 
 	def add_named(self,name,assco,cause,interval):
 		positions=self.panel.args.positions[name]
 		for i in positions:
-			self.add(i,assco,cause, interval)
+			if interval[1] is None:
+				self.add(i,assco,cause, value=interval[0])
+			else:
+				self.add(i,assco,cause, interval)
 		return
 	
 	def set_fixed(self,x):
@@ -216,87 +229,8 @@ class constraints:
 					return False
 				
 		return True
-		
-
-
-def remove_constants(panel,G,constr,ll):
-	N,T,k=G.shape
-	v=panel.var(G,(0,1))
-	for i in range(1,k):
-		if v[i]==0:
-			constr.add(i,None,'constant')
-
-def remove_H_correl(panel,hessian,constr,replace):
-	k,k=hessian.shape
-	include=np.array(k*[True])
-	include[list(constr.fixed)]=False	
-	if panel.has_intercept:
-		include[0]=False
-		
-	hessian_abs=np.abs(hessian)
-	x=(np.diag(hessian_abs)**0.5).reshape((1,k))
-	x=(x.T*x)
-	corr=hessian_abs/(x+(x==0)*1e-100)	
-	for i in range(k):
-		m=np.max(corr[i])
-		if m>2*corr[i,i]:
-			j=np.nonzero(corr[i]==m)[0][0]
-			corr[:,j]=0
-			corr[j,:]=0
-			corr[j,j]=1	
-	for i in range(k):
-		corr[i,i:]=0
-
-			
-
-	p=np.arange(k).reshape((1,k))*np.ones((k,1))
-	p=np.concatenate((corr.reshape((k,k,1)),p.T.reshape((k,k,1)),p.reshape((k,k,1))),2)
-	p=p.reshape((k*k,3))
-	srt=np.argsort(p[:,0],0)
-	p=p[srt][::-1]
-	p=p[np.nonzero(p[:,0]>=1.0)[0]]
-
-	IDs=correl_IDs(p)
-	acc=None
-	for i in IDs:
-		for j in range(len(i)):
-			if not i[j] in constr.fixed:
-				acc=i.pop(j)
-				break
-		if not acc is None:
-			for j in i:
-				constr.add(j,acc,'h-correl',replace=replace)
-
-
-def remove_correl(panel,G,constr):
-	threshold=0.99
-	N,T,k=G.shape
-	include=np.array(k*[True])
-	if False:
-		include[list(constr.fixed)]=False
-		if panel.has_intercept:
-			include[0]=False
-	corr=np.abs(stat.correl(G,panel))
-	for i in range(k):
-		corr[i,i:]=0
-		if not include[i]:
-			corr[:,i]=0
-
-	p=np.arange(k).reshape((1,k))*np.ones((k,1))
-	p=np.concatenate((corr.reshape((k,k,1)),p.T.reshape((k,k,1)),p.reshape((k,k,1))),2)
-	p=p.reshape((k*k,3))
-	srt=np.argsort(p[:,0],0)
-	p=p[srt][::-1]
-	p=p[np.nonzero(p[:,0]>threshold)[0]]
-	principal_factors=[]
-	IDs=correl_IDs(p)
-	for i in IDs:
-		for j in range(len(i)):
-			if not i[j] in constr.fixed:
-				acc=i.pop(j)
-				break
-		for j in i:
-			constr.add(j,acc,'correl')
+	
+	
 
 
 def append_to_ID(ID,intlist):
@@ -348,36 +282,106 @@ def normalize(H,include):
 	includemap=np.arange(len(include))[include]
 	return C,includemap
 	
-	
-def remove_one_multicoll(panel,H,constr):
-	limit=100
-	k,k=H.shape
-	include=np.array(k*[True])
-	include[list(constr.fixed)]=False
+def decomposition(H,include):
 	C,includemap=normalize(H, include)
 	c_index,var_prop=stat.var_decomposition(XXNorm=C)
 	try:
 		c_index,var_prop=stat.var_decomposition(XXNorm=C)
 	except:
-		return False
-	zeros=np.zeros(len(c_index))
+		return None,None,None
 	c_index=c_index.flatten()
-	constr.CI=c_index[-1]
-	if c_index[-1]>limit:
-		if np.sum(var_prop[-1]>0.5)>1:
-			j=np.argsort(var_prop[-1])[-1]
+	return c_index, var_prop,includemap
+	
+	
+def remove_one_multicoll(panel,H,constr):
+	limit=1000
+	k,k=H.shape
+	include=np.array(k*[True])
+	include[list(constr.fixed)]=False
+	c_index, var_prop, includemap = decomposition(H, include)
+	if c_index is None:
+		return False
+	constr.CI=c_index[-1]	
+	if c_index[-1]>10000:
+		constr.jump_start_variable=np.nonzero(var_prop[-1]==np.max(var_prop[-1]))[0][0]
+	else:
+		constr.jump_start_variable=None
+	for cix in range(1,len(c_index)):
+		if c_index[-cix]<limit:
+			return False
+		
+		if np.sum(var_prop[-cix]>0.5)>1:
+			var_prop_ix=np.argsort(var_prop[-cix])[::-1]
+			var_prop_val=var_prop[-cix][var_prop_ix]
+			j=var_prop_ix[0]
 			j=includemap[j]
-			assc=np.argsort(var_prop[-1])[-2]
-			assc=includemap[assc]
-			constr.add(j,assc,'collinear')
-			return True
+			for i in range(1,len(var_prop_ix)):
+				if var_prop_val[i]<0.5:
+					return False
+				assc=var_prop_ix[i]
+				assc=includemap[assc]
+				if (j in constr.associates) or (j in constr.collinears):
+					return False
+				else:
+					constr.add(j,assc,'collinear')
+					return True
 	return False
 
-def remove_all_multicoll(panel,H,constr):
+def remove_all_multicoll(panel,dx_norm,H,constr,old_constr):
 	k,k=H.shape
 	for i in range(k):
 		remvd=remove_one_multicoll(panel,H,constr)
 		if not remvd:
+			break
+	select_multicoll_with_biggest_direction(constr,dx_norm,old_constr)
+
+
+def select_multicoll_with_biggest_direction(constr,dx_norm,old_constr):
+	if dx_norm is None:
+		return	
+	max_dx0=[0,None,None]
+	if len(constr.collinears)==0:
+		return
+	for i in constr.collinears:
+		dx_abs0=abs(dx_norm[i])
+		if dx_abs0>max_dx0[0]:
+			assc0=constr.collinears[i]
+			max_dx0=[dx_abs0,i,assc0]
+	
+	
+	
+	mc=np.array(list(constr.collinears.keys()))
+	dx_abs=np.abs(dx_norm[mc])
+	max_dx=mc[np.argsort(dx_abs)]
+	try:
+		list(old_constr.collinears.keys())[0]
+	except:
+		assc=constr.collinears[max_dx[0]]
+		constr.delete(max_dx[0])
+		constr.add(assc,max_dx[0],'collinear')
+		return
+	for i in max_dx:
+		old_mc=np.sort(list(old_constr.collinears.keys()))
+		curr_mc=fu.copy_array_dict(constr.collinears)
+		assc=constr.constraints[i].assco_ix
+		curr_mc[assc]=i
+		if assc in curr_mc:
+			curr_mc.pop(i)
+		curr_mc=np.sort(list(curr_mc.keys()))
+		swithch=len(old_mc)!=len(curr_mc)
+		if not swithch:
+			swithch=not np.all(old_mc==curr_mc)
+		if swithch:
+			constr.delete(i)
+			constr.add(assc,i,'collinear')
 			return
+
+
+
+			
+	
+	
+			
+		
 
 

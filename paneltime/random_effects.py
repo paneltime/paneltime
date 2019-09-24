@@ -6,19 +6,20 @@ import numpy as np
 import functions as fu
 
 class re_obj:
-	def __init__(self,panel,group,T_i,T_i_count):
+	def __init__(self,panel,group,T_i,T_i_count,active):
 		"""Following Greene(2012) p. 413-414"""
 		self.panel=panel
 		self.sigma_u=0
 		self.group=group
 		self.avg_Tinv=np.mean(1/T_i_count) #T_i_count is the total number of observations for each group (N,1)
 		self.T_i=T_i*panel.included#self.T_i is T_i_count at each observation (N,T,1)
+		self.FE_RE=active*panel.FE_RE
 	
 	def RE(self,x,recalc=True):
 		panel=self.panel
-		if panel.FE_RE==0:
-			return 0
-		if panel.FE_RE==1:
+		if self.FE_RE==0:
+			return 0*panel.included
+		if self.FE_RE==1:
 			self.xFE=self.FRE(x)
 			return self.xFE
 		if recalc:
@@ -44,10 +45,12 @@ class re_obj:
 			self.dtheta=dict()
 			self.de_var=dict()
 			self.dv_var=dict()
-	
-		if self.panel.FE_RE==0 or dx is None:
+		
+		if dx is None:
 			return None
-		elif self.panel.FE_RE==1:
+		if self.FE_RE==0:
+			return 0*panel.included
+		elif self.FE_RE==1:
 			return self.FRE(dx)	
 		(N,T,k)=dx.shape	
 
@@ -69,12 +72,15 @@ class re_obj:
 	def ddRE(self,ddx,dx1,dx2,x,vname1,vname2):
 		"""Returns the first and second derivative of RE"""
 		panel=self.panel
-		if self.panel.FE_RE==0 or self.sigma_u<0:
+		if dx1 is None or dx2 is None:
 			return None
-		elif self.panel.FE_RE==1:
-			return self.FRE(ddx)	
 		(N,T,k)=dx1.shape
-		(N,T,m)=dx2.shape
+		(N,T,m)=dx2.shape			
+		if self.FE_RE==0 or self.sigma_u<0:
+			return 0*panel.included.reshape((N,T,1,1))
+		elif self.FE_RE==1:
+			return self.FRE(ddx)	
+
 		if ddx is None:
 			ddxFE=0
 			ddx=0

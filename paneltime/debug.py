@@ -51,7 +51,7 @@ def grad_debug(ll,panel,d):
 
 
 
-def grad_debug_allparams(f0,panel,g,d,varname,pos=0):
+def grad_debug_allparams(f0,panel,d,varname,pos=0):
 	args=fu.copy_array_dict(f0.args_d)
 	args[varname][pos]+=d
 	f1=lgl.LL(args, panel)
@@ -67,16 +67,43 @@ def grad_debug_allparams(f0,panel,g,d,varname,pos=0):
 	a=0
 	
 	
+def grad_debug_allparams_diff(f0,panel):
+
+	f1=lgl.LL(f0.args_d, panel)
+	for i in f1.__dict__.keys():
+		x0=f0.__dict__[i]
+		x1=f1.__dict__[i]
+		if (type(x1)==np.ndarray):
+			print(i)
+			print((np.sum(x1-x0)))
+	#LL_calc(f0, panel, d)
+	a=0
+	
 def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
 	args1=fu.copy_array_dict(f0.args_d)
 	args1[varname1][pos1]+=d
-
+	
+	f0=lgl.LL(f0.args_d, panel)
 	f1=lgl.LL(args1, panel)
 
 	if type(llname)==list:
 		ddL=(f1.__dict__[llname[0]].__dict__[llname[1]]-f0.__dict__[llname[0]].__dict__[llname[1]])/d
 	else:
 		ddL=(f1.__dict__[llname]-f0.__dict__[llname])/d
+	return ddL
+
+
+def grad_debug_detail_oldll(f0,panel,d,llname,varname1,pos1=0):
+	args1=fu.copy_array_dict(f0.args_d)
+	args1[varname1][pos1]+=d
+	
+
+	f1=lgl.LL(args1, panel)
+
+	if type(llname)==list:
+		ddL=(f1.__dict__[llname[0]].__dict__[llname[1]]-f0.__dict__[llname[0]].__dict__[llname[1]])
+	else:
+		ddL=(f1.__dict__[llname]-f0.__dict__[llname])
 	return ddL
 	
 	

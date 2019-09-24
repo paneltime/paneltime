@@ -19,7 +19,7 @@ def posdef(a,da):
 class panel:
 	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,x_names,y_name,IDs_name,
 	             fixed_random_eff,time_fixed_eff,W,w_names,descr,dataframe,h,
-	             has_intercept,user_constraints,args,loadargs
+	             has_intercept,args,loadargs, user_constraints
 	             ):
 		"""
 		No effects    : fixed_random_eff=0\n
@@ -39,7 +39,7 @@ class panel:
 			timevar=None
 
 		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,
-		                  IDs_name,w_names,descr,fixed_random_eff,loadargs)
+		                  IDs_name,w_names,descr,fixed_random_eff,loadargs,user_constraints)
 		
 		self.arrayize(X, Y, W, IDs,timevar)
 
@@ -80,6 +80,7 @@ class panel:
 		self.its_reg=0
 		self.FE_RE=fixed_random_eff
 		self.IDs=IDs	
+		self.user_constraints=user_constraints
 		self.define_h_func(h)
 		self.loadargs=loadargs
 		
@@ -206,20 +207,38 @@ class panel:
 	
 	
 	def define_h_func(self,h_definition):
-		global h
-		if h_definition is None:
-			h_definition="""
+
+		h_def="""
 def h(e,z):
-	ez2=e**2+z**2+1e-15
-	h_val		=	 np.log(ez2)	
-	h_e_val		=	 2*e/ez2
-	h_2e_val	=	 2*(z**2-e**2)/(ez2**2)
-	h_z_val		=	 2*z/ez2
-	h_2z_val	=	2*(e**2-z**2)/(ez2**2)
-	h_ez_val	=	-4*e*z/ez2**2
-	return h_val,h_e_val,h_2e_val,h_z_val,h_2z_val,h_ez_val
-	"""	
-		self.h_def=h_definition+'\nret=h(e,z)'
+	e2			=	e**2+1e-9
+	h_val		=	np.log(e2)	
+	h_e_val		=	2*e/e2
+	h_2e_val	=	-2/e2
+
+	return h_val,h_e_val,h_2e_val,None,None,None
+		"""	
+		if h_definition is None:
+			h_definition=h_def
+		d=dict()
+		try:
+			exec(h_definition,globals(),d)
+			ret=d['h'](1,1)
+			if len(ret)!=6:
+				raise RuntimeError("""Your custom function must return exactly six arguments
+				(x, dx and ddx for both e and z. the z return values can be set to None)""")
+			self.h_def=h_definition
+		except Exception as e:
+			print('Something is wrong with your custom function, default is used:'+ str(e))
+			exec(h_def,globals(),d)
+			self.h_def=h_def
+
+		self.z_active=True
+		for i in ret[3:]:
+			self.z_active=self.z_active and not (i is None)	
+		if not self.z_active and 'z' in self.user_constraints:
+			self.user_constraints.pop('z')			
+
+
 		
 	def mean(self,X,axis=None):
 		dims=list(X.shape)
