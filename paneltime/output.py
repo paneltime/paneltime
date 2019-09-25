@@ -334,11 +334,15 @@ class output:
 		if not statistics is None:
 			for i in statistics:
 				if not i[1] is None:
-					if type(i[3])==str:
+					if i[3]=='%':
 						value=str(np.round(i[1]*100,i[2]))+i[3]
-					else:
+						s+=("%s: %s " %(i[0],value)).ljust(16)
+					elif i[3]=='decimal': 
 						value=np.round(i[1],i[2])
-					s+=("%s: %s " %(i[0],value)).ljust(16)
+						s+=("%s: %s " %(i[0],value)).ljust(16)
+					else:
+						s+=str(i[0])+str(i[1])+str(i[3])
+					
 		s+='\n'
 		if not top_header is None:
 			s+=top_header+'\n'

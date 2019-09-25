@@ -115,6 +115,7 @@ class LL:
 
 		self.vRE,self.lnvRE,self.dlnvRE=0,0,0
 		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=0,None,None
+		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
 		if self.panel.FE_RE==0:
 			return 0
 		panel=self.panel

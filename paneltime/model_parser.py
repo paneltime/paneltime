@@ -42,7 +42,8 @@ def test_dictionary(dataframe):
 
 def get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name):
 	print ("Analyzing variables ...")
-	
+	if len(dataframe[list(dataframe.keys())[0]])==0:
+		raise RuntimeError("There are no valid observations")
 	sort(dataframe,time_name,IDs_name)
 	
 	timevar,time_name,void=check_var(dataframe,time_name,'time_name')
@@ -125,8 +126,8 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 	dataframe['ones']=np.ones((n,1))
 	if not transforms is None:
 		exec(transforms,globals(),dataframe)	
-	n=filter_data(filters, dataframe,n)
-	exec(transforms,globals(),dataframe)
+		n=filter_data(filters, dataframe,n)
+		exec(transforms,globals(),dataframe)
 	for i in list(dataframe.keys()):
 		if callable(dataframe[i]):
 			dataframe.pop(i)		

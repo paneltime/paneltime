@@ -39,7 +39,7 @@ class gradient:
 			dx=ll.dvarRE_input*dRE
 			dx-=panel.mean(dx)*panel.included
 			dmeane2=panel.mean(2*ll.e_RE*dRE,(0,1))*panel.included
-			dvRE_dx=dmeane2-ll.re_obj_i_v.dRE(dx,ll.varRE_input,varname)+ll.re_obj_t_v.dRE(dx,ll.varRE_input,varname)
+			dvRE_dx=dmeane2-ll.re_obj_i_v.dRE(dx,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(dx,ll.varRE_input,varname)
 			groupeffect=ll.dlnvRE*dvRE_dx
 			
 		if self.panel.m>0 and not d is None:

@@ -40,9 +40,19 @@ def load_SQL(conn,sql_string,dateformat,load_tmp_data):
 		else:
 			dtypes.append(None)
 	data=convert_to_numeric_dict(data,heading,dateformat,dtypes)
+	remove_nan(data)
 	tempstore.savedata(sql_string,data)
 	return data
 	
+def remove_nan(data):
+	k0=list(data.keys())[0]
+	notnan=(np.isnan(data[k0])==0)
+	for i in data:
+		notnan=(notnan*(np.isnan(data[i])==0))
+	for i in data:
+		data[i]=data[i][notnan]
+	print("%s observations removed because they were nan" %(len(notnan)-np.sum(notnan)))
+		
 
 
 	
@@ -98,8 +108,11 @@ def convert_to_numeric_dict(a,name,dateformat,dtypes=None):
 	
 def make_numeric(a,name,df,dateformat,dtype):
 	if not dtype is None and dtype in SQL_type_dict:
-		df[name]=np.array(a,dtype=SQL_type_dict[dtype])
-		return
+		try:
+			df[name]=np.array(a,dtype=SQL_type_dict[dtype])
+			return
+		except:
+			pass
 	try:
 		try_float_int(a, df, name)
 	except ValueError:
@@ -110,8 +123,11 @@ def make_numeric(a,name,df,dateformat,dtype):
 			
 def try_float_int(a,df,name):
 	a=a.astype(float)
-	if np.all(np.equal(np.mod(a, 1), 0)):
-		a=a.astype(int)
+	try:
+		if np.all(np.equal(np.mod(a, 1), 0)):
+			a=a.astype(int)
+	except:
+		pass
 	df[name]=a	
 
 def convert_cat_to_int(a,df,name):
@@ -217,7 +233,7 @@ def filter_data(filters,data,data_dict):
 SQL_type_dict={0: float,
  1: int,
  2: int,
- 3: int,
+ 3: float,
  4: float,
  5: float,
  6: float,

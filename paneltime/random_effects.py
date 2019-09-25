@@ -28,6 +28,10 @@ class re_obj:
 			self.xFE=(x+self.FRE(x))*panel.included
 			self.e_var=self.panel.mean(self.xFE**2)/(1-self.avg_Tinv)
 			self.v_var=self.panel.mean(x**2)-self.e_var
+			if self.v_var<0:
+				#print("Warning, negative group random effect variance. 0 is assumed")
+				self.v_var=0
+				
 			
 			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*self.T_i)))*self.panel.included
 			

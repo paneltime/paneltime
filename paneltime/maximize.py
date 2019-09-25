@@ -71,22 +71,23 @@ def lnsrch(args, g, dx,panel,constr):
 def maximize(panel,direction,mp,args_archive,args,_print,window):
 	"""Maxmizes logl.LL"""
 
-	its, convergence_limit   = 0, 0.001
+	its, convergence_limit   = 0, 0.01
 	k, m, dx_norm            = 0,     0,    None
 	H, prtstr, dxi           = None, '',None
 	g       = None, False
 	direction.hessin_num, ll = None, None
-
+	n						 = panel.args.n_args
 	while 1:  
 		
 		dx,g,G,H,constraints,ll=direction.get(ll,args,dx_norm,its,mp,dxi,False,k)
 		f0=ll
 		LL0=round_sign(ll.LL,digits_precision)
-		dx_norm=direction.normalize(dx,ll.args_v)
+		dx_norm=np.abs(g/(np.diag(H)+(np.diag(H)==0)))#direction.normalize(dx,ll.args_v)
 		
 			
 		#Convergence test:
-		if np.max(np.abs(dx_norm)) < convergence_limit*5*min((k,10)) and (its>4):  #max direction smaller than convergence_limit -> covergence
+		lmt=convergence_limit*max(5*min((k,40)),1) 
+		if np.max(np.abs(dx_norm)) < lmt and (its>4):  #max direction smaller than convergence_limit -> covergence
 			#if m==3:
 			if _print: print("Convergence on zero gradient; maximum identified")
 			return ll,g,G,H,1,prtstr,constraints,dx_norm
@@ -104,12 +105,11 @@ def maximize(panel,direction,mp,args_archive,args,_print,window):
 		args_archive.save(ll.args_d,0,(panel.p,panel.q,panel.m,panel.k,panel.d))
 		
 		dxi=f0.args_v-ll.args_v
-		if ll.LL<=LL0:#happens when the functions has not increased
-			if k>10 and False:
+		if np.round(ll.LL,8)<=np.round(LL0,8):#happens when the functions has not increased
+			if k>10:
 				print("Unable to reach convergence")
-				return ll,g,G,H, 0 ,prtstr,constraints,dx_norm
-					
-			
+				return ll,g,G,H, 0 ,prtstr,constraints,dx_norm				
+
 			k+=1
 		else:
 			k=0
@@ -139,7 +139,7 @@ def printout(_print,ll,dx_norm,panel,its,constraints,msg,window,H,G,CI):
 	l=10
 	pr=[['names','namelen',False,'Variable names',False,False],
 	    ['args',l,True,'Coef',True,False],
-	    ['direction',l,True,'last direction',True,False],
+	    ['direction',l,True,'gradient norm',True,False],
 	    ['se_robust',l,True,'SE(sandw.)',True,False],
 	    ['sign_codes',5,False,'sign',False,False],
 	    ['set_to',6,False,'set to',False,True],
@@ -158,9 +158,10 @@ def printout(_print,ll,dx_norm,panel,its,constraints,msg,window,H,G,CI):
 	                             direction=dx_norm)
 	o.add_heading(its,
 	              top_header=" "*75+"_"*12+"restricted variables"+"_"*13,
-	              statistics=[['Normality',norm_prob,3,'%'],
+	              statistics=[['\nIndependent: ',panel.y_name[0],None,"\n"],
+	                          ['Normality',norm_prob,3,'%'],
 	                          ['P(no AC)',no_ac_prob,3,'%'],
-	                          ['Max condition index',CI,3,None]])
+	                          ['Max condition index',CI,3,'decimal']])
 	o.add_footer(msg+'\n' + ll.errmsg)	
 	o.print(window)
 	return o.printstring
