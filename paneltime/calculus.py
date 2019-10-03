@@ -35,12 +35,13 @@ class gradient:
 		panel=self.panel
 		groupeffect=0
 		groupeffect, dvRE_dx=None, None
+		d_input=0
 		if self.panel.N>1 and panel.FE_RE>0 and not dRE is None:
-			dx=ll.dvarRE_input*dRE
-			dx-=panel.mean(dx)*panel.included
-			dmeane2=panel.mean(2*ll.e_RE*dRE,(0,1))*panel.included
-			dvRE_dx=dmeane2-ll.re_obj_i_v.dRE(dx,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(dx,ll.varRE_input,varname)
-			groupeffect=ll.dlnvRE*dvRE_dx
+			d_eRE_sq=2*ll.e_RE*dRE
+			dmeane2=panel.mean(d_eRE_sq,(0,1))
+			d_input=(d_eRE_sq-dmeane2)*panel.included
+			dvRE_dx=dmeane2-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
+			groupeffect=ll.dlnvRE*dvRE_dx*panel.included
 			
 		if self.panel.m>0 and not d is None:
 			((N,T,k))=d.shape
@@ -49,9 +50,9 @@ class gradient:
 
 
 			dlnv_e=cf.add((dlnv_sigma_G,groupeffect),True)
-			return dlnv_e,dlnv_sigma_G,dvRE_dx
+			return dlnv_e,dlnv_sigma_G,dvRE_dx,d_input
 		else:
-			return groupeffect,None,dvRE_dx
+			return groupeffect,None,dvRE_dx,d_input
 
 	def get(self,ll,DLL_e=None,dLL_lnv=None,return_G=False):
 		(self.DLL_e, self.dLL_lnv)=(DLL_e, dLL_lnv)
@@ -73,13 +74,14 @@ class gradient:
 		self.de_beta_RE      =    cf.add((de_beta,    re_obj_i.dRE(de_beta, ll.e,'beta'), 		re_obj_t.dRE(de_beta,ll.e,'beta')), True)
 		#self.du_beta_RE      =    cf.add((-panel.X,    re_obj_i.dRE(-panel.X, ll.u,'beta_u'), 		re_obj_t.dRE(-panel.X,ll.u,'beta_u')), True)		
 
-		dlnv_sigma_rho,		dlnv_sigma_rho_G,		dvRE_rho	=	self.garch_arima_grad(ll,	de_rho,		self.de_rho_RE,		'rho')
-		dlnv_sigma_lambda, 	dlnv_sigma_lambda_G,	dvRE_lambda	=	self.garch_arima_grad(ll,	de_lambda,	self.de_lambda_RE,	'lambda')
-		dlnv_sigma_beta,	dlnv_sigma_beta_G,		dvRE_beta	=	self.garch_arima_grad(ll,	de_beta,	self.de_beta_RE,	'beta')
+		dlnv_sigma_rho,		dlnv_sigma_rho_G,		dvRE_rho	, d_rho_input		=	self.garch_arima_grad(ll,	de_rho,		self.de_rho_RE,		'rho')
+		dlnv_sigma_lambda, 	dlnv_sigma_lambda_G,	dvRE_lambda	, d_lambda_input	=	self.garch_arima_grad(ll,	de_lambda,	self.de_lambda_RE,	'lambda')
+		dlnv_sigma_beta,	dlnv_sigma_beta_G,		dvRE_beta	, d_beta_input		=	self.garch_arima_grad(ll,	de_beta,	self.de_beta_RE,	'beta')
 
 		(self.dlnv_sigma_rho,self.dlnv_sigma_lambda,self.dlnv_sigma_beta)=(dlnv_sigma_rho,dlnv_sigma_lambda,dlnv_sigma_beta)
 		(self.dlnv_sigma_rho_G,self.dlnv_sigma_lambda_G,self.dlnv_sigma_beta_G)=(dlnv_sigma_rho_G,dlnv_sigma_lambda_G,dlnv_sigma_beta_G)
 		(self.dvRE_rho,self.dvRE_lambda,self.dvRE_beta)=(dvRE_rho,dvRE_lambda,dvRE_beta)
+		(self.d_rho_input,self.d_lambda_input,self.d_beta_input)=(d_rho_input,d_lambda_input,d_beta_input)
 
 		#GARCH:
 		(dlnv_gamma, dlnv_psi, dlnv_mu, dlnv_z_G, dlnv_z)=(None,None,None,None,None)
@@ -478,6 +480,9 @@ class g_obj_light():
 		self.dvRE_rho		=	g.dvRE_rho
 		self.dvRE_lambda	=	g.dvRE_lambda
 		self.dvRE_beta		=	g.dvRE_beta
+		self.d_rho_input	=	g.d_rho_input
+		self.d_lambda_input	=	g.d_lambda_input
+		self.d_beta_input	=	g.d_beta_input
 
 
 

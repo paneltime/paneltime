@@ -31,7 +31,7 @@ np.set_printoptions(precision=8)
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
             descr=None,
             group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=1,add_intercept=True,
-            h=None,user_constraints=None,window=None
+            h=None,user_constraints=None,window=None,tobin_threshold=None
             ):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
@@ -46,7 +46,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 
 	results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name, time_name,
 	                                            group_fixed_random_eff, time_fixed_eff,W,w_names,descr,dataframe,h,has_intercept,
-	                                            args_archive,model_string,user_constraints,args,mp,window,loadargs)
+	                                            args_archive,model_string,user_constraints,args,mp,window,loadargs,tobin_threshold)
 	return results_obj
 	
 def setvars(loadargs,dataframe,model_string,IDs_name,w_names,add_intercept,time_name,descr,user_constraints):
@@ -76,10 +76,10 @@ class results:
 	def __init__(self,p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
 		                     group_fixed_random_eff, time_fixed_eff, W, w_names, descr, dataframe, h, has_intercept,
 		                     args_archive,model_string,user_constraints,
-		                     args,mp,window,loadargs):
+		                     args,mp,window,loadargs,tobin_threshold):
 		print ("Creating panel")
 		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,group_fixed_random_eff, time_fixed_eff,W,
-			            w_names,descr,dataframe,h,has_intercept,model_string,args,loadargs,user_constraints)
+			            w_names,descr,dataframe,h,has_intercept,model_string,args,loadargs,user_constraints,tobin_threshold)
 		
 		direction=drctn.direction(pnl)
 		if not mp is None:
@@ -103,7 +103,7 @@ class results:
 def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
             descr=None,
             group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
-            h=None,user_constraints=None,window=None
+            h=None,user_constraints=None,window=None,tobin_threshold=None
             ):
 	"""Same as execute, except iterates over ARIMA and GARCH coefficients to find best match"""
 	
@@ -125,7 +125,7 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 		results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
 	                                            group_fixed_random_eff, time_fixed_eff,W,w_names,descr,dataframe,h,has_intercept,
 	                                            args_archive,model_string,user_constraints,
-		                                        args,mp,window,loadargs)
+		                                        args,mp,window,loadargs,tobin_threshold)
 		panel=results_obj.panel
 		constraints=results_obj.constraints
 		args=results_obj.ll.args_d

@@ -37,13 +37,17 @@ def test_dictionary(dataframe):
 			if len(dataframe[i])!=n:
 				raise RuntimeError("Variables %s and %s have unequal number of observations. The number of observations must be identical for all variables. " %(i,s))	
 			if n==0:
-				raise RuntimeError("Variable %s has no observations. " %(i,s))	
+				raise RuntimeError("Variable %s has no observations. " %(i))	
 	return n
 
 def get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name):
 	print ("Analyzing variables ...")
-	if len(dataframe[list(dataframe.keys())[0]])==0:
-		raise RuntimeError("There are no valid observations")
+	for i in dataframe:
+		if type(dataframe[i])==np.ndarray:
+			if len(dataframe[i])==0:
+				raise RuntimeError("There are no valid observations")
+			else:
+				break
 	sort(dataframe,time_name,IDs_name)
 	
 	timevar,time_name,void=check_var(dataframe,time_name,'time_name')

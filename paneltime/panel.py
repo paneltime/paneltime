@@ -29,7 +29,8 @@ def posdef(a,da):
 class panel:
 	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,x_names,y_name,IDs_name,
 	             fixed_random_eff,time_fixed_eff,W,w_names,descr,dataframe,h,
-	             has_intercept,model_string,args,loadargs,user_constraints):
+	             has_intercept,model_string,args,loadargs,user_constraints, 
+	             tobin_threshold):
 		"""
 		No effects    : fixed_random_eff=0\n
 		Fixed effects : fixed_random_eff=1\n
@@ -49,7 +50,7 @@ class panel:
 
 		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,
 		                  IDs_name,w_names,descr,fixed_random_eff,model_string,loadargs,
-		                  user_constraints)
+		                  user_constraints,tobin_threshold)
 		
 		self.arrayize(X, Y, W, IDs,timevar)
 
@@ -73,7 +74,8 @@ class panel:
 		self.group_var_wght=1-1/np.maximum(self.T_i-1,1)
 		
 	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,
-	                 w_names,descr,fixed_random_eff,model_string,loadargs,user_constraints):
+	                 w_names,descr,fixed_random_eff,model_string,loadargs,user_constraints,tobin_threshold):
+		self.tobin_threshold=tobin_threshold
 		self.has_intercept=has_intercept
 		self.dataframe=dataframe
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
@@ -173,13 +175,14 @@ class panel:
 			self.T_arr=T[idincl].reshape((self.N,1))
 			self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
 			self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
-			self.get_time_map(timevar, N,T, idincl,sel)
+			self.get_time_map(timevar, self.N,T, idincl,sel)
 			
 	
 			idremoved=np.arange(N)[idincl==False]
 			if len(idremoved):
 				s=fu.formatarray(idremoved,90,', ')
 				print("Warning: The following ID's were removed because of insufficient observations:\n %s" %(s))
+		self.allzeros=np.zeros((self.N,self.max_T,1))
 
 	
 	def get_time_map(self,timevar, N,T, idincl,sel):

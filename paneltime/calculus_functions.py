@@ -47,16 +47,16 @@ def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=
 		
 		dvRE_xi=g.__dict__['dvRE_'+vname1].reshape((N,T,m,1))
 		dvRE_zeta=g.__dict__['dvRE_'+vname2].reshape((N,T,1,k))			
-
 		
-		ddx=ll.ddvarRE_input.reshape(N,T,1,1)*de_xi_RE_r*de_zeta_RE_r
 		if not de2_zeta_xi_RE is None:
-			ddx+=ll.dvarRE_input.reshape(N,T,1,1)*de2_zeta_xi_RE
-			dx1=ll.dvarRE_input*de_xi_RE
-			dx2=ll.dvarRE_input*de_zeta_RE
-			ddmeane2= panel.mean(2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE,(0,1))*incl.reshape(N,T,1,1)
-			ddvRE_d_xi_zeta=panel.mean(ddx,(0,1)).reshape(1,1,m,k)*incl.reshape(N,T,1,1)
-			ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(ddx,dx1,dx2,ll.varRE_input,vname1,vname2),ll.re_obj_t_v.ddRE(ddx,dx1,dx2,ll.varRE_input,vname1,vname2)),True)
+			d_xi_input=g.__dict__['d_'+vname1+'_input']
+			d_zeta_input=g.__dict__['d_'+vname2+'_input']			
+			dd_e_RE_sq=2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE
+			ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl.reshape(N,T,1,1)
+			dd_input=dd_e_RE_sq-ddmeane2
+
+			ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2),
+			                              ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2)),True)
 		else:
 			ddvRE_d_xi_zeta=None
 			

@@ -31,6 +31,8 @@ class re_obj:
 			if self.v_var<0:
 				#print("Warning, negative group random effect variance. 0 is assumed")
 				self.v_var=0
+				self.theta=panel.allzeros
+				return panel.allzeros
 				
 			
 			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*self.T_i)))*self.panel.included
@@ -56,6 +58,8 @@ class re_obj:
 			return 0*panel.included
 		elif self.FE_RE==1:
 			return self.FRE(dx)	
+		if self.v_var==0:
+			return panel.allzeros
 		(N,T,k)=dx.shape	
 
 		self.dxFE[vname]=(dx+self.FRE(dx))*panel.included
@@ -84,6 +88,8 @@ class re_obj:
 			return 0*panel.included.reshape((N,T,1,1))
 		elif self.FE_RE==1:
 			return self.FRE(ddx)	
+		if self.v_var==0:
+			return panel.allzeros.reshape((N,T,1,1))
 
 		if ddx is None:
 			ddxFE=0

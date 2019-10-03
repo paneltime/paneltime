@@ -71,7 +71,7 @@ def lnsrch(args, g, dx,panel,constr):
 def maximize(panel,direction,mp,args_archive,args,_print,window):
 	"""Maxmizes logl.LL"""
 
-	its, convergence_limit   = 0, 0.01
+	its, convergence_limit   = 0, 0.001
 	k, m, dx_norm            = 0,     0,    None
 	H, prtstr, dxi           = None, '',None
 	g       = None, False
@@ -82,7 +82,7 @@ def maximize(panel,direction,mp,args_archive,args,_print,window):
 		dx,g,G,H,constraints,ll=direction.get(ll,args,dx_norm,its,mp,dxi,False,k)
 		f0=ll
 		LL0=round_sign(ll.LL,digits_precision)
-		dx_norm=np.abs(g/(np.diag(H)+(np.diag(H)==0)))#direction.normalize(dx,ll.args_v)
+		dx_norm=direction.normalize(dx,ll.args_v)#np.abs(g/(np.diag(H)+(np.diag(H)==0)))#
 		
 			
 		#Convergence test:
@@ -90,14 +90,17 @@ def maximize(panel,direction,mp,args_archive,args,_print,window):
 		if np.max(np.abs(dx_norm)) < lmt and (its>4):  #max direction smaller than convergence_limit -> covergence
 			#if m==3:
 			if _print: print("Convergence on zero gradient; maximum identified")
+			prtstr=printout(_print, ll, dx_norm,panel,its+1,constraints,"Convergence on zero gradient; maximum identified",window,H,G,direction.CI)
 			return ll,g,G,H,1,prtstr,constraints,dx_norm
 			#m+=1
 			#precise_hessian=precise_hessian==False
 		else:
 			m=0
-			
+		
+		prtstr=printout(_print, ll, dx_norm,panel,its+1,constraints,'linesearch on new direction',window,H,G,direction.CI)
 		ll,msg=lnsrch(ll.args_d,g,dx,panel,constraints) 
 		prtstr=printout(_print, ll, dx_norm,panel,its+1,constraints,msg,window,H,G,direction.CI)
+		
 		if window.finalized:
 			print("Aborted")
 			return ll,g,G,H, 0 ,prtstr,constraints,dx_norm
@@ -139,7 +142,7 @@ def printout(_print,ll,dx_norm,panel,its,constraints,msg,window,H,G,CI):
 	l=10
 	pr=[['names','namelen',False,'Variable names',False,False],
 	    ['args',l,True,'Coef',True,False],
-	    ['direction',l,True,'gradient norm',True,False],
+	    ['direction',l,True,'direction',True,False],
 	    ['se_robust',l,True,'SE(sandw.)',True,False],
 	    ['sign_codes',5,False,'sign',False,False],
 	    ['set_to',6,False,'set to',False,True],

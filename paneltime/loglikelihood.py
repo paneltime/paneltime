@@ -81,8 +81,9 @@ class LL:
 		lnv = np.maximum(np.minimum(lnv,100),-100)
 		v = np.exp(lnv)*panel.a
 		v_inv = np.exp(-lnv)*panel.a	
-
+		
 		LL = self.LL_const-0.5*np.sum((lnv+(self.e_REsq)*v_inv)*panel.included)
+
 		
 		if abs(LL)>1e+100: 
 			return None
@@ -123,7 +124,8 @@ class LL:
 			return None
 
 		meane2=panel.mean(self.e_REsq)
-		self.varRE_input=self.e_REsq-meane2*panel.included
+		self.varRE_input=(self.e_REsq-meane2)*panel.included
+		
 		self.dvarRE_input=2*self.e_RE*(1-1/panel.NT)
 		self.ddvarRE_input=2*(1-1/panel.NT)*panel.included
 		
@@ -141,7 +143,7 @@ class LL:
 		self.lnvRE=lnvRE
 		self.dlnvRE=(1-small)/(vREbig+mu+small)+(1/(mine2+mu))*small
 		self.dlnvRE=self.dlnvRE*panel.included
-		self.ddlnvRE=-(1-small)*panel.included/(vRE+mu+small)**2
+		self.ddlnvRE=-(1-small)*panel.included/(vREbig+mu+small)**2
 		
 		self.dlnvRE_mu=None#1/(vRE+mu)
 		self.ddlnvRE_mu_vRE=None#1/(vRE+mu)**2

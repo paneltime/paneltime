@@ -27,8 +27,8 @@ def load_SQL(conn,sql_string,dateformat,load_tmp_data):
 		if not data is None:
 			return data
 	crsr=conn.cursor()
-	crsr.execute(sql_string)
 	print ("fetching SQL data ...")
+	crsr.execute(sql_string)
 	data=np.array(crsr.fetchall())
 	print ("... done")
 	heading=[]
@@ -45,6 +45,7 @@ def load_SQL(conn,sql_string,dateformat,load_tmp_data):
 	return data
 	
 def remove_nan(data):
+	#Todo: add functionality to delete variables that cause too many deletions
 	k0=list(data.keys())[0]
 	notnan=(np.isnan(data[k0])==0)
 	for i in data:

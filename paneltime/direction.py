@@ -148,7 +148,7 @@ class direction:
 	def remove_neg_slope(self,g,hessian,ll):
 		include=np.ones(len(g))
 		dx=solve(self.constr,hessian, g, ll.args_v)
-		return dx
+		#return dx
 		for j in range(len(dx)):
 			s=dx*g*include
 			if np.sum(s)<0:#negative slope

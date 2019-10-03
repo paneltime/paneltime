@@ -13,17 +13,17 @@ def add_static_constraints(constr,panel,ll,its):
 	add_custom_constraints(constr,general_constraints,ll)
 	if panel.loadargs==False:
 		if panel.m_zero:
-			constr.add(panel.args.positions['psi'][0],None,'psi=1 constr',value=1)
+			constr.add(panel.args.positions['psi'][0],None,'GARCH input constr',value=1)
 			if panel.k>0 and panel.k>0 and (panel.p>0 or panel.q>0) and its<5:
-				constr.add(panel.args.positions['gamma'][0],None,'gamma=0 constr',value=0)
+				constr.add(panel.args.positions['gamma'][0],None,'init.constr',value=0)
 		else:
 			if panel.p>0 or panel.q>0:
 				if its<2 and panel.m>0:
-					constr.add(panel.args.positions['psi'][0],None,'psi=0 constr',value=0)				
+					constr.add(panel.args.positions['psi'][0],None,'init.constr.',value=0)				
 				if panel.k>0 and its<5:
-					constr.add(panel.args.positions['gamma'][0],None,'psi=0 constr',value=0)
+					constr.add(panel.args.positions['gamma'][0],None,'init.constr.',value=0)
 			elif panel.k>0 and its<2:
-				constr.add(panel.args.positions['gamma'][0],None,'gamma=0 constr',value=0)
+				constr.add(panel.args.positions['gamma'][0],None,'init.constr.',value=0)
 		
 
 	
