@@ -6,14 +6,14 @@ import numpy as np
 import functions as fu
 
 class re_obj:
-	def __init__(self,panel,group,T_i,T_i_count,active):
+	def __init__(self,panel,group,T_i,T_i_count,fixed_random_eff):
 		"""Following Greene(2012) p. 413-414"""
 		self.panel=panel
 		self.sigma_u=0
 		self.group=group
 		self.avg_Tinv=np.mean(1/T_i_count) #T_i_count is the total number of observations for each group (N,1)
 		self.T_i=T_i*panel.included#self.T_i is T_i_count at each observation (N,T,1)
-		self.FE_RE=active*panel.FE_RE
+		self.FE_RE=fixed_random_eff
 	
 	def RE(self,x,recalc=True):
 		panel=self.panel
@@ -27,7 +27,7 @@ class re_obj:
 			
 			self.xFE=(x+self.FRE(x))*panel.included
 			self.e_var=self.panel.mean(self.xFE**2)/(1-self.avg_Tinv)
-			self.v_var=self.panel.mean(x**2)-self.e_var
+			self.v_var=self.panel.mean(panel.included*x**2)-self.e_var
 			if self.v_var<0:
 				#print("Warning, negative group random effect variance. 0 is assumed")
 				self.v_var=0
@@ -105,6 +105,8 @@ class re_obj:
 		dx2=dx2.reshape(N,T,1,m)
 		de_var1=self.de_var[vname1].reshape(k,1)
 		de_var2=self.de_var[vname2].reshape(1,m)
+		dv_var1=self.dv_var[vname1].reshape(k,1)
+		dv_var2=self.dv_var[vname2].reshape(1,m)		
 		dtheta_de_var=self.dtheta_de_var.reshape(N,T,1,1)
 		dtheta_dv_var=self.dtheta_dv_var.reshape(N,T,1,1)
 		theta=self.theta.reshape(N,T,1,1)
@@ -116,14 +118,15 @@ class re_obj:
 		d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/(self.panel.NT*(1-self.avg_Tinv))
 		d2v_var=(2*np.sum(np.sum(dx1*dx2+x.reshape(N,T,1,1)*ddx,0),0)/self.panel.NT)-d2e_var	
 		
-		d2theta_d_e_v_var=-0.5*dtheta_dv_var*(1/self.e_var)*(3*(theta-2)*theta-2)
+		d2theta_d_e_v_var=-0.5*dtheta_dv_var*(1/self.e_var)*(3*(theta-2)*theta+2)
 		d2theta_d_v_var =-0.75*(T_i/self.e_var)**2*(1-theta)**5
 		d2theta_d_e_var =-0.5*dtheta_de_var*(1/self.e_var)*(4-3*(2-theta)*theta)	
 		
-		ddtheta =(d2theta_d_e_v_var* de_var1+d2theta_d_v_var   * de_var1) * de_var2
-		ddtheta+=(d2theta_d_e_var  * de_var1+d2theta_d_e_v_var * de_var1) * de_var2
-		ddtheta+=ddtheta+ (dtheta_de_var*d2e_var+dtheta_dv_var*d2v_var)
-		ddtheta=ddtheta
+		ddtheta  =d2theta_d_e_var  * de_var1* de_var2 
+		ddtheta +=d2theta_d_e_v_var * (de_var1* dv_var2+dv_var1* de_var2)
+		ddtheta +=d2theta_d_v_var * dv_var1* dv_var2  
+		ddtheta +=dtheta_de_var*d2e_var+dtheta_dv_var*d2v_var
+
 	
 		if hasdd:
 			dRE00=self.FRE(ddx,self.theta.reshape(N,T,1,1))

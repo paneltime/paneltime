@@ -18,7 +18,7 @@ def posdef(a,da):
 
 class panel:
 	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,x_names,y_name,IDs_name,
-	             fixed_random_eff,time_fixed_eff,W,w_names,descr,dataframe,h,
+	             fixed_random_eff,time_fixed_eff,W,heteroscedasticity_factors,descr,dataframe,h,
 	             has_intercept,args,loadargs, user_constraints
 	             ):
 		"""
@@ -39,7 +39,7 @@ class panel:
 			timevar=None
 
 		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,
-		                  IDs_name,w_names,descr,fixed_random_eff,loadargs,user_constraints)
+		                  IDs_name,heteroscedasticity_factors,descr,fixed_random_eff,loadargs,user_constraints)
 		
 		self.arrayize(X, Y, W, IDs,timevar)
 
@@ -63,7 +63,7 @@ class panel:
 		self.group_var_wght=1-1/np.maximum(self.T_i-1,1)
 		
 	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,
-	                 w_names,descr,fixed_random_eff,loadargs):
+	                 heteroscedasticity_factors,descr,fixed_random_eff,loadargs):
 		self.has_intercept=has_intercept
 		self.dataframe=dataframe
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
@@ -72,7 +72,7 @@ class panel:
 		self.raw_X=X
 		self.raw_Y=Y
 		self.IDs_name=IDs_name
-		self.w_names=w_names		
+		self.heteroscedasticity_factors=heteroscedasticity_factors		
 		self.p,self.d,self.q,self.m,self.k,self.nW=p,d,q,m,k,W.shape[1]
 		self.n_beta=[len(i[0]) for i in X]
 		self.len_data=[len(i) for i in X]

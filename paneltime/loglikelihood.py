@@ -16,6 +16,7 @@ import stat_functions as stat
 import random_effects as re
 from scipy import sparse as sp
 import scipy
+import debug
 
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and creates an object
@@ -28,13 +29,15 @@ class LL:
 		self.errmsg=''
 		self.errmsg_h=''
 		self.panel=panel
-		runRE=True
-		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,runRE)
-		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,runRE)
-		self.re_obj_i_v=re.re_obj(panel,True,panel.T_i,panel.T_i,runRE)
-		self.re_obj_t_v=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,runRE)
+		gfre=panel.settings.group_fixed_random_eff
+		tfre=panel.settings.time_fixed_random_eff
+		vfre=panel.settings.variance_fixed_random_eff
+		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
+		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
+		self.re_obj_i_v=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre*vfre)
+		self.re_obj_t_v=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre*vfre)
 		
-		self.LL_const=-0.5*np.log(2*np.pi)*panel.NT
+		self.LL_const=-0.5*np.log(2*np.pi)
 	
 		self.args_v=panel.args.conv_to_vector(args)
 		if not constraints is None:
@@ -69,34 +72,47 @@ class LL:
 
 		u = panel.Y-cf.dot(X,self.args_d['beta'])
 		e = cf.dot(AMA_1AR,u)
-		
-		self.e_RE = e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e)
+		self.e_RE = (e+self.re_obj_i.RE(e)*panel.included+self.re_obj_t.RE(e))*panel.included
 		self.e_REsq = self.e_RE**2		
 
 		lnv_ARMA = self.garch(GAR_1MA, e)
 		W_omega = cf.dot(panel.W_a, self.args_d['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
+		#self.lnv0=lnv*1#debug
 		grp = self.variance_RE()
 		lnv+=grp
 		lnv = np.maximum(np.minimum(lnv,100),-100)
 		v = np.exp(lnv)*panel.a
-		v_inv = np.exp(-lnv)*panel.a	
-		
-		LL = self.LL_const-0.5*np.sum((lnv+(self.e_REsq)*v_inv)*panel.included)
+		self.v_inv = np.exp(-lnv)*panel.a	
 
-		
+		LL = self.LL_const-0.5*(lnv+(self.e_REsq)*self.v_inv)
+		self.LL_array=LL#debug
+		self.tobit(panel,LL)
+		LL=np.sum(LL*panel.included)
 		if abs(LL)>1e+100: 
 			return None
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e, self.lnv_ARMA        = u,         e,       lnv_ARMA
-		self.lnv,self.v,self.v_inv          = lnv,       v,       v_inv
+		self.lnv,self.v                     = lnv,       v
 		self.W_omega=W_omega
 		self.grp=grp
 
 		return LL
 	
+	def tobit(self,panel,LL):
+		if sum(panel.tobit_active)==0:
+			return
+		g=[1,-1]
+		self.F=[None,None]
+		self.e_REnorm=self.e_RE*self.v_inv**0.5		
+		for i in [0,1]:
+			if panel.tobit_active[i]:
+				I=panel.tobit_I[i]
+				self.F[i]= scipy.stats.norm.cdf(g[i]*self.e_REnorm[I])
+				LL[I]=np.log(self.F[i])
+
 	def garch(self,GAR_1MA,e):
-		if self.panel.m>0:
+		if self.panel.settings.pqdmk[3]>0:
 			if self.panel.z_active:
 				h_res=self.h(e, self.args_d['z'][0])
 			else:
@@ -117,7 +133,7 @@ class LL:
 		self.vRE,self.lnvRE,self.dlnvRE=0,0,0
 		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=0,None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
-		if self.panel.FE_RE==0:
+		if self.panel.settings.group_fixed_random_eff==0:
 			return 0
 		panel=self.panel
 		if panel.N==0:
@@ -125,28 +141,34 @@ class LL:
 
 		meane2=panel.mean(self.e_REsq)
 		self.varRE_input=(self.e_REsq-meane2)*panel.included
-		
-		self.dvarRE_input=2*self.e_RE*(1-1/panel.NT)
-		self.ddvarRE_input=2*(1-1/panel.NT)*panel.included
-		
+
 		mine2=1e-10
 		mu=0.00001
+		self.vRE_i=self.re_obj_i_v.RE(self.varRE_input)
+		self.vRE_t=self.re_obj_t_v.RE(self.varRE_input)
+		self.meane2=meane2
 		vRE=meane2*panel.included-self.re_obj_i_v.RE(self.varRE_input)-self.re_obj_t_v.RE(self.varRE_input)
 		self.vRE=vRE
 		small=vRE<=mine2
-		vREbig=(1-small)*vRE
-		vREsmall=small*vRE*panel.included
+		big=small==False
+		vREbig=vRE[big]
+		vREsmall=vRE[small]
 
-		lnvREbig=np.log(vREbig+small+mu)
+		lnvREbig=np.log(vREbig+mu)
 		lnvREsmall=(np.log(mine2+mu)-1+(1/(mine2+mu))*vREsmall)
-		lnvRE=( (1-small)*lnvREbig  +  small*lnvREsmall )*panel.included
-		self.lnvRE=lnvRE
-		self.dlnvRE=(1-small)/(vREbig+mu+small)+(1/(mine2+mu))*small
-		self.dlnvRE=self.dlnvRE*panel.included
-		self.ddlnvRE=-(1-small)*panel.included/(vREbig+mu+small)**2
+		lnvRE,dlnvRE,ddlnvRE=np.zeros(vRE.shape),np.zeros(vRE.shape),np.zeros(vRE.shape)
 		
-		self.dlnvRE_mu=None#1/(vRE+mu)
-		self.ddlnvRE_mu_vRE=None#1/(vRE+mu)**2
+		lnvRE[big]=lnvREbig
+		lnvRE[small]=lnvREsmall
+		self.lnvRE=lnvRE*panel.included
+
+		dlnvRE[big]=1/(vREbig+mu)
+		dlnvRE[small]=1/(mine2+mu)
+		self.dlnvRE=dlnvRE*panel.included
+		
+		ddlnvRE[big]=-1/(vREbig+mu)**2
+		self.ddlnvRE=ddlnvRE*panel.included
+	
 		return self.lnvRE
 		
 
@@ -212,7 +234,8 @@ def set_garch_arch_c(panel,args):
 
 def set_garch_arch_scipy(panel,args):
 
-	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
+	p,q,d,m,k=panel.settings.pqdmk
+	nW,n=panel.nW,panel.max_T
 
 	AAR=-lag_matr(-panel.I,args['rho'])
 	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)

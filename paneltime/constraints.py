@@ -5,24 +5,26 @@ import numpy as np
 import stat_functions as stat
 import functions as fu
 
+MAX_COLL=1e+5
 
 def add_static_constraints(constr,panel,ll,its):
 	
-	add_custom_constraints(constr,panel.user_constraints,ll)
+	add_custom_constraints(constr,panel.settings.user_constraints,ll)
 	general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
 	add_custom_constraints(constr,general_constraints,ll)
-	if panel.loadargs==False:
+	p,q,d,m,k=panel.settings.pqdmk
+	if panel.settings.loadargs==False and False:
 		if panel.m_zero:
 			constr.add(panel.args.positions['psi'][0],None,'GARCH input constr',value=1)
-			if panel.k>0 and panel.k>0 and (panel.p>0 or panel.q>0) and its<5:
+			if k>0 and (p>0 or q>0) and its<3:
 				constr.add(panel.args.positions['gamma'][0],None,'init.constr',value=0)
 		else:
-			if panel.p>0 or panel.q>0:
-				if its<2 and panel.m>0:
-					constr.add(panel.args.positions['psi'][0],None,'init.constr.',value=0)				
-				if panel.k>0 and its<5:
-					constr.add(panel.args.positions['gamma'][0],None,'init.constr.',value=0)
-			elif panel.k>0 and its<2:
+			if p>0 or q>0:
+				if its<2 and m>0:
+					constr.add(panel.args.positions['gamma'][0],None,'init.constr.',value=0)				
+				if k>0 and its<3:
+					constr.add(panel.args.positions['psi'][0],None,'init.constr.',value=0)
+			elif k>0 and its<1:
 				constr.add(panel.args.positions['gamma'][0],None,'init.constr.',value=0)
 		
 
@@ -52,7 +54,9 @@ def remove_singularities(constr,hessian):
 
 def add_custom_constraints(constr,constraints,ll):
 	"""Adds custom range constraints\n\n
-		constraints shall be on the format [(name, minimum, maximum), ...]"""		
+		constraints shall be on the format [(name, minimum, maximum), ...]"""	
+	if constraints is None:
+		return
 	for i in constraints:
 		add_custom_constraint(constr,i,ll)
 
@@ -302,14 +306,9 @@ def remove_one_multicoll(panel,H,constr):
 	if c_index is None:
 		return False
 	constr.CI=c_index[-1]	
-	if c_index[-1]>10000:
-		constr.jump_start_variable=np.nonzero(var_prop[-1]==np.max(var_prop[-1]))[0][0]
-	else:
-		constr.jump_start_variable=None
 	for cix in range(1,len(c_index)):
-		if c_index[-cix]<limit:
+		if c_index[-cix]<MAX_COLL:
 			return False
-		
 		if np.sum(var_prop[-cix]>0.5)>1:
 			var_prop_ix=np.argsort(var_prop[-cix])[::-1]
 			var_prop_val=var_prop[-cix][var_prop_ix]

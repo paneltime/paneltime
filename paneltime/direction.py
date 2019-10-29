@@ -4,7 +4,7 @@ import calculus
 import numpy as np
 import constraints as cnstr
 import loglikelihood as logl
-
+from scipy import stats
 
 
 class direction:
@@ -38,38 +38,15 @@ class direction:
 		dx=solve(self.constr,hessian, g, ll.args_v)
 		dx_norm=self.normalize(dx, ll.args_v)
 		cnstr.add_dynamic_constraints(G,self.panel,ll,self.constr,dx_norm,hessian,its,self.constr_old)		
-		g,G,hessian,ll=self.avoid_multicollinarity(g,G,hessian,ll)
-		dx=self.remove_neg_slope(g, hessian, ll)
+		dx=solve(self.constr,hessian, g, ll.args_v)
 		dx_norm=self.normalize(dx, ll.args_v)
+		try:
+			dx_unconstr=self.normalize(solve(None,hessian, g, ll.args_v),ll.args_v)
+		except:
+			dx_unconstr=dx_norm
 		
 
-		return dx,g,G,hessian,self.constr,ll
-	
-	def avoid_multicollinarity(self,g,G,hessian,ll):
-		limit=10000	
-		if self.constr.CI>limit and (not self.input_old is None) and self.CI<limit and len(self.constr.collinears)>0:
-			g1,hessian1,ll1,CI1=self.input_old#reverting to previous state if condition index too high (but with new constraints)
-		
-			for i in range(0,15):
-				a=0.9*0.75**(i**2)
-				h=a*hessian+(1-a)*hessian1
-				c_index, var_prop,includemap=cnstr.decomposition(h, self.include())
-				if c_index[-1]<limit:
-					break
-			if c_index[-1]>limit:
-				a=0
-			ll=logl.LL(a*ll.args_v+(1-a)*ll1.args_v,self.panel,self.constr)
-			g,G=self.get_gradient(ll)
-			hessian=self.get_hessian(ll,mp,g,G,dxi,its,dx_norm,numerical,self.CI)
-			c_index, var_prop,includemap=cnstr.decomposition(hessian, self.include())
-			self.constr.reset_collinears(ll.args_v)		
-			self.CI=c_index[-1]
-			if self.CI<limit:
-				self.input_old=g,hessian,ll,self.constr.CI			
-		else:
-			self.CI=self.constr.CI
-		return g,G,hessian,ll
-		
+		return dx,dx_norm,dx_unconstr,g,G,hessian,self.constr,ll
 	
 	def include(self,all=False):
 		include=np.array(self.panel.args.n_args*[True])
@@ -79,10 +56,51 @@ class direction:
 		return include	
 
 	def get_gradient(self,ll):
+
 		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
 		dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)		
+		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
+			
 		g,G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)	
 		return g,G
+	
+	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
+		g=[1,-1]
+		self.f=[None,None]
+		self.f_F=[None,None]
+		for i in [0,1]:
+			if self.panel.tobit_active[i]:
+				I=self.panel.tobit_I[i]
+				self.f[i]=stats.norm.pdf(g[i]*ll.e_REnorm[I])
+				self.f_F[i]=(ll.F[i]!=0)*self.f[i]/(ll.F[i]+(ll.F[i]==0))
+				self.v_inv05=ll.v_inv**0.5
+				DLL_e[I]=g[i]*self.f_F[i]*self.v_inv05[I]
+				dLL_lnv[I]=-0.5*DLL_e[I]*ll.e_RE[I]
+				a=0
+				
+
+	def LL_hessian_tobit(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):
+		g=[1,-1]
+		if sum(self.panel.tobit_active)==0:
+			return
+		self.f=[None,None]
+		e1s1=ll.e_REnorm
+		e2s2=ll.e_REsq*ll.v_inv
+		e3s3=e2s2*e1s1
+		e1s2=e1s1*self.v_inv05
+		e1s3=e1s1*ll.v_inv
+		e2s3=e2s2*self.v_inv05
+		f_F=self.f_F
+		for i in [0,1]:
+			if self.panel.tobit_active[i]:
+				I=self.panel.tobit_I[i]
+				f_F2=self.f_F[i]**2
+				d2LL_de2[I]=      -(g[i]*f_F[i]*e1s3[I] + f_F2*ll.v_inv[I])
+				d2LL_dln_de[I] =   0.5*(f_F2*e1s2[I]  +  g[i]*f_F[i]*(e2s3[I]-self.v_inv05[I]))
+				d2LL_dln2[I] =     0.25*(f_F2*e2s2[I]  +  g[i]*f_F[i]*(e1s1[I]-e3s3[I]))
+				
+				
+		
 		
 
 	def get_hessian(self,ll,mp,g,G,dxi,its,dx_norm,numerical,CI):
@@ -92,6 +110,7 @@ class direction:
 		d2LL_de2=-ll.v_inv*self.panel.included
 		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included
 		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included	
+		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		if not numerical or self.hessian_num is None:
 			hessian=self.hessian.get(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 			self.hessian_analytical=hessian
@@ -133,7 +152,7 @@ class direction:
 		ll=logl.LL(args, self.panel, constraints=self.constr)
 		if ll.LL is None:
 			print("""You requested stored arguments from a previous session 
-			to be used as initial arguments (loadargs=True) but these failed to 
+			to be used as initial arguments (settings.loadargs=True) but these failed to 
 			return a valid log likelihood with the new parameters. Default inital 
 			arguments will be used. """)
 			ll=logl.LL(self.panel.args.args_init,self.panel,constraints=self.constr)	
@@ -143,23 +162,6 @@ class direction:
 		dx_norm=(args_v!=0)*dx/(np.abs(args_v)+(args_v==0))
 		dx_norm=(args_v<1e-2)*dx+(args_v>=1e-2)*dx_norm	
 		return dx_norm	
-		
-
-	def remove_neg_slope(self,g,hessian,ll):
-		include=np.ones(len(g))
-		dx=solve(self.constr,hessian, g, ll.args_v)
-		#return dx
-		for j in range(len(dx)):
-			s=dx*g*include
-			if np.sum(s)<0:#negative slope
-				s=np.argsort(s)
-				k=s[0]
-				self.constr.add(k, None, 'neg. slope')
-				include[k]=False
-				dx=solve(self.constr,hessian, g, ll.args_v)
-			else:
-				break
-		return dx
 
 def hessin(hessian):
 	try:
@@ -198,6 +200,8 @@ def solve(constr,H, g, x):
 	and index constrained indicating the constrained variables"""
 	if H is None:
 		return None,g*0
+	if constr is None:
+		return -np.linalg.solve(H,g).flatten()	
 	n=len(H)
 	k=len(constr.constraints)
 	H=np.concatenate((H,np.zeros((n,k))),1)

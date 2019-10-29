@@ -30,7 +30,7 @@ np.set_printoptions(precision=8)
 
 def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
             descr=None,
-            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=1,add_intercept=True,
+            group_fixed_random_eff=2, time_fixed_eff=True, heteroscedasticity_factors=None, loadargs=1,add_intercept=True,
             h=None,user_constraints=None,window=None
             ):
 
@@ -38,18 +38,18 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 
 	(X,x_names,Y,y_name,
 	 IDs,IDs_name,timevar,time_name,
-	 W,w_names,has_intercept,
+	 W,heteroscedasticity_factors,has_intercept,
 	 mp,descr,args_archive, args,user_constraints)=setvars(loadargs,dataframe,model_string,
-	                                      IDs_name,w_names,add_intercept,time_name,descr,user_constraints)
+	                                      IDs_name,heteroscedasticity_factors,add_intercept,time_name,descr,user_constraints)
 	if loadargs==2:
 		p,q,m,k,d=args_archive.arimagarch
 
 	results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name, time_name,
-	                                            group_fixed_random_eff, time_fixed_eff,W,w_names,descr,dataframe,h,has_intercept,
+	                                            group_fixed_random_eff, time_fixed_eff,W,heteroscedasticity_factors,descr,dataframe,h,has_intercept,
 	                                            args_archive,user_constraints,args,mp,window,loadargs)
 	return results_obj
 	
-def setvars(loadargs,dataframe,model_string,IDs_name,w_names,add_intercept,time_name,descr,user_constraints):
+def setvars(loadargs,dataframe,model_string,IDs_name,heteroscedasticity_factors,add_intercept,time_name,descr,user_constraints):
 	t=type(user_constraints)
 	if t!=list and t!=tuple:
 		print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
@@ -58,7 +58,7 @@ def setvars(loadargs,dataframe,model_string,IDs_name,w_names,add_intercept,time_
 		model_string=[model_string]	
 	(X,x_names,Y,y_name,
 	 IDs,IDs_name,timevar,time_name,
-	 W,w_names,has_intercept)=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
+	 W,heteroscedasticity_factors,has_intercept)=model_parser.get_variables(dataframe,model_string,IDs_name,heteroscedasticity_factors,add_intercept,time_name)
 
 	mp=mp_check(X)
 
@@ -71,18 +71,18 @@ def setvars(loadargs,dataframe,model_string,IDs_name,w_names,add_intercept,time_
 	
 	return (X,x_names,Y,y_name,IDs,
 	        IDs_name,timevar,time_name,
-	        W,w_names,has_intercept,
+	        W,heteroscedasticity_factors,has_intercept,
 	        mp,descr,args_archive,args,user_constraints)
 	
 	
 class results:
 	def __init__(self,p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
-		                     group_fixed_random_eff, time_fixed_eff, W, w_names, descr, dataframe, h, has_intercept,
+		                     group_fixed_random_eff, time_fixed_eff, W, heteroscedasticity_factors, descr, dataframe, h, has_intercept,
 		                     args_archive,user_constraints,
 		                     args,mp,window,loadargs):
 		print ("Creating panel")
 		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,group_fixed_random_eff, time_fixed_eff,W,
-			            w_names,descr,dataframe,h,has_intercept,user_constraints,args,loadargs)
+			            heteroscedasticity_factors,descr,dataframe,h,has_intercept,user_constraints,args,loadargs)
 		
 		direction=drctn.direction(pnl)
 		if not mp is None:
@@ -106,16 +106,16 @@ class results:
 	
 def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
             descr=None,
-            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
+            group_fixed_random_eff=2, time_fixed_eff=True, heteroscedasticity_factors=None, loadargs=True,add_intercept=True,
             h=None,user_constraints=None,window=None
             ):
 	"""Same as execute, except iterates over ARIMA and GARCH coefficients to find best match"""
 	
 	(X,x_names,Y,y_name,
 	 IDs,IDs_name,timevar,time_name,
-	 W,w_names,has_intercept,
+	 W,heteroscedasticity_factors,has_intercept,
 	 mp,descr,args_archive, args,user_constraints)=setvars(loadargs,dataframe,model_string,
-	                                      IDs_name,w_names,add_intercept,time_name,descr,user_constraints)
+	                                      IDs_name,heteroscedasticity_factors,add_intercept,time_name,descr,user_constraints)
 	p,q,m,k=(1,1,1,1)
 	if loadargs:
 		p,q,m,k,dtmp=args_archive.arimagarch
@@ -127,7 +127,7 @@ def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None,
 
 	while True:
 		results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
-	                                            group_fixed_random_eff, time_fixed_eff,W,w_names,descr,dataframe,h,has_intercept,
+	                                            group_fixed_random_eff, time_fixed_eff,W,heteroscedasticity_factors,descr,dataframe,h,has_intercept,
 	                                            args_archive,user_constraints,
 		                                        args,mp,window,loadargs)
 		panel=results_obj.panel

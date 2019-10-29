@@ -199,7 +199,7 @@ class calc:
 		self.e_RE,self.e_REsq               = e_RE,      e_REsq
 
 	def garch(self,panel,args,GAR_1MA,e):
-		if panel.m>0:
+		if panel.settings.pqdmk[3]>0:
 			h_res=self.h(e, args['z'][0])
 			if h_res==None:
 				return None
@@ -289,8 +289,8 @@ def set_garch_arch_c(panel,args):
 
 
 def set_garch_arch_scipy(panel,args):
-
-	p,q,m,k,nW,n=panel.p,panel.q,panel.m,panel.k,panel.nW,panel.max_T
+	p,q,d,m,k=panel.settings.pqdmk
+	nW,n=panel.nW,panel.max_T
 
 	AAR=-lag_matr(-panel.I,args['rho'])
 	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)

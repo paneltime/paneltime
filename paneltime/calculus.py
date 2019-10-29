@@ -29,21 +29,21 @@ class gradient:
 			x=cf.dot(pre,x)
 		if sign<0:
 			x=x*sign
-		return x
+		return x*self.panel.included
 
 	def garch_arima_grad(self,ll,d,dRE,varname):
 		panel=self.panel
 		groupeffect=0
 		groupeffect, dvRE_dx=None, None
 		d_input=0
-		if self.panel.N>1 and panel.FE_RE>0 and not dRE is None:
+		if self.panel.N>1 and panel.settings.group_fixed_random_eff>0 and not dRE is None:
 			d_eRE_sq=2*ll.e_RE*dRE
 			dmeane2=panel.mean(d_eRE_sq,(0,1))
 			d_input=(d_eRE_sq-dmeane2)*panel.included
-			dvRE_dx=dmeane2-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
+			dvRE_dx=dmeane2*panel.included-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
 			groupeffect=ll.dlnvRE*dvRE_dx*panel.included
 			
-		if self.panel.m>0 and not d is None:
+		if self.panel.settings.pqdmk[3]>0 and not d is None:
 			((N,T,k))=d.shape
 			x=cf.prod((ll.h_e_val,d))
 			dlnv_sigma_G=cf.dot(ll.GAR_1MA,x)
@@ -59,20 +59,20 @@ class gradient:
 		panel=self.panel
 		re_obj_i,re_obj_t=ll.re_obj_i,ll.re_obj_t
 		u,e,h_e_val,lnv_ARMA,h_val,v=ll.u,ll.e,ll.h_e_val,ll.lnv_ARMA,ll.h_val,ll.v
-		p,d,q,m,k,nW=panel.p,panel.d,panel.q,panel.m,panel.k,panel.nW
+		p,q,d,m,k=panel.settings.pqdmk
+		nW=panel.nW
 		if DLL_e is None:
 			DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
 			dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)	
 		#ARIMA:
 		de_rho=self.arima_grad(p,u,-1,ll.AMA_1)
 		de_lambda=self.arima_grad(q,e,-1,ll.AMA_1)
-		de_beta=-cf.dot(ll.AMA_1AR,panel.X)
+		de_beta=-cf.dot(ll.AMA_1AR,panel.X)*panel.included
 		(self.de_rho,self.de_lambda,self.de_beta)=(de_rho,de_lambda,de_beta)
-
+		
 		self.de_rho_RE       =    cf.add((de_rho,     re_obj_i.dRE(de_rho, ll.e,'rho'), 		re_obj_t.dRE(de_rho,ll.e,'rho')), True)
 		self.de_lambda_RE    =    cf.add((de_lambda,  re_obj_i.dRE(de_lambda, ll.e,'lambda'),	re_obj_t.dRE(de_lambda,ll.e,'lambda')), True)
-		self.de_beta_RE      =    cf.add((de_beta,    re_obj_i.dRE(de_beta, ll.e,'beta'), 		re_obj_t.dRE(de_beta,ll.e,'beta')), True)
-		#self.du_beta_RE      =    cf.add((-panel.X,    re_obj_i.dRE(-panel.X, ll.u,'beta_u'), 		re_obj_t.dRE(-panel.X,ll.u,'beta_u')), True)		
+		self.de_beta_RE      =    cf.add((de_beta,    re_obj_i.dRE(de_beta, ll.e,'beta'), 		re_obj_t.dRE(de_beta,ll.e,'beta')), True)		
 
 		dlnv_sigma_rho,		dlnv_sigma_rho_G,		dvRE_rho	, d_rho_input		=	self.garch_arima_grad(ll,	de_rho,		self.de_rho_RE,		'rho')
 		dlnv_sigma_lambda, 	dlnv_sigma_lambda_G,	dvRE_lambda	, d_lambda_input	=	self.garch_arima_grad(ll,	de_lambda,	self.de_lambda_RE,	'lambda')
@@ -90,7 +90,7 @@ class gradient:
 		else:
 			dlnv_mu=None	
 			
-		if panel.m>0:
+		if m>0:
 			dlnv_gamma=self.arima_grad(k,lnv_ARMA,1,ll.GAR_1)
 			dlnv_psi=self.arima_grad(m,h_val,1,ll.GAR_1)
 			if not ll.h_z_val is None:
@@ -139,7 +139,7 @@ class hessian:
 		
 	
 	def get(self,ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
-		if mp is None:
+		if mp is None or True:
 			return self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 		else:
 			return self.hessian_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
@@ -148,8 +148,9 @@ class hessian:
 		panel=self.panel
 		tic=time.clock()
 		g=self.g
-		GARM=cf.ARMA_product(ll.GAR_1,panel.m)
-		GARK=cf.ARMA_product(ll.GAR_1,panel.k)
+		p,q,d,m,k=panel.settings.pqdmk
+		GARM=cf.ARMA_product(ll.GAR_1,m)
+		GARK=cf.ARMA_product(ll.GAR_1,k)
 
 		d2lnv_gamma2		=   cf.prod((2, 
 		                        cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_gamma,						g.dLL_lnv,  transpose=True)))
@@ -165,12 +166,12 @@ class hessian:
 		d2lnv_psi_beta		=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_beta)),	g.dLL_lnv)
 		d2lnv_psi_z			=	cf.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,								g.dLL_lnv)
 
-		AMAq=-cf.ARMA_product(ll.AMA_1,panel.q)
+		AMAq=-cf.ARMA_product(ll.AMA_1,q)
 		d2lnv_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'lambda', transpose=True)
 		d2lnv_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'rho' )
 		d2lnv_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta')
 
-		AMAp=-cf.ARMA_product(ll.AMA_1,panel.p)
+		AMAp=-cf.ARMA_product(ll.AMA_1,p)
 		d2lnv_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 		
 		d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
@@ -252,7 +253,7 @@ class hessian:
 		H=cf.concat_matrix(H)
 		#for debugging:
 		#Hn=debug.hess_debug(ll,panel,g,0.00000001)#debugging
-		#v=debug.hess_debug_detail(ll,panel,0.0000001,['re_obj_i','theta'],'beta','beta',0,0)
+		#v=debug.hess_debug_detail(ll,panel,0.0000001,'grp','beta','beta',0,0)
 		#print (time.clock()-tic)
 		self.its+=1
 		if np.any(np.isnan(H)):
@@ -284,9 +285,9 @@ class hessian:
 		evalstr=[]		
 		#strings are evaluated for the code to be compatible with multi core proccessing
 		evalstr.append("""
-		                        
-GARM=cf.ARMA_product(ll.GAR_1,panel.m)
-GARK=cf.ARMA_product(ll.GAR_1,panel.k)
+p,q,d,m,k=panel.settings.pqdmk		                        
+GARM=cf.ARMA_product(ll.GAR_1,m)
+GARK=cf.ARMA_product(ll.GAR_1,k)
 
 d2lnv_gamma2		=   cf.prod((2, 
 		                cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_gamma,						g.dLL_lnv,  transpose=True)))
@@ -307,7 +308,7 @@ GARK=0#Releases memory
 			                    """)
 		#ARCH:
 		evalstr.append("""
-AMAq=-cf.ARMA_product(ll.AMA_1,panel.q)
+AMAq=-cf.ARMA_product(ll.AMA_1,q)
 d2lnv_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'lambda', transpose=True)
 d2lnv_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'rho' )
 d2lnv_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta')
@@ -315,7 +316,7 @@ AMAq=0#Releases memory
 			                    """)
 		evalstr.append("""		
 	
-AMAp=-cf.ARMA_product(ll.AMA_1,panel.p)
+AMAp=-cf.ARMA_product(ll.AMA_1,p)
 d2lnv_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 
 d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None

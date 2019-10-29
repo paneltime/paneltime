@@ -5,6 +5,7 @@ import numpy as np
 import time
 import stat_functions as stat
 from scipy import sparse as sp
+import debug
 
 
 
@@ -39,7 +40,7 @@ def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=
 	ddvolRE=0
 	groupeffect=None
 	incl=panel.included.reshape(N,T,1,1)
-	if panel.N>1 and panel.FE_RE>0:
+	if panel.N>1 and panel.settings.group_fixed_random_eff>0:
 		de_xi_RE=g.__dict__['de_'+vname1+'_RE']
 		de_zeta_RE=g.__dict__['de_'+vname2+'_RE']	
 		de_xi_RE_r=de_xi_RE.reshape((N,T,m,1))
@@ -51,9 +52,9 @@ def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=
 		if not de2_zeta_xi_RE is None:
 			d_xi_input=g.__dict__['d_'+vname1+'_input']
 			d_zeta_input=g.__dict__['d_'+vname2+'_input']			
-			dd_e_RE_sq=2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE
-			ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl.reshape(N,T,1,1)
-			dd_input=dd_e_RE_sq-ddmeane2
+			dd_e_RE_sq=(2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE)*incl
+			ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl
+			dd_input=(dd_e_RE_sq-ddmeane2)*incl
 
 			ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2),
 			                              ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2)),True)
@@ -67,8 +68,9 @@ def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=
 
 	#GARCH: 
 	d2lnv_zeta_xi=None
-	if panel.m>0:
-
+	if panel.settings.pqdmk[3]>0:
+		if u_gradient:
+			de_zeta=g.__dict__['de_'+vname2]
 		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi
 		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi.reshape((N,T,m,1)) * de_zeta.reshape((N,T,1,k))
 
@@ -78,20 +80,20 @@ def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=
 		
 		d2lnv_zeta_xi = add((d2lnv_zeta_xi_h,  groupeffect), True)
 		
-		d2lnv_zeta_xi=np.sum(d2lnv_zeta_xi*dLL_lnv,(0,1))
+		d2lnv_zeta_xi=np.sum(d2lnv_zeta_xi*dLL_lnv*incl,(0,1))
 	elif not groupeffect is None:
-		d2lnv_zeta_xi=np.sum(groupeffect*dLL_lnv,(0,1))
+		d2lnv_zeta_xi=np.sum(groupeffect*dLL_lnv*incl,(0,1))
 		
 	dLL_zeta_xi_RE=None
 	if not de2_zeta_xi_RE is None:	
 		dLL_zeta_xi_RE = de2_zeta_xi_RE * DLL_e	
-		dLL_zeta_xi_RE = np.sum(np.sum(dLL_zeta_xi_RE,0),0)
+		dLL_zeta_xi_RE = np.sum(np.sum(dLL_zeta_xi_RE*incl,0),0)
 	
 	return d2lnv_zeta_xi,dLL_zeta_xi_RE
 
 def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 	#d is "N x T x m" and L is "k x T x T"
-	if panel.m==0:
+	if panel.settings.pqdmk[3]==0:
 		return None
 	if d is None:
 		return None		

@@ -15,11 +15,10 @@ digits_precision=12
 def lnsrch(args, g, dx,panel,constr):
 	
 	f0=logl.LL(args, panel,constr)
-
-	s=g*dx
-	slope=np.sum(s)					#ensuring positive slope (should not be negative unless errors in gradient and/or hessian)
-	if slope<=0 and False:
-		return f0,"Linesearch roundoff problem"
+	rmsg=''
+	if np.sum(g*dx)<0:
+		dx=-dx
+		rmsg="convex function at evaluation point, direction reversed - "
 	m=0.25
 	for i in range(15+len(dx)):#Setting lmda so that the largest step is valid. Set ll.LL to return None when input is invalid
 		lmda=m**i #Always try full Newton step first.
@@ -30,7 +29,7 @@ def lnsrch(args, g, dx,panel,constr):
 		if not f1.LL is None:
 			break
 	if i==14+len(x):
-		return f0,'No valid values within newton step in linesearch'
+		return f0,'no valid values within newton step in linesearch'
 	i=0
 	d={f0.LL:f0,f1.LL:f1}
 
@@ -62,13 +61,13 @@ def lnsrch(args, g, dx,panel,constr):
 			if ll.LL is None:
 				break
 			if ll.LL>f0.LL:
-				return ll, "Newton step in linesearch to big, found an increment at %s of Newton step" %(s,)
+				return ll, rmsg+"Newton step in linesearch to big, found an increment at %s of Newton step" %(s,)
 	else:
-		return d[f_max],'Linesearch success'
-	return f0,'No increase in linesearch'#should never happen	
+		return d[f_max],rmsg + 'Linesearch success'
+	return f0,rmsg+'No increase in linesearch'#should never happen	
 		
 		
-def maximize(panel,direction,mp,args_archive,args,_print,window):
+def maximize(panel,direction,mp,args,_print,window):
 	"""Maxmizes logl.LL"""
 
 	its, convergence_limit   = 0, 0.001
@@ -77,17 +76,16 @@ def maximize(panel,direction,mp,args_archive,args,_print,window):
 	g       = None, False
 	direction.hessin_num, ll = None, None
 	n						 = panel.args.n_args
+	args_archive			 = panel.input.args_archive
 	while 1:  
 		
-		dx,g,G,H,constraints,ll=direction.get(ll,args,dx_norm,its,mp,dxi,False,k)
+		dx,dx_norm,dx_unconstr,g,G,H,constraints,ll=direction.get(ll,args,dx_norm,its,mp,dxi,False,k)
 		f0=ll
 		LL0=round_sign(ll.LL,digits_precision)
-		dx_norm=direction.normalize(dx,ll.args_v)#np.abs(g/(np.diag(H)+(np.diag(H)==0)))#
-		
 			
 		#Convergence test:
 		lmt=convergence_limit*max(5*min((k,40)),1) 
-		if np.max(np.abs(dx_norm)) < lmt and (its>4):  #max direction smaller than convergence_limit -> covergence
+		if np.max(np.abs(dx_unconstr)) < lmt and (its>4):  #max direction smaller than convergence_limit -> covergence
 			#if m==3:
 			if _print: print("Convergence on zero gradient; maximum identified")
 			prtstr=printout(_print, ll, dx_norm,panel,its+1,constraints,"Convergence on zero gradient; maximum identified",window,H,G,direction.CI)
@@ -97,15 +95,15 @@ def maximize(panel,direction,mp,args_archive,args,_print,window):
 		else:
 			m=0
 		
-		prtstr=printout(_print, ll, dx_norm,panel,its+1,constraints,'linesearch on new direction',window,H,G,direction.CI)
+		prtstr=printout(_print, ll, dx_unconstr,panel,its+1,constraints,'Linesearch',window,H,G,direction.CI)
 		ll,msg=lnsrch(ll.args_d,g,dx,panel,constraints) 
-		prtstr=printout(_print, ll, dx_norm,panel,its+1,constraints,msg,window,H,G,direction.CI)
+		prtstr=printout(_print, ll, dx_unconstr,panel,its+1,constraints,msg,window,H,G,direction.CI)
 		
 		if window.finalized:
 			print("Aborted")
 			return ll,g,G,H, 0 ,prtstr,constraints,dx_norm
 
-		args_archive.save(ll.args_d,0,(panel.p,panel.q,panel.m,panel.k,panel.d))
+		args_archive.save(ll.args_d,0,panel.settings.pqdmk)
 		
 		dxi=f0.args_v-ll.args_v
 		if np.round(ll.LL,8)<=np.round(LL0,8):#happens when the functions has not increased
@@ -161,7 +159,7 @@ def printout(_print,ll,dx_norm,panel,its,constraints,msg,window,H,G,CI):
 	                             direction=dx_norm)
 	o.add_heading(its,
 	              top_header=" "*75+"_"*12+"restricted variables"+"_"*13,
-	              statistics=[['\nIndependent: ',panel.y_name[0],None,"\n"],
+	              statistics=[['\nIndependent: ',panel.input.y_name[0],None,"\n"],
 	                          ['Normality',norm_prob,3,'%'],
 	                          ['P(no AC)',no_ac_prob,3,'%'],
 	                          ['Max condition index',CI,3,'decimal']])

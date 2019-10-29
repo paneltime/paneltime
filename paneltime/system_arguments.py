@@ -11,7 +11,7 @@ import stat_functions as stat
 class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
 	def __init__(self,panel, args_d_old):
-		p, d, q, m, k=panel.p, panel.d, panel.q, panel.m, panel.k
+		p,q,d,m,k=panel.settings.pqdmk
 		self.args_d_old=args_d_old
 		self.categories=['beta','rho','lambda','gamma','psi','omega','z']
 		self.args_init,self.args_d_OLS, self.args_d_restricted=dict(),dict(),dict()
@@ -109,7 +109,7 @@ class equation:
 	def __init__(self,X,Y,W,arguments,args_d_old,i,arg_count,x_names):
 		a=arguments
 		self.id=i
-		p, d, q, m, k=a.panel.p, a.panel.d, a.panel.q, a.panel.m, a.panel.k
+		p,q,d,m,k=panel.settings.pqdmk
 		self.args_init,self.args_d_OLS, self.args_d_restricted=set_init_args(X,Y,W,args_d_old,p, d, q, m, k,a.panel)
 		self.names_d=get_namevector(a.panel,p, q, m, k,x_names,a,i)
 		
@@ -254,7 +254,7 @@ def get_namevector(panel,p, q, m, k,x_names,system,eq_num):
 	add_names(m,eq_prefix+'MACH term %s (m)','gamma',names_d,names_v)
 	add_names(k,eq_prefix+'ARCH term %s (k)','psi',names_d,names_v)
 	
-	names_d['omega']=[eq_prefix+i for i in panel.w_names]#copy variable names
+	names_d['omega']=[eq_prefix+i for i in panel.heteroscedasticity_factors]#copy variable names
 	names_v.extend(names_d['omega'])
 	if m>0:
 		names_d['z']=[eq_prefix+'z in h(e,z)']

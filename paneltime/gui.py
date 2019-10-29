@@ -6,17 +6,22 @@ from tkinter import scrolledtext
 import threading
 import multi_core
 from multiprocessing import pool
+import sys
 
 
 class ScrollText:
-	def __init__(self,window,font,state):
+	def __init__(self,window,font,state,height=None):
 		self.frame = tk.Frame(window)
 		xscrollbar = tk.Scrollbar(self.frame,orient='horizontal')
 		xscrollbar.pack(side = tk.BOTTOM, fill = tk.X)
 		yscrollbar = tk.Scrollbar(self.frame)
-		yscrollbar.pack(side = tk.RIGHT, fill = tk.Y)		
-		self.text = tk.Text(self.frame, wrap = tk.NONE,state=state,
-				    xscrollcommand = xscrollbar.set,yscrollcommand = yscrollbar.set)
+		yscrollbar.pack(side = tk.RIGHT, fill = tk.Y)	
+		if height is None:
+			self.text = tk.Text(self.frame, wrap = tk.NONE,state=state,
+				        xscrollcommand = xscrollbar.set,yscrollcommand = yscrollbar.set)
+		else:
+			self.text = tk.Text(self.frame, wrap = tk.NONE,state=state,
+				        xscrollcommand = xscrollbar.set,yscrollcommand = yscrollbar.set,height=height)			
 		
 		xscrollbar.config(command = self.text.xview)
 		yscrollbar.config(command = self.text.yview)
@@ -27,38 +32,52 @@ class ScrollText:
 		self.frame.pack(side=side,fill=fill)
 		
 	def get(self,index1,index2):
-		self.text.get(index1,index2)
+		return self.text.get(index1,index2)
 		
 	def delete(self,index1,index2):
 		self.text.delete(index1,index2)
 		
 	def insert(self,index1,chars):
 		self.text.insert(index1,chars)		
+		
+	def see(self,index):
+		self.text.see(index)
 
 
 
 class window:
-	def __init__(self,title,iconpath=None,height=300,width=1000):
+	def __init__(self,title,iconpath=None,height=400,width=1000):
 		self.win= tk.Tk()
 		self.win.title(title)
 		self.win.geometry('%sx%s' %(width,height))
 		if not iconpath=='':
 			self.win.iconbitmap(iconpath)
-		xscroll=tk.Scrollbar(orient='horizontal')
-		self.box = ScrollText(self.win, font=("Courier",10, "bold"), state='normal')
-		self.box.pack(side=tk.TOP)
+
+
 		bop = tk.Frame()
-		bop.pack(side=tk.BOTTOM,fill=tk.X)
+		bop.pack(side=tk.BOTTOM,fill=tk.BOTH)
 		tk.Button(bop, text='Print to stdout', command=self.print).pack(side=tk.LEFT,fill=tk.X)
 		tk.Button(bop, text='End with current coefficients', command=self.finalize).pack(side=tk.LEFT)  
 		tk.Button(bop, text='Display normality and AC statistics', command=self.norm_and_AC).pack(side=tk.LEFT)   
 		tk.Button(bop, text='Copy to clipboard', command=self.copy).pack(side=tk.RIGHT)
+
+		bop = tk.Frame()
+		bop.pack(side=tk.TOP,fill=tk.BOTH)		
+		self.box = ScrollText(bop, font=("Courier",10, "bold"), state='normal')
+		self.box.pack(side=tk.TOP)
+		self.output = ScrollText(bop, font=("Courier",10, "bold"), state='normal')		
+		self.output.pack(side=tk.TOP)		
+		sys.stdout=stdout_redir(self.output)
+	
+
 		
 
 				
 		
 	def print(self):
+		sys.stdout=sys.__stdout__
 		print(self.box.get(1.0,tk.END))
+		sys.stdout=stdout_redir(self.output)
 		
 	def norm_and_AC(self):
 		if self.showNAC==True:
@@ -105,6 +124,13 @@ class window:
 		
 		
 		
+class stdout_redir(object):
+	def __init__(self,textbox):
+		self.textbox = textbox
+
+	def write(self,string):
+		self.textbox.insert('end', string)
+		self.textbox.see('end')
 		
 def threadit(func,args):
 	t = pool.ThreadPool(processes=1, initializer=func, initargs=args)

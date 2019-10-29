@@ -17,88 +17,27 @@ import main
 import sim_module
 import functions as fu
 import gui
-
+winheading="Paneltime"
 winwidth=1000
 winheight=500
-def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
-            descr=None,
-            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
-            h_function=None,user_constraints={'z':[1e-15,'10*np.max(u)']},close_when_finished=False
-            ):
+def execute(dataframe, model_string, IDs_name=None,time_name=None, description=None):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	print ("Executing:")
 	iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
-	w=gui.window("Optimization procedure",iconpath,winheight,winwidth)
+	w=gui.window(winheading,iconpath,winheight,winwidth)
 	w.run(
 	    main.execute,
-	    (dataframe, model_string, p, d, q, m, k, IDs_name, time_name,
-	     descr,group_fixed_random_eff, time_fixed_eff, w_names, loadargs,add_intercept,
-	     h_function,user_constraints,w),
-	    close_when_finished=close_when_finished
+	    (dataframe, model_string, IDs_name, time_name,
+	     description,settings,w),
+	    close_when_finished=settings.close_when_finished
 	)
 	r=w.get()
 	
 	return r
 
-def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
-            descr=None,
-            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
-            h_function=None,user_constraints=[('z',1e-15,'10*np.max(u)')]
-            ):
-	
-	print ("Executing autofit:")
-	iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
-	w=gui.window("Optimization procedure",iconpath,pnl.len_args+12)
-	w.run(
-	    main.autofit,(dataframe, model_string, d,process_sign_level, IDs_name, time_name,
-             descr,
-             group_fixed_random_eff, time_fixed_eff, w_names, loadargs,add_intercept,
-             h_function,user_constraints,w
-             )	
-	)
-	r=w.get()	
-	return r
-	
-def execute_model(model, p=1, d=0, q=1, m=1, k=1, 
-            group_fixed_random_eff=2, time_fixed_eff=True, loadargs=True,add_intercept=True,
-            h_function=None
-            ):
-	print ("Executing model:")
-	iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
-	w=gui.window("Optimization procedure",iconpath,pnl.len_args+12)
-	w.run(
-	    main.execute,(model.dataframe, model.model_string,
-             p,d,q,m,k,model.IDs_name,model.time_name,
-	         model.descr,group_fixed_random_eff, time_fixed_eff,model.w_names,
-	         loadargs,add_intercept,h_function,model.user_constraints,w)
-	)
-	r=w.get()	
-	return 
-	
-
 def statistics(results,robustcov_lags=100,correl_vars=None,descriptives_vars=None):
 	return main.output.statistics(results,robustcov_lags,correl_vars,descriptives_vars)
-
-
-
-class model:
-	"""Creates a model object, which contains a *dataframe* (a dictionary of numpy column matrices), a *model_string* 
-		(a string specifying the model), *IDs* (the name of the IDing variable, if specified) and *w_names* (the name of the 
-		custom variance weighting variable, if specified)
-		"""
-	def __init__(self,X,Y,x_names=None,y_name=None,IDs=None,IDs_name=None,W=None,w_names=None,
-	             filters=None,transforms=None,descr="project_1",time_name=None,user_constraints=None):
-
-
-		dataframe, model_string, w_names, IDs_name=main.model_parser.get_data_and_model(X,Y,W,IDs,x_names,y_name,w_names,IDs_name,filters,transforms)	
-		self.dataframe=dataframe
-		self.model_string=model_string
-		self.w_names=w_names
-		self.IDs_name=IDs_name
-		self.descr=descr
-		self.time_name=time_name
-		self.user_constraints=user_constraints
 
 
 def load(fname,sep=None,filters=None,transforms=None,dateformat='%Y-%m-%d',load_tmp_data=False):
@@ -140,4 +79,26 @@ def from_matrix(numpy_matrix,headings,filters=None,transforms=None):
 
 
 def simulation(N,T,beta,rho=[0.0001],lmbda=[-0.0001],psi=[0.0001],gamma=[00.0001],omega=0.1,mu=1,z=1,residual_sd=0.001,ID_sd=0.00001,names=['x','const','Y','ID']):
-	return sim_module.simulation(N,T,beta,rho,lmbda,psi,gamma,omega,mu,z,residual_sd,ID_sd,names)
+	return sim_module.simulation(N,T,beta,rho,lmbda,psi,gamma,omega,mu,z,residual_sd,ID_sd,names)	
+		
+class settings_class:
+	def __init__(self):
+		self.pqdmk=[1,1,0,1,1]
+		
+		#No effects    : fixed_random_eff=0
+		#Fixed effects : fixed_random_eff=1
+		#Random effects: fixed_random_eff=2
+		self.group_fixed_random_eff=2
+		self.time_fixed_random_eff=2
+		self.variance_fixed_random_eff=True
+		
+		self.heteroscedasticity_factors=None#list of variables that explain heteroskedasticity
+		self.loadargs=1 #0: no loading, 1: load arguments, 2: load ARIMA/GARCH orders
+		self.add_intercept=True#adds intercept if not all ready supplied (is tested)
+		self.h_function=None#use function definition in python syntax
+		self.user_constraints=None#dictonary on the form {'<variable1>':<constraint>, ... }
+		self.close_when_finished=False#close the window when finnished
+		self.tobit_limits=[None,None]#[lower limit, upper limit] (None indicates no limit)
+		self.autofit=False
+
+settings=settings_class()

@@ -40,7 +40,8 @@ def test_dictionary(dataframe):
 				raise RuntimeError("Variable %s has no observations. " %(i))	
 	return n
 
-def get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name):
+
+def get_variables(vclass,dataframe,model_string,IDs_name,time_name,settings):
 	print ("Analyzing variables ...")
 	for i in dataframe:
 		if type(dataframe[i])==np.ndarray:
@@ -50,21 +51,26 @@ def get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_nam
 				break
 	sort(dataframe,time_name,IDs_name)
 	
-	timevar,time_name,void=check_var(dataframe,time_name,'time_name')
-	IDs,IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
-	dataframe['L']=lag_object(IDs).lag#allowing for lag operator in model input
-	W,w_names,void=check_var(dataframe,w_names,'w_names',intercept_name='log variance constant',raise_error=False,intercept_variable=True)
+	vclass.timevar,vclass.time_name,void=check_var(dataframe,time_name,'time_name')
+	vclass.IDs,vclass.IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
+	dataframe['L']=lag_object(vclass.IDs).lag#allowing for lag operator in model input
+	vclass.W,vclass.W_names,void=check_var(dataframe,settings.heteroscedasticity_factors,'heteroscedasticity_factors',
+                                       intercept_name='log variance constant',raise_error=False,intercept_variable=True)
 	intercept_name=None
-	if add_intercept:
+	if settings.add_intercept:
 		intercept_name='Intercept'
 	if type(model_string)==str:
-		X,x_names,has_intercept,Y,y_name=parse_and_check(dataframe,model_string,intercept_name)
+		(vclass.X,vclass.x_names,
+	     vclass.has_intercept,
+	     vclass.Y,vclass.y_name)=parse_and_check(dataframe,model_string,intercept_name)
 	else:
 		a=[],[],[],[],[]
 		for s in model_string:
 			fu.append(a, parse_and_check(dataframe,s,intercept_name))
-		X,x_names,has_intercept,Y,y_name=a
-	return X,x_names,Y,y_name,IDs,IDs_name,timevar,time_name,W,w_names,has_intercept
+		(vclass.X,vclass.x_names,
+	     vclass.has_intercept,
+	     vclass.Y,vclass.y_name)=a
+
 
 
 	
@@ -232,20 +238,20 @@ def filter_data(filters,dataframe,n):
 
 			
 		
-def get_data_and_model(X,Y,W=None,IDs=None,x_names=None,y_name=None,w_names=None,IDs_name=None,filters=None,transforms=None):
+def get_data_and_model(X,Y,W=None,IDs=None,x_names=None,y_name=None,heteroscedasticity_factors=None,IDs_name=None,filters=None,transforms=None):
 	"""Complies X and Y (and if supplied also W and IDs) to a dataframe, and returns:\n
 	- a dictionary with all variables """
 	dataframe=dict()
 	x_names=add_var_to_dict(dataframe, X, x_names, 'X')
 	y_name=add_var_to_dict(dataframe, Y, y_name, 'Y')
-	w_names=add_var_to_dict(dataframe, W, w_names, 'W')
+	heteroscedasticity_factors=add_var_to_dict(dataframe, W, heteroscedasticity_factors, 'W')
 	IDs_name=add_var_to_dict(dataframe, IDs, IDs_name, 'IDs')
 	
 	model_string="%s ~ %s" %(y_name[0], '+'.join(x_names))
-	if not w_names is None:
-		w_names=','.join(w_names)	
+	if not heteroscedasticity_factors is None:
+		heteroscedasticity_factors=','.join(heteroscedasticity_factors)	
 	modify_dataframe(dataframe,filters,transforms)
-	return dataframe, model_string, w_names, IDs_name
+	return dataframe, model_string, heteroscedasticity_factors, IDs_name
 		
 
 

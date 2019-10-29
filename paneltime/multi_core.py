@@ -51,9 +51,16 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		for s in self.slaves:
 			s.send('holdbacks',key_arr)
 			res=s.receive()
+			
+	def send_task_oneway(self,task):
+		"""task is a string expressions to be executed. Sends an identical task to all cpus, but do not wait for response.\n
+		useful when objects are too complex to send and needs to be calulated at the node"""
+		for i in range(self.cpu_count):
+			self.slaves[i].send('expression evaluation',task)#initiating the self.cpus first evaluations
+		
 
 	def send_tasks(self,tasks):
-		"""expressions is a list of (strign,id) tuples with string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves"""
+		"""tasks is a list of (strign,id) tuples with string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves"""
 		tasks=list(tasks)
 		n=len(tasks)
 		m=min((self.cpu_count,n))
@@ -72,7 +79,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 				got+=1
 				d_arr.append(r)
 			if sent<n:
-				self.slaves[s].send('expression evaluation',tasks.pop(0))#initiating the self.cpus first evaluations
+				self.slaves[s].send('expression evaluation',tasks.pop(0))#supplying additional tasks for returned cpus
 				t=Thread(target=self.slaves[s].receive,args=(q,),daemon=True)
 				t.start()		
 				sent+=1

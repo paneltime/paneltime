@@ -112,7 +112,7 @@ class statistics:
 		output=dict()
 		name_list=[]
 		add_output(output,name_list,'Information',[
-		    ['Description:',panel.descr],
+		    ['Description:',panel.i.descr],
 		    ['LL:',ll.LL],
 		    ['Number of IDs:',N],
 		    ['Maximum number of dates:',T],
@@ -129,7 +129,7 @@ class statistics:
 		    ['no ac_prob:',self.no_ac_prob],
 		    ['norm prob:',self.norm_prob],
 		    ['ADF (dicky fuller):',self.adf_test, "1% and 5 % lower limit of confidence intervals, respectively"],
-		    ['Dependent:',panel.y_name]
+		    ['Dependent:',panel.input.y_name]
 		    ])
 		
 		add_output(output,name_list,'Regression',self.reg_output)
@@ -237,10 +237,10 @@ def get_sign_codes(tsign):
 
 def scatterplots(panel):
 	
-	x_names=panel.x_names
-	y_name=panel.y_name
-	X=panel.raw_X
-	Y=panel.raw_Y
+	x_names=panel.input.x_names
+	y_name=panel.input.y_name
+	X=panel.input.X
+	Y=panel.input.Y
 	N,k=X.shape
 	for i in range(k):
 		fgr=plt.figure()

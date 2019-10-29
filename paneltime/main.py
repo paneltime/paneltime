@@ -28,66 +28,45 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, time_name=None,
-            descr=None,
-            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=1,add_intercept=True,
-            h=None,user_constraints=None,window=None,tobin_threshold=None
-            ):
+def execute(dataframe, model_string, IDs_name, time_name, descr,settings,window):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 
-	(X,x_names,Y,y_name,
-	 IDs,IDs_name,timevar,time_name,
-	 W,w_names,has_intercept,
-	 mp,descr,args_archive, args,user_constraints)=setvars(loadargs,dataframe,model_string,
-	                                      IDs_name,w_names,add_intercept,time_name,descr,user_constraints)
-	if loadargs==2:
-		p,q,m,k,d=args_archive.arimagarch
-
-	results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name, time_name,
-	                                            group_fixed_random_eff, time_fixed_eff,W,w_names,descr,dataframe,h,has_intercept,
-	                                            args_archive,model_string,user_constraints,args,mp,window,loadargs,tobin_threshold)
+	datainput=input_processor(dataframe,model_string,IDs_name,time_name, settings,descr)
+	if settings.autofit:
+		return autofit(dataframe, model_string,settings,window,datainput)
+	if settings.loadargs==2:
+		p,q,m,k,d=datainput.args_archive.arimagarch
+	mp=mp_check(datainput.X)	
+	results_obj=results(dataframe,datainput,settings,mp,window)
 	return results_obj
-	
-def setvars(loadargs,dataframe,model_string,IDs_name,w_names,add_intercept,time_name,descr,user_constraints):
-	t=type(user_constraints)
-	if t!=list and t!=tuple:
-		print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
+
+class input_processor:
+	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,descr):
 		
-	
-	(X,x_names,Y,y_name,
-	 IDs,IDs_name,timevar,time_name,
-	 W,w_names,has_intercept)=model_parser.get_variables(dataframe,model_string,IDs_name,w_names,add_intercept,time_name)
+		t=type(settings.user_constraints)
+		if t!=list and t!=tuple and (not t is None):
+			print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
+			
+		
+		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,settings)
+		self.descr=descr
+		if descr==None:
+			self.descr=model_string[:50]
+		self.args_archive=tempstore.args_archive(descr, settings.loadargs)
+		self.args=self.args_archive.args
 
-	mp=mp_check(X)
-	if descr==None:
-		descr=model_string[:50]
-	args_archive=tempstore.args_archive(descr, loadargs)
-
-	args=args_archive.args
-	
-	return (X,x_names,Y,y_name,IDs,
-	        IDs_name,timevar,time_name,
-	        W,w_names,has_intercept,
-	        mp,descr,args_archive,args,user_constraints)
 	
 	
 class results:
-	def __init__(self,p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
-		                     group_fixed_random_eff, time_fixed_eff, W, w_names, descr, dataframe, h, has_intercept,
-		                     args_archive,model_string,user_constraints,
-		                     args,mp,window,loadargs,tobin_threshold):
+	def __init__(self,dataframe,datainput,settings,mp,window):
 		print ("Creating panel")
-		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,group_fixed_random_eff, time_fixed_eff,W,
-			            w_names,descr,dataframe,h,has_intercept,model_string,args,loadargs,user_constraints,tobin_threshold)
-		
-		direction=drctn.direction(pnl)
+		pnl=panel.panel(dataframe,datainput,settings)
+		direction=drctn.direction(pnl)	
 		if not mp is None:
-			mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')
-	
-		ll,g,G,H, conv,pr,constraints,dx_norm=maximize.maximize(pnl,direction,mp,
-		                        args_archive,pnl.args.args_init,True,window)	
-
+			mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')			
+		
+		ll,g,G,H, conv,pr,constraints,dx_norm=maximize.maximize(pnl,direction,mp,pnl.args.args_init,True,window)	
 		self.outputstring=pr
 		self.dx_norm=dx_norm
 		self.constraints=constraints
@@ -100,32 +79,21 @@ class results:
 		self.panel=pnl
 
 	
-def autofit(dataframe, model_string, d=0,process_sign_level=0.05, IDs_name=None, time_name=None,
-            descr=None,
-            group_fixed_random_eff=2, time_fixed_eff=True, w_names=None, loadargs=True,add_intercept=True,
-            h=None,user_constraints=None,window=None,tobin_threshold=None
-            ):
+def autofit(dataframe, model_string,settings,window,datainput):
 	"""Same as execute, except iterates over ARIMA and GARCH coefficients to find best match"""
 	
-	(X,x_names,Y,y_name,
-	 IDs,IDs_name,timevar,time_name,
-	 W,w_names,has_intercept,
-	 mp,descr,args_archive, args,user_constraints)=setvars(loadargs,dataframe,model_string,
-	                                      IDs_name,w_names,add_intercept,time_name,descr,user_constraints)
 	p,q,m,k=(1,1,1,1)
 	if loadargs:
-		p,q,m,k,dtmp=args_archive.arimagarch
+		p,q,dtmp,m,k=args_archive.arimagarch
 		if dtmp!=d:
 			print("difference argument d changed, cannot load arguments")
 			args=None
-		
+	s=settings
+	s.p,s.q,s.m,s.k=p,q,m,k
 	p_lim,q_lim,m_lim,k_lim=False,False,False,False
-
+	mp=mp_check(self.X)	
 	while True:
-		results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
-	                                            group_fixed_random_eff, time_fixed_eff,W,w_names,descr,dataframe,h,has_intercept,
-	                                            args_archive,model_string,user_constraints,
-		                                        args,mp,window,loadargs,tobin_threshold)
+		results_obj=results(dataframe,datainput,settings,mp,window)
 		panel=results_obj.panel
 		constraints=results_obj.constraints
 		args=results_obj.ll.args_d

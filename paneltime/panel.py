@@ -27,38 +27,17 @@ def posdef(a,da):
 	return list(range(a,a+da)),a+da
 
 class panel:
-	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,x_names,y_name,IDs_name,
-	             fixed_random_eff,time_fixed_eff,W,w_names,descr,dataframe,h,
-	             has_intercept,model_string,args,loadargs,user_constraints, 
-	             tobin_threshold):
-		"""
-		No effects    : fixed_random_eff=0\n
-		Fixed effects : fixed_random_eff=1\n
-		Random effects: fixed_random_eff=2\n
-		
-		"""
-		if IDs_name is None:
-			fixed_random_eff=0
-			
-		self.m_zero = False
-		if  m==0 and k>0:
-			self.m_zero = True
-			m=1
-			
-		if not time_fixed_eff:
-			timevar=None
+	def __init__(self,dataframe,datainput,settings):
 
-		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,
-		                  IDs_name,w_names,descr,fixed_random_eff,model_string,loadargs,
-		                  user_constraints,tobin_threshold)
-		
-		self.arrayize(X, Y, W, IDs,timevar)
-
+			
+		self.input=datainput
+		self.settings=settings
+		self.dataframe=dataframe
+		self.initial_defs()
+		self.arrayize()
 		self.masking()
-		self.lag_variables(max((q,p,k,m)))
-		
-
-		self.final_defs(args)
+		self.lag_variables()
+		self.final_defs()
 
 
 	def masking(self):
@@ -73,71 +52,57 @@ class panel:
 		self.N_t=self.N_t+(self.N_t<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		self.group_var_wght=1-1/np.maximum(self.T_i-1,1)
 		
-	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,
-	                 w_names,descr,fixed_random_eff,model_string,loadargs,user_constraints,tobin_threshold):
-		self.tobin_threshold=tobin_threshold
-		self.has_intercept=has_intercept
-		self.dataframe=dataframe
+	def initial_defs(self):
+
+		if np.all(np.var(self.input.Y,0)==0):
+			raise RuntimeError("No variation in Y")
+		self.tobit_set_threshold()
+		p,q,d,m,k=self.settings.pqdmk
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
-		self.x_names=x_names
-		self.y_name=y_name
-		self.raw_X=X
-		self.raw_Y=Y
-		self.IDs_name=IDs_name
-		self.w_names=w_names		
-		self.p,self.d,self.q,self.m,self.k,self.nW,self.n_beta=p,d,q,m,k,W.shape[1],X.shape[1]
-		self.n_beta=len(X[0])
-		self.descr=descr
-		self.its_reg=0
-		self.FE_RE=fixed_random_eff
-		self.IDs=IDs	
-		self.len_data=len(X)
-		self.user_constraints=user_constraints
-		self.define_h_func(h)
-		self.loadargs=loadargs
-		self.minREvar=1e-6
+		self.nW,self.n_beta=self.input.W.shape[1],self.input.X.shape[1]
+		self.define_h_func()	
 		
+		if self.input.IDs_name is None:
+			self.settings.group_fixed_random_eff=0
+		if self.settings.group_fixed_random_eff==0:
+			self.input.timevar=None			
+		self.m_zero = False
+		if  m==0 and k>0:
+			self.m_zero = True
+			p,q,d,m,k=self.settings.pqdmk
+			self.settings.pqdmk=p,q,d,1,k
+	
+	
 		
-		
-		
-	def final_defs(self,args):
+	def final_defs(self):
 		self.W_a=self.W*self.a
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT=np.sum(self.included)
 		self.NT_before_loss=self.NT+self.tot_lost_obs				
 		self.number_of_RE_coef=self.N
 		self.number_of_FE_coef_in_variance=self.N
-		self.args=arguments(self, args)
+		self.args=arguments(self, )
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_FE_coef_in_variance
-		
-		
-	
 
-	def lag_variables(self,max_lags):
+	def lag_variables(self):
 		T=self.max_T
+		d=self.settings.pqdmk[2]
 		self.I=np.diag(np.ones(T))
-		self.zero=np.zeros((T,T))
-
-		
-		#for sparse matrices:
-		self.cnt_sp=np.arange(T)
-		self.ones_sp=np.ones(T)
-		self.I_sp=sp.csc_matrix((self.ones_sp,(self.cnt_sp,self.cnt_sp)),(T,T))
-		self.L_sp=[sp.csc_matrix((self.ones_sp[i+1:],(self.cnt_sp[i+1:],self.cnt_sp[:-i-1])),(T,T)) for i in range(max_lags)]			
+		self.zero=np.zeros((T,T))		
 
 		#differencing:
-		if self.d==0:
+		if d==0:
 			return
 		L0=np.diag(np.ones(T-1),-1)
 		Ld=(self.I-L0)
-		for i in range(1,self.d):
+		for i in range(1,d):
 			Ld=cf.dot(self.I-L0,self.Ld)		
 		self.Y=cf.dot(Ld,self.Y)*self.a	
 		self.X=cf.dot(Ld,self.X)*self.a
-		if self.has_intercept:
+		if self.input.has_intercept:
 			self.X[:,:,0]=1
-		self.Y[:,:self.d]=0
-		self.X[:,:self.d]=0	
+		self.Y[:,:d]=0
+		self.X[:,:d]=0	
 
 	def params_ok(self,args):
 		a=self.q_sel,self.p_sel,self.M_sel,self.K_sel
@@ -148,13 +113,16 @@ class panel:
 		return True
 
 
-	def arrayize(self,X,Y,W,IDs,timevar):
-		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs,
-		and returns the matrix arrays and their row number"""
+	def arrayize(self):
+		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs"""
+		X, Y, W, IDs=self.input.X, self.input.Y, self.input.W, self.input.IDs
+		timevar=self.input.timevar
 		NT,k=X.shape
 		if IDs is None:
 			self.X=X.reshape((1,NT,k))
 			self.Y=Y.reshape((1,NT,1))
+			for i in [0,1]:
+				self.tobit_I[i].resize((1,NT,1))
 			NTW,k=W.shape
 			self.W=W.reshape((1,NT,k))
 			self.time_map=None
@@ -170,6 +138,8 @@ class panel:
 			idincl=T>self.lost_obs+5
 			self.X=arrayize(X, N,self.max_T,T, idincl,sel)
 			self.Y=arrayize(Y, N,self.max_T,T, idincl,sel)
+			for i in [0,1]:
+				self.tobit_I[i]=arrayize(self.tobit_I[i], N,self.max_T,T, idincl,sel,dtype=bool)
 			self.W=arrayize(W, N,self.max_T,T, idincl,sel)
 			self.N=np.sum(idincl)
 			self.T_arr=T[idincl].reshape((self.N,1))
@@ -229,8 +199,7 @@ class panel:
 		
 	
 	
-	def define_h_func(self,h_definition):
-
+	def define_h_func(self):
 		h_def="""
 def h(e,z):
 	e2			=	e**2+1e-5
@@ -240,6 +209,7 @@ def h(e,z):
 
 	return h_val,h_e_val,h_2e_val,None,None,None
 		"""	
+		h_definition=self.settings.h_function
 		if h_definition is None:
 			h_definition=h_def
 		d=dict()
@@ -247,8 +217,8 @@ def h(e,z):
 			exec(h_definition,globals(),d)
 			ret=d['h'](1,1)
 			if len(ret)!=6:
-				raise RuntimeError("""Your custom function must return exactly six arguments
-				(x, dx and ddx for both e and z. the z return values can be set to None)""")
+				raise RuntimeError("""Your custom h-function must return exactly six arguments
+				(h, dh/dx and ddh/dxdx for both e and z. the z return values can be set to None)""")
 			self.h_def=h_definition
 		except Exception as e:
 			print('Something is wrong with your custom function, default is used:'+ str(e))
@@ -258,9 +228,9 @@ def h(e,z):
 		self.z_active=True
 		for i in ret[3:]:
 			self.z_active=self.z_active and not (i is None)	
-			
-		if not self.z_active and 'z' in self.user_constraints:
-			self.user_constraints.pop('z')
+		if not self.settings.user_constraints is None:
+			if not self.z_active and 'z' in self.settings.user_constraints:
+				self.settings.user_constraints.pop('z')
 			
 
 		
@@ -310,7 +280,32 @@ def h(e,z):
 			m=m.reshape(dims_m)
 			Xm=(X-m)#*self.included.reshape(dims)			
 			return np.sum((Xm)**2,axis)/(self.NT-k)
-
+		
+	def tobit_set_threshold(self):
+		"""Sets the tobit threshold"""
+		tobit_limits=self.settings.tobit_limits
+		Y=self.input.Y
+		if tobit_limits is None:
+			return
+		if len(tobit_limits)!=2:
+			print("Warning: The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
+		if (not (tobit_limits[0] is None)) and (not( tobit_limits[1] is None)):
+			if tobit_limits[0]>tobit_limits[1]:
+				raise RuntimeError("floor>ceiling. The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
+		g=[1,-1]
+		self.tobit_active=[False, False]
+		self.tobit_I=[None,None]
+		for i in [0,1]:
+			self.tobit_active[i]=not (tobit_limits[i] is None)
+			if self.tobit_active[i]:
+				if np.sum(g[i]*Y<g[i]*tobit_limits[i]):
+					print("Warning: there are observations of Y outside the non-cencored interval. These ")
+				I=g[i]*Y<=g[i]*tobit_limits[i]
+				Y[I]=tobit_limits[i]
+				if np.var(Y)==0:
+					raise RuntimeError("Your tobit limits are too restrictive. All observationss were cencored.")
+				self.tobit_I[i]=I		
+	
 def arrayize(X,N,max_T,T,idincl,sel,dtype=None):
 	if X is None:
 		return None
@@ -334,8 +329,9 @@ def arrayize(X,N,max_T,T,idincl,sel,dtype=None):
 
 class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
-	def __init__(self,panel, args):
-		p, d, q, m, k=panel.p, panel.d, panel.q, panel.m, panel.k
+	def __init__(self,panel):
+		args=panel.input.args
+		p, q, d, m, k=panel.settings.pqdmk
 		self.categories=['beta','rho','lambda','gamma','psi','omega']
 		if panel.z_active:
 			self.categories+=['z']
@@ -388,14 +384,15 @@ class arguments:
 
 		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
 		args['beta']=beta
-		if not panel.m_zero:
-			args['omega'][0]=0#np.log(panel.var(e))
+		if panel.settings.group_fixed_random_eff==0:
+			args['omega'][0]=np.log(panel.var(e))
 
 	
 		self.args_start=fu.copy_array_dict(args)
 		if not self.args_old is None: 
 			args['beta']=insert_arg(args['beta'],self.args_old['beta'])
-			args['omega']=insert_arg(args['omega'],self.args_old['omega'])
+			if panel.settings.group_fixed_random_eff==0:
+				args['omega']=insert_arg(args['omega'],self.args_old['omega'])
 			args['rho']=insert_arg(args['rho'],self.args_old['rho'])
 			args['lambda']=insert_arg(args['lambda'],self.args_old['lambda'])
 			args['psi']=insert_arg(args['psi'],self.args_old['psi'])
@@ -467,15 +464,15 @@ class arguments:
 		including variables, ARIMA and GARCH terms. This defines the positions
 		of the variables througout the estimation."""
 		d=dict()
-		names=panel.x_names[:]#copy variable names
+		names=panel.input.x_names[:]#copy variable names
 		d['beta']=list(names)
 		add_names(p,'AR term %s (p)','rho',d,names)
 		add_names(q,'MA term %s (q)','lambda',d,names)
 		add_names(m,'MACH term %s (m)','gamma',d,names)
 		add_names(k,'ARCH term %s (k)','psi',d,names)
 		
-		d['omega']=panel.w_names
-		names.extend(panel.w_names)
+		d['omega']=panel.input.W_names
+		names.extend(panel.input.W_names)
 		if m>0:
 			if panel.N>1 and not self.mu_removed:
 				d['mu']=['mu (var.ID eff.)']
