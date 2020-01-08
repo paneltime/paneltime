@@ -8,6 +8,7 @@ from scipy import special as sc
 import calculus_functions as cf
 import numpy as np
 import loglikelihood as logl
+import random_effects
 
 
 def var_decomposition(XXNorm=None,X=None,concat=False):
@@ -158,22 +159,33 @@ def goodness_of_fit(panel,ll):
 
 def breusch_godfrey_test(panel,ll, lags):
 	"""returns the probability that err_vec are not auto correlated""" 
-	e=ll.e_st
+	e=ll.e_st_centered
+	ll.standardize()
 	X=ll.X_st
-	N,T,K=X.shape	
+	N,T,k=X.shape
 	X_u=X[:,lags:T]
 	u=e[:,lags:T]
 	c=panel.included[:,lags:T]
 	for i in range(1,lags+1):
 		X_u=np.append(X_u,e[:,lags-i:T-i],2)
-	XX=cf.dot(X_u,X_u)
-	Beta,Rsq=OLS(panel,X_u,u,True,True,c=c)
-	T=(panel.NT-X_u.shape[2]-lags)
+	Beta,Rsq=OLS(panel,X_u,u,False,True,c=c)
+	T=(panel.NT-k-1-lags)
 	BGStat=T*Rsq
-	rho=Beta[len(X[0]):]
+	rho=Beta[k:]
 	ProbNoAC=1.0-chisq_dist(BGStat,lags)
 	return ProbNoAC, rho, Rsq #The probability of no AC given H0 of AC.
 
+def correlogram(panel,e,lags):
+	"""returns the probability that err_vec are not auto correlated""" 
+	N,T,k=e.shape	
+	v=panel.var(e)
+	rho=np.zeros(lags+1)
+	rho[0]=1
+	for i in range(1,lags+1):
+		a=panel.T_i-i-1>0
+		df=np.sum(a*(panel.T_i-i-1))
+		rho[i]=np.sum(a*e[:,i:]*e[:,0:-i])/(v*df)
+	return rho #The probability of no AC given H0 of AC.
 
 def chisq_dist(X,df):
 	"""Returns the probability of drawing a number
@@ -207,12 +219,16 @@ def adf_crit_values(n,trend):
 def JB_normality_test(e,panel):
 	"""Jarque-Bera test for normality. 
 	returns the probability that a set of residuals are drawn from a normal distribution"""
-	N,T,k=e.shape
-	e=e*panel.included
-	df=panel.NT
-	s=(np.sum(e**2)/df)**0.5
-	mu3=np.sum(e**3)/df
-	mu4=np.sum(e**4)/df
+	e=e[panel.included]
+	a=np.argsort(np.abs(e))[::-1]
+	
+	ec=e[a][int(0.001*len(e)):]
+	
+	df=len(ec)
+	ec=ec-np.mean(ec)
+	s=(np.sum(ec**2)/df)**0.5
+	mu3=np.sum(ec**3)/df
+	mu4=np.sum(ec**4)/df
 	S=mu3/s**3
 	C=mu4/s**4
 	JB=df*((S**2)+0.25*(C-3)**2)/6.0
@@ -283,22 +299,21 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_
 	X=X*c
 	Y=Y*c
 	XX=cf.dot(X,X)
-	XXInv=np.linalg.inv(XX)
 	XY=cf.dot(X,Y)
-	beta=cf.dot(XXInv,XY)
-
+	beta=np.linalg.solve(XX,XY)
 	if return_rsq or return_e or return_se:
-		e=Y-cf.dot(X,beta)
+		e=(Y-cf.dot(X,beta))*c
 		if return_rsq:
-			v0=np.var(e)
-			v1=np.var(Y)
+			v0=panel.var(e)
+			v1=panel.var(Y)
 			Rsq=1-v0/v1
 			#Rsqadj=1-(v0/v1)*(NT-1)/(NT-k-1)
 			return beta,Rsq
 		elif return_e:
-			return beta,e
+			return beta,e*c
 		elif return_se:
-			se=np.std(e)*(np.diag(XXInv)**0.5)
+			XXInv=np.linalg.inv(XX)
+			se=(panel.var(e)**0.5)*(np.diag(XXInv)**0.5)
 			return beta,se.reshape(k,1)
 	return beta
 
@@ -317,20 +332,55 @@ def OLS_simple(Y,X,addconst=False,residuals=True):
 	else:
 		return beta
 
-def newey_west_wghts(L,X=None,err_vec=None,XErr=None):
+def newey_west_wghts(panel,L,XErr):
 	"""Calculates the Newey-West autocorrelation consistent weighting matrix. Either err_vec or XErr is required"""
-	if XErr is None:
-		XErr=X*err_vec
 	N,T,k=XErr.shape
-	S=cf.dot(XErr,XErr)#Whites heteroscedasticity consistent weighting matrix
+	S=np.zeros((k,k))
 	for i in range(1,min(L,T)):
 		w=1-(i+1)/(L)
-		S+=w*cf.dot(XErr[:,i:],XErr[:,0:T-i])
-		S+=w*cf.dot(XErr[:,0:T-i],XErr[:,i:])
+		XX=cf.dot(XErr[:,i:],XErr[:,0:T-i])
+		S+=w*(XX+XX.T)
+	return S
+
+def robust_cluster_weights(panel,XErr,cluster_dim,whites):
+	"""Calculates the Newey-West autocorrelation consistent weighting matrix. Either err_vec or XErr is required"""
+	N,T,k=XErr.shape
+	if cluster_dim==0:#group cluster
+		if N<=1:
+			return 0
+		mean=panel.mean(XErr,0)
+	elif cluster_dim==1:#time cluster
+		mean=random_effects.mean_time(panel,XErr,True)
+		T,m,k=mean.shape
+		mean=mean.reshape((T,k))
+	S=cf.dot(mean,mean)-whites
 	return S
 
 
-
+def robust_se(panel,L,hessin,XErr,nw_only=True):
+	"""Returns the maximum robust standard errors considering all combinations of sums of different combinations
+	of clusters and newy-west"""
+	w=sandwich_var(hessin,cf.dot(XErr,XErr))#whites
+	nw=sandwich_var(hessin,newey_west_wghts(panel,L,XErr))#newy-west
+	c0=sandwich_var(hessin,robust_cluster_weights(panel, XErr, 0, w))#cluster dim 1
+	c1=sandwich_var(hessin,robust_cluster_weights(panel, XErr, 1, w))#cluster dim 2
+	v=np.array([
+		w*0,
+		nw,
+		nw+c0,
+		nw+c1,
+		nw+c1+c0
+	])
+	se_robust=np.maximum(np.max(w+v,0),0)**0.5
+	se_std=np.maximum(w,0)**0.5
+	return se_robust,se_std
+	
+def sandwich_var(hessin,V):
+	hessinV=cf.dot(hessin,V)
+	v=cf.dot(hessinV,hessin)
+	v=np.diag(v)
+	return v
+	
 
 
 

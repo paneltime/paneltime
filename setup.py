@@ -9,17 +9,24 @@ from setuptools import setup, find_packages, Extension
 # To use a consistent encoding
 from codecs import open
 from os import path
-import numpy as np
+import subprocess
+import sys
+
+try:
+	import numpy as np
+except:
+	subprocess.check_call([sys.executable, "-m", "pip", "install", 'numpy'])
+	import numpy as np
 
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 	long_description = f.read()
-#cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
+cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
 setup(
     name='paneltime',
-    #ext_modules=[cfunc],
+    ext_modules=[cfunc],
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
@@ -75,7 +82,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
-    install_requires=['numpy >= 1.11','scipy','matplotlib'],
+    install_requires=['numpy >= 1.11','scipy','matplotlib','pillow','pymysql'],
     #**************************************************************************<REMOVED
 
     # List additional groups of dependencies here (e.g. development
@@ -98,7 +105,8 @@ setup(
         '': [
 		'cfunctions.cp35-win_amd64.pyd',
 		'cfunctions.cp36-win_amd64.pyd',
-		'cfunctions.cpython-35m-x86_64-linux-gnu.so'],
+		'cfunctions.cpython-35m-x86_64-linux-gnu.so',
+		'cfunctions.cp37-win_amd64.pyd'],
         },
     include_package_data=True,
     #**************************************************************************<REMOVED

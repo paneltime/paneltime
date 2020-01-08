@@ -5,12 +5,15 @@ import functions as fu
 import date_time
 from datetime import datetime
 import tempstore
+NON_NUMERIC_TAG='|~|'
+forbidden_names=['tobit_low','tobit_high','Intercept']
 
 def load(fname,sep,dateformat,load_tmp_data):
 	fname=fu.obtain_fname(fname)
 	if load_tmp_data:
 		data=tempstore.loaddata(fname)
 		if not data is None:
+			load_data_printout(data)
 			return data
 	heading,s=get_head_and_sep(fname,sep)
 	print ("opening file ...")
@@ -19,12 +22,14 @@ def load(fname,sep,dateformat,load_tmp_data):
 	print ("... done")
 	data=convert_to_numeric_dict(data,heading,dateformat)
 	tempstore.savedata(fname,data)
+	load_data_printout(data)
 	return data
 
 def load_SQL(conn,sql_string,dateformat,load_tmp_data):
 	if load_tmp_data:
 		data=tempstore.loaddata(sql_string)
 		if not data is None:
+			load_data_printout(data)
 			return data
 	crsr=conn.cursor()
 	print ("fetching SQL data ...")
@@ -42,14 +47,23 @@ def load_SQL(conn,sql_string,dateformat,load_tmp_data):
 	data=convert_to_numeric_dict(data,heading,dateformat,dtypes)
 	remove_nan(data)
 	tempstore.savedata(sql_string,data)
+	load_data_printout(data)
 	return data
+
+def load_data_printout(data):
+	lst=[]
+	for i in data:
+		if not NON_NUMERIC_TAG in i:
+			lst.append(i)
+	print ("The following variables were loaded:"+', '.join(lst))
 	
 def remove_nan(data):
 	#Todo: add functionality to delete variables that cause too many deletions
 	k0=list(data.keys())[0]
 	notnan=(np.isnan(data[k0])==0)
 	for i in data:
-		notnan=(notnan*(np.isnan(data[i])==0))
+		if not NON_NUMERIC_TAG in i:
+			notnan=(notnan*(np.isnan(data[i])==0))
 	for i in data:
 		data[i]=data[i][notnan]
 	print("%s observations removed because they were nan" %(len(notnan)-np.sum(notnan)))
@@ -98,29 +112,34 @@ def is_number(s):
 	except ValueError:
 		return False
 	
-def convert_to_numeric_dict(a,name,dateformat,dtypes=None):
-	N,k=a.shape
+def convert_to_numeric_dict(data,names,dateformat,dtypes=None):
+	N,k=data.shape
 	df=dict()
 	if dtypes is None:
 		dtypes=k*[None]
 	for i in range(k):
-		make_numeric(a[:,i:i+1],name[i],df,dateformat,dtypes[i])	
+		name=names[i]
+		if name in forbidden_names:
+			print(f"You can't call a variable {name}, since it is in use by paneltime. The variable is renamed {name}_" )
+			name=name+'_'
+		make_numeric(data[:,i:i+1],name,df,dateformat,dtypes[i])	
 	return df
 	
-def make_numeric(a,name,df,dateformat,dtype):
+def make_numeric(variable,name,df,dateformat,dtype):
 	if not dtype is None and dtype in SQL_type_dict:
 		try:
-			df[name]=np.array(a,dtype=SQL_type_dict[dtype])
+			df[name]=np.array(variable,dtype=SQL_type_dict[dtype])
 			return
 		except:
 			pass
 	try:
-		try_float_int(a, df, name)
+		try_float_int(variable, df, name)
 	except ValueError:
 		try:
-			check_dateness(a,df,name,dateformat)
+			check_dateness(variable,df,name,dateformat)
 		except ValueError:
-			convert_cat_to_int(a,df,name)
+			convert_cat_to_int(variable,df,name)
+		df[name+NON_NUMERIC_TAG]=variable#adds the original to the df
 			
 def try_float_int(a,df,name):
 	a=a.astype(float)

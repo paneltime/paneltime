@@ -17,8 +17,8 @@ def currentdir():
 def timer(tic, a):
 	if a is None:
 		a=[]
-		tic=time.clock()
-	tac=time.clock()
+		tic=time.perf_counter()
+	tac=time.perf_counter()
 	a.append(tic-tac)
 	return tac,a
 
@@ -47,9 +47,11 @@ def split_input(input_str):
 	if input_str is None:
 		return None
 	
+	illegal=['§','£','¤']
+	input_str=input_str.replace('\n','').replace(' ','').replace('\r','').replace('\t','')
 	p = re.compile('\([^()]+\)')
-	if '§' in input_str or '£' in input_str  or '¤' in input_str:
-		raise RuntimeError("The charactesr §, ¤  or £ are not allowed in model string")
+	if np.any([i in input_str for i in illegal]):
+		raise RuntimeError(f"The characters {','.join(illegal)} are not allowed in model string")
 	while 1:
 		matches=tuple(p.finditer(input_str))
 		if len(matches)==0:

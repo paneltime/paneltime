@@ -8,67 +8,89 @@ from scipy import sparse as sp
 import debug
 
 
-
 def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=False):
-	#de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"
+	de2_zeta_xi_RE,de2_zeta_xi 	= dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
+	dd_re_variance 							= dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient)
+	d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE 	= dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient)
 	
+	return d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE
+
+def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient):
+	#de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"
 	de_xi=g.__dict__['de_'+vname1]
 	de_zeta=g.__dict__['de_'+vname2]
-	if u_gradient:
-		de_zeta=-panel.X#for error beta-rho covariance, the u gradient must be used	
 	de2_zeta_xi_RE=None
 	if de_xi is None or de_zeta is None:
 		return None,None
 	(N,T,m)=de_xi.shape
-	(N,T,k)=de_zeta.shape
-	DLL_e=g.DLL_e.reshape(N,T,1,1)
-	u_calc=False
-
+	(N,T,k)=de_zeta.shape	
 	#ARIMA:
 	if not AMAL is None:
-		de2_zeta_xi=dot(AMAL,de_zeta,False)#"T x N x s x m"
+		if u_gradient:
+			de2_zeta_xi=-dot(AMAL,panel.X,False)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
+		else:
+			de2_zeta_xi=dot(AMAL,de_zeta,False)#"T x N x s x m
 		if transpose:#only happens if lags==k
 			de2_zeta_xi=de2_zeta_xi+np.swapaxes(de2_zeta_xi,2,3)#adds the transpose
-		de2_zeta_xi_RE=de2_zeta_xi + ll.re_obj_i.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2) + ll.re_obj_t.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi=de2_zeta_xi*panel.included.reshape(N,T,1,1)
 	else:
-		de2_zeta_xi=0
-		de2_zeta_xi_RE=add(([ll.re_obj_i.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2),  ll.re_obj_t.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2)]),True)
+		de2_zeta_xi=None
+	de2_zeta_xi_RE=add(([de2_zeta_xi, ll.re_obj_i.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2), ll.re_obj_t.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)]),True)
 	
-	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
+	return de2_zeta_xi_RE,de2_zeta_xi
 
+
+def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
+	if panel.N<=1 or panel.settings.group_fixed_random_eff.value==0:
+		return None
 	#voaltility RE:
-	ddvolRE=0
-	groupeffect=None
+
+	de_xi_RE=g.__dict__['de_'+vname1+'_RE']
+	de_zeta_RE=g.__dict__['de_'+vname2+'_RE']
+	if de_xi_RE is None or de_zeta_RE is None:
+		return None
+	(N,T,m)=de_xi_RE.shape
+	(N,T,k)=de_zeta_RE.shape		
+	de_xi_RE_r=de_xi_RE.reshape((N,T,m,1))
+	de_zeta_RE_r=de_zeta_RE.reshape((N,T,1,k))	
 	incl=panel.included.reshape(N,T,1,1)
-	if panel.N>1 and panel.settings.group_fixed_random_eff>0:
-		de_xi_RE=g.__dict__['de_'+vname1+'_RE']
-		de_zeta_RE=g.__dict__['de_'+vname2+'_RE']	
-		de_xi_RE_r=de_xi_RE.reshape((N,T,m,1))
-		de_zeta_RE_r=de_zeta_RE.reshape((N,T,1,k))	
+	
+	dvRE_xi=g.__dict__['dvRE_'+vname1].reshape((N,T,m,1))
+	dvRE_zeta=g.__dict__['dvRE_'+vname2].reshape((N,T,1,k))			
+	
+	if not de2_zeta_xi_RE is None:
+		d_xi_input=g.__dict__['d_'+vname1+'_input']
+		d_zeta_input=g.__dict__['d_'+vname2+'_input']			
+		dd_e_RE_sq=(2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE)*incl
+		ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl
+		dd_input=(dd_e_RE_sq-ddmeane2)*incl
+
+		ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2),
+									  ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2)),True)
+	else:
+		ddvRE_d_xi_zeta=None
 		
-		dvRE_xi=g.__dict__['dvRE_'+vname1].reshape((N,T,m,1))
-		dvRE_zeta=g.__dict__['dvRE_'+vname2].reshape((N,T,1,k))			
-		
-		if not de2_zeta_xi_RE is None:
-			d_xi_input=g.__dict__['d_'+vname1+'_input']
-			d_zeta_input=g.__dict__['d_'+vname2+'_input']			
-			dd_e_RE_sq=(2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE)*incl
-			ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl
-			dd_input=(dd_e_RE_sq-ddmeane2)*incl
-
-			ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2),
-			                              ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2)),True)
-		else:
-			ddvRE_d_xi_zeta=None
-			
-		dlnvRE,		ddlnvRE		=	ll.dlnvRE.reshape((N,T,1,1)),		ll.ddlnvRE.reshape((N,T,1,1))
-		groupeffect	=	add((prod((dlnvRE,ddvRE_d_xi_zeta))	,	ddlnvRE*dvRE_xi*dvRE_zeta))
+	dlnvRE,		ddlnvRE		=	ll.dlnvRE.reshape((N,T,1,1)),		ll.ddlnvRE.reshape((N,T,1,1))
+	dd_re_variance	=	add((prod((dlnvRE,ddvRE_d_xi_zeta))	,	ddlnvRE*dvRE_xi*dvRE_zeta))
+	return dd_re_variance
 
 
-
+def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient):
 	#GARCH: 
+	de_xi=g.__dict__['de_'+vname1]
+	de_zeta=g.__dict__['de_'+vname2]
+	if de_xi is None or de_zeta is None:
+		return None, None
+	
+	(N,T,m)=de_xi.shape
+	(N,T,k)=de_zeta.shape
+	incl=panel.included.reshape(N,T,1,1)
+	DLL_e=g.DLL_e.reshape(N,T,1,1)
+	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
+	if de2_zeta_xi is None:
+		de2_zeta_xi=0
 	d2lnv_zeta_xi=None
-	if panel.settings.pqdmk[3]>0:
+	if panel.pqdkm[4]>0:
 		if u_gradient:
 			de_zeta=g.__dict__['de_'+vname2]
 		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi
@@ -78,22 +100,22 @@ def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=
 		
 		d2lnv_zeta_xi_h = dot(ll.GAR_1MA, d2lnv_zeta_xi_h)
 		
-		d2lnv_zeta_xi = add((d2lnv_zeta_xi_h,  groupeffect), True)
+		d2lnv_zeta_xi = add((d2lnv_zeta_xi_h,  dd_re_variance), True)
 		
-		d2lnv_zeta_xi=np.sum(d2lnv_zeta_xi*dLL_lnv*incl,(0,1))
-	elif not groupeffect is None:
-		d2lnv_zeta_xi=np.sum(groupeffect*dLL_lnv*incl,(0,1))
+		d2LL_d2lnv_zeta_xi = np.sum(d2lnv_zeta_xi*dLL_lnv*incl,(0,1))
+	elif not dd_re_variance is None:
+		d2LL_d2lnv_zeta_xi=np.sum(dd_re_variance*dLL_lnv*incl,(0,1))
 		
-	dLL_zeta_xi_RE=None
+	d2LL_d2e_zeta_xi_RE=None
 	if not de2_zeta_xi_RE is None:	
-		dLL_zeta_xi_RE = de2_zeta_xi_RE * DLL_e	
-		dLL_zeta_xi_RE = np.sum(np.sum(dLL_zeta_xi_RE*incl,0),0)
+		d2LL_d2e_zeta_xi_RE = de2_zeta_xi_RE * DLL_e	
+		d2LL_d2e_zeta_xi_RE = np.sum(np.sum(d2LL_d2e_zeta_xi_RE*incl,0),0)
 	
-	return d2lnv_zeta_xi,dLL_zeta_xi_RE
+	return d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE
 
 def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 	#d is "N x T x m" and L is "k x T x T"
-	if panel.settings.pqdmk[3]==0:
+	if panel.pqdkm[4]==0:
 		return None
 	if d is None:
 		return None		
@@ -249,8 +271,7 @@ def roll(a,shift,axis=0,empty_val=0):
 	else:
 		n=s[axis]
 		v[axis]=slice(n+shift,n)
-		ret[n+shift:]=empty_val
-	ret[v]=empty_val
+	ret[tuple(v)]=empty_val
 
 	if False:#for debugging
 		arr2=a*1
@@ -426,3 +447,7 @@ def dot(a,b,reduce_dims=True):
 
 	else:
 		raise RuntimeError("this multiplication is not supported by dot")
+	
+	
+def test(a,b):
+	return a+b

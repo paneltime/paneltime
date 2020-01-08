@@ -41,7 +41,7 @@ def test_dictionary(dataframe):
 	return n
 
 
-def get_variables(vclass,dataframe,model_string,IDs_name,time_name,settings):
+def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings):
 	print ("Analyzing variables ...")
 	for i in dataframe:
 		if type(dataframe[i])==np.ndarray:
@@ -51,30 +51,59 @@ def get_variables(vclass,dataframe,model_string,IDs_name,time_name,settings):
 				break
 	sort(dataframe,time_name,IDs_name)
 	
-	vclass.timevar,vclass.time_name,void=check_var(dataframe,time_name,'time_name')
-	vclass.IDs,vclass.IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
-	dataframe['L']=lag_object(vclass.IDs).lag#allowing for lag operator in model input
-	vclass.W,vclass.W_names,void=check_var(dataframe,settings.heteroscedasticity_factors,'heteroscedasticity_factors',
+	input_class.timevar,input_class.time_name,void=check_var(dataframe,time_name,'time_name')
+	input_class.IDs,input_class.IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
+	dataframe['L']=lag_object(input_class.IDs).lag#allowing for lag operator in model input
+	input_class.W,input_class.W_names,void=check_var(dataframe,settings.heteroscedasticity_factors,'heteroscedasticity_factors',
                                        intercept_name='log variance constant',raise_error=False,intercept_variable=True)
 	intercept_name=None
-	if settings.add_intercept:
+	if settings.add_intercept.value:
 		intercept_name='Intercept'
 	if type(model_string)==str:
-		(vclass.X,vclass.x_names,
-	     vclass.has_intercept,
-	     vclass.Y,vclass.y_name)=parse_and_check(dataframe,model_string,intercept_name)
+		(input_class.X,input_class.x_names,
+	     input_class.has_intercept,
+	     input_class.Y,input_class.y_name)=parse_and_check(dataframe,model_string,intercept_name)
 	else:
 		a=[],[],[],[],[]
 		for s in model_string:
 			fu.append(a, parse_and_check(dataframe,s,intercept_name))
-		(vclass.X,vclass.x_names,
-	     vclass.has_intercept,
-	     vclass.Y,vclass.y_name)=a
-
-
-
+		(input_class.X,input_class.x_names,
+	     input_class.has_intercept,
+	     input_class.Y,input_class.y_name)=a
+	tobit_set_threshold(input_class,settings)
 	
+		
 
+
+def tobit_set_threshold(input_class,settings):
+	"""Sets the tobit threshold"""
+	tobit_limits=settings.tobit_limits.value
+	Y=input_class.Y
+	if tobit_limits is None:
+		return
+	if len(tobit_limits)!=2:
+		print("Warning: The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
+	if (not (tobit_limits[0] is None)) and (not( tobit_limits[1] is None)):
+		if tobit_limits[0]>tobit_limits[1]:
+			raise RuntimeError("floor>ceiling. The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
+	g=[1,-1]
+	input_class.tobit_active=[False, False]#lower/upper threshold
+	input_class.tobit_I=[None,None]
+	desc=['tobit_low','tobit_high']
+	for i in [0,1]:
+		input_class.tobit_active[i]=not (tobit_limits[i] is None)
+		if input_class.tobit_active[i]:
+			if np.sum(g[i]*Y<g[i]*tobit_limits[i]):
+				print("Warning: there are observations of Y outside the non-cencored interval. These ")
+			I=g[i]*Y<=g[i]*tobit_limits[i]
+			Y[I]=tobit_limits[i]
+			if np.var(Y)==0:
+				raise RuntimeError("Your tobit limits are too restrictive. All observationss were cencored.")
+			input_class.tobit_I[i]=I
+			if np.sum(I)>0 and np.sum(I)<len(I):#avoiding singularity
+				input_class.X=np.concatenate((input_class.X,I),1)
+				input_class.x_names.append(desc[i])
+		
 def parse_and_check(dataframe,model_string,intercept_name):
 	y_name,x_names=parse_model(model_string)
 	X,x_names,has_intercept=check_var(dataframe,x_names,'x_names',intercept_name=intercept_name,raise_error=True,intercept_variable=True)

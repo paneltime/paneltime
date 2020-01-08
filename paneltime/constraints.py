@@ -5,35 +5,33 @@ import numpy as np
 import stat_functions as stat
 import functions as fu
 
-MAX_COLL=1e+5
+MAX_COLLINEARITY=1e+18
+SMALL_COLLINEARITY=30
 
 def add_static_constraints(constr,panel,ll,its):
 	
-	add_custom_constraints(constr,panel.settings.user_constraints,ll)
+	add_custom_constraints(constr,panel.settings.user_constraints.value,ll)
 	general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
-	add_custom_constraints(constr,general_constraints,ll)
-	p,q,d,m,k=panel.settings.pqdmk
-	if panel.settings.loadargs==False and False:
-		if panel.m_zero:
-			constr.add(panel.args.positions['psi'][0],None,'GARCH input constr',value=1)
-			if k>0 and (p>0 or q>0) and its<3:
-				constr.add(panel.args.positions['gamma'][0],None,'init.constr',value=0)
-		else:
-			if p>0 or q>0:
-				if its<2 and m>0:
-					constr.add(panel.args.positions['gamma'][0],None,'init.constr.',value=0)				
-				if k>0 and its<3:
-					constr.add(panel.args.positions['psi'][0],None,'init.constr.',value=0)
-			elif k>0 and its<1:
-				constr.add(panel.args.positions['gamma'][0],None,'init.constr.',value=0)
+	#add_custom_constraints(constr,general_constraints,ll)
+	p,q,d,k,m=panel.pqdkm
+	
+	if panel.m_zero:
+		constr.add(panel.args.positions['psi'][0],None,'GARCH input constr',value=0.05)
+	fix_gamma=(k*m>0)
+	if not ll is None and fix_gamma:
+		fix_gamma=ll.args_d['psi'][0]==0
+	if fix_gamma and (not panel.settings.loadargs.value):
+		for i in panel.args.positions['gamma']:
+			constr.add(i,None,'GARCH term cannot be positive if ARCH term is zero',value=0)
 		
 
 	
 	
-def add_dynamic_constraints(G,panel,ll,constr,dx_norm,hessian,its,old_constr):
+def add_dynamic_constraints(ll, direction,newton_failed):
 
-	remove_all_multicoll(panel,dx_norm,hessian, constr,old_constr)
-	remove_singularities(constr, hessian)
+	mc_dict=remove_all_multicoll(direction,ll,newton_failed)
+	remove_singularities(direction.constr, direction.H)
+	return mc_dict
 
 
 	
@@ -42,14 +40,12 @@ def remove_singularities(constr,hessian):
 	habs=np.abs(hessian)
 	m=np.max(habs)
 	h_temp=np.array(hessian)
-	for i in range(n):
-		if i not in constr.fixed:
-			if np.linalg.det(h_temp)>0:
-				return
-			zeros=len(np.nonzero(habs[i]/m<1e-100)[0])
-			if zeros>=n-1:
-				constr.add(i,None,'singularity')
-				h_temp[i,i]=-m
+	try:
+		a=np.linalg.det(h_temp)
+	except:
+		for i in np.nonzero(np.abs(np.diag(h_temp))>1e+100)[0]:
+			constr.add(i,None,'singularity')
+
 		
 
 def add_custom_constraints(constr,constraints,ll):
@@ -297,87 +293,81 @@ def decomposition(H,include):
 	return c_index, var_prop,includemap
 	
 	
-def remove_one_multicoll(panel,H,constr):
-	limit=1000
+def multicoll_problems(direction):
+	constr=direction.constr
+	H=direction.H
 	k,k=H.shape
 	include=np.array(k*[True])
 	include[list(constr.fixed)]=False
 	c_index, var_prop, includemap = decomposition(H, include)
 	if c_index is None:
 		return False
-	constr.CI=c_index[-1]	
+	constr.CI=c_index[-1]
+	mc_problems=[]#list of [index,associate,condition index]
 	for cix in range(1,len(c_index)):
-		if c_index[-cix]<MAX_COLL:
-			return False
-		if np.sum(var_prop[-cix]>0.5)>1:
-			var_prop_ix=np.argsort(var_prop[-cix])[::-1]
-			var_prop_val=var_prop[-cix][var_prop_ix]
-			j=var_prop_ix[0]
-			j=includemap[j]
-			for i in range(1,len(var_prop_ix)):
-				if var_prop_val[i]<0.5:
-					return False
-				assc=var_prop_ix[i]
-				assc=includemap[assc]
-				if (j in constr.associates) or (j in constr.collinears):
-					return False
-				else:
-					constr.add(j,assc,'collinear')
-					return True
-	return False
+		if c_index[-cix]>SMALL_COLLINEARITY:
+			if np.sum(var_prop[-cix]>0.5)>1:
+				var_prop_ix=np.argsort(var_prop[-cix])[::-1]
+				var_prop_val=var_prop[-cix][var_prop_ix]
+				j=var_prop_ix[0]
+				j=includemap[j]
+				done=var_prop_check(direction.panel,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix])
+				if done:
+					break
+	return mc_problems
 
-def remove_all_multicoll(panel,dx_norm,H,constr,old_constr):
+def var_prop_check(panel,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index):
+	for i in range(1,len(var_prop_ix)):
+		if var_prop_val[i]<0.5:
+			return True
+		index=var_prop_ix[i]
+		index=includemap[index]
+		mc_problems.append([index,assc,cond_index])
+		return False
+		
+def add_mc_constraint(direction,mc_problems,mc_dict,newton_failed):
+	"""Adds constraints for severe MC problems"""
+	constr=direction.constr
+	if newton_failed:
+		limit=SMALL_COLLINEARITY
+	else:
+		limit=MAX_COLLINEARITY
+	if len(mc_problems)==0:
+		return False
+	a=np.array(mc_problems)
+	a=np.argsort(a[:,2])[::-1]
+	for i in a:
+		index,assc,cond_index=mc_problems[i]
+		if (not index in mc_dict) and cond_index>SMALL_COLLINEARITY:
+			mc_dict[index]=[assc,cond_index]#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix.	
+		if not ((index in constr.associates) or (index in constr.collinears)) and cond_index>limit:
+			constr.add(index,assc,'collinear')
+			return True
+	return False
+		
+		
+def remove_all_multicoll(direction,ll,newton_failed):
+	H=direction.H
 	k,k=H.shape
+	mc_dict=dict()
 	for i in range(k):
-		remvd=remove_one_multicoll(panel,H,constr)
+		mc_problems=multicoll_problems(direction)
+		remvd=add_mc_constraint(direction,mc_problems,mc_dict,newton_failed)
 		if not remvd:
 			break
-	select_multicoll_with_biggest_direction(constr,dx_norm,old_constr)
+	select_arma(direction.constr, ll)
+	return mc_dict
 
 
-def select_multicoll_with_biggest_direction(constr,dx_norm,old_constr):
-	if dx_norm is None:
-		return	
-	max_dx0=[0,None,None]
-	if len(constr.collinears)==0:
-		return
+
+def select_arma(constr,ll):
 	for i in constr.collinears:
-		dx_abs0=abs(dx_norm[i])
-		if dx_abs0>max_dx0[0]:
-			assc0=constr.collinears[i]
-			max_dx0=[dx_abs0,i,assc0]
-	
-	
-	
-	mc=np.array(list(constr.collinears.keys()))
-	dx_abs=np.abs(dx_norm[mc])
-	max_dx=mc[np.argsort(dx_abs)]
-	try:
-		list(old_constr.collinears.keys())[0]
-	except:
-		assc=constr.collinears[max_dx[0]]
-		constr.delete(max_dx[0])
-		constr.add(assc,max_dx[0],'collinear')
-		return
-	for i in max_dx:
-		old_mc=np.sort(list(old_constr.collinears.keys()))
-		curr_mc=fu.copy_array_dict(constr.collinears)
-		assc=constr.constraints[i].assco_ix
-		curr_mc[assc]=i
-		if assc in curr_mc:
-			curr_mc.pop(i)
-		curr_mc=np.sort(list(curr_mc.keys()))
-		swithch=len(old_mc)!=len(curr_mc)
-		if not swithch:
-			swithch=not np.all(old_mc==curr_mc)
-		if swithch:
-			constr.delete(i)
-			constr.add(assc,i,'collinear')
-			return
-
-
-
-			
+		if constr.constraints[i].category in ['rho','lambda', 'gamma','psi']:
+			assc=constr.collinears[i]
+			if not assc in constr.fixed:
+				if abs(ll.args_v[assc])<abs(ll.args_v[i]):
+					constr.delete(i)
+					constr.add(assc,i,'collinear')
 	
 	
 			
