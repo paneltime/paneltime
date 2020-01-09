@@ -23,25 +23,26 @@ GRAPH_IMG_HEIGHT=0.85
 
 
 class window(tk.Tk):
-	def __init__(self,environment=None):
+	def __init__(self,environment):
 		tk.Tk.__init__(self)
 		self.title("Paneltime")
+		self.globals=environment
 		self.geometry('%sx%s+%s+%s' %(self.winfo_screenwidth(),self.winfo_screenheight()-75,-5,0))
 		iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
 		self.iconbitmap(iconpath)	
 		self.iconpath=iconpath
-		self.add_menu()
+		#self.add_menu()
 		self.add_panes()
 		#self.main_pane=self
 		self.main_pane.rowconfigure(0, weight=1)
-		self.main_pane.columnconfigure(0, weight=100,uniform="fred")
+		self.main_pane.columnconfigure(0, weight=80,uniform="fred")
 		self.main_pane.columnconfigure(1)
 		self.main_pane.columnconfigure(2, weight=20,uniform="fred")
 		self.add_main_frames()
 		self.add_delimiters()
-		self.output = gui_scrolltext.ScrollText(self.frm_left,2)	
+		self.output = gui_scrolltext.ScrollText(self.frm_left)
+		self.output.grid(row=2, column=0,sticky=tk.NSEW)
 		self.right_tabs=gui_right_tabs.right_tab_widget(self)
-		self.globals=environment
 		self.locals={'data_frames':self.right_tabs.data_tree.data_frames}
 		self.main_tabs=gui_main_tabs.main_tabs(self)
 		sys.stdout=stdout_redir(self.output)

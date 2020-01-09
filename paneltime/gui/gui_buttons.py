@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import tkinter as tk
+from tkinter import filedialog
 import os
 import traceback
 from multiprocessing import pool
 from gui import gui_data_objects
+from gui import gui_sql
 
 class buttons:
 	def __init__(self,win):
@@ -12,6 +14,11 @@ class buttons:
 		self.current_path=os.getcwd()
 		dirname=os.path.dirname(__file__)
 		self.isevaluating=False
+		self.sql_str="SELECT * FROM TABLE <table>"
+		self.conn_str="""conn = pymysql.connect(host='<hostname>', \n
+\t\t\tuser='<username>', 
+\t\t\tpasswd='<password>', 
+\t\t\tdb='<dbname>')	"""
 		imgs=[('run.png',self.run),
 			  ('stop.png',self.stop),
 			  ('statistics.png',self.statistics),
@@ -63,7 +70,7 @@ class buttons:
 	
 	def open(self):
 		a=0
-		filename = tk.filedialog.askopenfilename(initialdir=self.current_path,title="Open data file",
+		filename = filedialog.askopenfilename(initialdir=self.current_path,title="Open data file",
 			filetypes = (("CSV", "*.csv")
 	        ,("text", "*.txt")
 			,("All files", "*.*") ))
@@ -77,7 +84,7 @@ class buttons:
 		self.win.right_tabs.data_tree.add_df_to_tree(df,f)
 	
 	def open_sql(self):
-		pass
+		gui_sql.sql_query(self.win,self)
 	
 	def save(self):
 		pass

@@ -40,13 +40,13 @@ def load(fname,sep=None,filters=None,transforms=None,dateformat='%Y-%m-%d',load_
 	main.model_parser.modify_dataframe(dataframe,transforms,filters)
 	return dataframe
 
-def load_SQL(conn,sql_string,filters=None,transforms=None,dateformat='%Y-%m-%d',load_tmp_data=False):
+def load_SQL(conn,sql_string,filters=None,transforms=None,dateformat='%Y-%m-%d',load_tmp_data=True):
 
 	"""Loads data from an SQL server, using sql_string as query"""
-	try:
-		dataframe=main.loaddata.load_SQL(conn,sql_string,dateformat,load_tmp_data)
-	except RuntimeError as e:
-		raise RuntimeError(e)
+	#try:
+	dataframe=main.loaddata.load_SQL(conn,sql_string,dateformat,load_tmp_data)
+	#except RuntimeError as e:
+	#	raise RuntimeError(e)
 	main.model_parser.modify_dataframe(dataframe,transforms,filters)
 	return dataframe
 		

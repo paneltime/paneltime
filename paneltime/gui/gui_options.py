@@ -6,18 +6,13 @@ from gui import gui_charts
 import time
 from gui import gui_scrolltext
 import options as default_options
-
+from gui import gui_scrolltext
 NON_NUMERIC_TAG='|~|'
 font='Arial 9 '
 tags=dict()
-tags['dependent']={'fg':'#025714','bg':'#e6eaf0','font':font+'bold','short':'Y'}
-tags['independent']={'fg':'#053480','bg':'#e6eaf0','font':font+'bold','short':'X'}
-tags['time variable']={'fg':'#690580','bg':'#e6eaf0','font':font+'bold','short':'T'}
-tags['id variable']={'fg':'#910101','bg':'#e6eaf0','font':font+'bold','short':'ID'}
-tags['het.sc._factors']={'fg':'#029ea3','bg':'#e6eaf0','font':font+'bold','short':'HF'}
-unselected={'fg':'black','bg':'white','font':font,'short':''}
-#for correct sorting:
-tags_list=['dependent','independent','time variable','id variable','het.sc._factors']
+tags['option']={'fg':'#025714','bg':'#e6eaf0','font':font+'bold'}
+tags['unselected']={'fg':'black','bg':'white','font':font}
+
 
 class options(ttk.Treeview):
 		
@@ -44,13 +39,24 @@ class options(ttk.Treeview):
 		
 		xscrollbar = ttk.Scrollbar(self.canvas, orient="horizontal", command=self.xview)
 		self.configure(xscrollcommand=xscrollbar.set)
-		
+	
 		self.gridding(xscrollbar,yscrollbar)
 		self.tree_construction()
+		
 		self.binding()
 			
 		self.tabs.add(self.main_frame, text='options')      # Add the tab
-		self.tabs.grid(row=0,column=0,sticky=tk.NSEW)  # Pack to make visible	
+		self.tabs.grid(row=0,column=0,sticky=tk.NSEW)  # Pack to make visible
+		
+	def change_text(self):
+		opt=self.options.__dict__
+		def_opt=self.default_options.__dict__
+		s=''
+		for i in opt:
+			if opt[i].value!=def_opt[i].value:
+				s+=f'pt.options.{i}.set({opt[i].value})\n'
+		self.code=s
+				
 		
 	def binding(self):
 		self.bind('<Double-Button-1>',self.tree_double_click)	
@@ -61,15 +67,16 @@ class options(ttk.Treeview):
 	def tree_construction(self):
 		self["columns"]=("one","two")
 		self.column("#0", stretch=tk.YES)
-		self.column("one", width=15,stretch=tk.YES)
-		self.column("two", width=75,stretch=tk.YES)
+		self.column("one", width=50,stretch=tk.YES)
+		self.column("two", width=50,stretch=tk.YES)
 		self.heading("#0",text="Option",anchor=tk.W)
-		self.heading("one", text="",anchor=tk.W)
-		self.heading("two", text="value",anchor=tk.W)	
+		self.heading("one", text="value",anchor=tk.W)
+		self.heading("two", text="type",anchor=tk.W)	
 		self.alt_time=time.perf_counter()
-		for k in tags_list:
+		for k in tags:
 			tag_configure(self,k,tags[k])	
-		self.tree=dict()		
+		self.tree=dict()	
+		self.add_options_to_tree()
 		
 	def gridding(self,xscrollbar,yscrollbar):
 		self.rowconfigure(0,weight=1)
@@ -77,8 +84,8 @@ class options(ttk.Treeview):
 		self.tabs.rowconfigure(0,weight=1)
 		self.tabs.columnconfigure(0,weight=1)
 		
-		self.main_frame.rowconfigure(0,weight=5)
-		self.main_frame.rowconfigure(1,weight=7)
+		self.main_frame.rowconfigure(0,weight=7,uniform="fred")
+		self.main_frame.rowconfigure(1,weight=5,uniform="fred")
 		self.main_frame.columnconfigure(0,weight=1)
 		self.canvas.rowconfigure(0,weight=1)
 		self.canvas.columnconfigure(0,weight=1)		
@@ -87,7 +94,7 @@ class options(ttk.Treeview):
 		
 		self.main_frame.grid(row=0,column=0,sticky=tk.NSEW)
 		self.canvas.grid(row=0,column=0,sticky=tk.NSEW)	
-		self.opt_frame.grid(row=1,column=0,sticky=tk.NSEW)	
+		self.opt_frame.grid(row=1,column=0,sticky='nw')	
 		
 		xscrollbar.grid(row=1,column=0,sticky='ew')
 		yscrollbar.grid(row=0,column=1,sticky='ns')	
@@ -120,35 +127,19 @@ class options(ttk.Treeview):
 		if len(levels)==3:
 			parent_itm=';'.join(levels[:-1])
 			fname,j,k=levels
-			short,vtype=self.item(parent_itm)['values']
-			s=tags[k]['short']
-			if s=='Y' or s=='T' or s=='ID':
-				for i in self.tree[fname]:
-					short_i,vtype_i=self.item(i)['values']
-					if s==short_i:
-						tag_configure(self,i,unselected,('',vtype_i))
-			tag_configure(self,parent_itm,tags[k])
-			self.item(parent_itm,values=(tags[k]['short'],vtype))
+			value,vtype=self.item(parent_itm)['values']
+			self.item(parent_itm,values=(k,vtype))
 			self.item(parent_itm,open=False)
 		elif len(levels)==2:
 			i,j=levels
-			item_obj=self.item(item)
-			short,vtype=item_obj['values']
-			t=self.tag_configure(item)	
-			if item_obj['open']:
-				if t['font']!=unselected['font']:
-					tag_configure(self,item,unselected,('',vtype))
-				else:
-					self.close_all()
+			if self.item(item)['open']:
+				self.item(item,open=False)
 			else:
-				if time.perf_counter()-self.alt_time<0.1:#alt pressed
-					if short=='':
-						tag_configure(self,item,tags['independent'],('X',vtype))
-					else:
-						tag_configure(self,item,unselected,('',vtype))
-				else:
-					self.close_all()
-					self.item(item,open=True)
+				self.item(item,open=True)
+			self.hide_all_frames()
+			self.tree[i][j].grid(row=1,column=0)
+			
+
 					
 			
 	def close_all(self):
@@ -156,7 +147,7 @@ class options(ttk.Treeview):
 			for j in self.tree[i]:
 				self.item(j,open=False)
 		
-	def get_selected_df(self):
+	def get_selected(self):
 		item = self.selection()
 		if len(item)==0:
 			raise RuntimeError('No data frame dictionary is selected in the right pane, or data has not been imported')
@@ -164,46 +155,36 @@ class options(ttk.Treeview):
 		return self.data_frames[f"{fname};"]		
 		
 	def add_options_to_tree(self):
-		opt=self.options.__dict__
-		for i in opt:
+		for i in self.options.categories_srtd:
+			self.insert('', 1,f"{i};", text=i)
+			self.add_node(i,self.options.categories[i])
+			self.item(f"{i};",open=True)
+		
+	def hide_all_frames(self):
+		for i in self.tree:
+			for j in self.tree[i]:
+				self.tree[i][j].grid_remove()
+
+	def add_node(self,cat,options):
+		d=dict()
+		self.tree[cat]=d
+		for j in options:
+			if type(j.dtype)==str:
+				dtype=j.dtype
+			else:
+				dtype=j.dtype.__name__
+			self.insert(f"{cat};",2, f"{cat};{j.name}", text=j.name,values=(j.value,dtype))	
+			d[j.name]=option_frame(self.opt_frame, j)
+			self.add_options(j, cat)		
+
+	def add_options(self,option,cat):
+		if not option.selection_var:
+			return
+		for i in range(len(option.value_description)):
+			desc=option.value_description[i]
+			val= option.permissible_values[i]
+			self.insert(f"{cat};{option.name}",3, f"{cat};{option.name};{i}",values=(val,), text=desc,tags=('option',))	
 			
-		try:
-			self.insert('', 1,f"{fname};", text=fname)
-		except tk.TclError:
-			self.delete(f"{fname};")
-			self.insert('', 1,f"{fname};", text=fname)
-		self.add_node(df,fname)
-		self.tabs.select(self.main_frame)
-		self.item(f"{fname};",open=True)
-				
-	def add_node(self,df,fname):
-		a=[]
-		self.tree[fname]=a
-		for j in df:
-			nptype=np_type(j,df)
-			if nptype!='na':
-				self.insert(f"{fname};",2, f"{fname};{j}", text=j,values=('',nptype),tags=(f"{fname};{j}",))	
-				a.append(f"{fname};{j}")
-				for k in tags_list:
-					self.insert(f"{fname};{j}",3, f"{fname};{j};{k}",values=('',tags[k]['short']), text=k,tags=(k,))
-
-		
-		
-
-
-def np_type(name,df):
-	x=df[name]
-	if NON_NUMERIC_TAG in name or name=='ones':
-		return 'na'
-	non_num=name+NON_NUMERIC_TAG
-	if non_num in df:
-		x=df[non_num]
-	nptype='na'
-	t=str(type(x)).replace(' ','')[7:][:-2]
-	if t.split('.')[0]=='numpy':
-		nptype=str(x.dtype)		
-	return nptype
-
 
 def tag_configure(tree,name,d,value=None):
 	
@@ -212,3 +193,86 @@ def tag_configure(tree,name,d,value=None):
 	tree.tag_configure(name, font=d['font'])	
 	if not value is None:
 		tree.item(name,value=value)
+		
+class option_frame(tk.Frame):
+	def __init__(self, master, option):
+		tk.Frame.__init__(self,master)
+		desc=option.descr_for_vector_setting
+		if not type(option.description)==list:
+			desc+=option.description
+		self.desc=tk.Label(self,text=desc,anchor='nw',justify=tk.LEFT)
+		self.desc.grid(row=0,column=0,sticky=tk.NSEW)		
+		if option.is_inputlist:#
+			self.cntrl=tk.Frame(self)
+			for i in range(len(option.description)):
+				self.add_control_multi(option,self.cntrl,i)
+			self.cntrl.grid(row=1,column=0,sticky=tk.NSEW)
+		elif not option.selection_var:
+			self.add_control_single(option)
+			self.cntrl.grid(row=1,column=0,sticky=tk.NSEW)
+
+		
+			
+			
+	def add_control_single(self,option):		
+		if option.dtype==str:
+			self.cntrl=gui_scrolltext.ScrollText(self)
+			if not option.value is None:
+				self.cntrl.insert('1.0',option.value)
+		else:
+			self.cntrl=managed_text(self,option.dtype,option)
+			self.cntrl.text.set(option.value)
+		
+
+			
+	def add_control_multi(self,option,master,i):		
+		line=tk.Frame(self.cntrl)
+		line.columnconfigure(0,weight=1)
+		line.columnconfigure(1,weight=1)
+		self.items=dict()
+		desc=option.description[i]
+		lbl=tk.Label(line,text=desc,anchor='ne')
+		self.items[desc]=managed_text(line,option.dtype,option,i)
+		self.items[desc].text.set(str(option.value[i]))
+		self.items[desc].grid(row=0,column=2)
+		lbl.grid(row=0,column=0)
+		line.grid(row=i)
+			
+			
+		
+		
+class managed_text(tk.Entry):
+	def __init__(self, master,dtype,option,i=None):
+		self.text=tk.StringVar()
+		tk.Entry.__init__(self,master,textvariable=self.text)
+		self.dtype=dtype
+		self.bind('<Key>',self.key_down)	
+		self.bind('<FocusOut>',self.lost_focus)
+		self.option=option
+		self.i=i
+
+		
+	def key_down(self,event):
+		if event.char=='\r':
+			self.set_value()
+		
+	def lost_focus(self,event):
+		self.set_value()
+		
+		
+	def set_value(self):
+		v=self.text.get()
+		if v=='None':
+			v=None
+		elif self.option.dtype==int:
+			v=int(v)
+		elif self.option.dtype==float:
+			v=float(v)
+		ok=self.option.set(v,self.i)
+		if not ok:
+			self.configure(foreground='red')
+		else:
+			self.configure(foreground='black')
+			
+		
+		

@@ -4,6 +4,7 @@ import numpy as np
 import functions as fu
 import date_time
 from datetime import datetime
+from datetime import date
 import tempstore
 NON_NUMERIC_TAG='|~|'
 forbidden_names=['tobit_low','tobit_high','Intercept']
@@ -19,6 +20,7 @@ def load(fname,sep,dateformat,load_tmp_data):
 	print ("opening file ...")
 	data=np.loadtxt(fname,delimiter=s,skiprows=1,dtype=bytes)
 	data=data.astype(str)
+	print(data.shape)
 	print ("... done")
 	data=convert_to_numeric_dict(data,heading,dateformat)
 	tempstore.savedata(fname,data)
@@ -59,11 +61,22 @@ def load_data_printout(data):
 	
 def remove_nan(data):
 	#Todo: add functionality to delete variables that cause too many deletions
-	k0=list(data.keys())[0]
-	notnan=(np.isnan(data[k0])==0)
+	lst=list(data.keys())
+	
+	for k in lst:
+		try:
+			notnan=(np.isnan(data[k])==0)
+			break
+		except:
+			pass
 	for i in data:
 		if not NON_NUMERIC_TAG in i:
-			notnan=(notnan*(np.isnan(data[i])==0))
+			try:
+				isnan=np.isnan(data[i])
+				if not sum(isnan)>int(0.5*len(data[i])):
+					notnan=(notnan*(isnan==0))
+			except:
+				pass
 	for i in data:
 		data[i]=data[i][notnan]
 	print("%s observations removed because they were nan" %(len(notnan)-np.sum(notnan)))
@@ -113,6 +126,7 @@ def is_number(s):
 		return False
 	
 def convert_to_numeric_dict(data,names,dateformat,dtypes=None):
+	print(data)
 	N,k=data.shape
 	df=dict()
 	if dtypes is None:
@@ -134,7 +148,7 @@ def make_numeric(variable,name,df,dateformat,dtype):
 			pass
 	try:
 		try_float_int(variable, df, name)
-	except ValueError:
+	except:
 		try:
 			check_dateness(variable,df,name,dateformat)
 		except ValueError:
@@ -144,6 +158,7 @@ def make_numeric(variable,name,df,dateformat,dtype):
 def try_float_int(a,df,name):
 	a=a.astype(float)
 	try:
+		
 		if np.all(np.equal(np.mod(a, 1), 0)):
 			a=a.astype(int)
 	except:
@@ -159,15 +174,28 @@ def convert_cat_to_int(a,df,name):
 
 def check_dateness(a,df,name,dateformat):
 	n,k=a.shape
+	a[a==np.array(None)]=''
 	dts=np.unique(a)
 	d=dict()
 	lst=[]
-	for dt in dts:
-		d[dt]=(datetime.strptime(dt,dateformat)-datetime(1900,1,1)).days
-		lst.append(d[dt])
-	if np.max(lst)-np.min(lst)<3:#seconds
+	
+	if 'datetime.date' in str(type(dts[0])):
 		for dt in dts:
-			d[dt]=(datetime.strptime(dt,dateformat)-datetime(2000,1,1)).seconds	
+			d[dt]=(dt-date(1900,1,1)).days
+			lst.append(d[dt])
+	else:
+		for dt in dts:
+			d[dt]=(datetime.strptime(dt,dateformat)-datetime(1900,1,1)).days
+			lst.append(d[dt])
+	if np.max(lst)-np.min(lst)<3:#seconds
+		if 'datetime.date' in str(type(dts[0])):
+			for dt in dts:
+				d[dt]=(dt-date(2000,1,1)).seconds
+				lst.append(d[dt])
+		else:
+			for dt in dts:
+				d[dt]=(datetime.strptime(dt,dateformat)-datetime(2000,1,1)).seconds
+				lst.append(d[dt])
 	df[name]=np.array([[d[k[0]]] for k in a])
 	a=0
 

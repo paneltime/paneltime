@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+import numpy as np
 class options_item:
-	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None,descr_for_vector_setting=None,category='General'):
+	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None,descr_for_vector_setting='',category='General'):
 		"""permissible values can be a vector or a string with an inequality, 
 		where %s represents the number, for example "1>%s>0"\n
 		if permissible_values is a vector, value_description is a corresponding vector with 
@@ -16,15 +16,27 @@ class options_item:
 		self.descr_for_vector_setting=descr_for_vector_setting
 		self.category=category
 		self.name=name
+		self.selection_var= (descr_for_vector_setting=='') and type(permissible_values)==list
+		self.is_inputlist=len(self.descr_for_vector_setting)>0 and type(self.description)==list
+	
 		
-	def set(self,value):
+		
+	def set(self,value,i=None):
 		try:
-			if not valid(self, value):
-				return "Value not permissible"
+			if not self.valid(value,i):
+				return False
 		except Exception as e:
 			return e
 		self.value=value
-		return ""
+		return True
+	
+	def valid(self,value,i=None):
+		if i is None:
+			return valid(value, self.permissible_values)
+		else:
+			return valid(value, self.permissible_values[i])
+			
+
 		
 class options:
 	def __init__(self):
@@ -33,15 +45,15 @@ class options:
 								  										"Moving Average order (ARIMA, q)",
 																		"difference order (ARIMA, d)",
 								  										"Variance Moving Average order (GARCH, k)",
-																		"Variance Auto Regression order (GARCH, m)"],int, 'ARIMA-GARCH orders'
+																		"Variance Auto Regression order (GARCH, m)"],int, 'ARIMA-GARCH orders',
 								 										["%s>=0","%s>=0","%s>=0","%s>=0","%s>=0"],
 								 										descr_for_vector_setting="ARIMA-GARCH parameters",category='Regression')
 		self.group_fixed_random_eff		= options_item(2,				'Fixed, random or no group effects', str, 'Group fixed random effect',[0,1,2], 
-																		['No effects','Fixed effects','Random effects'],category='Regression')
+																		['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 		self.time_fixed_random_eff		= options_item(2,				'Fixed, random or no time effects', str, 'Time fixed random effect',[0,1,2], 
-																		['No effects','Fixed effects','Random effects'])
+																		['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 		self.variance_fixed_random_eff	= options_item(2,				'Fixed, random or no group effects for variance', str, 'Variance fixed random effects',[0,1,2], 
-																		['No effects','Fixed effects','Random effects'],category='Regression')
+																		['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 		
 		self.loadargs					= options_item(1, 				"Determines whether the arguments from the previous iteration should be kept", 
 																		int, 'Load arguments', [0,1,2],
@@ -53,36 +65,35 @@ class options:
 														  				bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
 		
 		self.h_function					= options_item(h_func,			h_descr, str,"GARCH function",category='Regression')
-		self.user_constraints			= options_item(None,			constr_str,str)
+		self.user_constraints			= options_item(None,			constr_str,str, 'User constraints')
 		
 		self.tobit_limits				= options_item([None,None],		['lower limit','upper limit'], float, 'Tobit-model limits', descr_for_vector_setting=tobit_desc)
 		
 		self.min_group_df				= options_item(5, 				"The smallest permissible degrees of freedom", int, 'Minimum degrees of freedom', "%s>0",category='Regression')
 		self.robustcov_lags_statistics	= options_item([100,30],		[robust_desc_0,robust_desc_1], int, 'Robust covariance lags (time)', ["%s>1","%s>1"], descr_for_vector_setting=robust_desc_all,category='Output')
-		self.silent						= options_item(False, 			silent_desc,  bool,'Silent mode')
-		self.description				= options_item(None, 			descr_descr, str,'Description')
+		self.silent						= options_item(False, 			silent_desc,  bool,'Silent mode',[True,False],['Silent','Not Silent'])
+		self.description				= options_item(None, 			descr_descr, 'entry','Description')
+		
+		self.make_category_tree()
+		
+		
+	def make_category_tree(self):
+		opt=self.__dict__
+		d=dict()
+		keys=np.array(list(opt.keys()))
+		keys=keys[keys.argsort()]
+		for i in opt:
+			if opt[i].category in d:
+				d[opt[i].category].append(opt[i])
+			else:
+				d[opt[i].category]=[opt[i]]
+			opt[i].code_name=i
+		self.categories=d	
+		keys=np.array(list(d.keys()))
+		self.categories_srtd=keys[keys.argsort()]
 
 
-def valid(self,value):
-	if not (self.descr_for_vector_setting is None):#vector
-		for i in range(len(value)):
-			if not valid_perm(value[i], self.permissible_values[i]):
-				return False
-	else:
-		if not valid_perm(value[i], self.permissible_values[i]):
-			return False
-	return True
 
-				
-def valid_perm(value,permissible):
-	if type(permissible)==str:
-		if not eval(permissible%(i,)):
-			return False
-	else:
-		if not value in permissible:
-			return False
-	return True
-	
 
 
 h_func="""
@@ -106,9 +117,6 @@ dh/dz,(d^2)h/dz^2\n
 
 constr_str="""
 You can add constraints in python dictonary syntax.\n
-Example:\n
-todo
-
 """
 
 tobit_desc="""
@@ -129,3 +137,12 @@ descr_descr="""
 A description of the project. 
 Used in the final output and to load the project later.\n
 default is the model_string"""
+
+
+def valid(value,permissible):
+	if type(permissible)==list or type(permissible)==tuple:
+		return value in permissible
+	elif type(permissible)==str:
+		return eval(permissible %(value,))
+	else:
+		raise RuntimeError('No method to handle this permissible')

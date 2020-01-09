@@ -8,8 +8,8 @@ font0="Courier 10"
 ret_chr=['\r','\n']
 
 class ScrollText(tk.Frame):
-	def __init__(self,window,row,readonly=False,text=None):
-		tk.Frame.__init__(self,window)
+	def __init__(self,master,readonly=False,text=None):
+		tk.Frame.__init__(self,master)
 		self.rowconfigure(0,weight=1)
 		self.columnconfigure(0,weight=1)		
 		
@@ -23,7 +23,7 @@ class ScrollText(tk.Frame):
 		xscrollbar.grid(row=1,column=0,sticky='ew')
 		yscrollbar.grid(row=0,column=1,sticky='ns')
 		
-		self.grid(row=row, column=0,sticky=tk.NSEW)
+		
 		self.text_box.grid(row=0,column=0,sticky=tk.NSEW)
 		
 		self.readonly=readonly
@@ -92,18 +92,19 @@ class CustomText(tk.Text):
 	version of the tcl code at http://wiki.tcl.tk/3246
 	'''
 	def __init__(self,master, wrap, xscrollcommand,yscrollcommand,undo):
-		
+		font='Courier'
+		size=12
 
 		tk.Text.__init__(self, master,wrap=wrap, 
 						 xscrollcommand=xscrollcommand,yscrollcommand=yscrollcommand,undo=undo)	
-		self.configure(font=('Courier',11,'normal'))
+		self.configure(font=(font,size,'normal'))
 		self.bind('<KeyRelease>', self.changed)
 		self.tag_configure('quote', foreground='dark red')
 		self.tag_configure('keyword', foreground='#0a00bf')
 		self.tag_configure('comment', foreground='#00a619')
-		self.tag_configure('definition', foreground='#46784e')
-		self.tag_configure('bold', font=('Courier',11,'bold'))
-		self.tag_configure('normal', font=('Courier',11,'normal'))
+		self.tag_configure('definition', foreground='#008a5a')
+		self.tag_configure('bold', font=(font,size,'bold'))
+		self.tag_configure('normal', font=(font,size,'normal'))
 		self.tag_configure('black', foreground='black')
 		self.define_keywords()
 		
@@ -146,13 +147,13 @@ class CustomText(tk.Text):
 			index = self.search(pattern, "matchEnd","searchLimit",
 			                    count=count, regexp=regexp)
 			if index == "": break
-			n=count.get()-subtractend-addstart
+			n=count.get()-subtractend
 			if n <= 0: break # degenerate pattern which matches zero-length strings
+			index2="%s+%sc" % (index, n)
 			if addstart>0:
-				if n<=addstart: break
 				index=f"{index}+{addstart}c"
 			self.mark_set("matchStart", index)
-			self.mark_set("matchEnd", "%s+%sc" % (index, n))
+			self.mark_set("matchEnd", index2)
 			self.tag_add(tag, "matchStart", "matchEnd")
 			if not tag2 is None:
 				self.tag_add(tag2, "matchStart", "matchEnd")
