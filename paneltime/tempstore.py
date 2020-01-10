@@ -10,7 +10,7 @@ fname_args=os.path.join(tempfile.gettempdir(),'paneltime.args')
 fname_data=os.path.join(tempfile.gettempdir(),'paneltime.data')
 fname_key=os.path.join(tempfile.gettempdir(),'paneltime.key')
 fname_temprec=os.path.join(tempfile.gettempdir(),'paneltime.temprec')
-fname_editors=os.path.join(tempfile.gettempdir(),'paneltime.editors')
+fname_window=os.path.join(tempfile.gettempdir(),'paneltime.win')
 max_sessions=20
 
 class args_archive:
@@ -61,6 +61,7 @@ class args_archive:
 def loaddata(key):
 	"""Loads data if a similar data was loaded before. """  
 	
+	key=key.replace('\n',' ').replace('\r',' ').replace('\t',' ').replace('  ',' ').replace('  ',' ')
 	current_key=load_obj(fname_key)
 	if key==current_key:
 		return load_obj(fname_data)
@@ -68,6 +69,7 @@ def loaddata(key):
 	
 def savedata(key,data):
 	"""saves data  """
+	key=key.replace('\n',' ').replace('\r',' ').replace('\t',' ').replace('  ',' ').replace('  ',' ')
 	save_obj(fname_key,key)
 	save_obj(fname_data,data)
 	

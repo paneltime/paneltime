@@ -53,7 +53,7 @@ class buttons:
 			return
 		self.run_disable()
 		self.pool = pool.ThreadPool(processes=1)
-		self.process=self.pool.apply_async(self.exec, (text,self.win.locals,self.win.globals),callback=self.run_enable)
+		self.process=self.pool.apply_async(self.exec, (text,self.win.globals,self.win.locals),callback=self.run_enable)
 		
 	
 	def stop(self):

@@ -80,17 +80,7 @@ class ScrollText(tk.Frame):
 
 
 class CustomText(tk.Text):
-	'''A text widget with a new method, highlight_pattern()
 
-	example:
-
-	text = CustomText()
-	text.tag_configure("red", foreground="#ff0000")
-	text.highlight_pattern("this should be red", "red")
-
-	The highlight_pattern method is a simplified python
-	version of the tcl code at http://wiki.tcl.tk/3246
-	'''
 	def __init__(self,master, wrap, xscrollcommand,yscrollcommand,undo):
 		font='Courier'
 		size=12
@@ -117,6 +107,9 @@ class CustomText(tk.Text):
 		
 	
 	def changed(self,event=None):
+		if not event is None:
+			if event.keycode==65 or event.keycode==17:
+				return
 		for tag in self.tag_names():
 			self.tag_remove(tag,'1.0','end')		
 		self.highlight_pattern(r"\"(.*?)\"", 'quote')		
@@ -130,11 +123,7 @@ class CustomText(tk.Text):
 		
 	def highlight_pattern(self, pattern, tag, start="1.0", end="end",
 	                      regexp=True,tag2=None,addstart=0,subtractend=0):
-		'''Apply the given tag to all text that matches the given pattern
 
-		If 'regexp' is set to True, pattern will be treated as a regular
-		expression according to Tcl's regular expression syntax.
-		'''
 
 		start = self.index(start)
 		end = self.index(end)

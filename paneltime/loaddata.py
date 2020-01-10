@@ -31,6 +31,7 @@ def load_SQL(conn,sql_string,dateformat,load_tmp_data):
 	if load_tmp_data:
 		data=tempstore.loaddata(sql_string)
 		if not data is None:
+			print('local data loaded')
 			load_data_printout(data)
 			return data
 	crsr=conn.cursor()

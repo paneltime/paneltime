@@ -13,6 +13,7 @@ import functions as fu
 from gui import gui_right_tabs
 from gui import gui_scrolltext
 from gui import gui_main_tabs
+import tempstore
 FONT_SIZE=10	
 FONT_WIDTH=FONT_SIZE*0.35	
 LINE_HEIGHT=1.54
@@ -46,7 +47,9 @@ class window(tk.Tk):
 		self.locals={'data_frames':self.right_tabs.data_tree.data_frames}
 		self.main_tabs=gui_main_tabs.main_tabs(self)
 		sys.stdout=stdout_redir(self.output)
+		sys.stderr=stdout_redir(self.output)
 		self.protocol("WM_DELETE_WINDOW", self.on_closing)
+		self.get_window_data()
 
 		
 	
@@ -170,9 +173,38 @@ class window(tk.Tk):
 		self.quit()
 		
 	def on_closing(self):
+		self.save_window_data()
 		exit()
 		
 		
+	def save_window_data(self):
+		text_dict=dict()
+		for i in self.main_tabs.text_boxes.name_to_textbox:
+			text_dict[i]=self.main_tabs.text_boxes.name_to_textbox[i].get_all()
+		data=(text_dict,
+			  self.buttons.sql_str,
+			  self.buttons.conn_str)
+		tempstore.save_obj(tempstore.fname_window,data)
+		
+	def get_window_data(self):
+		data=tempstore.load_obj(tempstore.fname_window)
+		if data is None:
+			self.main_tabs.add_editor('script').focus()
+			self.buttons.sql_str="SELECT * FROM TABLE <table>"
+			self.buttons.conn_str="""conn = pymysql.connect(host='<hostname>', \n
+\t\t\tuser='<username>', 
+\t\t\tpasswd='<password>', 
+\t\t\tdb='<dbname>')	"""
+			return
+		try:
+			(text_dict,
+			 self.buttons.sql_str,
+			 self.buttons.conn_str)=data
+			for i in text_dict:
+				self.main_tabs.add_editor(i,text_dict[i]).focus()	
+		except:
+			pass
+			
 		
 	def show_scatter(self):
 		if not hasattr(self,'panel'):

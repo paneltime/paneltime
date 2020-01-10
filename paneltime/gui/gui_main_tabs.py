@@ -3,7 +3,7 @@
 import tkinter as tk
 from tkinter import ttk
 from gui import gui_scrolltext
-import tempstore
+
 
 
 
@@ -23,24 +23,6 @@ class main_tabs:
 		self.box = gui_scrolltext.ScrollText(self.stat_tab,True)
 		self.box.grid(row=0, column=0,sticky=tk.NSEW)
 		self.box.insert('1.0','This tab is dedicated to the regression table. Use other tabs for running scripts')
-		self.add_editors()
-		
-		
-		
-	def add_editors(self):
-		text_dict=tempstore.load_obj(tempstore.fname_editors)
-		if text_dict is None:
-			self.add_editor('script').focus()
-			return
-		for i in text_dict:
-			self.add_editor(i,text_dict[i]).focus()
-			
-	def save_editors(self):
-		text_dict=dict()
-		for i in self.text_boxes.name_to_textbox:
-			text_dict[i]=self.text_boxes.name_to_textbox[i].get_all()
-		tempstore.save_obj(tempstore.fname_editors,text_dict)
-			
 				
 			
 	def main_tab_pressed(self,event):
