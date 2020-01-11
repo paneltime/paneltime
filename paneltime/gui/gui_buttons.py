@@ -14,11 +14,6 @@ class buttons:
 		self.current_path=os.getcwd()
 		dirname=os.path.dirname(__file__)
 		self.isevaluating=False
-		self.sql_str="SELECT * FROM TABLE <table>"
-		self.conn_str="""conn = pymysql.connect(host='<hostname>', \n
-\t\t\tuser='<username>', 
-\t\t\tpasswd='<password>', 
-\t\t\tdb='<dbname>')	"""
 		imgs=[('run.png',self.run),
 			  ('stop.png',self.stop),
 			  ('statistics.png',self.statistics),
@@ -44,7 +39,7 @@ class buttons:
 			self.buttons[name.replace('.png','')]=[img,btn,False]
 	
 	def run(self):
-		self.win.main_tabs.save_editors()
+		self.win.data.save()
 		if self.buttons['run'][2]:
 			return
 		try:
@@ -79,8 +74,7 @@ class buttons:
 		p,f=os.path.split(filename)
 		exe_str=f"load('{filename}')"
 		df=eval(exe_str,self.win.locals,self.win.globals)
-		self.win.right_tabs.data_tree.data_frames[f]=df
-		self.win.right_tabs.data_tree.data_frames_source[f]=exe_str
+		self.win.right_tabs.data_tree.data_frames.add(f,df,filename,exe_str)
 		self.win.right_tabs.data_tree.add_df_to_tree(df,f)
 	
 	def open_sql(self):

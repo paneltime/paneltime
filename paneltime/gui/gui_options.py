@@ -29,9 +29,6 @@ class options(ttk.Treeview):
 
 		
 		ttk.Treeview.__init__(self,self.canvas,style='new.TFrame')
-		
-		self.data_frames=dict()
-		self.data_frames_source=dict()
 		self.level__dicts=[dict(),dict(),dict()]
 		
 		yscrollbar = ttk.Scrollbar(self.canvas, orient="vertical", command=self.yview)
@@ -47,15 +44,16 @@ class options(ttk.Treeview):
 			
 		self.tabs.add(self.main_frame, text='options')      # Add the tab
 		self.tabs.grid(row=0,column=0,sticky=tk.NSEW)  # Pack to make visible
+		self.script=''
 		
-	def change_text(self):
+	def get_script(self):
 		opt=self.options.__dict__
 		def_opt=self.default_options.__dict__
 		s=''
 		for i in opt:
 			if opt[i].value!=def_opt[i].value:
 				s+=f'pt.options.{i}.set({opt[i].value})\n'
-		self.code=s
+		self.script=s
 				
 		
 	def binding(self):
@@ -138,21 +136,13 @@ class options(ttk.Treeview):
 				self.item(item,open=True)
 			self.hide_all_frames()
 			self.tree[i][j].grid(row=1,column=0)
-			
-
-					
+		self.script=self.get_script()
+		self.win.insert_script()						
 			
 	def close_all(self):
 		for i in self.tree:
 			for j in self.tree[i]:
-				self.item(j,open=False)
-		
-	def get_selected(self):
-		item = self.selection()
-		if len(item)==0:
-			raise RuntimeError('No data frame dictionary is selected in the right pane, or data has not been imported')
-		item=self.item(item[0])['text']
-		return self.data_frames[f"{fname};"]		
+				self.item(j,open=False)	
 		
 	def add_options_to_tree(self):
 		for i in self.options.categories_srtd:

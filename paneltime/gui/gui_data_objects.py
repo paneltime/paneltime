@@ -31,8 +31,7 @@ class data_objects(ttk.Treeview):
 		
 		ttk.Treeview.__init__(self,self.canvas,style='new.TFrame')
 		
-		self.data_frames=dict()
-		self.data_frames_source=dict()
+		self.data_frames=datasets()
 		self.level__dicts=[dict(),dict(),dict()]
 		
 		yscrollbar = ttk.Scrollbar(self.canvas, orient="vertical", command=self.yview)
@@ -47,6 +46,7 @@ class data_objects(ttk.Treeview):
 			
 		self.tabs.add(self.main_frame, text='data frames')      # Add the tab
 		self.tabs.grid(row=0,column=0,sticky=tk.NSEW)  # Pack to make visible	
+		self.script=''
 		
 	def binding(self):
 		self.bind('<Double-Button-1>',self.tree_double_click)	
@@ -110,44 +110,52 @@ class data_objects(ttk.Treeview):
 		if levels[1]=='':#is top level
 			return
 		if len(levels)==3:
-			parent_itm=';'.join(levels[:-1])
-			fname,j,k=levels
-			short,vtype=self.item(parent_itm)['values']
-			s=tags[k]['short']
-			if s=='Y' or s=='T' or s=='ID':
-				for i in self.tree[fname]:
-					short_i,vtype_i=self.item(i)['values']
-					if s==short_i:
-						tag_configure(self,i,unselected,('',vtype_i))
-			tag_configure(self,parent_itm,tags[k])
-			self.item(parent_itm,values=(tags[k]['short'],vtype))
-			self.item(parent_itm,open=False)
+			self.var_defined(levels)
 		elif len(levels)==2:
-			i,j=levels
-			item_obj=self.item(item)
-			short,vtype=item_obj['values']
-			t=self.tag_configure(item)	
-			if item_obj['open']:
-				if t['font']!=unselected['font']:
-					tag_configure(self,item,unselected,('',vtype))
-				else:
-					self.close_all()
-			else:
-				if time.perf_counter()-self.alt_time<0.1:#alt pressed
-					if short=='':
-						tag_configure(self,item,tags['independent'],('X',vtype))
-					else:
-						tag_configure(self,item,unselected,('',vtype))
-				else:
-					self.close_all()
-					self.item(item,open=True)
+			self.var_clicked(levels)
+		self.script=self.get_script()
+		self.win.insert_script()
 					
+	def var_clicked(self,levels):
+		i,j=levels
+		item_obj=self.item(item)
+		short,vtype=item_obj['values']
+		t=self.tag_configure(item)	
+		if item_obj['open']:
+			if t['font']!=unselected['font']:
+				tag_configure(self,item,unselected,('',vtype))
+			else:
+				self.close_all()
+		else:
+			if time.perf_counter()-self.alt_time<0.1:#alt pressed
+				if short=='':
+					tag_configure(self,item,tags['independent'],('X',vtype))
+				else:
+					tag_configure(self,item,unselected,('',vtype))
+			else:
+				self.close_all()
+				self.item(item,open=True)
+				
+	def var_defined(self,levels):
+		parent_itm=';'.join(levels[:-1])
+		fname,j,k=levels
+		short,vtype=self.item(parent_itm)['values']
+		s=tags[k]['short']
+		if s=='Y' or s=='T' or s=='ID':
+			for i in self.tree[fname]:
+				short_i,vtype_i=self.item(i)['values']
+				if s==short_i:
+					tag_configure(self,i,unselected,('',vtype_i))
+		tag_configure(self,parent_itm,tags[k])
+		self.item(parent_itm,values=(tags[k]['short'],vtype))
+		self.item(parent_itm,open=False)
+		
 	def update_editor(self):
 		tb=self.win.main_tabs.current_editor(True)
 		n=len(tb.get('1.0', 'end-1c'))
 		
 					
-	def get_model(self):
+	def get_script(self):
 		item = self.selection()
 		
 		if len(item)==0:
@@ -181,7 +189,7 @@ class data_objects(ttk.Treeview):
 		if len(item)==0:
 			raise RuntimeError('No data frame dictionary is selected in the right pane, or data has not been imported')
 		item=self.item(item[0])['text']
-		return self.data_frames[f"{fname};"]		
+		return self.data_frames.dict[f"{fname};"]		
 		
 	def add_df_to_tree(self,df,fname):
 		try:
@@ -229,3 +237,17 @@ def tag_configure(tree,name,d,value=None):
 	tree.tag_configure(name, font=d['font'])	
 	if not value is None:
 		tree.item(name,value=value)
+		
+		
+class dataset():
+	def __init__(self,data_frame,source,script):
+		self.data_frame=data_frame
+		self.source=source
+		self.script=script
+		
+class datasets():
+	def __init__(self):
+		self.dict=dict()
+	
+	def add(self,name,data_frame,source,script):
+		self.dict[name]=dataset(data_frame, source, script)

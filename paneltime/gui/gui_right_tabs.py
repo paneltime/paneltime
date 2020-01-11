@@ -16,6 +16,7 @@ class right_tab_widget:
 		self.add_chart_tab()
 		self.data_tree=gui_data_objects.data_objects(self.tabs,window)
 		self.options=gui_options.options(self.tabs,window)
+		self.sql_script=''
 		
 		
 		

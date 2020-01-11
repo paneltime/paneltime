@@ -38,10 +38,10 @@ class sql_query(tk.Toplevel):
 		
 		self.label_conn=tk.Label(self,height=2,text='Connection string:',anchor='sw',justify=tk.LEFT)
 		self.conn_str=gui_scrolltext.ScrollText(self)
-		self.conn_str.insert('1.0',parent.conn_str)
+		self.conn_str.insert('1.0',window.data.get('conn_str'))
 		self.label_sql=tk.Label(self,height=2,text='SQL query:',anchor='sw',justify=tk.LEFT)
 		self.sql_str=gui_scrolltext.ScrollText(self)
-		self.sql_str.insert('1.0',parent.sql_str)
+		self.sql_str.insert('1.0',window.data.get('sql_str'))
 		self.OK_button=tk.Button(self,height=2,text='OK',command=self.ok_pressed)
 		
 		self.name_entry.grid(row=0,column=0,sticky='ew')
@@ -51,20 +51,27 @@ class sql_query(tk.Toplevel):
 		self.sql_str.grid(row=4,column=0,sticky=tk.NSEW)
 		self.OK_button.grid(row=5,column=0,sticky=tk.NSEW)
 		
+		self.transient(master) #set to be on top of the main window
+		self.grab_set() #hijack all commands from the master (clicks on the main window are ignored)	
+
+		
 		
 		
 	def ok_pressed(self,event=None):
-		self.parent.sql_str=self.sql_str.get_all()
-		self.parent.conn_str=self.conn_str.get_all()
-		exe_str=self.conn_str.get_all()
-		exec(exe_str,self.win.globals,self.win.locals)
-		exe_str=f"""df=load_SQL(conn,"\"\"{self.sql_str.get_all()}"\"\")"""
-		#df=paneltime.load_SQL(self.win.locals['conn'],"""SELECT * FROM  ose.equity where `Date`>'2019-01-01' """)		
-		exec(exe_str,self.win.globals,self.win.locals)
+		self.win.data.dict['sql_str']=self.sql_str.get_all()
+		self.win.data.dict['conn_str']=self.conn_str.get_all()
+		#exec(self.win.data.dict['conn_str'],
+		#	 self.win.globals,self.win.locals)
+		exec('conn=None',self.win.globals,self.win.locals)
+		#df=paneltime.load_SQL(self.win.locals['conn'],"""SELECT * FROM  ose.equity where `Date`>'2019-01-01' """)	
+		exe_str=f"""df=load_SQL(conn,"\"\"{self.win.data.dict['sql_str']}"\"\")"""
+		exec(exe_str, self.win.globals,self.win.locals)
 		df=self.win.locals['df']
 		f=self.name_txt.get()
-		self.win.right_tabs.data_tree.data_frames[f]=df
-		self.win.right_tabs.data_tree.data_frames_source[f]=exe_str
+		self.win.right_tabs.data_tree.data_frames.add(f,df,exe_str,f"{self.win.data.dict['conn_str']}\n{exe_str}")
 		self.win.right_tabs.data_tree.add_df_to_tree(df,f)
+		self.win.insert_script()
 		self.withdraw()
+			
+		
 		

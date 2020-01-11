@@ -48,9 +48,11 @@ class ScrollText(tk.Frame):
 		if self.readonly:
 			self.text_box.configure(state='disabled')
 
-	def insert(self,index1,chars):
+	def insert(self,index1,chars,index2=None):
 		if self.readonly:
 			self.text_box.configure(state='normal')
+		if not index2 is None:
+			self.text_box.delete(index1, index2)
 		self.text_box.insert(index1,chars)
 		if self.readonly:
 			self.text_box.configure(state='disabled')
@@ -125,6 +127,17 @@ class CustomText(tk.Text):
 	                      regexp=True,tag2=None,addstart=0,subtractend=0):
 
 
+		index,index2=self.search(pattern, start=start, end=end, regexp, addstart, subtractend)
+		self.mark_set("matchStart", index)
+		self.mark_set("matchEnd", index2)
+		self.tag_add(tag, "matchStart", "matchEnd")
+		if not tag2 is None:
+			self.tag_add(tag2, "matchStart", "matchEnd")		
+			
+	def search(self, pattern, start="1.0", end="end",
+	                      regexp=True,addstart=0,subtractend=0):
+
+
 		start = self.index(start)
 		end = self.index(end)
 		self.mark_set("matchStart", start)
@@ -141,11 +154,9 @@ class CustomText(tk.Text):
 			index2="%s+%sc" % (index, n)
 			if addstart>0:
 				index=f"{index}+{addstart}c"
-			self.mark_set("matchStart", index)
-			self.mark_set("matchEnd", index2)
-			self.tag_add(tag, "matchStart", "matchEnd")
-			if not tag2 is None:
-				self.tag_add(tag2, "matchStart", "matchEnd")
+				
+			return index,index2
+
 			
-			
+		
 			

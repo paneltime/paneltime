@@ -23,6 +23,11 @@ class main_tabs:
 		self.box = gui_scrolltext.ScrollText(self.stat_tab,True)
 		self.box.grid(row=0, column=0,sticky=tk.NSEW)
 		self.box.insert('1.0','This tab is dedicated to the regression table. Use other tabs for running scripts')
+		try:
+			for i in window.data.get('editor_data'):
+				self.add_editor(i,window.data.get('editor_data')[i]).focus()	
+		except:
+			self.add_editor('script').focus()		
 				
 			
 	def main_tab_pressed(self,event):
