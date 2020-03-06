@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import tkinter as tk
+from tkinter import ttk
+from tkinter import ttk
 from multiprocessing import pool
 
 import numpy as np
@@ -11,45 +13,45 @@ from matplotlib import pyplot  as plt
 from gui import gui_functions as guif
 
 
-class process_charts():
-	def __init__(self,window,frame):
+class process_charts(ttk.Frame):
+	def __init__(self,window,master):
+		style = ttk.Style()
+		style.configure("TFrame", background='white')		
+		ttk.Frame.__init__(self,master,style='new.TFrame')
 		self.window=window
 		self.subplot=plt.subplots(1,figsize=(4,2.5),dpi=75)
 		self.print_subplot=plt.subplots(1,figsize=(6,3.25),dpi=200)
 		self.ll=None	
-		self.frame=frame
 		self.initialized=False
 		
 	def add_content(self):
-		self.btn_stats		=	guif.setbutton(self.frame, 'Display normality and AC statistics', self.show_stats,bg='white')
-		self.btn_stats.config(relief=tk.SUNKEN)		
-		self.statistics= tk.StringVar()
-		tk.Label(self.frame,textvariable=self.statistics,bg='white',anchor=tk.NW,justify=tk.LEFT).grid(row=0,column=0)		
-		tk.Label(self.frame,text='Charts on normalized residuals',bg='white').grid(row=1,column=0)			
-
-		
 		self.n_charts=3
+		self.columnconfigure(0,weight=1)
+		for i in range(self.n_charts+1):
+			self.rowconfigure(i,weight=1)
+			
+
+		tk.Label(self,text='Charts on normalized residuals:',bg='white',font='Tahoma 10 bold').grid(row=0,column=0)			
+
 		self.charts=[]
 		for i in range(self.n_charts):
-			self.charts.append(tk.Label(self.frame))
-			self.charts[i].grid(row=i*2+2,column=0)		
-			guif.setbutton(self.frame, 'Save image', lambda: self.save(self.n_charts-i-1),bg='white').grid(row=i*2+3,column=0)
-			
-			
-	def show_stats(self):
+			frm=tk.Frame(self,background='white')
+			frm.rowconfigure(0,weight=1)
+			frm.rowconfigure(1)
+			frm.columnconfigure(0,weight=1)
+			self.charts.append(tk.Label(frm,background='white'))
+			self.charts[i].grid(row=0,column=0)	
+			guif.setbutton(frm, 'Save image', lambda: self.save(self.n_charts-i-1),bg='white').grid(row=1,column=0)
+			frm.grid(row=i+1)
 		
-		if self.btn_stats.cget('relief')==tk.RAISED:
-			self.btn_stats.config(relief=tk.SUNKEN)
-		else:
-			self.btn_stats.config(relief=tk.RAISED)	
-		
-	def save(self,event):
-		i=event.widget.i
+	def save(self,i):
 		if not hasattr(self.charts[i],'graph_file') or not hasattr(self,'panel'):
 			print('No graphics displayed yet')
 			return
-		name=event.widget.name
+		name=self.charts[i].name
 		f = tk.filedialog.asksaveasfile(mode='bw', defaultextension=".jpg",initialfile=f"{name}.jpg")		
+		if f is None:
+			return
 		flst=[
 			self.histogram,
 			self.correlogram,
@@ -58,13 +60,13 @@ class process_charts():
 		flst[i](self.ll,self.print_subplot,f)
 		f.close()
 		
-	def initialize(self):
+	def initialize(self,panel):
 		if not self.initialized:
+			self.panel=panel
 			self.add_content()
 			self.initialized=True		
 		
 	def plot(self,ll):
-		self.panel=self.window.panel
 		self.ll=ll
 		self.histogram(ll,self.subplot)
 		self.correlogram(ll,self.subplot)
@@ -88,7 +90,7 @@ class process_charts():
 		name='Histogram - frequency'
 		axs.set_title(name)
 		if f is None:
-			guif.display(self.panel, self.charts[0],name,0,subplot,self.save)
+			guif.display(self.panel, self.charts[0],name,0,subplot)
 		else:
 			guif.save(subplot,f)
 
@@ -101,7 +103,7 @@ class process_charts():
 		name='Correlogram - residuals'
 		axs.set_title(name)
 		if f is None:
-			guif.display(self.panel, self.charts[1],name,1,subplot,self.save)
+			guif.display(self.panel, self.charts[1],name,1,subplot)
 		else:
 			guif.save(subplot,f)
 		
@@ -116,7 +118,7 @@ class process_charts():
 		name='Correlogram - squared residuals'
 		axs.set_title(name)
 		if f is None:
-			guif.display(self.panel, self.charts[2],name,2,subplot,self.save)
+			guif.display(self.panel, self.charts[2],name,2,subplot)
 		else:
 			guif.save(subplot,f)
 	

@@ -9,9 +9,10 @@ import sys
 
 
 class direction:
-	def __init__(self,panel,mp):
-		self.gradient=calculus.gradient(panel)
-		self.hessian=calculus.hessian(panel,self.gradient)
+	def __init__(self,panel,mp,tab):
+		self.progress_bar=tab.progress_bar.set_progress
+		self.gradient=calculus.gradient(panel,self.progress_bar)
+		self.hessian=calculus.hessian(panel,self.gradient,self.progress_bar)
 		self.panel=panel
 		self.constr=None
 		self.hessian_num=None
@@ -24,7 +25,7 @@ class direction:
 		self.H=None
 		self.G=None
 		self.g=None
-		self.collinears=[]
+		self.weak_mc_dict=[]
 
 
 	def get(self,ll,its,newton_failed):
@@ -35,13 +36,10 @@ class direction:
 		
 		self.constr=cnstr.constraints(self.panel,ll.args_v)
 		cnstr.add_static_constraints(self.constr,self.panel,ll,its)			
-
 		self.calc_gradient(ll)
 		self.calc_hessian(ll,its)
 		
-		self.dx=solve(self.constr,self.H, self.g, ll.args_v)
-		self.dx_norm=self.normalize(self.dx, ll.args_v)
-		self.collinears=cnstr.add_dynamic_constraints(ll,self,newton_failed)	
+		self.weak_mc_dict=cnstr.add_dynamic_constraints(ll,self,newton_failed)	
 		self.CI=self.constr.CI
 		
 		self.dx=solve(self.constr,self.H, self.g, ll.args_v)
@@ -64,7 +62,8 @@ class direction:
 
 	def calc_gradient(self,ll):
 		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
-		dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)		
+		dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)	
+		dLL_lnv*=ll.dlnv_pos
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
 			
 		self.g,self.G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)	
@@ -109,7 +108,9 @@ class direction:
 		ll=self.ll
 		d2LL_de2=-ll.v_inv*self.panel.included
 		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included
+		d2LL_dln_de*=ll.dlnv_pos
 		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included	
+		d2LL_dln2*=ll.dlnv_pos
 		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		self.H=self.hessian.get(ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 		

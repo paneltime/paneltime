@@ -81,10 +81,11 @@ class LL:
 		#self.lnv0=lnv*1#debug
 		grp = self.variance_RE(e_REsq)
 		lnv+=grp
+		self.dlnv_pos=(lnv<100)*(lnv>-100)
 		lnv = np.maximum(np.minimum(lnv,100),-100)
 		v = np.exp(lnv)*panel.a
 		v_inv = np.exp(-lnv)*panel.a	
-
+		
 		LL = self.LL_const-0.5*(lnv+(e_REsq)*v_inv)
 		#self.LL_array=LL#debug
 		self.add_variables(matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,e_REsq,v_inv)

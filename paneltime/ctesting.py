@@ -12,4 +12,3 @@ lambda_=numpy.array([0.5,0.2,-0.3])
 
 import cfunctions as c
 bbb=c.bandinverse(gamma,lambda_,1500)
-print (data)

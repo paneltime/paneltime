@@ -127,7 +127,7 @@ def adf_test(panel,ll,p):
 	X[:,0:panel.lost_obs+10]=0
 	keep,c_ix=singular_elim(panel,X)
 	if not np.all(keep[0:3]):
-		return 'NA'
+		return 'NA','NA','NA'
 	beta,se=OLS(panel,X[:,:,keep],dy,return_se=True,c=date_var)
 	adf_stat=beta[2]/se[2]
 	critval=adf_crit_values(panel.NT,True)
@@ -160,7 +160,6 @@ def goodness_of_fit(panel,ll):
 def breusch_godfrey_test(panel,ll, lags):
 	"""returns the probability that err_vec are not auto correlated""" 
 	e=ll.e_st_centered
-	ll.standardize()
 	X=ll.X_st
 	N,T,k=X.shape
 	X_u=X[:,lags:T]
@@ -336,6 +335,10 @@ def newey_west_wghts(panel,L,XErr):
 	"""Calculates the Newey-West autocorrelation consistent weighting matrix. Either err_vec or XErr is required"""
 	N,T,k=XErr.shape
 	S=np.zeros((k,k))
+	try:
+		a=min(L,T)
+	except:
+		a=0
 	for i in range(1,min(L,T)):
 		w=1-(i+1)/(L)
 		XX=cf.dot(XErr[:,i:],XErr[:,0:T-i])

@@ -12,7 +12,7 @@ def add_static_constraints(constr,panel,ll,its):
 	
 	add_custom_constraints(constr,panel.settings.user_constraints.value,ll)
 	general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
-	#add_custom_constraints(constr,general_constraints,ll)
+	add_custom_constraints(constr,general_constraints,ll)
 	p,q,d,k,m=panel.pqdkm
 	
 	if panel.m_zero:
@@ -29,23 +29,24 @@ def add_static_constraints(constr,panel,ll,its):
 	
 def add_dynamic_constraints(ll, direction,newton_failed):
 
-	mc_dict=remove_all_multicoll(direction,ll,newton_failed)
+	weak_mc_dict=remove_all_multicoll(direction,ll,newton_failed)
 	remove_singularities(direction.constr, direction.H)
-	return mc_dict
+	return weak_mc_dict
 
 
 	
 def remove_singularities(constr,hessian):
-	n=len(hessian)
 	habs=np.abs(hessian)
-	m=np.max(habs)
-	h_temp=np.array(hessian)
+	sing_problems=[]
 	try:
-		a=np.linalg.det(h_temp)
+		a=np.linalg.det(hessian)
+		if a>0:
+			return sing_problems
 	except:
-		for i in np.nonzero(np.abs(np.diag(h_temp))>1e+100)[0]:
-			constr.add(i,None,'singularity')
-
+		for i in np.nonzero(np.diag(habs)>1e+100)[0]:
+			constr.add(i,None,'singularity (extreeme value in diagonal)')
+	for i in np.nonzero(np.diag(hessian)==0)[0]:
+		constr.add(i,None,'singularity (zero in diagonal)')
 		
 
 def add_custom_constraints(constr,constraints,ll):
@@ -325,7 +326,7 @@ def var_prop_check(panel,var_prop_ix,var_prop_val,includemap,assc,mc_problems,co
 		mc_problems.append([index,assc,cond_index])
 		return False
 		
-def add_mc_constraint(direction,mc_problems,mc_dict,newton_failed):
+def add_mc_constraint(direction,mc_problems,weak_mc_dict,newton_failed):
 	"""Adds constraints for severe MC problems"""
 	constr=direction.constr
 	if newton_failed:
@@ -338,8 +339,8 @@ def add_mc_constraint(direction,mc_problems,mc_dict,newton_failed):
 	a=np.argsort(a[:,2])[::-1]
 	for i in a:
 		index,assc,cond_index=mc_problems[i]
-		if (not index in mc_dict) and cond_index>SMALL_COLLINEARITY:
-			mc_dict[index]=[assc,cond_index]#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix.	
+		if (not index in weak_mc_dict) and (cond_index>SMALL_COLLINEARITY) and (cond_index<=MAX_COLLINEARITY):
+			weak_mc_dict[index]=[assc,cond_index]#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix.	
 		if not ((index in constr.associates) or (index in constr.collinears)) and cond_index>limit:
 			constr.add(index,assc,'collinear')
 			return True
@@ -349,14 +350,14 @@ def add_mc_constraint(direction,mc_problems,mc_dict,newton_failed):
 def remove_all_multicoll(direction,ll,newton_failed):
 	H=direction.H
 	k,k=H.shape
-	mc_dict=dict()
+	weak_mc_dict=dict()
 	for i in range(k):
 		mc_problems=multicoll_problems(direction)
-		remvd=add_mc_constraint(direction,mc_problems,mc_dict,newton_failed)
+		remvd=add_mc_constraint(direction,mc_problems,weak_mc_dict,newton_failed)
 		if not remvd:
 			break
 	select_arma(direction.constr, ll)
-	return mc_dict
+	return weak_mc_dict
 
 
 

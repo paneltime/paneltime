@@ -11,8 +11,9 @@ import loglikelihood as logl
 
 class gradient:
 	
-	def __init__(self,panel):
+	def __init__(self,panel,progress_bar):
 		self.panel=panel
+		self.progress_bar=progress_bar
 		
 	def arima_grad(self,k,x,sign=1,pre=None):
 		if k==0:
@@ -55,6 +56,7 @@ class gradient:
 			return groupeffect,None,dvRE_dx,d_input
 
 	def get(self,ll,DLL_e=None,dLL_lnv=None,return_G=False):
+		if not self.progress_bar(0.05,'Calculating the gradient'):return
 		(self.DLL_e, self.dLL_lnv)=(DLL_e, dLL_lnv)
 		panel=self.panel
 		re_obj_i,re_obj_t=ll.re_obj_i,ll.re_obj_t
@@ -64,6 +66,7 @@ class gradient:
 		if DLL_e is None:
 			DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
 			dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)	
+			dLL_lnv*=ll.dlnv_pos
 		#ARIMA:
 		de_rho=self.arima_grad(p,u,-1,ll.AMA_1)
 		de_lambda=self.arima_grad(q,e,-1,ll.AMA_1)
@@ -125,6 +128,7 @@ class gradient:
 		#print(gn)
 		#a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
 		#dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
+		if not self.progress_bar(0.08,'Calculating the hessian'):return
 		if return_G:
 			return  g,G
 		else:
@@ -132,11 +136,12 @@ class gradient:
 
 
 class hessian:
-	def __init__(self,panel,g):
+	def __init__(self,panel,g,progress_bar):
 		self.panel=panel
 		self.its=0
 		self.sec_deriv=self.set_mp_strings()
 		self.g=g
+		self.progress_bar=progress_bar
 		
 	
 	def get(self,ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
@@ -267,9 +272,15 @@ class hessian:
 	def second_derivatives_mp(self,ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2):
 		panel=self.panel
 		g=self.g
-		mp.send_dict_by_file({'ll':ll_light(ll),'g':g_obj_light(g)})	
-		d,t=mp.execute(self.evalstr,True)
-		print(np.round(t,5))
+		
+		NT,k=self.panel.NT,self.panel.args.n_args
+		use_mp= (NT*(k**0.5)>200000 and os.cpu_count()>=2) 
+		d={'ll':ll_light(ll),'g':g_obj_light(g)}
+		#if use_mp:
+		mp.send_dict_by_file(d)	
+		progress_bar=[self.progress_bar,0.1,0.9,'Calculating the hessian']
+		t_1=time.perf_counter()
+		d,t=mp.execute(self.evalstr,True,progress_bar=progress_bar)
 		d['d2LL_de2']=d2LL_de2
 		d['d2LL_dln_de']=d2LL_dln_de
 		d['d2LL_dln2']=d2LL_dln2
@@ -416,6 +427,9 @@ H= [[D2LL_beta2,			D2LL_beta_rho,		D2LL_beta_lambda,		D2LL_beta_gamma,	D2LL_beta
 		H=cf.concat_matrix(H)
 		if np.any(np.isnan(H)):
 			return None
+		a=False
+		if a==True:
+			Hn=debug.hess_debug(ll,panel,self.g,0.000000001)#debugging
 		#for debugging:
 		#Hn=debug.hess_debug(ll,panel,self.g,0.000000001)#debugging
 		#H_debug=hessian(self, ll)

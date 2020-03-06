@@ -5,20 +5,18 @@ from tkinter import filedialog
 import os
 import traceback
 from multiprocessing import pool
-from gui import gui_data_objects
 from gui import gui_sql
 
 class buttons:
 	def __init__(self,win):
 		self.win=win
-		self.current_path=os.getcwd()
 		dirname=os.path.dirname(__file__)
 		self.isevaluating=False
 		imgs=[('run.png',self.run),
 			  ('stop.png',self.stop),
 			  ('statistics.png',self.statistics),
-			  ('open.png',self.open),
-			  ('open_sql.png',self.open_sql),
+			  ('open_data.png',self.open),
+			  ('open_data_sql.png',self.open_sql),
 			  ('save.png',self.save),
 			  ('save_as.png',self.save_as)]
 		self.buttons={}
@@ -26,8 +24,7 @@ class buttons:
 			name,action=imgs[i]
 			short_name=name.replace('.png','')
 			img = tk.PhotoImage(file =  os.path.join(dirname,'img',name),name=short_name)
-			img.name
-			b=tk.Button(win.button_pane,text='hi', image = img,command=action, highlightthickness=0,bd=0,width=40)
+			b=tk.Button(win.button_pane, image = img,command=action, highlightthickness=0,bd=0,width=40)
 			b.grid(row=0,column=i,sticky=tk.W)
 			self.buttons[short_name]=[img,b,True]
 		imgs=[['run_disabled.png',self.buttons['run'][1]],
@@ -37,48 +34,46 @@ class buttons:
 		for name,btn in imgs:#adding disabled-buttons
 			img=tk.PhotoImage(file =  os.path.join(dirname,'img',name),name=name.replace('.png',''))
 			self.buttons[name.replace('.png','')]=[img,btn,False]
+		self.gui_sql=None
 	
 	def run(self):
 		self.win.data.save()
-		if self.buttons['run'][2]:
+		if not self.buttons['run'][2] and False:
 			return
 		try:
 			text=self.win.main_tabs.selected_tab_text()
+			text.replace('start()','')
 		except:
 			return
 		self.run_disable()
 		self.pool = pool.ThreadPool(processes=1)
-		self.process=self.pool.apply_async(self.exec, (text,self.win.globals,self.win.locals),callback=self.run_enable)
+		self.process=self.pool.apply_async(self.win.exec, (text,),callback=self.run_enable)
+		self.win.right_tabs.tabs.select(self.win.right_tabs.chart_tab)
 		
 	
 	def stop(self):
-		self.pool.terminate()
-	
-	def exec(self,text,glbl,lcl):
-		try:
-			exec(text,glbl,lcl)
-		except Exception as e:
-			traceback.print_exc()
+		self.pool.close()
 		
 	def statistics(self):
 		pass
 	
 	def open(self):
-		a=0
-		filename = filedialog.askopenfilename(initialdir=self.current_path,title="Open data file",
+		p=self.win.data['current path']
+		filename = filedialog.askopenfilename(initialdir=p,title="Open data file",
 			filetypes = (("CSV", "*.csv")
 	        ,("text", "*.txt")
 			,("All files", "*.*") ))
 		if not filename: 
 			return
 		p,f=os.path.split(filename)
+		self.win.data['current path']=p
 		exe_str=f"load('{filename}')"
-		df=eval(exe_str,self.win.locals,self.win.globals)
-		self.win.right_tabs.data_tree.data_frames.add(f,df,filename,exe_str)
-		self.win.right_tabs.data_tree.add_df_to_tree(df,f)
+		df=self.win.eval(exe_str)
+		tree=self.win.right_tabs.data_tree
+		tree.datasets.add(tree,f,df,filename,'df='+exe_str,self.win.main_tabs)
+
 	
-	def open_sql(self):
-		gui_sql.sql_query(self.win,self)
+
 	
 	def save(self):
 		pass

@@ -73,7 +73,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			s.send('holdbacks',key_arr)
 			res=s.receive()
 
-	def send_tasks(self,tasks,remote=False,timer=False):
+	def send_tasks(self,tasks,remote=False,timer=False,progress_bar=None):
 		"""tasks is a list of (strign,id) tuples with string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves
 		if remote=True, the list must be a list of tuples, where the first itmes is the expression and the second is the variable that should be returned"""
 		tasks=list(tasks)
@@ -108,6 +108,9 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 				sent+=1
 			if sent>=n and got>=n:
 				break
+			if not progress_bar is None:
+				pb_func,pb_min,pb_max,text=progress_bar			
+				pb_func(pb_min+(pb_max-pb_min)*got/n,text)
 		d=get_slave_dicts(d_arr)
 		if timer:
 			return d,t_arr
@@ -115,7 +118,11 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 	
 	def quit(self):
 		for i in self.slaves:
-			i.kill()
+			i.p.stdout.close()
+			i.p.stderr.close()
+			i.p.stdin.close()
+			i.p.kill()
+			i.p.wait()
 
 def get_slave_dicts(d_arr):
 
@@ -207,10 +214,10 @@ class multiprocess:
 
 
 
-	def execute(self,expr,timer=False):
+	def execute(self,expr,timer=False,progress_bar=None):
 		"""For submitting multiple functionsargs is an array of argument arrays where the first element in each 
 		argument array is the function to be evaluated"""
-		d=self.master.send_tasks(expr,timer=timer)
+		d=self.master.send_tasks(expr,timer=timer,progress_bar=progress_bar)
 		if timer:
 			d,t=d
 		for i in d:

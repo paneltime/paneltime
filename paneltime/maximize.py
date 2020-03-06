@@ -5,6 +5,7 @@ import numpy as np
 import stat_functions as stat
 import loglikelihood as logl
 import output
+import sys
 from tkinter import _tkinter
 
 
@@ -30,6 +31,7 @@ def lnsrch(ll, direction,mp):
 	
 
 def lnsrch_single(args, dx,panel,constr,rmsg,f0=None):
+	#not in use, will be removed
 	d=dict()
 	if f0 is None:
 		f0=logl.LL(args, panel,constr)
@@ -59,14 +61,14 @@ def lnsrch_single(args, dx,panel,constr,rmsg,f0=None):
 		lmda=min((lambda_pred,lmda))
 	f_max=max(d.keys())
 	if f_max>f0.LL:#the function has  increased
-		return d[f_max][0],rmsg + 'Linesearch success',d[f_max][1],False
+		return d[f_max][0],rmsg + f"Linesearch success ({round(lmbda,4)} of Newton step)",d[f_max][1],False
 	for j in range(1,12):
 		s=(0.5**j)
 		lm=lmda*s
 		ll=logl.LL(f0.args_v+lm*dx,panel,constr) 
 		if not ll.LL is None:
 			if ll.LL>f0.LL:
-				return ll, rmsg+"Newton step in linesearch to big, found an increment at %s of Newton step" %(s,),lm,True
+				return ll, rmsg+f"Newton step {round(lmbda,4)} to big, found an increment at {lm} of Newton step",lm,True
 
 	return f0,rmsg+'No increase in linesearch',0,False
 		
@@ -90,8 +92,7 @@ def lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0):
 	mp.send_dict_by_file({'constr':constr})
 	start=0
 	end=1.5
-	msg='Linesearch success'
-	newton_failed=False
+	msg=''
 	for i in range(4):
 		delta=(end-start)/(mp.master.cpu_count-1)
 		res=get_likelihoods(args, dx, panel, constr, mp,delta,start)
@@ -102,25 +103,26 @@ def lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0):
 			end=delta
 		else:
 			if i>0:
-				msg=f'Found increment at {res[0,2]} of Newton step'
+				msg=f'Found increment at {round(res[0,2],4)} of Newton step'
 			break
 	if i>0:
 		res=np.append([res0],res,0)#ensuring the original is in the LL set
 		srt=np.argsort(res[:,0])[::-1]
 		res=res[srt]
 	if LL0>res[0,0]:
-		raise RuntimeWarning('Best linsearch is poorer than the starting point')
+		raise RuntimeWarning('Best linsearch is poorer than the starting point. You may have discovered a bug, please notify espen.sirnes@uit.no')
 	try:
 		lmda=solve_square_func(res[0,0], res[0,2],res[1,0], res[1,2],res[2,0], res[2,2],res[0,2])
 		ll=logl.LL(args+lmda*dx,panel,constr)
 		if ll.LL<res[0,0]:
-			newton_failed=True
-			raise RuntimeError('Somethong wrong with ll')
+			raise RuntimeError('Something wrong with ll. You may have discovered a bug, please notify espen.sirnes@uit.no')
 	except:
 		ll, lmda = mp.remote_recieve(f'f{res[0,1]}',res[0,1]), res[0,2]
 	if lmda==0:
-		return ll,rmsg+'No increase in linesearch',0,True
-	return ll,rmsg+msg,lmda,newton_failed
+		return ll,rmsg+'No increase in linesearch',0,False
+	if msg=='':
+		msg=f"Linesearch success ({round(lmda,6)} of Newton step)"
+	return ll,rmsg+msg,lmda,True
 
 				
 def get_likelihoods(args, dx,panel,constr,mp,delta,start):
@@ -155,7 +157,7 @@ except:
 
 	
 	
-def maximize(panel,direction,mp,args,window):
+def maximize(panel,direction,mp,args,tab):
 	"""Maxmizes logl.LL"""
 
 	its, convergence_limit	= 0, 0.01
@@ -165,50 +167,34 @@ def maximize(panel,direction,mp,args,window):
 	direction.hessin_num, ll= None, None
 	args_archive			= panel.input.args_archive
 	ll=direction.init_ll(args)
-	po=printout(window,panel)
-	po.printout(ll,'',its,direction,True,incr,lmbda)
-	while 1:  	
+	po=printout(tab,panel)
+	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po):return ll,direction,po
+	while 1:
 		direction.get(ll,its,newton_failed)
 		LL0=ll.LL
 			
 		#Convergence test:
 		constr_conv=np.max(np.abs(direction.dx_norm))<convergence_limit
 		unconstr_conv=np.max(np.abs(direction.dx_unconstr)) < convergence_limit 
-		m=(m+1)*constr_conv
-		if m>1 and (not unconstr_conv):
-			newton_failed=not newton_failed
-		conv=unconstr_conv or (m>1 and k>1)
+		conv=constr_conv or (unconstr_conv and its>3)
 		args_archive.save(ll.args_d,conv,panel.pqdkm)
-		if conv:  #max direction smaller than convergence_limit -> covergence
-			#if m==3:
-			if _print: print("Convergence on zero gradient; maximum identified")
-			po.printout(ll, "Convergence on zero gradient; maximum identified", its+1,direction,False,incr,lmbda)
+		if conv: 
+			printout_func(1.0,"Convergence on zero gradient; maximum identified",ll,its,direction,incr,po)
 			return ll,direction,po
-			#m+=1
-			#precise_hessian=precise_hessian==False
 
-		
-		po.printout(ll,'Linesearch', its+1,direction,False,incr,lmbda)
-		ll,msg,lmbda,newton_failed=lnsrch(ll,direction,mp) 
+		if not printout_func(0.95,"Linesearch",ll,its,direction,incr,po):return ll,direction,po
+		ll,msg,lmbda,ok=lnsrch(ll,direction,mp) 
+		if not printout_func(1.0,msg,ll,its,direction,incr,po):return ll,direction,po
+
+
 		incr=ll.LL-LL0
-		po.printout(ll, msg,its+1,direction,True,incr,lmbda)
-		
-
-		
-
-		if round_sign(ll.LL,digits_precision)<=round_sign(LL0,digits_precision):#happens when the functions has not increased
-			if k>10:
-				print("Unable to reach convergence")
-				return ll,direction,po			
-			k+=1
-		else:
-			k=0
 
 		its+=1
 		
-
-	
-	
+def printout_func(percent,msg,ll,its,direction,incr,po):
+	po.printout(ll,its+1,direction,True,incr)	
+	return direction.progress_bar(percent,msg)
+		
 	
 def round_sign(x,n):
 	"""rounds to n significant digits"""
@@ -221,53 +207,39 @@ def impose_OLS(ll,args_d,panel):
 	args_d['beta'][:]=beta
 	
 class printout:
-	def __init__(self,window,panel,_print=True):
+	def __init__(self,tab,panel,_print=True):
 		self._print=_print
-		self.window=window
-		if window is None:
+		self.tab=tab
+		if tab is None:
 			return
 		self.panel=panel
-		self.window.panel=panel
-		self.window.settingsmenu.entryconfig(3,state='normal')	
-		self.window.settingsmenu.entryconfig(4,state='normal')	
 		
-	def printout(self,ll,msg, its, direction, display_statistics,incr,lmbda):
-		if self.window is None and self._print:
+	def printout(self,ll, its, direction, display_statistics,incr):
+		if self.tab is None and self._print:
 			print(ll.LL)
 			return
 		if not self._print:
 			return
-		self.window.ll=ll
+		#self.tab.ll=ll
 		self.displaystats(display_statistics,ll)
 				
-		l=10
-			#python variable name,	lenght,	not string,	 display name,	  		neg. values,	justification	col space
-		pr=[['names',		'namelen',		False,	'Variable names',			False,		'right', 		''],
-				['args',		l,			True,	'Coef',						True,		'right', 		'  '],
-				['dx_norm',	    l,			True,	'direction',				True,		'right', 		'  '],
-				['se_robust',	l,			True,	'SE(robust)',				True,		'right', 		'  '],
-				['tstat',		l,			True,	't-stat.',					True,		'right', 		'  '],
-				['tsign',		l,			True,	'significance',				False,		'right', 		'  '],
-				['sign_codes',	5,			False,	'',						False,		'right', 		'  '],
-				['assco',		20,			False,	'collinear with',			False,		'center', 		'  '],
-				['set_to',		6,			False,	'value',					False,		'center', 		'  '],
-				['cause',		l,			False,	'cause',					False,		'right', 		'  ']]			
-		o=output.output(pr,ll, direction,self.panel.settings.robustcov_lags_run, startspace='   ')
+		o=output.output(printout_format,ll, direction,self.panel.settings.robustcov_lags_statistics.value[1])
 		o.add_heading(its,
 					  top_header=" "*118+"constraints",
-					  statistics=[['\nIndependent: ',self.panel.input.y_name[0],None,"\n"],
+					  statistics=[['\nDependent: ',self.panel.input.y_name[0],None,"\n"],
 								  ['Max condition index',direction.CI,3,'decimal']],
 					  incr=incr)
-		o.add_footer(msg+'\n' 
-					 +f'Newton step: {lmbda}'
-					 + ll.err_msg)	
+		o.add_footer("Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001\n"
+					+'\n' 
+					+ ll.err_msg)
+		tab_stops=o.get_tab_stops(self.tab.box.text_box.config()['font'][4])
+		self.tab.box.text_box.config(tabs=tab_stops)		
 		self.print(o)
 		self.prtstr=o.printstring
-		self.se_robust=o.se_robust
 		
 	def print(self,o):
 		try:
-			o.print(self.window)
+			o.print(self.tab)
 		except Exception as e:
 			test1=e.args[0]=="main thread is not in main loop"
 			#test2=e==_tkinter.TclError
@@ -278,18 +250,21 @@ class printout:
 		
 	def displaystats(self,display_statistics,ll):
 		if display_statistics:
-			self.window.right_tabs.process_charts.initialize()
-			if self.window.right_tabs.process_charts.btn_stats.cget('relief')=='sunken':
-				norm_prob=stat.JB_normality_test(ll.e_st_centered,self.panel)		
-				no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(self.panel,ll,10)
-				norm_prob,no_ac_prob=np.round([norm_prob,no_ac_prob],5)*100			
-				self.window.right_tabs.process_charts.statistics.set(f"""
-  Normality:\t{norm_prob} %\n
-  Stationarity:\t{no_ac_prob} %
-				""")
-				self.window.right_tabs.process_charts.plot(ll)	
+			process_charts=self.tab.charts
+			process_charts.initialize(self.panel)
+			process_charts.plot(ll)	
 
 
 
-		
-		
+l=8
+		#python variable name,	lenght,	  not string, display name,	  neg. values,	justification	next tab space
+printout_format=[['names',		'namelen',	True,	'Variable names',			False,		'right', 		2],
+				 ['args',		l,			False,	'Coef',						True,		'right', 		2],
+				 ['dx_norm',	l,			False,	'direction',				True,		'right', 		2],
+				 ['se_robust',	l,			False,	'SE(robust)',				True,		'right', 		3],
+				 ['tstat',		l,			False,	't-stat.',					True,		'right', 		2],
+				 ['tsign',		l,			False,	'sign.',					False,		'right', 		1],
+				 ['sign_codes',	5,			True,	'',							False,		'left', 		2],
+				 ['assco',		20,			True,	'collinear with',			False,		'center', 		2],
+				 ['set_to',		6,			True,	'set to',					False,		'center', 		2],
+				 ['cause',		50,			True,	'cause',					False,		'right', 		2]]			

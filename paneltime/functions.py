@@ -87,6 +87,14 @@ def clean_str(s,cleanchrs,split=''):
 		s=s.split(split)
 	return s
 
+def clean_section(string):
+	for i in ['\n\n','\n\r','\r\n']:
+		while i in string:
+			string=string.replace(i,'\n')
+	if string[0]=='\n':
+		string=string[1:]
+	return string
+
 
 def formatarray(array,linelen,sep):
 	s=sep.join([str(i) for i in array])
@@ -143,3 +151,6 @@ def copy_array_dict(d):
 def append(arr,values):
 	for i in range(len(arr)):
 		arr[i].append(values[i])
+		
+
+		

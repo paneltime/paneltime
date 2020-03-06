@@ -3,8 +3,8 @@
 import tkinter as tk
 from PIL import ImageTk, Image
 
-def setbutton(parent,text,command,side=None,anchor=None,fill=None,bg=None):
-	btn=tk.Button(parent, text=text, command=command,anchor=anchor,bg=bg)
+def setbutton(parent,text,command,side=None,anchor=None,fill=None,bg=None,relief=None):
+	btn=tk.Button(parent, text=text, command=command,anchor=anchor,bg=bg,relief=relief,bd=0)
 	return btn
 
 
@@ -14,7 +14,7 @@ def save(subplot,save_file):
 	axs.clear()
 	
 	
-def display(panel,chart,name,i,subplot,action):
+def display(panel,chart,name,i,subplot,action=None):
 	fgr,axs=subplot
 	f=panel.input.tempfile.TemporaryFile()
 	fgr.savefig(f)

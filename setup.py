@@ -82,7 +82,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
-    install_requires=['numpy >= 1.11','scipy','matplotlib','pillow','pymysql'],
+    install_requires=['numpy >= 1.11','scipy','matplotlib','pillow','pymysql','json'],
     #**************************************************************************<REMOVED
 
     # List additional groups of dependencies here (e.g. development

@@ -7,7 +7,8 @@ from multiprocessing import pool
 import numpy as np
 from gui import gui_scrolltext
 import paneltime
-
+import functions as fu
+from gui import gui_script_handling
 
 
 
@@ -40,7 +41,7 @@ class sql_query(tk.Toplevel):
 		self.conn_str=gui_scrolltext.ScrollText(self)
 		self.conn_str.insert('1.0',window.data.get('conn_str'))
 		self.label_sql=tk.Label(self,height=2,text='SQL query:',anchor='sw',justify=tk.LEFT)
-		self.sql_str=gui_scrolltext.ScrollText(self)
+		self.sql_str=gui_scrolltext.ScrollText(self,format_text=False)
 		self.sql_str.insert('1.0',window.data.get('sql_str'))
 		self.OK_button=tk.Button(self,height=2,text='OK',command=self.ok_pressed)
 		
@@ -51,27 +52,35 @@ class sql_query(tk.Toplevel):
 		self.sql_str.grid(row=4,column=0,sticky=tk.NSEW)
 		self.OK_button.grid(row=5,column=0,sticky=tk.NSEW)
 		
-		self.transient(master) #set to be on top of the main window
+		self.transient(window) #set to be on top of the main window
 		self.grab_set() #hijack all commands from the master (clicks on the main window are ignored)	
-
-		
-		
-		
+		self.protocol("WM_DELETE_WINDOW", self.on_closing)
+	
 	def ok_pressed(self,event=None):
-		self.win.data.dict['sql_str']=self.sql_str.get_all()
-		self.win.data.dict['conn_str']=self.conn_str.get_all()
-		#exec(self.win.data.dict['conn_str'],
-		#	 self.win.globals,self.win.locals)
-		exec('conn=None',self.win.globals,self.win.locals)
-		#df=paneltime.load_SQL(self.win.locals['conn'],"""SELECT * FROM  ose.equity where `Date`>'2019-01-01' """)	
-		exe_str=f"""df=load_SQL(conn,"\"\"{self.win.data.dict['sql_str']}"\"\")"""
-		exec(exe_str, self.win.globals,self.win.locals)
-		df=self.win.locals['df']
-		f=self.name_txt.get()
-		self.win.right_tabs.data_tree.data_frames.add(f,df,exe_str,f"{self.win.data.dict['conn_str']}\n{exe_str}")
-		self.win.right_tabs.data_tree.add_df_to_tree(df,f)
-		self.win.insert_script()
+		self.win.data['sql_str']='\n'+fu.clean_section(self.sql_str.get_all())
+		self.win.data['conn_str']=fu.clean_section(self.conn_str.get_all())
+		self.win.exec(self.win.data['conn_str'])
+		name=self.name_txt.get()
+		sqlstr=f"\"\"\"{self.win.data['sql_str']}\"\"\""
+		exe_str=f"""
+from paneltime import *\n
+data=dict()#defining the data as a dict entry avoids having to comply with python naming conventions
+data['{name}']=load_SQL(conn,{sqlstr})"""
+		self.win.exec(exe_str)
+		df=self.win.locals['data'][name]
+		self.win.grab_set()
+		tree=self.win.right_tabs.data_tree
+		data_import_script=f"{self.win.data['conn_str']}\n{exe_str}"
+		tree.datasets.add(tree,name,df,self.win.data['sql_str'],data_import_script,self.win.main_tabs)
 		self.withdraw()
 			
+	def on_closing(self):
+		self.win.grab_set()
+		self.win.data['sql_str']=self.sql_str.get_all()
+		self.win.data['conn_str']=self.conn_str.get_all()		
+		self.withdraw()
 		
 		
+	def show(self):
+		self.win.grab_set()
+		self.deiconify()

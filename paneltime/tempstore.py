@@ -5,12 +5,13 @@ import pickle
 import tempfile
 import os
 
-
-fname_args=os.path.join(tempfile.gettempdir(),'paneltime.args')
-fname_data=os.path.join(tempfile.gettempdir(),'paneltime.data')
-fname_key=os.path.join(tempfile.gettempdir(),'paneltime.key')
-fname_temprec=os.path.join(tempfile.gettempdir(),'paneltime.temprec')
-fname_window=os.path.join(tempfile.gettempdir(),'paneltime.win')
+tdr=tempfile.gettempdir()
+fname_args=os.path.join(tdr,'paneltime.args')
+fname_data=os.path.join(tdr,'paneltime.data')
+fname_key=os.path.join(tdr,'paneltime.key')
+fname_temprec=os.path.join(tdr,'paneltime.temprec')
+fname_window=os.path.join(tdr,'paneltime.win')
+fname_datasets=os.path.join(tdr,'paneltime.datasets')
 max_sessions=20
 
 class args_archive:
@@ -61,7 +62,7 @@ class args_archive:
 def loaddata(key):
 	"""Loads data if a similar data was loaded before. """  
 	
-	key=key.replace('\n',' ').replace('\r',' ').replace('\t',' ').replace('  ',' ').replace('  ',' ')
+	key=' '.join(key.split())
 	current_key=load_obj(fname_key)
 	if key==current_key:
 		return load_obj(fname_data)
@@ -69,7 +70,7 @@ def loaddata(key):
 	
 def savedata(key,data):
 	"""saves data  """
-	key=key.replace('\n',' ').replace('\r',' ').replace('\t',' ').replace('  ',' ').replace('  ',' ')
+	key=' '.join(key.split())
 	save_obj(fname_key,key)
 	save_obj(fname_data,data)
 	
@@ -89,7 +90,8 @@ def load_obj(fname):
 		u=u.load()
 		f.close()
 		return u 
-	except:
+	except Exception as e:
+		print(e)
 		return None
 	
 	

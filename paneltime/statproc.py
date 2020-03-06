@@ -132,7 +132,7 @@ def adf_test(panel,ll,p):
 	adf_stat=beta[2]/se[2]
 	critval=adf_crit_values(panel.NT,True)
 	res=np.append(adf_stat,critval)
-	return res
+	return tuple(res)
 
 def goodness_of_fit(panel,ll):
 	v0=panel.var(ll.e_st)

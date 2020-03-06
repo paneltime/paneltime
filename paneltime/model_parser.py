@@ -59,17 +59,10 @@ def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings
 	intercept_name=None
 	if settings.add_intercept.value:
 		intercept_name='Intercept'
-	if type(model_string)==str:
-		(input_class.X,input_class.x_names,
-	     input_class.has_intercept,
-	     input_class.Y,input_class.y_name)=parse_and_check(dataframe,model_string,intercept_name)
-	else:
-		a=[],[],[],[],[]
-		for s in model_string:
-			fu.append(a, parse_and_check(dataframe,s,intercept_name))
-		(input_class.X,input_class.x_names,
-	     input_class.has_intercept,
-	     input_class.Y,input_class.y_name)=a
+	(input_class.X,input_class.x_names,
+	 input_class.has_intercept,
+	 input_class.Y,input_class.y_name)=parse_and_check(dataframe,model_string,intercept_name)
+	
 	tobit_set_threshold(input_class,settings)
 	
 		
@@ -123,7 +116,7 @@ class lag_object:
 		
 
 def sort(dataframe,time_name,IDs_name):
-	"sorts the data frame"
+	"sorts the dataset"
 	if (time_name is None) and (IDs_name is None):
 		return
 	elif (time_name is None) and (not IDs_name is None):
@@ -216,7 +209,8 @@ def remove(X,names,dataframe,raise_error,has_const):
 		if raise_error and len(X[0])<=sumtrash:
 			raise RuntimeError(remvd+'. Aborting since there are no more variables to run with.')
 		else:
-			print(remvd)
+			a=0
+			#print(remvd)
 		if len(X[0])<=sumtrash:
 			return None,None
 	X=X[:,keep]

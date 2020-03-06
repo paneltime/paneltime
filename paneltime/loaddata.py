@@ -20,12 +20,31 @@ def load(fname,sep,dateformat,load_tmp_data):
 	print ("opening file ...")
 	data=np.loadtxt(fname,delimiter=s,skiprows=1,dtype=bytes)
 	data=data.astype(str)
-	print(data.shape)
 	print ("... done")
 	data=convert_to_numeric_dict(data,heading,dateformat)
 	tempstore.savedata(fname,data)
 	load_data_printout(data)
 	return data
+
+def load_json(fname):
+	file=open(fname,encoding='utf-8')
+	data=json.load(file)
+	df=dict()	
+	for r in data:
+		for k in r:
+			if type(r[k])==dict():
+				for m in r[k]:
+					key=k+'_'+m
+					append(df, key, r[k][m])
+			else:
+				append(df, k, r[k])
+	return df
+						
+def append(d,key,i):
+	if key in d:
+		d[key].append(i)
+	else:
+		d[key]=[i]
 
 def load_SQL(conn,sql_string,dateformat,load_tmp_data):
 	if load_tmp_data:
@@ -127,7 +146,6 @@ def is_number(s):
 		return False
 	
 def convert_to_numeric_dict(data,names,dateformat,dtypes=None):
-	print(data)
 	N,k=data.shape
 	df=dict()
 	if dtypes is None:

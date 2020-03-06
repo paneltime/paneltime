@@ -3,12 +3,13 @@
 import tkinter as tk
 import keyword
 import numpy as np
+import re
 
 font0="Courier 10"
 ret_chr=['\r','\n']
 
 class ScrollText(tk.Frame):
-	def __init__(self,master,readonly=False,text=None):
+	def __init__(self,master,readonly=False,text=None,format_text=True,name=None, window=None):
 		tk.Frame.__init__(self,master)
 		self.rowconfigure(0,weight=1)
 		self.columnconfigure(0,weight=1)		
@@ -16,7 +17,9 @@ class ScrollText(tk.Frame):
 		xscrollbar = tk.Scrollbar(self,orient='horizontal')
 		yscrollbar = tk.Scrollbar(self)
 	
-		self.text_box = CustomText(self, wrap = tk.NONE,xscrollcommand = xscrollbar.set,yscrollcommand = yscrollbar.set,undo=True)			
+		self.text_box = CustomText(self, wrap = tk.NONE,xscrollcommand = xscrollbar.set,
+								   yscrollcommand = yscrollbar.set,undo=True,format_text=format_text,name=name,window=window)	
+		self.text_box.config(tabs='1c')
 		xscrollbar.config(command = self.text_box.xview)
 		yscrollbar.config(command = self.text_box.yview)
 		
@@ -56,7 +59,7 @@ class ScrollText(tk.Frame):
 		self.text_box.insert(index1,chars)
 		if self.readonly:
 			self.text_box.configure(state='disabled')
-		self.text_box.changed()
+		self.text_box.key_released()
 
 		
 	def write(self,chars):
@@ -75,7 +78,7 @@ class ScrollText(tk.Frame):
 		if self.readonly:
 			self.text_box.configure(state='disabled')
 			
-		self.text_box.changed()
+		self.text_box.key_released()
 			
 	
 
@@ -83,15 +86,17 @@ class ScrollText(tk.Frame):
 
 class CustomText(tk.Text):
 
-	def __init__(self,master, wrap, xscrollcommand,yscrollcommand,undo):
+	def __init__(self,master, wrap, xscrollcommand,yscrollcommand,undo,format_text=True,name=None,window=None,):
 		font='Courier'
-		size=12
+		size=10
 
 		tk.Text.__init__(self, master,wrap=wrap, 
 						 xscrollcommand=xscrollcommand,yscrollcommand=yscrollcommand,undo=undo)	
 		self.configure(font=(font,size,'normal'))
-		self.bind('<KeyRelease>', self.changed)
+		self.bind('<KeyRelease>', self.key_released)
+		self.bind('<KeyPress>', self.key_pressed)
 		self.tag_configure('quote', foreground='dark red')
+		self.tag_configure('builtins', foreground='#51769e')
 		self.tag_configure('keyword', foreground='#0a00bf')
 		self.tag_configure('comment', foreground='#00a619')
 		self.tag_configure('definition', foreground='#008a5a')
@@ -99,42 +104,96 @@ class CustomText(tk.Text):
 		self.tag_configure('normal', font=(font,size,'normal'))
 		self.tag_configure('black', foreground='black')
 		self.define_keywords()
+		self.format_text=format_text
+		self.pressed_key=''
+		self.released_ignore_key=False
+		self.name=name
+		self.win=window
+		
+		
 		
 	def define_keywords(self):
 		kwlist=np.array(keyword.kwlist)
 		kwlensrt=np.array([len(i) for i in keyword.kwlist]).argsort()
 		self.kwrds=list(kwlist[kwlensrt])
-		self.kwrds.append('print')		
+		builtins=list(dir(__builtins__))+builtin_functions
+		b=[]
+		for i in builtins:
+			if not i in self.kwrds:
+				b.append(i)
+		self.builtins=b
+		False 
+				
 		
+	def key_pressed(self,event):
+		try:
+			self.pressed_key=event.keysym
+		except:
+			pass
 		
 	
-	def changed(self,event=None):
+	def key_released(self,event=None):
+		if not self.format_text:return
+		if self.pressed_key in ignore_press_keys:
+			self.pressed_key=''
+			return
 		if not event is None:
-			if event.keycode==65 or event.keycode==17:
+			if ((self.released_ignore_key==True) 
+				and (not event.keysym in ignore_press_keys)):
+				self.released_ignore_key=False
+				if event.keysym!='v':#format text after pasting
+					return
+			if event.keysym in ignore_press_keys:
+				self.released_ignore_key=True
+			if (event.keysym in ignore_keys):
 				return
 		for tag in self.tag_names():
-			self.tag_remove(tag,'1.0','end')		
-		self.highlight_pattern(r"\"(.*?)\"", 'quote')		
-		self.highlight_pattern(r"'(.*?)'", 'quote')
-		self.highlight_pattern(r"def (.*?)\(", 'definition',addstart=4,subtractend=1,tag2='bold')
+			self.tag_remove(tag,'1.0','end')	
+			
 		self.highlight_pattern(r"\"\"\"(.*?)\"\"\"", 'quote')
+		self.highlight_pattern(r"\"(.*?)\"", 'quote')	
+		self.highlight_pattern(r"'(.*?)'", 'quote')
+		self.highlight_pattern_multiline(r"\"\"\"([\s\S]*?)\"\"\"", 'quote')
+
+		for i in self.kwrds:
+			self.highlight_pattern(r"\m(%s)\M" %(i,), 'keyword',tag2='bold')		
+		for i in self.builtins:
+			self.highlight_pattern(r"\m(%s)\M" %(i,), 'builtins')				
+		self.highlight_pattern(r"def (.*?)\(", 'definition',addstart=4,subtractend=1,tag2='bold')
+		
 		self.highlight_pattern(r"#(.*?)\r", 'comment',end='end-1c')
 		self.highlight_pattern(r"#(.*?)\n", 'comment',end='end-1c')
-		for i in self.kwrds:
-			self.highlight_pattern(r"\m(%s)\M" %(i,), 'keyword',tag2='bold')
+
 		
 	def highlight_pattern(self, pattern, tag, start="1.0", end="end",
 	                      regexp=True,tag2=None,addstart=0,subtractend=0):
 
 
-		index,index2=self.search(pattern, start=start, end=end, regexp, addstart, subtractend)
-		self.mark_set("matchStart", index)
-		self.mark_set("matchEnd", index2)
-		self.tag_add(tag, "matchStart", "matchEnd")
-		if not tag2 is None:
-			self.tag_add(tag2, "matchStart", "matchEnd")		
+		indicies=self.search_pattern(pattern, start=start, end=end, regexp=regexp, addstart=addstart, subtractend=subtractend)
+		if len(indicies)==0:
+			return
+		for index1,index2 in indicies:
+			if not len(self.tag_names(index1)):
+				self.tag_add(tag, index1, index2)
+				if not tag2 is None:
+					self.tag_add(tag2, index1, index2)
+				
+	def highlight_pattern_multiline(self, pattern, tag, start="1.0", end="end",
+	                      regexp=True,tag2=None,addstart=0,subtractend=0):
+
+		s=self.get('1.0',tk.END)
+		start=0
+		while True:
+			m=re.search(pattern,s[start:])
+			if m is None:break
+			index1=self.pos_to_index(m.start()+start,s)
+			index2=self.pos_to_index(m.end()+start,s)
+			self.tag_add(tag, index1, index2)
+			if not tag2 is None:
+				self.tag_add(tag2, index1, index2)	
+			start=m.end()+start
 			
-	def search(self, pattern, start="1.0", end="end",
+	def search_pattern(self, pattern, start="1.0", end="end",
 	                      regexp=True,addstart=0,subtractend=0):
 
 
@@ -145,18 +204,46 @@ class CustomText(tk.Text):
 		self.mark_set("searchLimit", end)
 
 		count = tk.IntVar()
+		indicies=[]
 		while True:
-			index = self.search(pattern, "matchEnd","searchLimit",
-			                    count=count, regexp=regexp)
-			if index == "": break
+			index1 = self.search(pattern, "matchEnd","searchLimit",
+								count=count, regexp=regexp)
+			if index1 == "": break
 			n=count.get()-subtractend
 			if n <= 0: break # degenerate pattern which matches zero-length strings
-			index2="%s+%sc" % (index, n)
+			index2="%s+%sc" % (index1, n)
 			if addstart>0:
-				index=f"{index}+{addstart}c"
-				
-			return index,index2
+				index1=f"{index1}+{addstart}c"
+			self.mark_set("matchStart", index1)
+			self.mark_set("matchEnd", index2)			
+			indicies.append((index1,index2))
+			
+			
+		return indicies
 
 			
 		
+	def pos_to_index(self,pos,string):
+		s=str(string[:pos+1])
+		if pos+1>len(s):
+			pos=len(s)-1
+		lines=s.split('\n')
+		if len(lines)==1:
+			return f"1.{len(s)}" 
+		chars=lines[-1]
+		index=f"{len(lines)}.{len(chars)}"
+		return index
+	
 			
+
+ignore_press_keys=['Up','Down','Right','Left','Prior','Next','Tab','Control_L','Control_R','Alt_R','Alt_L']
+ignore_keys=ignore_press_keys+['Shift_L','Shift_R']
+
+
+builtin_functions=["abs", "all", "any", "ascii", "bin", "bool", "bytearray", "bytes", "callable", "chr", "classmethod", 
+				   "compile", "complex", "delattr", "dict", "dir", "divmod", "enumerate", "eval", "exec", "filter", 
+				   "float", "format", "frozenset", "getattr", "globals", "hasattr", "hash", "help", "hex", "id", 
+				   "input", "int", "isinstance", "issubclass", "iter", "len", "list", "locals", "map", "max", "memoryview", 
+				   "min", "next", "object", "oct", "open", "ord", "pow", "print", "property", "range", "repr", "reversed", 
+				   "round", "set", "setattr", "slice", "sorted", "staticmethod", "str", "sum", "super", "tuple", "type", 
+				   "vars", "zip", "__import__", ]

@@ -47,8 +47,8 @@ class panel:
 		self.define_h_func()
 		if self.input.IDs_name is None:
 			self.settings.group_fixed_random_eff.value=0
-		if self.settings.group_fixed_random_eff.value==0:
-			self.input.timevar=None			
+		if self.input.timevar is None:
+			self.settings.group_fixed_random_eff.value=0		
 		self.m_zero = False
 		if  m==0 and k>0:
 			self.m_zero = True
@@ -125,6 +125,8 @@ class panel:
 			self.N=1
 			self.max_T=NT
 			self.T_arr=np.array([[NT]])
+			self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
+			self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
 		else:
 			sel,ix=np.unique(IDs,return_index=True)
 			N=len(sel)
@@ -152,7 +154,7 @@ class panel:
 					id_orig=self.dataframe[idname + NON_NUMERIC_TAG]
 					idremoved=id_orig[ix,0][idincl==False]
 				else:
-					idremoved=sel[ix,0][idincl==False]
+					idremoved=(self.dataframe[idname])[ix,0][idincl==False]
 				s=fu.formatarray(idremoved,90,', ')
 				print(f"Warning: The following {idname}s were removed because of insufficient observations:\n %s" %(s))
 		self.allzeros=np.zeros((self.N,self.max_T,1))
