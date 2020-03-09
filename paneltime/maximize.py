@@ -11,7 +11,7 @@ from tkinter import _tkinter
 
 
 
-def lnsrch(ll, direction,mp):
+def lnsrch(ll, direction,mp,its,incr,po):
 	rmsg=''
 	args=ll.args_v
 	g = direction.g
@@ -24,53 +24,21 @@ def lnsrch(ll, direction,mp):
 	if np.sum(g*dx)<0:
 		dx=-dx
 		rmsg="convex function at evaluation point, direction reversed - "	
-	if mp is None:
-		return lnsrch_single(args, dx,panel,constr,rmsg)
-	else:
-		return lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0)
 	
-
-def lnsrch_single(args, dx,panel,constr,rmsg,f0=None):
-	#not in use, will be removed
-	d=dict()
-	if f0 is None:
-		f0=logl.LL(args, panel,constr)
-	d[f0.LL]=[f0,0]
-	m=0.5
-	f05,f1=None,None
-	for i in range(16+len(dx)):#Setting lmda so that the largest step is valid. Set ll.LL to return None when input is invalid
-		lmda=1.1*m**i #Always try full Newton step first.
-		if i>14:
-			dx=dx*(np.abs(dx)<max(np.abs(dx)))
-		x=f0.args_v+lmda*dx
-		f=logl.LL(x,panel,constr)
-		if not f.LL is None:
-			if f1 is None:
-				f1,l1=f,lmda
-			elif f05 is None:
-				f05,l05=f,lmda
-				break
-	if f1 is None or f05 is None:
-		return f0,'no valid values within newton step in linesearch',0,False
-	d[f1.LL],d[f05.LL]=[f1,l1],[f05,l05]
-	lambda_pred=solve_square_func(f0.LL,0,f05.LL,l05,f1.LL,l1)
-	if not lambda_pred is None:
-		f_pred=logl.LL(f0.args_v+lambda_pred*dx,panel,constr) 
-		if not f_pred.LL is None:	
-			d[f_pred.LL]=[f_pred,lambda_pred]
-		lmda=min((lambda_pred,lmda))
-	f_max=max(d.keys())
-	if f_max>f0.LL:#the function has  increased
-		return d[f_max][0],rmsg + f"Linesearch success ({round(lmbda,4)} of Newton step)",d[f_max][1],False
-	for j in range(1,12):
-		s=(0.5**j)
-		lm=lmda*s
-		ll=logl.LL(f0.args_v+lm*dx,panel,constr) 
-		if not ll.LL is None:
-			if ll.LL>f0.LL:
-				return ll, rmsg+f"Newton step {round(lmbda,4)} to big, found an increment at {lm} of Newton step",lm,True
-
-	return f0,rmsg+'No increase in linesearch',0,False
+	ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0)
+	if  ll.LL/panel.NT<-1e+15:
+		if not printout_func(0.95,'The maximization agorithm has gone mad. Resetting the argument to initial values',ll,its,direction,incr,po):return ll,msg,lmbda,ok	
+		ll=logl.LL(panel.args.args_restricted,panel)
+		return ll,'The maximization agorithm has gone mad. Resetting the argument to initial values',0,False
+	if not ok:
+		if not printout_func(0.95,msg,ll,its,direction,incr,po):return ll,msg,lmbda,ok	
+		i=np.argsort(np.abs(dx))[-1]
+		dx=-ll.args_v*(np.arange(len(g))==i)
+		ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0)
+		if not ok:
+			dx=ll.args_v*(np.arange(len(g))==i)
+			ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0)			
+	return ll,msg,lmbda,ok
 		
 		
 def solve_square_func(f0,l0,f05,l05,f1,l1,default=None):
@@ -109,6 +77,7 @@ def lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0):
 		res=np.append([res0],res,0)#ensuring the original is in the LL set
 		srt=np.argsort(res[:,0])[::-1]
 		res=res[srt]
+	res=remove_nan(res)
 	if LL0>res[0,0]:
 		raise RuntimeWarning('Best linsearch is poorer than the starting point. You may have discovered a bug, please notify espen.sirnes@uit.no')
 	try:
@@ -124,6 +93,13 @@ def lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0):
 		msg=f"Linesearch success ({round(lmda,6)} of Newton step)"
 	return ll,rmsg+msg,lmda,True
 
+def remove_nan(res):
+	r=[]
+	for i in res:
+		if not np.isnan(i[0]):
+			r.append(i)
+	return np.array(r)	
+	
 				
 def get_likelihoods(args, dx,panel,constr,mp,delta,start):
 	expr=[]	
@@ -183,7 +159,7 @@ def maximize(panel,direction,mp,args,tab):
 			return ll,direction,po
 
 		if not printout_func(0.95,"Linesearch",ll,its,direction,incr,po):return ll,direction,po
-		ll,msg,lmbda,ok=lnsrch(ll,direction,mp) 
+		ll,msg,lmbda,ok=lnsrch(ll,direction,mp,its,incr,po) 
 		if not printout_func(1.0,msg,ll,its,direction,incr,po):return ll,direction,po
 
 
@@ -264,7 +240,8 @@ printout_format=[['names',		'namelen',	True,	'Variable names',			False,		'right'
 				 ['se_robust',	l,			False,	'SE(robust)',				True,		'right', 		3],
 				 ['tstat',		l,			False,	't-stat.',					True,		'right', 		2],
 				 ['tsign',		l,			False,	'sign.',					False,		'right', 		1],
-				 ['sign_codes',	5,			True,	'',							False,		'left', 		2],
+				 ['sign_codes',	5,			True,	'',							False,		'left', 		1],
+				 ['multicoll',	1,			True,	'',							False,		'left', 		2],
 				 ['assco',		20,			True,	'collinear with',			False,		'center', 		2],
 				 ['set_to',		6,			True,	'set to',					False,		'center', 		2],
 				 ['cause',		50,			True,	'cause',					False,		'right', 		2]]			

@@ -470,7 +470,7 @@ def reduce_size(direction):
 	constr=list(direction.constr.fixed.keys())
 	for i in weak_mc_dict:
 		if not i in constr:
-			constr.append[i]
+			constr.append(i)
 	m=len(H)
 	idx=np.ones(m,dtype=bool)
 	delmap=np.arange(m)
