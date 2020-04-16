@@ -23,7 +23,7 @@ class buttons:
 		for i in range(len(imgs)):
 			name,action=imgs[i]
 			short_name=name.replace('.png','')
-			img = tk.PhotoImage(file =  os.path.join(dirname,'img',name),name=short_name)
+			img = tk.PhotoImage(file =  os.path.join(dirname,'img',name),name=short_name,master=win.button_pane)
 			b=tk.Button(win.button_pane, image = img,command=action, highlightthickness=0,bd=0,width=40)
 			b.grid(row=0,column=i,sticky=tk.W)
 			self.buttons[short_name]=[img,b,True]
@@ -32,7 +32,7 @@ class buttons:
 			  ['statistics_disabled.png',self.buttons['statistics'][1]]
 			  ]
 		for name,btn in imgs:#adding disabled-buttons
-			img=tk.PhotoImage(file =  os.path.join(dirname,'img',name),name=name.replace('.png',''))
+			img=tk.PhotoImage(file =  os.path.join(dirname,'img',name),name=name.replace('.png',''),master=win.button_pane)
 			self.buttons[name.replace('.png','')]=[img,btn,False]
 		self.gui_sql=None
 	

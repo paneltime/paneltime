@@ -144,7 +144,7 @@ class statistics:
 			prstr+=tsign[i].ljust(rndlen)[:rndlen]+sep
 			prstr+=sign_codes[i]
 			prstr+='\n'
-		prstr+='\n'+"Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001"
+		prstr+='\n'+"Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear"
 		print(prstr)
 
 

@@ -15,6 +15,7 @@ import os
 import tempstore
 import time
 import paneltime as pt
+import numpy as np
 
 NON_NUMERIC_TAG='|~|'
 font='Arial 9 '
@@ -36,8 +37,6 @@ class data_objects(ttk.Treeview):
 		s.configure('new.TFrame', background='white',font=font)	
 		
 		self.optionset=right_tabs.optionset
-		self.dbase_img=self._img = tk.PhotoImage(file= os.path.join(os.path.dirname(__file__),'img/database.png'))
-		self.var_img=self._img = tk.PhotoImage(file= os.path.join(os.path.dirname(__file__),'img/variable.png'))
 		self.tabs=tabs
 		self.clicked=False
 		self.main_tabs=window.main_tabs
@@ -47,6 +46,8 @@ class data_objects(ttk.Treeview):
 		self.add_buttons()
 		self.canvas=tk.Canvas(self.main_frame)
 		ttk.Treeview.__init__(self,self.canvas,style='new.TFrame')
+		self.dbase_img=self._img = tk.PhotoImage(file= os.path.join(os.path.dirname(__file__),'img/database.png'),master=self)
+		self.var_img=self._img = tk.PhotoImage(file= os.path.join(os.path.dirname(__file__),'img/variable.png'),master=self)		
 		self.level__dicts=[dict(),dict(),dict()]
 		
 		yscrollbar = ttk.Scrollbar(self.canvas, orient="vertical", command=self.yview)
@@ -84,7 +85,7 @@ class data_objects(ttk.Treeview):
 
 		
 	def add_button(self,master,img,command,tooltip,bgcolor,size=22):
-		self.button_img[img]= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),img))
+		self.button_img[img]= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),img),master=self.button_frame)
 		btn=tk.Button(master, image = self.button_img[img],command=command, 
 								   highlightthickness=0,bd=0,height=size,width=size,compound='left',background=bgcolor)
 		gui_tooltip.CreateToolTip(btn,tooltip)
@@ -187,7 +188,27 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 			return
 			
 	def save(self):
-		tempstore.save_obj(tempstore.fname_datasets,self.datasets)
+		p=self.win.data['current path']
+		filename = filedialog.asksaveasfilename(initialdir=p,title="Save",
+			filetypes = (("CSV", "*.csv"),), defaultextension=True)
+		if not filename: 
+			return
+		self.path=filename
+		p,f=os.path.split(filename)
+		self.win.data['current path']=p
+		dataset=self.get_selected_dataset()
+		X=[]
+		for i in dataset:
+			if type(dataset[i])==np.ndarray:
+				if len(dataset[i].shape)==2:
+					X.append(np.concatenate(([[i]],dataset[i])))
+		if len(X)==0:
+			print('No data in dataset')
+			return
+		X=np.concatenate(X,1)
+		np.savetxt(filename, X,fmt='%s',delimiter=',')
+		print('dataset saved')
+	
 	
 	def delete_dataset(self):
 		df=self.get_selected_dataset()
@@ -401,7 +422,8 @@ class dataset(dict):
 	def __init__(self,datasets,name,data_dict,source,import_script,tree):
 		dict.__init__(self)
 		for i in data_dict:
-			self[i]=data_dict[i]
+			if type(data_dict[i])==np.ndarray:
+				self[i]=data_dict[i]
 		self.source=source
 		self.data_import_script=import_script
 		self.exe_editor=None
@@ -424,15 +446,18 @@ class dataset(dict):
 		pop_editors=[]
 		edit_editor,exe_editor,script_editor=None,None,None
 		for i in datastore:
-			name,text,top_text,top_color=datastore[i]
+			name,text,top_text,top_color,attached_to,path=datastore[i]
 			if i==self.exe_editor:
-				exe_editor=main_tabs.add_editor(name,text=text,top_text="Model execution editor",top_color='#fcdbd9',dataset=self)
+				exe_editor=main_tabs.add_editor(name,text=text,top_text="Model execution editor",
+												top_color='#fcdbd9',dataset=self,attached_to=attached_to,path=path)
 				pop_editors.append(i)
 			if i==self.edit_editor:
-				edit_editor=main_tabs.add_editor(name,text=text,top_text="Data editor",top_color='#ddfcd9',dataset=self)
+				edit_editor=main_tabs.add_editor(name,text=text,top_text="Data editor",
+												 top_color='#ddfcd9',dataset=self,attached_to=attached_to,path=path)
 				pop_editors.append(i)
 			if i==self.script_editor:
-				script_editor=main_tabs.add_editor(name,text=text,top_text="Import script",top_color='#6bff9c',dataset=self)
+				script_editor=main_tabs.add_editor(name,text=text,top_text="Import script",
+												   top_color='#6bff9c',dataset=self,attached_to=attached_to,path=path)
 				pop_editors.append(i)			
 		for i in pop_editors:
 			datastore.pop(i)
@@ -523,7 +548,7 @@ class datasets(dict):
 			self[i].recreate_editors(datastore,main_tabs)
 		
 			
-	def make_tree(self,name,tree,d=None):
+	def make_tree(self,name,tree):
 		try:
 			tree.insert('', 1,f"{name};", text=' '+name,tags=(name+';',),image=tree.dbase_img)
 		except tk.TclError:
@@ -540,9 +565,10 @@ class datasets(dict):
 		for i in tree.main_tabs._tabs:
 			tab=tree.main_tabs._tabs[i]
 			if hasattr(tab,'attached_to'):
-				if tab.attached_to.get()==item:
-					tab.attached_to.set('')
-					tab.dataset=None
+				if not tab.attached_to is None:
+					if tab.attached_to.get()==item:
+						tab.attached_to.set('')
+						tab.dataset=None
 		tree.delete(item+';')
 		optionset.delete(item)
 		

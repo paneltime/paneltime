@@ -53,7 +53,8 @@ def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings
 	
 	input_class.timevar,input_class.time_name,void=check_var(dataframe,time_name,'time_name')
 	input_class.IDs,input_class.IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
-	dataframe['L']=lag_object(input_class.IDs).lag#allowing for lag operator in model input
+	input_class.lag_obj=lag_object(input_class.IDs)
+	dataframe['L']=input_class.lag_obj.lag#allowing for lag operator in model input
 	input_class.W,input_class.W_names,void=check_var(dataframe,settings.heteroscedasticity_factors,'heteroscedasticity_factors',
                                        intercept_name='log variance constant',raise_error=False,intercept_variable=True)
 	intercept_name=None
@@ -107,11 +108,13 @@ class lag_object:
 
 	def __init__(self,IDs):
 		self.IDs=IDs
+		self.max_lags=0
 		
 	def lag(self,variable,lags=1):
 		v=np.roll(variable, lags)
 		idroll=np.roll(self.IDs,lags)
 		keep=idroll==self.IDs
+		self.max_lags=max((self.max_lags,lags))
 		return v*keep
 		
 
@@ -158,8 +161,10 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 	dataframe['ones']=np.ones((n,1))
 	if not transforms is None:
 		exec(transforms,globals(),dataframe)	
-		n=filter_data(filters, dataframe,n)
-		exec(transforms,globals(),dataframe)
+	if not filters is None:
+		n=filter_data(filters, dataframe)
+		if not transforms is None:
+			exec(transforms,globals(),dataframe)
 	for i in list(dataframe.keys()):
 		if callable(dataframe[i]):
 			dataframe.pop(i)		
@@ -238,24 +243,32 @@ def check_and_add_variables(names,dataframe,arg_name):
 			
 			
 
-def filter_data(filters,dataframe,n):
+def filter_data(filters,dataframe,copy=True):
 	"""Filters the dataframe based on setting in the string Filters"""
 	if filters is None:
-		return n
-	fltrs=fu.clean(filters,' and ')
+		return
+	if not ' and ' in filters:
+		fltrs=filters.split()
+	else:
+		fltrs=fu.clean(filters,' and ')
+	n=len(dataframe[list(dataframe.keys())[0]])
 	v=np.ones(n,dtype=bool)
 	for f in fltrs:
 		r=eval(f,globals(),dataframe)
 		r.resize(n)
 		print ('Removing %s observations due to filter %s' %(np.sum(r==0),f))
 		v*=r
-	for i in dataframe.keys():
+	if copy:
+		d=dict()
+	else:
+		d=dataframe
+	for i in dataframe:
 		if type(dataframe[i])==np.ndarray:
 			if len(dataframe[i])==n:
-				dataframe[i]=dataframe[i][v]
-				k=len(dataframe[i])
+				d[i]=dataframe[i][v]
+				k=len(d[i])
 	print ('Removed %s of %s observations - %s observations remaining' %(n-k,n,k))
-	return k
+	return d,k
 
 
 

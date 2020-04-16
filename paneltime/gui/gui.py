@@ -14,6 +14,7 @@ from gui import gui_right_tabs
 from gui import gui_scrolltext
 from gui import gui_main_tabs
 import tempstore
+import numpy as np
 import traceback
 FONT_SIZE=10	
 FONT_WIDTH=FONT_SIZE*0.35	
@@ -175,10 +176,13 @@ class window(tk.Tk):
 		self.quit()
 		
 	def on_closing(self):
-		if self.right_tabs.preferences:
-			self.right_tabs.data_tree.save()
 		self.data.save()
 		if self.right_tabs.preferences.options.save_datasets.value:
+			d=self.right_tabs.data_tree.datasets
+			for i in list(d.keys()):
+				for j in list(d[i].keys()):
+					if not type(d[i][j])==np.ndarray:
+						d[i].pop(j)
 			tempstore.save_obj(tempstore.fname_datasets,self.right_tabs.data_tree.datasets)		
 		exit()			
 		

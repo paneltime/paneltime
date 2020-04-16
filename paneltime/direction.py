@@ -9,8 +9,8 @@ import sys
 
 
 class direction:
-	def __init__(self,panel,mp,tab):
-		self.progress_bar=tab.progress_bar.set_progress
+	def __init__(self,panel,mp,output_tab):
+		self.progress_bar=output_tab.progress_bar.set_progress
 		self.gradient=calculus.gradient(panel,self.progress_bar)
 		self.hessian=calculus.hessian(panel,self.gradient,self.progress_bar)
 		self.panel=panel
@@ -28,12 +28,12 @@ class direction:
 		self.weak_mc_dict=[]
 
 
-	def get(self,ll,its,newton_failed):
+	def get(self,ll,its,newton_failed,msg):
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
 		self.ll=ll
 		self.constr_old=self.constr
-		
+		self.progress_bar.suffix=msg
 		self.constr=cnstr.constraints(self.panel,ll.args_v)
 		cnstr.add_static_constraints(self.constr,self.panel,ll,its)			
 		self.calc_gradient(ll)
@@ -51,6 +51,7 @@ class direction:
 			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, ll.args_v),ll.args_v)
 		except:
 			self.dx_unconstr=self.dx_norm
+		self.progress_bar.suffix=''
 
 	
 	def include(self,all=False):
@@ -129,7 +130,7 @@ class direction:
 			if self.panel.settings.loadargs.value:
 				print("Initial arguments failed, attempting default OLS-arguments ...")
 				self.panel.args.set_init_args(True)
-				ll=logl.LL(self.panel.args.args,self.panel,constraints=self.constr,print_err=True)
+				ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
 				if ll.LL is None:
 					raise RuntimeError("OLS-arguments failed too, you should check the data")
 				else:

@@ -272,28 +272,7 @@ def get_head_and_sep(fname,sep):
 
 	if sep is None:
 		raise RuntimeError("Unable to find a suitable seperator for the input file. Check that your input file has identical number of columns in each row")
-	return h,sep
-
-
-def filter_data(filters,data,data_dict):
-	"""Filters the data based on setting in the string Filters"""
-	if filters is None:
-		return data
-	fltrs=fu.clean(filters,' and ')
-	n=len(data)
-	v=np.ones(n,dtype=bool)
-	for f in fltrs:
-		r=eval(f,globals(),data_dict)
-		r.resize(n)
-		print ('Removing %s observations due to filter %s' %(np.sum(r==0),f))
-		v*=r
-	data=data[v]
-	k=len(data)
-	print ('Removed %s of %s observations - %s observations remaining' %(n-k,n,k))
-	return data
-				
-				
-				
+	return h,sep			
 				
 				
 				

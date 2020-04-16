@@ -65,7 +65,7 @@ class statistics:
 		o.add_heading(top_header=' '*100 + '_'*11+'SE'+'_'*11+" "*73+"_"+"restricted variables"+"_",
 		              statistics= [['Normality (Jarque-Bera test for normality)',norm_prob,3,'%'], 
 		                           ['Stationarity (Breusch Godfrey_test on AC, significance)',ac_prob,3,'%']])
-		o.add_footer("Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001")
+		o.add_footer("Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear")
 		return o	
 	
 	def correl_and_statistics(self,correl_vars,descriptives_vars):
@@ -169,7 +169,7 @@ def t_stats(args,direction,lags,d):
 	d['tstat']=np.array(T*[np.nan])
 	d['tsign']=np.array(T*[np.nan])
 	d['tstat'][valid]=args[valid]/d['se_robust'][valid]
-	d['tsign'][valid]=1-scstats.t.cdf(np.abs(d['tstat'][valid]),direction.panel.df)
+	d['tsign'][valid]=(1-scstats.t.cdf(np.abs(d['tstat'][valid]),direction.panel.df))#Two sided tests
 	d['sign_codes']=get_sign_codes(d['tsign'])
 
 	
@@ -466,6 +466,8 @@ def sandwich(direction,lags):
 def reduce_size(direction):
 	H=direction.H
 	G=direction.G
+	if (G is None) or (H is None):
+		return
 	weak_mc_dict=direction.weak_mc_dict.keys()
 	constr=list(direction.constr.fixed.keys())
 	for i in weak_mc_dict:

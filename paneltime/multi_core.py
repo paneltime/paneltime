@@ -166,7 +166,7 @@ class slave():
 
 
 	def kill(self):
-		self.send('kill',None)
+		self.p.kill()
 
 
 

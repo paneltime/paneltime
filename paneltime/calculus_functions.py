@@ -90,6 +90,7 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 	if de2_zeta_xi is None:
 		de2_zeta_xi=0
 	d2lnv_zeta_xi=None
+	d2LL_d2lnv_zeta_xi=None
 	if panel.pqdkm[4]>0:
 		if u_gradient:
 			de_zeta=g.__dict__['de_'+vname2]

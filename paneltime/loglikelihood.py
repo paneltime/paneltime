@@ -190,12 +190,17 @@ class LL:
 		panel=self.panel
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
+		if 'Intercept' in panel.args.names_d['beta']:
+			m=self.args_d['beta'][0,0]
+		else:
+			m=panel.mean(panel.Y)	
 		Y=cf.dot(self.AMA_1AR,panel.Y)
 		Y=(Y+self.re_obj_i.RE(Y,False)+self.re_obj_t.RE(Y,False))*sd_inv
 		X=cf.dot(self.AMA_1AR,panel.X)
 		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))*sd_inv
 		self.Y_st=Y
 		self.X_st=X
+		self.Y_pred_st=cf.dot(X,self.args_d['beta'])
 		incl=panel.included.reshape(N,T)
 		self.e_st_long=self.e_st[incl,:]
 		self.Y_st_long=self.Y_st[incl,:]

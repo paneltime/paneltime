@@ -11,6 +11,7 @@ import numpy as np
 from multiprocessing import pool
 import paneltime as pt
 import traceback
+from matplotlib import pyplot  as plt
 
 
 
@@ -33,13 +34,16 @@ class main_tabs(ttk.Notebook):
 	def recreate_tabs(self):
 		if self.win.data.get('editor_data') is None:
 			return
-		try:
-			for i in self.win.data.get('editor_data'):
-				name,text, top_text, top_color=self.win.data.get('editor_data')[i]
-				
+		n=0
+		for i in self.win.data.get('editor_data'):
+			try:
+				name,text, top_text, top_color,attached_to,path=self.win.data.get('editor_data')[i]
 				if not (name==ADD_EDITOR_NAME or (name[:6]=='script' and text=='')):
-					self.add_editor(name,text,top_text=top_text,top_color=top_color).frame.focus()			
-		except:
+					self.add_editor(name,text,top_text=top_text,top_color=top_color,attached_to=attached_to,path=path).frame.focus()	
+					n+=1
+			except:
+				print(f'Could not add tab {i}')
+		if n==0:
 			self.add_editor('script').frame.focus()		
 			
 	def main_tab_pressed(self,event):	
@@ -88,16 +92,15 @@ class main_tabs(ttk.Notebook):
 				if 	not name in self._tabs.names:
 					return name				
 			
-	def add_editor(self,name=None,text=None,format_text=True,top_text='',top_color=DEFAULT_GREY,dataset=None):
+	def add_editor(self,name=None,text=None,format_text=True,top_text='',top_color=DEFAULT_GREY,dataset=None,attached_to=None,path=None):
 		name=self.gen_name(name)
 		frame=tk.Frame(self)
 		widget= gui_scrolltext.ScrollText(frame,text=text,format_text=format_text,name=name,window=self.win)
-		tab=self._tabs.add(frame,widget,name,top_text,top_color,dataset)
+		tab=self._tabs.add(frame,widget,name,top_text,top_color,dataset,path,attached_to)
+		frame.tab=tab
 		self.select(frame)
 		self.insert('end',self.add_tab)	
 		self.remove_redundant_script(name)
-		if top_text=="Data editor":
-			widget.text_box.bind('<Return>',tab.edit_data_set)
 		return tab
 		
 	def remove_redundant_script(self,name):
@@ -116,14 +119,15 @@ class main_tabs(ttk.Notebook):
 		
 		
 class tab:
-	def __init__(self,tabs,frame,widget,name,top_text='',top_color=DEFAULT_GREY,dataset=None):
+	def __init__(self,tabs,frame,widget,name,top_text='',top_color=DEFAULT_GREY,dataset=None,path=None,attached_to=None):
 		self.frame = frame
 		self.position=tabs.count
+		self.isrunning=False
 		self.tabs=tabs
 		self.name=name
-		self.path=None
+		self.path=path
+		self.attached_to=attached_to
 		self.dataset=dataset		
-		self.top_text=tk.StringVar(value=top_text)
 		self.top_color=top_color
 		self.frame.rowconfigure(0)
 		self.frame.rowconfigure(1, weight=1)
@@ -131,7 +135,7 @@ class tab:
 		self.notebook=tabs.notebook
 		self.locals=dict()
 		self.globals={'window':self.notebook.win,'tab':self,'data':None}		
-		self.add_buttons(name,top_color)
+		self.add_buttons(name,top_color,attached_to,top_text)
 		self.notebook.add(self.frame,text=name)
 		self.widget = widget	
 		self.locals=dict()
@@ -139,34 +143,35 @@ class tab:
 			widget.grid(row=1, column=0,sticky=tk.NSEW)
 
 		
-	def add_buttons(self,name,top_color):
+	def add_buttons(self,name,top_color,attached_to,top_text):
 		size=22
 		self.button_frame=tk.Frame(self.frame,height=size,background=top_color)
 		self.button_frame_L=tk.Frame(self.button_frame,height=size,background=top_color)
 		self.button_frame_R=tk.Frame(self.button_frame,height=size,background=top_color)
+		self.top_text=tk.StringVar(value=top_text,master=self.button_frame)
 		self.button_frame_label_M=tk.Label(self.button_frame,textvariable=self.top_text,background=top_color)
 
-		self.display_name=tk.StringVar()
+		self.display_name=tk.StringVar(self.button_frame)
 		self.display_name.set(name)
 		self.name_box=tk.Entry(self.button_frame_L,width=50,textvariable=self.display_name)
 		self.name_box.bind('<KeyRelease>', self.tab_name_edited)
 		self.button_img=dict()		
-		self.button_img['save']= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),'img/save.png'))
+		self.button_img['save']= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),'img\\save.png'),master=self.button_frame)
 		self.button_save=tk.Button(self.button_frame_L, image = self.button_img['save'],command=self.save, 
 								   highlightthickness=0,bd=0,height=size, anchor=tk.E,background=top_color)
 		
-		self.button_img['run']= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),'img/run.png'))
+		self.button_img['run']= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),'img\\run.png'),master=self.button_frame)
 		self.button_run=tk.Button(self.button_frame_L, image = self.button_img['run'],command=self.run, 
 								   highlightthickness=0,bd=0,height=size, anchor=tk.E,background=top_color)		
 		
-		self.button_img['stop']= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),'img/stop.png'))
+		self.button_img['stop']= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),'img\\stop.png'),master=self.button_frame)
 		self.button_stop=tk.Button(self.button_frame_L, image = self.button_img['stop'],command=self.stop, 
 								   highlightthickness=0,bd=0,height=size, anchor=tk.E,background=top_color)				
 		
 		self.attach_text=tk.Label(self.button_frame_R,text="attached to",background=top_color)
-		self.add_attached_box(self.button_frame_R)
+		self.add_attached_box(self.button_frame_R,attached_to)
 		
-		self.button_img['delete']= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),'img/delete_small.png'))
+		self.button_img['delete']= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),'img/delete_small.png'),master=self.button_frame)
 		self.button_delete=tk.Button(self.button_frame_R, image = self.button_img['delete'],command=self.delete, 
 								   highlightthickness=0,bd=0,height=15, anchor=tk.E,background=top_color)
 		
@@ -185,70 +190,71 @@ class tab:
 		self.button_stop.grid(row=0,column=3)
 		
 		self.button_delete.grid(row=0,column=2)
-		if hasattr(self,'attached_to'):
+		if not self.attached_to is None:
 			self.attached_to.grid(row=0,column=1)
 			self.attach_text.grid(row=0,column=0)
 		
 	def stop(self):
-		self.isrunning=False
-		self.pool.close()
+		self.tabs.notebook.win.mc.master.quit()
+		self.tabs.notebook.win.mc=None
+		if hasattr(self,'exe_tab'):
+			self.exe_tab.isrunning=False
+			self.exe_tab.pool.close()
+		else:
+			self.isrunning=False
+			self.pool.close()	
+		
 	
 	def run(self):
 		win=self.notebook.win
 		win.data.save()
 		self.pool = pool.ThreadPool(processes=1)
 		text=self.widget.get_all()
-		if False:
-			model_string="""
-			OIBReversal~
-			LNMarketShare+LNRelTickSize+
-			L(OIBReversal)+
-			LNhsi_alpha+hsi_alpha0+hsi_alpha1+
-			LNhsi_beta+hsi_beta0 +hsi_beta1+
-			LNhsi_pi+hsi_pi0 +hsi_pi1+
-			L(LNhsi_alpha)+L(hsi_alpha0)+L(hsi_alpha1)+
-			L(hsi_beta)+L(hsi_beta0)+L(hsi_beta1)+
-			L(LNhsi_pi)+L(hsi_pi0)+L(hsi_pi1)"""	
-			pt.window=self.notebook.win
-			pt.tab=self
-			pt.execute(model_string, self.dataset,ID='ISINCode',T='date')	
+		self.globals['exe_tab']=self
+		self.isrunning=True
 		self.process=self.pool.apply_async(self.exec, (text,))
-
-
-		
 
 	def exec(self,source):
 		try:
 			exec(source,self.globals,self.locals)
 		except Exception as e:
+			print("""
+The following error occured in you script:
+------------------------------------------
+""")
 			traceback.print_exc()
 	
 	def run_enable(self,event):
 		pass
 		
-	def add_attached_box(self,master):
+	def add_attached_box(self,master,attached_to):
 		if self.name==ADD_EDITOR_NAME:
 			return		
-		self.attached_to_text=tk.StringVar()
+		self.attached_to_text=tk.StringVar(master)
 		self.attached_to = ttk.Combobox(master,textvariable=self.attached_to_text)
 		self.attached_to.bind("<<ComboboxSelected>>",self.attachment_change)
 		self.attached_to.bind("<Button-1>",self.attachment_add_items)
-		self.attachment_add_items()
+		self.attachment_add_items(attached_to=attached_to)
 		
 	
-	def attachment_add_items(self,event=None):
+	def attachment_add_items(self,event=None,attached_to=None):
 		if self.name==ADD_EDITOR_NAME:
 			return
 		if hasattr(self.notebook.win, 'right_tabs'):
 			datasets=self.notebook.win.right_tabs.data_tree.datasets
 		else:
-			datasets=self.dataset.datasets
+			if hasattr(self,'datasets'):
+				datasets=self.dataset.datasets
+			else:
+				return
 		self.globals['data']=datasets
 		attach_list=list(datasets.keys())+['']
 		attach_list.sort()
 		self.attached_to.config(values=attach_list)
 		if not self.dataset is None:
 			self.attached_to_text.set(self.dataset.name)
+		elif not attached_to is None:
+			self.attached_to_text.set(attached_to)
 		else:
 			self.attached_to_text.set('')
 	
@@ -269,7 +275,9 @@ class tab:
 		self.notebook.tab(self.frame,text=self.display_name.get())
 		
 		
-	def edit_data_set(self,event):
+	def edit_data_set(self):
+		if self.top_text.get()!="Data editor":
+			return
 		if self.dataset is None:
 			return
 		d=self.dataset
@@ -278,7 +286,8 @@ class tab:
 		for i in list(d.keys()):
 			if not type(d[i])==np.ndarray:
 				d.pop(i)
-		self.dataset.datasets.make_tree(self.dataset.name,self.notebook.win.right_tabs.data_tree,d)
+		self.dataset.datasets.make_tree(self.dataset.name,self.notebook.win.right_tabs.data_tree)
+		self.widget.focus()
 		
 	def save(self):
 		p=self.notebook.win.data['current path']
@@ -305,10 +314,12 @@ class tabs(dict):
 		self.names=dict()
 		self.notebook=notebook
 		self.sel_list=[]
+		self.subplot=plt.subplots(1,figsize=(4,2.5),dpi=75)
+		self.print_subplot=plt.subplots(1,figsize=(6,3.25),dpi=200)				
 	
-	def add(self,frame,widget=None,name='',top_text='',top_color=DEFAULT_GREY,dataset=None):
+	def add(self,frame,widget=None,name='',top_text='',top_color=DEFAULT_GREY,dataset=None,path=None,attached_to=None):
 		
-		tab_item=tab(self,frame, widget, name,top_text,top_color,dataset)
+		tab_item=tab(self,frame, widget, name,top_text,top_color,dataset,path,attached_to=attached_to)
 		dict.__setitem__(self,str(frame), tab_item)
 		self.names[name]=self[frame]
 		self.count+=1
@@ -319,11 +330,13 @@ class tabs(dict):
 		win=self.notebook.win
 		win.data['editor_data']=dict()
 		for i in self:
+			t=self[i]
 			try:
-				text=self[i].widget.get('1.0',tk.END)
+				text=t.widget.get('1.0',tk.END)
 			except:
 				text=''
-			win.data['editor_data'][i]=(self[i].name,text,self[i].top_text.get(),self[i].top_color)
+			if not t.name==ADD_EDITOR_NAME:
+				win.data['editor_data'][i]=(t.name,text,t.top_text.get(),t.top_color,t.attached_to.get(),t.path)
 	
 	def __getitem__(self,k):
 		k=str(k)

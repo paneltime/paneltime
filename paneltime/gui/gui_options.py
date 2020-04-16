@@ -24,13 +24,13 @@ class optionset(dict):
 		self.tabs.columnconfigure(0,weight=1)		
 		self.win=window
 		self.default_options=options_module.regression_options()
-		self.main_frame=tk.Frame(tabs)	
+		self.main_frame=tk.Frame(tabs,background='white')	
 		self.main_frame.rowconfigure(0,weight=1)
 		self.main_frame.columnconfigure(0,weight=1)			
 		self.main_frame.grid(row=0,column=0,sticky=tk.NSEW)
 		self.frames=dict()
-		self.frames['default']=tk.Frame(self.main_frame)
-		self.default_msg=tk.Label(self.frames['default'],text='Please select a data set before editing options')
+		self.frames['default']=tk.Frame(self.main_frame,background='white')
+		self.default_msg=tk.Label(self.frames['default'],text='Please select a data set before editing options',background='white')
 		self.frames['default'].grid()
 
 		
@@ -61,7 +61,7 @@ def add_preferences_tab(tabs,window):
 	tabs.rowconfigure(0,weight=1)
 	tabs.columnconfigure(0,weight=1)		
 	
-	main_frame=tk.Frame(tabs)	
+	main_frame=tk.Frame(tabs,background='white')	
 	main_frame.rowconfigure(0,weight=1)
 	main_frame.columnconfigure(0,weight=1)			
 	main_frame.grid(row=0,column=0,sticky=tk.NSEW)
@@ -83,8 +83,8 @@ class options_item(ttk.Treeview):
 		self.dataset=dataset
 		self.default_options=default_options
 		self.main_frame=frame
-		self.canvas=tk.Canvas(self.main_frame)
-		self.opt_frame=tk.Frame(self.main_frame)
+		self.canvas=tk.Canvas(self.main_frame,background='white')
+		self.opt_frame=tk.Frame(self.main_frame,background='white')
 		self.add_heading()
 		ttk.Treeview.__init__(self,self.canvas)
 		self.level__dicts=[dict(),dict(),dict()]
@@ -101,14 +101,14 @@ class options_item(ttk.Treeview):
 		self.script=''
 		
 	def add_heading(self):
-		self.name_frame=tk.Frame(self.main_frame)
+		self.name_frame=tk.Frame(self.main_frame,background='white')
 		if self.dataset is None:
 			name_lbl=tk.Label(self.name_frame,text='General preferences',background='white')
 			name_lbl.grid()
 		else:
 			self.name=tk.StringVar(value=self.dataset.name)
 			name_lbl1=tk.Label(self.name_frame,text='Options for:',background='white')
-			name_lbl2=tk.Label(self.name_frame,textvariable=self.name,background='white',font='Calibri 12 bold')	
+			name_lbl2=tk.Label(self.name_frame,textvariable=self.name,background='white',font='Arial 12 bold')	
 			name_lbl1.grid(row=0,column=0)
 			name_lbl2.grid(row=0,column=1)			
 		
@@ -258,7 +258,7 @@ def tag_configure(tree,name,d,value=None):
 		
 class option_frame(tk.Frame):
 	def __init__(self, master, option,option_tree,node_name):
-		tk.Frame.__init__(self,master)
+		tk.Frame.__init__(self,master,background='white')
 		self.entries=dict()
 		self.option_tree=option_tree
 		self.node_name=node_name
@@ -267,10 +267,10 @@ class option_frame(tk.Frame):
 		desc=option.descr_for_vector_setting
 		if not type(option.description)==list:
 			desc+=option.description
-		self.desc=tk.Label(self,text=desc,anchor='nw',justify=tk.LEFT)
+		self.desc=tk.Label(self,text=desc,anchor='nw',justify=tk.LEFT,background='white')
 		self.desc.grid(row=0,column=0,sticky='nw')		
 		if option.is_inputlist:#
-			self.cntrl=tk.Frame(self)
+			self.cntrl=tk.Frame(self,background='white')
 			for i in range(len(option.description)):
 				self.add_control_multi(option,self.cntrl,i)
 			self.cntrl.grid(row=1,column=0,sticky='nw')
@@ -296,12 +296,12 @@ class option_frame(tk.Frame):
 		
 
 	def add_control_multi(self,option,master,i):		
-		line=tk.Frame(self.cntrl)
+		line=tk.Frame(self.cntrl,background='white')
 		name=self.node_name+str(i)
 		line.columnconfigure(0,weight=1)
 		line.columnconfigure(1,weight=1)
 		desc=option.description[i]
-		lbl=tk.Label(line,text=desc,anchor='nw')
+		lbl=tk.Label(line,text=desc,anchor='nw',background='white')
 		self.entries[name]=managed_text(line,option.dtype,option,self.option_tree,self.node_name,i)
 		self.entries[name].text.set(str(option.value[i]))
 		self.entries[name].grid(row=0,column=2,sticky='nw')
@@ -313,7 +313,7 @@ class option_frame(tk.Frame):
 		
 class managed_text(tk.Entry):
 	def __init__(self, master,dtype,option,option_tree,node_name,i=None):
-		self.text=tk.StringVar()
+		self.text=tk.StringVar(master)
 		tk.Entry.__init__(self,master,textvariable=self.text,validate="key")
 		self.option_tree=option_tree
 		self.node_name=node_name
@@ -336,9 +336,12 @@ class managed_text(tk.Entry):
 				return True
 			elif P=='None':
 				P=None
-			elif self.option.dtype==int or (int in self.option.dtype):
+			dtype=self.option.dtype
+			if not(type(dtype)==list or type(dtype)==tuple):
+				dtype=[dtype]
+			if int in dtype:
 				P=int(P)
-			elif self.option.dtype==float or (float in self.option.dtype):
+			elif float in dtype:
 				P=float(P)
 		except:
 			return False

@@ -22,14 +22,16 @@ class args_archive:
 		
 		self.model_key=model_string# possibility for determening model based on data: get_model_key(X, Y, W)
 		self.data=load_obj(fname_args)
-		if (not loadargs) or (self.data is None):
-			(self.args,self.conv,self.pqdkm,self.not_in_use2)=(None,0,(0,0,0,0,0),None)
+		if self.data is None:
+			(self.args,self.conv,self.pqdkm,self.names_d)=(None,0,(0,0,0,0,0),None)
 			return
 		(d,a)=self.data
-		if self.model_key in d.keys():
-			(self.args,self.conv,self.pqdkm,self.not_in_use2)=d[self.model_key]
+		if self.model_key in d.keys() and loadargs==2:
+			(self.args,self.conv,self.pqdkm,self.names_d)=d[self.model_key]
+		elif 'last_args##' in d.keys() and loadargs>0:
+			(self.args,self.conv,self.pqdkm,self.names_d)=d['last_args##']
 		else:
-			(self.args,self.conv,self.pqdkm,self.not_in_use2)=(None,0,(0,0,0,0,0),None)
+			(self.args,self.conv,self.pqdkm,self.names_d)=(None,0,(0,0,0,0,0),None)
 
 	def load(self):#for debugging
 		data=load_obj(fname_args)
@@ -39,7 +41,7 @@ class args_archive:
 		else:
 			return (None,0,None,None)		
 
-	def save(self,args,conv,pqdkm,not_in_use2=None):
+	def save(self,args,conv,panel):
 		"""Saves the estimated parameters for later use"""
 		if not self.data is None:
 			d,a=self.data#d is d dictionary, and a is a sequental list that allows us to remove the oldest entry when the database is full
@@ -48,7 +50,8 @@ class args_archive:
 		else:
 			d=dict()
 			a=[]
-		d[self.model_key]=(args,conv,pqdkm,not_in_use2)
+		d[self.model_key]=(args,conv,panel.pqdkm,panel.args.names_d)
+		d['last_args##']=d[self.model_key]
 		if self.model_key in a:
 			a.remove(self.model_key)
 		a.append(self.model_key)		

@@ -28,7 +28,7 @@ class sql_query(tk.Toplevel):
 		self.rowconfigure(4,weight=5)
 		self.rowconfigure(5)
 		
-		self.name_txt=tk.StringVar()
+		self.name_txt=tk.StringVar(self)
 		self.name_entry=tk.Frame(self)
 
 		self.name_entry_lbl=tk.Label(self.name_entry,height=2,text="Name of query:",justify=tk.LEFT)
@@ -67,6 +67,8 @@ from paneltime import *\n
 data=dict()#defining the data as a dict entry avoids having to comply with python naming conventions
 data['{name}']=load_SQL(conn,{sqlstr})"""
 		self.win.exec(exe_str)
+		if not name in self.win.locals['data']:
+			return
 		df=self.win.locals['data'][name]
 		self.win.grab_set()
 		tree=self.win.right_tabs.data_tree

@@ -193,7 +193,7 @@ def sandwich(H,G,lags=3,ret_hessin=False):
 	sel=[i for i in range(len(H))]
 	H[sel,sel]=H[sel,sel]+(H[sel,sel]==0)*1e-15
 	hessin=np.linalg.inv(-H)
-	V=stat.newey_west_wghts(lags,XErr=G)
+	V=stat.newey_west_wghts(XErr=G)
 	hessinV=fu.dot(hessin,V)
 	sandw=fu.dot(hessinV,hessin)
 	if ret_hessin:

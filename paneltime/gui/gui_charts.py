@@ -9,8 +9,8 @@ from multiprocessing import pool
 import numpy as np
 import stat_functions as stat
 from scipy import stats as scstats
-from matplotlib import pyplot  as plt
 from gui import gui_functions as guif
+
 
 
 class process_charts(ttk.Frame):
@@ -19,10 +19,10 @@ class process_charts(ttk.Frame):
 		style.configure("TFrame", background='white')		
 		ttk.Frame.__init__(self,master,style='new.TFrame')
 		self.window=window
-		self.subplot=plt.subplots(1,figsize=(4,2.5),dpi=75)
-		self.print_subplot=plt.subplots(1,figsize=(6,3.25),dpi=200)
 		self.ll=None	
 		self.initialized=False
+		self.subplot=window.main_tabs._tabs.subplot
+		self.print_subplot=window.main_tabs._tabs.print_subplot
 		
 	def add_content(self):
 		self.n_charts=3
@@ -57,7 +57,7 @@ class process_charts(ttk.Frame):
 			self.correlogram,
 			self.correlogram_variance,
 		]
-		flst[i](self.ll,self.print_subplot,f)
+		flst[i](self.ll,print_subplot,f)
 		f.close()
 		
 	def initialize(self,panel):
@@ -139,9 +139,6 @@ def histogram(x,grid_range,grid_step):
 class scatter_charts(tk.Toplevel):
 	def __init__(self, master,panel,X,Y,iconpath,height=400,width=1000):
 		tk.Toplevel.__init__(self, master,height=400,width=1000,)
-		self.print_subplot= plt.subplots(1,figsize=(6,3.25),dpi=200)
-		self.subplot=plt.subplots(1,figsize=(4,2.5),dpi=75)
-
 		
 		self.panel=panel
 		self.X=X

@@ -136,8 +136,8 @@ except:
 def maximize(panel,direction,mp,args,tab):
 	"""Maxmizes logl.LL"""
 
-	its, convergence_limit	= 0, 0.01
-	k, m, dx_norm,incr		= 0,     0,    None, 0
+	convergence_limit=panel.settings.convergence_limit.value[0]
+	its, k, m, dx_norm,incr		=0,  0,     0,    None, 0
 	H,  digits_precision    = None, 12
 	msg,lmbda,newton_failed	='',	1, False
 	direction.hessin_num, ll= None, None
@@ -146,25 +146,22 @@ def maximize(panel,direction,mp,args,tab):
 	po=printout(tab,panel)
 	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po):return ll,direction,po
 	while 1:
-		direction.get(ll,its,newton_failed)
+		direction.get(ll,its,newton_failed,msg)
 		LL0=ll.LL
 			
 		#Convergence test:
 		constr_conv=np.max(np.abs(direction.dx_norm))<convergence_limit
 		unconstr_conv=np.max(np.abs(direction.dx_unconstr)) < convergence_limit 
 		conv=constr_conv or (unconstr_conv and its>3)
-		args_archive.save(ll.args_d,conv,panel.pqdkm)
+		args_archive.save(ll.args_d,conv,panel)
 		if conv: 
 			printout_func(1.0,"Convergence on zero gradient; maximum identified",ll,its,direction,incr,po)
 			return ll,direction,po
 
 		if not printout_func(0.95,"Linesearch",ll,its,direction,incr,po):return ll,direction,po
 		ll,msg,lmbda,ok=lnsrch(ll,direction,mp,its,incr,po) 
-		if not printout_func(1.0,msg,ll,its,direction,incr,po):return ll,direction,po
-
-
 		incr=ll.LL-LL0
-
+		if not printout_func(1.0,msg,ll,its,direction,incr,po):return ll,direction,po
 		its+=1
 		
 def printout_func(percent,msg,ll,its,direction,incr,po):
@@ -205,13 +202,14 @@ class printout:
 					  statistics=[['\nDependent: ',self.panel.input.y_name[0],None,"\n"],
 								  ['Max condition index',direction.CI,3,'decimal']],
 					  incr=incr)
-		o.add_footer("Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001\n"
+		o.add_footer("Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
 					+'\n' 
 					+ ll.err_msg)
 		tab_stops=o.get_tab_stops(self.tab.box.text_box.config()['font'][4])
 		self.tab.box.text_box.config(tabs=tab_stops)		
 		self.print(o)
 		self.prtstr=o.printstring
+		self.output_dict=o.dict
 		
 	def print(self,o):
 		try:

@@ -33,7 +33,7 @@ def plot_to_chart(chart_file,chart_label):
 	if hasattr(chart_label,'graph_file'):
 		chart_label.graph_file.close()
 	chart_label.graph_file=Image.open(chart_file)
-	img = ImageTk.PhotoImage(chart_label.graph_file)
+	img = ImageTk.PhotoImage(chart_label.graph_file,master=chart_label)
 	chart_label.configure(image=img)
 	chart_label.graph_img=img	
 	

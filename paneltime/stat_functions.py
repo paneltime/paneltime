@@ -91,8 +91,7 @@ def get_full_reg(beta,se,keep):
 
 def find_singulars(panel,X):
 	"""Returns a list with True for variables that cause singularity and False otherwise.
-	Singularity is of course an extreme form of multicollinearity. This functino is needed 
-	since the nummerical procedure for detecting mc does not handle singularity"""
+	for the main regression, singularity is detected by the constraints module"""
 	N,T,k=X.shape
 	XXCorrel=correl(X,panel)
 	keep=np.all(np.isnan(XXCorrel)==False,0)
@@ -106,12 +105,7 @@ def find_singulars(panel,X):
 def adf_test(panel,ll,p):
 	"""Returns the augmented dickey fuller test statistic and critical value"""
 	N,T,k=panel.X.shape
-	beta,y=OLS(panel,panel.X*panel.included,panel.Y*panel.included,return_e=True)
-	y=y+ll.re_obj_i.FRE(y)#+ll.re_obj_t.FRE(y)
-	y_dev=deviation(panel,y)
-	s=panel.var(y_dev,1)**0.5
-	s=s.reshape(N,1,1)
-	y=y/(s+(s==0)*1e-17)
+	y=ll.Y_st
 	yl1=cf.roll(y,1,1)
 	dy=y-yl1
 	date_var=np.arange(T).reshape((T,1))*panel.included	#date count
@@ -128,32 +122,21 @@ def adf_test(panel,ll,p):
 	keep,c_ix=singular_elim(panel,X)
 	if not np.all(keep[0:3]):
 		return 'NA','NA','NA'
-	beta,se=OLS(panel,X[:,:,keep],dy,return_se=True,c=date_var)
-	adf_stat=beta[2]/se[2]
+	beta,se_robust,se=OLS(panel,X[:,:,keep],dy,robust_se_lags=10,c=date_var)
+	adf_stat=beta[2]/se_robust[2]
 	critval=adf_crit_values(panel.NT,True)
 	res=np.append(adf_stat,critval)
 	return res
 
 def goodness_of_fit(panel,ll):
-	v0=panel.var(ll.e_st)
-	y=deviation(panel,ll.Y_st)
-	v1=panel.var(y)
-	Rsq=1-v0/v1
-	Rsqadj=1-(v0/v1)*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
-	LL_OLS=logl.LL(panel.args.args_OLS,panel)
-	if not LL_OLS is None:
-		LL_OLS=LL_OLS.LL
-		LL_ratio_OLS=2*(ll.LL-LL_OLS)
-	else:
-		LL_ratio_OLS=None
-	LL_args_restricted=logl.LL(panel.args.args_restricted,panel)
-	if not LL_args_restricted is None:
-		if not LL_args_restricted.LL is None:
-			LL_ratio=2*(ll.LL-LL_args_restricted.LL)
-		else:
-			LL_ratio=None
-	else:
-		LL_ratio=None
+	s_res=panel.var(ll.e_st)
+	s_mod=panel.var(ll.Y_pred_st)
+	s_expl=s_res/(s_mod+s_res)
+	Rsq=1-s_expl
+	Rsqadj=1-s_expl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
+	panel.args.create_null_ll()
+	LL_ratio_OLS=2*(ll.LL-panel.args.LL_OLS)
+	LL_ratio=2*(ll.LL-panel.args.LL_null)
 	return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS
 
 
@@ -286,7 +269,7 @@ def correl_2dim(X,Y=None):
 		corr=corr[0][0]
 	return cov/std_matr
 
-def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_se=False):
+def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_se_lags=0):
 	"""runs OLS after adding const as the last variable"""
 	if c is None:
 		c=panel.included
@@ -300,20 +283,20 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,return_
 	XX=cf.dot(X,X)
 	XY=cf.dot(X,Y)
 	beta=np.linalg.solve(XX,XY)
-	if return_rsq or return_e or return_se:
+	if return_rsq or return_e or robust_se_lags:
 		e=(Y-cf.dot(X,beta))*c
 		if return_rsq:
-			v0=panel.var(e)
-			v1=panel.var(Y)
+			v0=panel.var(e,included=c)
+			v1=panel.var(Y,included=c)
 			Rsq=1-v0/v1
 			#Rsqadj=1-(v0/v1)*(NT-1)/(NT-k-1)
 			return beta,Rsq
 		elif return_e:
 			return beta,e*c
-		elif return_se:
+		elif robust_se_lags:
 			XXInv=np.linalg.inv(XX)
-			se=(panel.var(e)**0.5)*(np.diag(XXInv)**0.5)
-			return beta,se.reshape(k,1)
+			se_robust,se=robust_se(panel,robust_se_lags,XXInv,X*e)
+			return beta,se_robust.reshape(k,1),se.reshape(k,1)
 	return beta
 
 def OLS_simple(Y,X,addconst=False,residuals=True):
@@ -331,7 +314,7 @@ def OLS_simple(Y,X,addconst=False,residuals=True):
 	else:
 		return beta
 
-def newey_west_wghts(panel,L,XErr):
+def newey_west_wghts(L,XErr):
 	"""Calculates the Newey-West autocorrelation consistent weighting matrix. Either err_vec or XErr is required"""
 	N,T,k=XErr.shape
 	S=np.zeros((k,k))
@@ -364,9 +347,9 @@ def robust_se(panel,L,hessin,XErr,nw_only=True):
 	"""Returns the maximum robust standard errors considering all combinations of sums of different combinations
 	of clusters and newy-west"""
 	w=sandwich_var(hessin,cf.dot(XErr,XErr))#whites
-	nw=sandwich_var(hessin,newey_west_wghts(panel,L,XErr))#newy-west
-	c0=sandwich_var(hessin,robust_cluster_weights(panel, XErr, 0, w))#cluster dim 1
-	c1=sandwich_var(hessin,robust_cluster_weights(panel, XErr, 1, w))#cluster dim 2
+	nw=sandwich_var(hessin,newey_west_wghts(L,XErr))#newy-west
+	c0=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 0, w))#cluster dim 1
+	c1=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 1, w))#cluster dim 2
 	v=np.array([
 		w*0,
 		nw,

@@ -16,7 +16,8 @@ class ScrollText(tk.Frame):
 		
 		xscrollbar = tk.Scrollbar(self,orient='horizontal')
 		yscrollbar = tk.Scrollbar(self)
-	
+		
+		self.master=master
 		self.text_box = CustomText(self, wrap = tk.NONE,xscrollcommand = xscrollbar.set,
 								   yscrollcommand = yscrollbar.set,undo=True,format_text=format_text,name=name,window=window)	
 		self.text_box.config(tabs='1c')
@@ -92,6 +93,7 @@ class CustomText(tk.Text):
 
 		tk.Text.__init__(self, master,wrap=wrap, 
 						 xscrollcommand=xscrollcommand,yscrollcommand=yscrollcommand,undo=undo)	
+		self.master=master
 		self.configure(font=(font,size,'normal'))
 		self.bind('<KeyRelease>', self.key_released)
 		self.bind('<KeyPress>', self.key_pressed)
@@ -138,6 +140,8 @@ class CustomText(tk.Text):
 			self.pressed_key=''
 			return
 		if not event is None:
+			if event.keysym=='Return' and hasattr(self.master.master,'tab'):
+				self.master.master.tab.edit_data_set()			
 			if ((self.released_ignore_key==True) 
 				and (not event.keysym in ignore_press_keys)):
 				self.released_ignore_key=False
@@ -203,7 +207,7 @@ class CustomText(tk.Text):
 		self.mark_set("matchEnd", start)
 		self.mark_set("searchLimit", end)
 
-		count = tk.IntVar()
+		count = tk.IntVar(master=self)
 		indicies=[]
 		while True:
 			index1 = self.search(pattern, "matchEnd","searchLimit",

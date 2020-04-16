@@ -21,7 +21,6 @@ import maximize
 import tempstore
 import os
 import direction as drctn
-import tempstore
 from gui import gui_output_tab
 
 
@@ -30,26 +29,31 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window=None):
+def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window=None,exe_tab=None):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
-
-	settings.heteroscedasticity_factors=heteroscedasticity_factors
-	tab=gui_output_tab.output_tab(window)
-	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings)
-	if settings.loadargs.value==2:
+	if not exe_tab is None:
+		if exe_tab.isrunning==False:return
+	output_tab=gui_output_tab.output_tab(window,exe_tab)
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors)
+	if settings.loadARIMA_GARCH.value:
 		settings.pqdkm.value=datainput.args_archive.pqdkm
 	mp,close_mp=mp_check(datainput,window)
 	pqdkm=makelist(settings.pqdkm.value)
-	results_obj=None
 	for i in pqdkm:
 		print(f'pqdkm={i}')
-		results_obj=results(dataframe,datainput,settings,mp,tab,i,results_obj)
+		results_obj=results(dataframe,datainput,settings,mp,output_tab,i)
+		if len(pqdkm)>1:
+			settings.loadargs.value=2
+			settings.loadARIMA_GARCH.value=True
 	if not mp is None and close_mp:
 		mp.quit()
 	return results_obj
 
-
+def get_panel(model_string,dataframe, IDs_name, time_name,settings):
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings)
+	return panel.panel(dataframe,datainput,settings)
+	
 def makelist(pqdkm):
 	try:
 		a=pqdkm[0][0]
@@ -59,12 +63,13 @@ def makelist(pqdkm):
 	
 
 class input_class:
-	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,descr=None):
+	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors=None,descr=None):
 		
 		t=type(settings.user_constraints.value)
-		if t!=list and t!=tuple and (not t is None):
-			print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
-			
+		if t!=list and t!=tuple and (not settings.user_constraints.value is None):
+			print("User user_constraints must be a list of tuples. user_constraints are not applied.")	
+		if not hasattr(settings,'heteroscedasticity_factors'):
+			settings.heteroscedasticity_factors=heteroscedasticity_factors
 		self.tempfile=tempstore.tempfile_manager()
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,settings)
 		self.descr=descr
@@ -76,16 +81,14 @@ class input_class:
 	
 	
 class results:
-	def __init__(self,dataframe,datainput,settings,mp,tab,pqdkm,old_results):
+	def __init__(self,dataframe,datainput,settings,mp,output_tab,pqdkm):
 		print ("Creating panel")
-		if not old_results is None:
-			datainput.args=old_results.ll.args_d	
 		pnl=panel.panel(dataframe,datainput,settings,pqdkm)
-		direction=drctn.direction(pnl,mp,tab)	
+		direction=drctn.direction(pnl,mp,output_tab)	
 		self.mp=mp
 		if not mp is None:
 			mp.send_dict_by_file({'panel':pnl})
-		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,tab)	
+		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,output_tab)	
 		self.panel=direction.panel
 
 

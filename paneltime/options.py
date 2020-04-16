@@ -111,11 +111,18 @@ def regression_options():
 	self.variance_fixed_random_eff	= options_item(2,				'Fixed, random or no group effects for variance', int, 'Variance fixed random effects',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 	
-	self.loadargs					= options_item(1, 				"Determines whether the arguments from the previous iteration should be kept", 
+	self.loadargs					= options_item(1, 				"Determines whether the regression arguments from the previous run should be kept", 
 																	int, 'Load arguments', [0,1,2],
-																	['No loading of arguments',
-																	'Load arguments',
-																	'Load arguments and prevous ARIMA/GARCH-order'])
+																	['No loading',
+																	'Load from last run',
+																	'Load from last matching model',
+																	])
+	
+	self.loadARIMA_GARCH			= options_item(False, 				"Determines whether the ARIMA_GARCH arguments from the previous run should be kept", 
+																	bool, 'Load ARIMA_GARCH', [False,True],
+																	['No loading',
+																	'Load arguments'
+																	])	
 	
 	self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
 																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
@@ -125,10 +132,14 @@ def regression_options():
 	
 	self.tobit_limits				= options_item([None,None],		['lower limit','upper limit'], [float,type(None)], 'Tobit-model limits', descr_for_vector_setting=tobit_desc)
 	
-	self.min_group_df				= options_item(5, 				"The smallest permissible degrees of freedom", int, 'Minimum degrees of freedom', "%s>0",category='Regression')
+	self.min_group_df				= options_item(5, 				"The smallest permissible degrees of freedom", int, 'Minimum degrees of freedom', "%s>-1",category='Regression')
 	self.robustcov_lags_statistics	= options_item([100,30],		[robust_desc_0,robust_desc_1], int, 'Robust covariance lags (time)', ["%s>1","%s>1"], descr_for_vector_setting=robust_desc_all,category='Output')
 	self.silent						= options_item(False, 			silent_desc,  bool,'Silent mode',[True,False],['Silent','Not Silent'])
 	self.description				= options_item(None, 			descr_descr, 'entry','Description')	
+	
+	self.convergence_limit	= options_item([0.0001], ['Convergence limit:'],float,"Convergence limit", ["%s>0"],
+									descr_for_vector_setting=conv_desc
+									)	
 	
 	self.make_category_tree()
 	
@@ -138,8 +149,8 @@ def regression_options():
 def application_preferences():
 	opt=options()
 	
-	opt.save_datasets	= options_item(1, "If 1 all loaded datasets are saved on exit and will reappear when the application is restarted", 
-									int,"Save datasets on exit", [0,1],
+	opt.save_datasets	= options_item(True, "If 1 all loaded datasets are saved on exit and will reappear when the application is restarted", 
+									bool,"Save datasets on exit", [False,True],
 									['Save on exit',
 									'No thanks'])
 
@@ -158,6 +169,10 @@ def h(e,z):
 	return h_val,h_e_val,h_2e_val,None,None,None
 """
 
+conv_desc="""
+Convergence limit. When this exceedes the maximum absolute value of 
+new directions (as percentage of parameter value), the procedure is 
+determined to have converged"""
 h_descr="""
 You can supply your own heteroskedasticity function. It must be a function of\n
 residuals e and a shift parameter z that is determined by the maximization procedure\n

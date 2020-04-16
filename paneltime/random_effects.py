@@ -27,17 +27,17 @@ class re_obj:
 			
 			self.xFE=(x+self.FRE(x))*panel.included
 			self.e_var=self.panel.mean(self.xFE**2)/(1-self.avg_Tinv)
-			self.v_var=self.panel.mean(panel.included*x**2)-self.e_var
+			self.v_var=self.panel.mean((panel.included*x)**2)-self.e_var
 			if self.v_var<0:
 				#print("Warning, negative group random effect variance. 0 is assumed")
 				self.v_var=0
-				self.theta=panel.allzeros
-				return panel.allzeros
+				self.theta=panel.zeros
+				return panel.zeros
 				
 			#self.e_var=0.01693374924097458
 			#self.v_var=0.0005709978136967248
 			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*self.T_i)))*self.panel.included
-			
+			self.theta*=(self.T_i>1)
 			if np.any(self.theta>1) or np.any(self.theta<0):
 				raise RuntimeError("WTF")
 		#x=panel.Y
@@ -61,7 +61,7 @@ class re_obj:
 		elif self.FE_RE==1:
 			return self.FRE(dx)	
 		if self.v_var==0:
-			return panel.allzeros
+			return panel.zeros
 		(N,T,k)=dx.shape	
 
 		self.dxFE[vname]=(dx+self.FRE(dx))*panel.included
@@ -74,7 +74,7 @@ class re_obj:
 		self.dtheta_de_var=(-0.5*(1/self.e_var)*(1-self.theta)*self.theta*(2-self.theta))
 		self.dtheta_dv_var=(0.5*(self.T_i/self.e_var)*(1-self.theta)**3)
 		self.dtheta[vname]=(self.dtheta_de_var*self.de_var[vname]+self.dtheta_dv_var*self.dv_var[vname])
-		
+		self.dtheta[vname]*=(self.T_i>1)
 		dRE0=self.FRE(dx,self.theta)
 		dRE1=self.FRE(x,self.dtheta[vname])
 		return (dRE0+dRE1)*self.panel.included
@@ -91,7 +91,7 @@ class re_obj:
 		elif self.FE_RE==1:
 			return self.FRE(ddx)	
 		if self.v_var==0:
-			return panel.allzeros.reshape((N,T,1,1))
+			return panel.zeros.reshape((N,T,1,1))
 
 		if ddx is None:
 			ddxFE=0
@@ -130,7 +130,7 @@ class re_obj:
 		ddtheta +=d2theta_d_e_v_var * (de_var1* dv_var2+dv_var1* de_var2)
 		ddtheta +=d2theta_d_v_var * dv_var1* dv_var2  
 		ddtheta +=dtheta_de_var*d2e_var+dtheta_dv_var*d2v_var
-
+		ddtheta*=(T_i>1)
 	
 		if hasdd:
 			dRE00=self.FRE(ddx,self.theta.reshape(N,T,1,1))
