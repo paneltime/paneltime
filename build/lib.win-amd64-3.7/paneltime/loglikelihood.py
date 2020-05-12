@@ -17,6 +17,7 @@ import random_effects as re
 from scipy import sparse as sp
 import scipy
 import debug
+import traceback
 
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and creates an object
@@ -25,13 +26,13 @@ class LL:
 	determined from the dictionary. If args is a vector, the ARMA-GARCH order needs to be consistent
 	with the  panel object
 	"""
-	def __init__(self,args,panel,constraints=None):
-		self.errmsg=''
+	def __init__(self,args,panel,constraints=None,print_err=False):
+		self.err_msg=''
 		self.errmsg_h=''
 		self.panel=panel
-		gfre=panel.settings.group_fixed_random_eff
-		tfre=panel.settings.time_fixed_random_eff
-		vfre=panel.settings.variance_fixed_random_eff
+		gfre=panel.settings.group_fixed_random_eff.value
+		tfre=panel.settings.time_fixed_random_eff.value
+		vfre=panel.settings.variance_fixed_random_eff.value
 		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
 		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
 		self.re_obj_i_v=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre*vfre)
@@ -45,23 +46,22 @@ class LL:
 			constraints.set_fixed(self.args_v)
 		self.args_d=panel.args.conv_to_dict(self.args_v)
 		self.h_err=""
-		#self.LL=self.LL_calc(panel)
+		self.LL=None
+		#self.LL=self.LL_calc()
 		try:
-			self.LL=self.LL_calc(panel)
-			
-		except Exception as e:
-			self.LL=None
-			self.errmsg=self.errmsg_h
-			if self.errmsg=='':
-				self.errmsg=str(e)
-		if not self.LL is None:
+			self.LL=self.LL_calc()
 			if np.isnan(self.LL):
-				self.LL=None
+				self.LL=None						
+		except Exception as e:
+			if print_err:
+				traceback.print_exc()
+				print(self.errmsg_h)
 		
 		
 
 
-	def LL_calc(self,panel):
+	def LL_calc(self):
+		panel=self.panel
 		X=panel.X
 		matrices=set_garch_arch(panel,self.args_d)
 		if matrices is None:
@@ -72,47 +72,56 @@ class LL:
 
 		u = panel.Y-cf.dot(X,self.args_d['beta'])
 		e = cf.dot(AMA_1AR,u)
-		self.e_RE = (e+self.re_obj_i.RE(e)*panel.included+self.re_obj_t.RE(e))*panel.included
-		self.e_REsq = self.e_RE**2		
+		e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included
+		e_REsq = e_RE**2		
 
 		lnv_ARMA = self.garch(GAR_1MA, e)
 		W_omega = cf.dot(panel.W_a, self.args_d['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		#self.lnv0=lnv*1#debug
-		grp = self.variance_RE()
+		grp = self.variance_RE(e_REsq)
 		lnv+=grp
+		self.dlnv_pos=(lnv<100)*(lnv>-100)
 		lnv = np.maximum(np.minimum(lnv,100),-100)
 		v = np.exp(lnv)*panel.a
-		self.v_inv = np.exp(-lnv)*panel.a	
-
-		LL = self.LL_const-0.5*(lnv+(self.e_REsq)*self.v_inv)
-		self.LL_array=LL#debug
+		v_inv = np.exp(-lnv)*panel.a	
+		
+		LL = self.LL_const-0.5*(lnv+(e_REsq)*v_inv)
+		#self.LL_array=LL#debug
+		self.add_variables(matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,e_REsq,v_inv)
 		self.tobit(panel,LL)
+
 		LL=np.sum(LL*panel.included)
 		if abs(LL)>1e+100: 
-			return None
+			return None				
+		return LL
+		
+	def add_variables(self,matrices,u,e,lnv_ARMA,lnv,v,W_omega,grp,e_RE,e_REsq,v_inv):
+		self.e_st=e_RE*v_inv**0.5	
+		self.e_st_centered=(self.e_st-self.panel.mean(self.e_st))*self.panel.included
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e, self.lnv_ARMA        = u,         e,       lnv_ARMA
 		self.lnv,self.v                     = lnv,       v
 		self.W_omega=W_omega
 		self.grp=grp
+		self.e_RE=e_RE
+		self.e_REsq=e_REsq
+		self.v_inv=v_inv
 
-		return LL
 	
 	def tobit(self,panel,LL):
-		if sum(panel.tobit_active)==0:
+		if sum(panel.input.tobit_active)==0:
 			return
 		g=[1,-1]
-		self.F=[None,None]
-		self.e_REnorm=self.e_RE*self.v_inv**0.5		
+		self.F=[None,None]	
 		for i in [0,1]:
-			if panel.tobit_active[i]:
+			if panel.input.tobit_active[i]:
 				I=panel.tobit_I[i]
-				self.F[i]= scipy.stats.norm.cdf(g[i]*self.e_REnorm[I])
+				self.F[i]= scipy.stats.norm.cdf(g[i]*self.e_st[I])
 				LL[I]=np.log(self.F[i])
 
 	def garch(self,GAR_1MA,e):
-		if self.panel.settings.pqdmk[3]>0:
+		if self.panel.pqdkm[4]>0:
 			if self.panel.z_active:
 				h_res=self.h(e, self.args_d['z'][0])
 			else:
@@ -128,19 +137,19 @@ class LL:
 			 self.avg_h)=(0,0,0,0,0,0,0)
 			return 0			
 	
-	def variance_RE(self):
+	def variance_RE(self,e_REsq):
 
 		self.vRE,self.lnvRE,self.dlnvRE=0,0,0
 		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=0,None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
-		if self.panel.settings.group_fixed_random_eff==0:
+		if self.panel.settings.group_fixed_random_eff.value==0:
 			return 0
 		panel=self.panel
 		if panel.N==0:
 			return None
 
-		meane2=panel.mean(self.e_REsq)
-		self.varRE_input=(self.e_REsq-meane2)*panel.included
+		meane2=panel.mean(e_REsq)
+		self.varRE_input=(e_REsq-meane2)*panel.included
 
 		mine2=1e-10
 		mu=0.00001
@@ -175,17 +184,23 @@ class LL:
 
 	def standardize(self):
 		"""Adds X and Y and error terms after ARIMA-E-GARCH transformation and random effects to self"""
+		if hasattr(self,'Y_st'):
+			return		
 		sd_inv=self.v_inv**0.5
 		panel=self.panel
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
+		if 'Intercept' in panel.args.names_d['beta']:
+			m=self.args_d['beta'][0,0]
+		else:
+			m=panel.mean(panel.Y)	
 		Y=cf.dot(self.AMA_1AR,panel.Y)
-		Y=(Y+self.re_obj_i.RE(Y,False))*sd_inv#+self.re_obj_t.RE(Y,False))*sd_inv
+		Y=(Y+self.re_obj_i.RE(Y,False)+self.re_obj_t.RE(Y,False))*sd_inv
 		X=cf.dot(self.AMA_1AR,panel.X)
-		X=(X+self.re_obj_i.RE(X,False))*sd_inv#+self.re_obj_t.RE(X,False))*sd_inv
-		self.e_st=self.e_RE*sd_inv
+		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))*sd_inv
 		self.Y_st=Y
 		self.X_st=X
+		self.Y_pred_st=cf.dot(X,self.args_d['beta'])
 		incl=panel.included.reshape(N,T)
 		self.e_st_long=self.e_st[incl,:]
 		self.Y_st_long=self.Y_st[incl,:]
@@ -234,7 +249,7 @@ def set_garch_arch_c(panel,args):
 
 def set_garch_arch_scipy(panel,args):
 
-	p,q,d,m,k=panel.settings.pqdmk
+	p,q,d,k,m=panel.pqdkm
 	nW,n=panel.nW,panel.max_T
 
 	AAR=-lag_matr(-panel.I,args['rho'])

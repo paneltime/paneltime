@@ -6,43 +6,56 @@ import os
 import multi_core
 import traceback
 import datetime
-
+import pickle
+import gc
 
 def main(t,initcommand,s_id,fpath):
 	fname=os.path.join(fpath,'slaves/%s.txt' %(s_id,))
 	f=open(fname,'w',1)
-	d_init=dict()
-	exec(initcommand,globals(),d_init)
-	d=d_init
-	d_list=list(d_init.keys())
+	d=dict()
+	exec(initcommand,globals(),d)
+	d_list=list(d.keys())
 	holdbacks=[]
 	while 1:
 		(msg,obj) = t.receive()
 		response=None
-		if msg==True:
+		if msg=='kill':
 			sys.exit()
 			response=True
-		elif msg=='static dictionary':#an initial dictionary to be used in the batch will be passed
-			d=obj
-			add_to_dict(d_init,d)
-			response=True
-		elif msg=='dynamic dictionary':#a dictionary to be used in the batch will be passed
-			d=obj
-			add_to_dict(d,d_init)
+		elif msg=='dictionary':#a dictionary to be used in the batch will be passed
+			d_new=obj
+			add_to_dict(d,d_new)
 			d_list=list(d.keys())
 			response=True
+		elif msg=='filetransfer':
+			ftr=open(obj, "rb")
+			u= pickle.Unpickler(ftr)
+			d_new=u.load()		
+			add_to_dict(d,d_new)
+			d_list=list(d.keys())
+			response=True
+			ftr.close()
+		elif msg=='remote expression valuation':
+			expr,ret_var=obj
+			sys.stdout = f
+			exec(expr,globals(),d)
+			sys.stdout = sys.__stdout__	
+			response={ret_var:d[ret_var]}
+		elif msg=='remote recieve':
+			response=d[obj]
 		elif msg=='expression evaluation':	
 			sys.stdout = f
 			exec(obj,globals(),d)
 			sys.stdout = sys.__stdout__
-			response=release_dict(d,d_list,holdbacks)
+			response=release_dict(d,d_list,holdbacks)	
 		elif msg=='holdbacks':
-			holdbacks=obj  
-
+			holdbacks.extend(obj)		
 		t.send(response)		
 		if  msg=='expression evaluation':#remove response dict after sending
 			for i in response:
 				d.pop(i)
+		gc.collect()
+		
 
 def add_to_dict(to_dict,from_dict):
 	for i in from_dict:

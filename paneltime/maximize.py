@@ -59,7 +59,7 @@ def solve_square_func(f0,l0,f05,l05,f1,l1,default=None):
 def lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0):
 	mp.send_dict_by_file({'constr':constr})
 	start=0
-	end=1.5
+	end=2.0
 	msg=''
 	for i in range(4):
 		delta=(end-start)/(mp.master.cpu_count-1)
@@ -165,7 +165,7 @@ def maximize(panel,direction,mp,args,tab):
 		its+=1
 		
 def printout_func(percent,msg,ll,its,direction,incr,po):
-	po.printout(ll,its+1,direction,True,incr)	
+	po.printout(ll,its+1,direction,incr)	
 	return direction.progress_bar(percent,msg)
 		
 	
@@ -187,59 +187,19 @@ class printout:
 			return
 		self.panel=panel
 		
-	def printout(self,ll, its, direction, display_statistics,incr):
+	def printout(self,ll, its, direction,incr):
 		if self.tab is None and self._print:
 			print(ll.LL)
 			return
 		if not self._print:
 			return
 		#self.tab.ll=ll
-		self.displaystats(display_statistics,ll)
-				
-		o=output.output(printout_format,ll, direction,self.panel.settings.robustcov_lags_statistics.value[1])
-		o.add_heading(its,
-					  top_header=" "*118+"constraints",
-					  statistics=[['\nDependent: ',self.panel.input.y_name[0],None,"\n"],
-								  ['Max condition index',direction.CI,3,'decimal']],
-					  incr=incr)
-		o.add_footer("Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
-					+'\n' 
-					+ ll.err_msg)
-		tab_stops=o.get_tab_stops(self.tab.box.text_box.config()['font'][4])
-		self.tab.box.text_box.config(tabs=tab_stops)		
-		self.print(o)
-		self.prtstr=o.printstring
-		self.output_dict=o.dict
+		process_charts=self.tab.charts
+		process_charts.initialize(self.panel)
+		process_charts.plot(ll)	
 		
-	def print(self,o):
-		try:
-			o.print(self.tab)
-		except Exception as e:
-			test1=e.args[0]=="main thread is not in main loop"
-			#test2=e==_tkinter.TclError
-			if test1:
-				exit(0)
-			else:
-				raise e		
-		
-	def displaystats(self,display_statistics,ll):
-		if display_statistics:
-			process_charts=self.tab.charts
-			process_charts.initialize(self.panel)
-			process_charts.plot(ll)	
+		self.tab.set_output_obj(ll, direction,self.panel.settings.robustcov_lags_statistics.value[1],
+								  its,self.panel.input.y_name[0],direction.CI,incr)
 
 
-
-l=8
-		#python variable name,	lenght,	  not string, display name,	  neg. values,	justification	next tab space
-printout_format=[['names',		'namelen',	True,	'Variable names',			False,		'right', 		2],
-				 ['args',		l,			False,	'Coef',						True,		'right', 		2],
-				 ['dx_norm',	l,			False,	'direction',				True,		'right', 		2],
-				 ['se_robust',	l,			False,	'SE(robust)',				True,		'right', 		3],
-				 ['tstat',		l,			False,	't-stat.',					True,		'right', 		2],
-				 ['tsign',		l,			False,	'sign.',					False,		'right', 		1],
-				 ['sign_codes',	5,			True,	'',							False,		'left', 		1],
-				 ['multicoll',	1,			True,	'',							False,		'left', 		2],
-				 ['assco',		20,			True,	'collinear with',			False,		'center', 		2],
-				 ['set_to',		6,			True,	'set to',					False,		'center', 		2],
-				 ['cause',		50,			True,	'cause',					False,		'right', 		2]]			
+			

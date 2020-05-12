@@ -17,10 +17,16 @@ def currentdir():
 def timer(tic, a):
 	if a is None:
 		a=[]
-		tic=time.clock()
-	tac=time.clock()
+		tic=time.perf_counter()
+	tac=time.perf_counter()
 	a.append(tic-tac)
 	return tac,a
+
+
+def join(path,iterative):
+	for i in iterative:
+		path=os.path.join(path,i)
+	return path
 
 
 def clean(string,split='',cleanchrs=['\n','\t',' ']):
@@ -47,9 +53,11 @@ def split_input(input_str):
 	if input_str is None:
 		return None
 	
+	illegal=['§','£','¤']
+	input_str=input_str.replace('\n','').replace(' ','').replace('\r','').replace('\t','')
 	p = re.compile('\([^()]+\)')
-	if '§' in input_str or '£' in input_str  or '¤' in input_str:
-		raise RuntimeError("The charactesr §, ¤  or £ are not allowed in model string")
+	if np.any([i in input_str for i in illegal]):
+		raise RuntimeError(f"The characters {','.join(illegal)} are not allowed in model string")
 	while 1:
 		matches=tuple(p.finditer(input_str))
 		if len(matches)==0:
@@ -84,6 +92,14 @@ def clean_str(s,cleanchrs,split=''):
 	if split!='':
 		s=s.split(split)
 	return s
+
+def clean_section(string):
+	for i in ['\n\n','\n\r','\r\n']:
+		while i in string:
+			string=string.replace(i,'\n')
+	if string[0]=='\n':
+		string=string[1:]
+	return string
 
 
 def formatarray(array,linelen,sep):
@@ -141,3 +157,6 @@ def copy_array_dict(d):
 def append(arr,values):
 	for i in range(len(arr)):
 		arr[i].append(values[i])
+		
+
+		

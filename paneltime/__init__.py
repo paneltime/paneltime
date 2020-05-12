@@ -15,6 +15,8 @@ import numpy as np
 
 #Todo: check that if works for no id and date variable
 #add argument for null model (default: Y~Intercept)
+#Put output functionality into the main_tabs object
+
 
 
 def start():
@@ -31,7 +33,7 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None):
 	return r
 
 def statistics(results,correl_vars=None,descriptives_vars=None,name=None):
-	return main.output.statistics(results,correl_vars,descriptives_vars,name)
+	return main.stat_object.statistics(results,correl_vars,descriptives_vars,name)
 
 def load_json(fname):
 

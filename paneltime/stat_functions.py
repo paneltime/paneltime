@@ -234,7 +234,9 @@ def correl(X,panel=None):
 	cov=cov-(mean.T*mean)
 	stdx=(np.diag(cov)**0.5).reshape((1,k))
 	stdx=(stdx.T*stdx)
+	stdx[np.isnan(stdx)]=0
 	corr=(stdx>0)*cov/(stdx+(stdx==0)*1e-100)
+	corr[stdx<=0]=np.nan
 	
 	return corr
 

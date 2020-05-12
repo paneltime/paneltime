@@ -41,7 +41,7 @@ def test_dictionary(dataframe):
 	return n
 
 
-def get_variables(vclass,dataframe,model_string,IDs_name,time_name,settings):
+def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings):
 	print ("Analyzing variables ...")
 	for i in dataframe:
 		if type(dataframe[i])==np.ndarray:
@@ -51,30 +51,53 @@ def get_variables(vclass,dataframe,model_string,IDs_name,time_name,settings):
 				break
 	sort(dataframe,time_name,IDs_name)
 	
-	vclass.timevar,vclass.time_name,void=check_var(dataframe,time_name,'time_name')
-	vclass.IDs,vclass.IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
-	dataframe['L']=lag_object(vclass.IDs).lag#allowing for lag operator in model input
-	vclass.W,vclass.W_names,void=check_var(dataframe,settings.heteroscedasticity_factors,'heteroscedasticity_factors',
+	input_class.timevar,input_class.time_name,void=check_var(dataframe,time_name,'time_name')
+	input_class.IDs,input_class.IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
+	input_class.lag_obj=lag_object(input_class.IDs)
+	dataframe['L']=input_class.lag_obj.lag#allowing for lag operator in model input
+	input_class.W,input_class.W_names,void=check_var(dataframe,settings.heteroscedasticity_factors,'heteroscedasticity_factors',
                                        intercept_name='log variance constant',raise_error=False,intercept_variable=True)
 	intercept_name=None
-	if settings.add_intercept:
+	if settings.add_intercept.value:
 		intercept_name='Intercept'
-	if type(model_string)==str:
-		(vclass.X,vclass.x_names,
-	     vclass.has_intercept,
-	     vclass.Y,vclass.y_name)=parse_and_check(dataframe,model_string,intercept_name)
-	else:
-		a=[],[],[],[],[]
-		for s in model_string:
-			fu.append(a, parse_and_check(dataframe,s,intercept_name))
-		(vclass.X,vclass.x_names,
-	     vclass.has_intercept,
-	     vclass.Y,vclass.y_name)=a
-
-
-
+	(input_class.X,input_class.x_names,
+	 input_class.has_intercept,
+	 input_class.Y,input_class.y_name)=parse_and_check(dataframe,model_string,intercept_name)
 	
+	tobit_set_threshold(input_class,settings)
+	
+		
 
+
+def tobit_set_threshold(input_class,settings):
+	"""Sets the tobit threshold"""
+	tobit_limits=settings.tobit_limits.value
+	Y=input_class.Y
+	if tobit_limits is None:
+		return
+	if len(tobit_limits)!=2:
+		print("Warning: The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
+	if (not (tobit_limits[0] is None)) and (not( tobit_limits[1] is None)):
+		if tobit_limits[0]>tobit_limits[1]:
+			raise RuntimeError("floor>ceiling. The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
+	g=[1,-1]
+	input_class.tobit_active=[False, False]#lower/upper threshold
+	input_class.tobit_I=[None,None]
+	desc=['tobit_low','tobit_high']
+	for i in [0,1]:
+		input_class.tobit_active[i]=not (tobit_limits[i] is None)
+		if input_class.tobit_active[i]:
+			if np.sum(g[i]*Y<g[i]*tobit_limits[i]):
+				print("Warning: there are observations of Y outside the non-cencored interval. These ")
+			I=g[i]*Y<=g[i]*tobit_limits[i]
+			Y[I]=tobit_limits[i]
+			if np.var(Y)==0:
+				raise RuntimeError("Your tobit limits are too restrictive. All observationss were cencored.")
+			input_class.tobit_I[i]=I
+			if np.sum(I)>0 and np.sum(I)<len(I):#avoiding singularity
+				input_class.X=np.concatenate((input_class.X,I),1)
+				input_class.x_names.append(desc[i])
+		
 def parse_and_check(dataframe,model_string,intercept_name):
 	y_name,x_names=parse_model(model_string)
 	X,x_names,has_intercept=check_var(dataframe,x_names,'x_names',intercept_name=intercept_name,raise_error=True,intercept_variable=True)
@@ -85,16 +108,18 @@ class lag_object:
 
 	def __init__(self,IDs):
 		self.IDs=IDs
+		self.max_lags=0
 		
 	def lag(self,variable,lags=1):
 		v=np.roll(variable, lags)
 		idroll=np.roll(self.IDs,lags)
 		keep=idroll==self.IDs
+		self.max_lags=max((self.max_lags,lags))
 		return v*keep
 		
 
 def sort(dataframe,time_name,IDs_name):
-	"sorts the data frame"
+	"sorts the dataset"
 	if (time_name is None) and (IDs_name is None):
 		return
 	elif (time_name is None) and (not IDs_name is None):
@@ -136,8 +161,10 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 	dataframe['ones']=np.ones((n,1))
 	if not transforms is None:
 		exec(transforms,globals(),dataframe)	
-		n=filter_data(filters, dataframe,n)
-		exec(transforms,globals(),dataframe)
+	if not filters is None:
+		n=filter_data(filters, dataframe)
+		if not transforms is None:
+			exec(transforms,globals(),dataframe)
 	for i in list(dataframe.keys()):
 		if callable(dataframe[i]):
 			dataframe.pop(i)		
@@ -187,7 +214,8 @@ def remove(X,names,dataframe,raise_error,has_const):
 		if raise_error and len(X[0])<=sumtrash:
 			raise RuntimeError(remvd+'. Aborting since there are no more variables to run with.')
 		else:
-			print(remvd)
+			a=0
+			#print(remvd)
 		if len(X[0])<=sumtrash:
 			return None,None
 	X=X[:,keep]
@@ -215,24 +243,32 @@ def check_and_add_variables(names,dataframe,arg_name):
 			
 			
 
-def filter_data(filters,dataframe,n):
+def filter_data(filters,dataframe,copy=True):
 	"""Filters the dataframe based on setting in the string Filters"""
 	if filters is None:
-		return n
-	fltrs=fu.clean(filters,' and ')
+		return
+	if not ' and ' in filters:
+		fltrs=filters.split()
+	else:
+		fltrs=fu.clean(filters,' and ')
+	n=len(dataframe[list(dataframe.keys())[0]])
 	v=np.ones(n,dtype=bool)
 	for f in fltrs:
 		r=eval(f,globals(),dataframe)
 		r.resize(n)
 		print ('Removing %s observations due to filter %s' %(np.sum(r==0),f))
 		v*=r
-	for i in dataframe.keys():
+	if copy:
+		d=dict()
+	else:
+		d=dataframe
+	for i in dataframe:
 		if type(dataframe[i])==np.ndarray:
 			if len(dataframe[i])==n:
-				dataframe[i]=dataframe[i][v]
-				k=len(dataframe[i])
+				d[i]=dataframe[i][v]
+				k=len(d[i])
 	print ('Removed %s of %s observations - %s observations remaining' %(n-k,n,k))
-	return k
+	return d,k
 
 
 

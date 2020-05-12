@@ -140,8 +140,6 @@ class CustomText(tk.Text):
 			self.pressed_key=''
 			return
 		if not event is None:
-			if event.keysym=='Return' and hasattr(self.master.master,'tab'):
-				self.master.master.tab.edit_data_set()			
 			if ((self.released_ignore_key==True) 
 				and (not event.keysym in ignore_press_keys)):
 				self.released_ignore_key=False

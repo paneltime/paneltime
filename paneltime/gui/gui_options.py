@@ -8,6 +8,7 @@ from gui import gui_scrolltext
 import options as options_module
 from gui import gui_scrolltext
 from gui import gui_script_handling
+import numpy as np
 NON_NUMERIC_TAG='|~|'
 font='Arial 9 '
 tags=dict()
@@ -237,10 +238,12 @@ class options_item(ttk.Treeview):
 	def add_options(self,option,cat):
 		if not option.selection_var:
 			return
-		for i in range(len(option.value_description)):
-			desc=option.value_description[i]
+		for i in range(len(option.permissible_values)):
+			desc=''
+			if not option.value_description is None:
+				desc=option.value_description[i]
 			val= option.permissible_values[i]
-			self.insert(f"{cat};{option.name}",3, f"{cat};{option.name};{i}",values=(val,), text=desc,tags=('option',))	
+			self.insert(f"{cat};{option.name}",i, f"{cat};{option.name};{i}",values=(val,), text=desc,tags=('option',))	
 			
 	def register_validation(self):
 		for i in self.tree:

@@ -3,6 +3,7 @@
 import tkinter as tk
 from tkinter import ttk
 from gui import gui_charts
+import functions as fu
 import time
 from gui import gui_scrolltext
 from gui import gui_script_handling
@@ -39,15 +40,14 @@ class data_objects(ttk.Treeview):
 		self.optionset=right_tabs.optionset
 		self.tabs=tabs
 		self.clicked=False
-		self.main_tabs=window.main_tabs
 		self.right_tabs=right_tabs
 		self.win=window
 		self.main_frame=tk.Frame(tabs)
 		self.add_buttons()
 		self.canvas=tk.Canvas(self.main_frame)
 		ttk.Treeview.__init__(self,self.canvas,style='new.TFrame')
-		self.dbase_img=self._img = tk.PhotoImage(file= os.path.join(os.path.dirname(__file__),'img/database.png'),master=self)
-		self.var_img=self._img = tk.PhotoImage(file= os.path.join(os.path.dirname(__file__),'img/variable.png'),master=self)		
+		self.dbase_img=self._img = tk.PhotoImage(file= fu.join(os.path.dirname(__file__),['img','database.png']),master=self)
+		self.var_img=self._img = tk.PhotoImage(file= fu.join(os.path.dirname(__file__),['img','variable.png']),master=self)		
 		self.level__dicts=[dict(),dict(),dict()]
 		
 		yscrollbar = ttk.Scrollbar(self.canvas, orient="vertical", command=self.yview)
@@ -73,11 +73,11 @@ class data_objects(ttk.Treeview):
 		self.button_frame=tk.Frame(self.main_frame,height=22,background=bgcolor)
 		self.button_img=dict()
 		
-		self.button_add=self.add_button(self.button_frame,'img/add.png',self.add,'Opens a new dataset',bgcolor)
-		self.button_save=self.add_button(self.button_frame,'img/save_as.png',self.save,'Save current dataset as a csv file',bgcolor)
-		self.button_delete=self.add_button(self.button_frame,'img/delete.png',self.delete_dataset,'Remove current dataset',bgcolor)
-		self.button_edit_vars=self.add_button(self.button_frame,'img/edit_variables.png',self.edit_variables,'Edit variables in current data set',bgcolor)
-		self.button_import_script=self.add_button(self.button_frame,'img/import_script.png',self.insert_load_script,'Display import script',bgcolor)
+		self.button_add=self.add_button(self.button_frame,'add.png',self.add,'Opens a new dataset',bgcolor)
+		self.button_save=self.add_button(self.button_frame,'save_as.png',self.save,'Save current dataset as a csv file',bgcolor)
+		self.button_delete=self.add_button(self.button_frame,'delete.png',self.delete_dataset,'Remove current dataset',bgcolor)
+		self.button_edit_vars=self.add_button(self.button_frame,'edit_variables.png',self.edit_variables,'Edit variables in current data set',bgcolor)
+		self.button_import_script=self.add_button(self.button_frame,'import_script.png',self.insert_load_script,'Display import script',bgcolor)
 		
 	def insert_load_script(self):
 		dataset=self.get_selected_dataset()
@@ -85,7 +85,7 @@ class data_objects(ttk.Treeview):
 
 		
 	def add_button(self,master,img,command,tooltip,bgcolor,size=22):
-		self.button_img[img]= tk.PhotoImage(file =  os.path.join(os.path.dirname(__file__),img),master=self.button_frame)
+		self.button_img[img]= tk.PhotoImage(file =  fu.join(os.path.dirname(__file__),['img',img]),master=self.button_frame)
 		btn=tk.Button(master, image = self.button_img[img],command=command, 
 								   highlightthickness=0,bd=0,height=size,width=size,compound='left',background=bgcolor)
 		gui_tooltip.CreateToolTip(btn,tooltip)
@@ -112,10 +112,10 @@ class data_objects(ttk.Treeview):
 		self.import_buttons.wm_overrideredirect(True)
 		self.import_buttons.geometry('+%d+%d' % (x, y))
 		frm = tk.Frame(self.import_buttons, background="#ffffff", relief='flat')
-		self.button_add_sql=self.add_button(frm,'img/Table_sql.png',self.open_sql,'Add dataset from an SQL database',bgcolor,40)
-		self.button_add_file=self.add_button(frm,'img/Table_File.png',self.open_file,'Open a data file',bgcolor, 40)
-		self.button_add_json=self.add_button(frm,'img/Table_JSON.png',self.open_json,'Open a JSON file',bgcolor,40)
-		self.button_add_copy=self.add_button(frm,'img/Table_copy.png',self.copy,'Copy current data set for running system regression',bgcolor,40)
+		self.button_add_sql=self.add_button(frm,'Table_sql.png',self.open_sql,'Add dataset from an SQL database',bgcolor,40)
+		self.button_add_file=self.add_button(frm,'Table_File.png',self.open_file,'Open a data file',bgcolor, 40)
+		self.button_add_json=self.add_button(frm,'Table_JSON.png',self.open_json,'Open a JSON file',bgcolor,40)
+		self.button_add_copy=self.add_button(frm,'Table_copy.png',self.copy,'Copy current data set for running system regression',bgcolor,40)
 		
 
 		self.button_add_sql.grid(row=0,column=0,padx=10,pady=10)
@@ -177,7 +177,6 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 		if self.datasets is None:
 			self.datasets=datasets()
 			return
-		self.datasets.recreate_editors(self.win.data.get('editor_data'),self.win.main_tabs)
 		self.datasets.make_trees(self)
 		s=self.win.data.get('selected data')
 		try:
@@ -369,9 +368,6 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 			self.tag_configure_node(parent_itm,tags[sel])
 		self.item(parent_itm,open=False)
 		
-	def update_editor(self):
-		tb=self.win.main_tabs.current_editor(2)
-		n=len(tb.get('1.0', 'end-1c'))
 				
 	def close_all(self):
 		for i in self.datasets:
@@ -440,34 +436,6 @@ class dataset(dict):
 		options=optionset.new_option_frame(self)	
 		options.register_validation()
 		
-	def recreate_editors(self,datastore,main_tabs):
-		if datastore is None:
-			return
-		pop_editors=[]
-		edit_editor,exe_editor,script_editor=None,None,None
-		for i in datastore:
-			name,text,top_text,top_color,attached_to,path=datastore[i]
-			if i==self.exe_editor:
-				exe_editor=main_tabs.add_editor(name,text=text,top_text="Model execution editor",
-												top_color='#fcdbd9',dataset=self,attached_to=attached_to,path=path)
-				pop_editors.append(i)
-			if i==self.edit_editor:
-				edit_editor=main_tabs.add_editor(name,text=text,top_text="Data editor",
-												 top_color='#ddfcd9',dataset=self,attached_to=attached_to,path=path)
-				pop_editors.append(i)
-			if i==self.script_editor:
-				script_editor=main_tabs.add_editor(name,text=text,top_text="Import script",
-												   top_color='#6bff9c',dataset=self,attached_to=attached_to,path=path)
-				pop_editors.append(i)			
-		for i in pop_editors:
-			datastore.pop(i)
-		if not exe_editor is None:
-			self.exe_editor=str(exe_editor.frame)
-		if not edit_editor is None:
-			self.edit_editor=str(edit_editor.frame)
-		if not script_editor is None:
-			self.script_editor=str(script_editor.frame)
-		
 		
 	def generate_exe_script(self,tree):
 		X=[]
@@ -523,7 +491,7 @@ class dataset(dict):
 		try:
 			editor=main_tabs._tabs[editor]
 		except:
-			editor=main_tabs.add_editor(self.name+suffix+'.py',top_text=top_text,top_color=top_color,dataset=self)
+			editor=main_tabs._tabs.add_editor(self.name+suffix+'.py',top_text=top_text,top_color=top_color)
 		return editor
 
 		
@@ -531,7 +499,7 @@ class datasets(dict):
 	def __init__(self):
 		dict.__init__(self)
 	
-	def add(self,tree,name,data_dict,source,import_script,main_tabs):
+	def add(self,tree,name,data_dict,source,import_script):
 		self[name]=dataset(self,name,data_dict, source, import_script,tree)
 		self.make_trees(tree)
 		tree.item(f"{name};",open=True)
@@ -539,14 +507,7 @@ class datasets(dict):
 	def make_trees(self,tree):
 		for i in self:
 			self.make_tree(i,tree)
-			self[i].make_optionset(tree)
-			
-	def recreate_editors(self,datastore,main_tabs):
-		if datastore is None:
-			return
-		for i in self:
-			self[i].recreate_editors(datastore,main_tabs)
-		
+			self[i].make_optionset(tree)		
 			
 	def make_tree(self,name,tree):
 		try:
@@ -562,13 +523,6 @@ class datasets(dict):
 		
 	def delete(self,item,tree,optionset):
 		self.__delitem__(item)
-		for i in tree.main_tabs._tabs:
-			tab=tree.main_tabs._tabs[i]
-			if hasattr(tab,'attached_to'):
-				if not tab.attached_to is None:
-					if tab.attached_to.get()==item:
-						tab.attached_to.set('')
-						tab.dataset=None
 		tree.delete(item+';')
 		optionset.delete(item)
 		

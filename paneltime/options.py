@@ -149,11 +149,22 @@ def regression_options():
 def application_preferences():
 	opt=options()
 	
-	opt.save_datasets	= options_item(True, "If 1 all loaded datasets are saved on exit and will reappear when the application is restarted", 
+	opt.save_datasets	= options_item(True, "If True, all loaded datasets are saved on exit and will reappear when the application is restarted", 
 									bool,"Save datasets on exit", [False,True],
 									['Save on exit',
 									'No thanks'])
-
+	
+	opt.n_round	= options_item(4, "Sets the number of digits the results are rounded to", 
+									str,"Rounding digits", ['no rounding','0 digits','1 digits','2 digits','3 digits',
+																						 '4 digits','5 digits','6 digits','7 digits','8 digits',
+																						 '9 digits','10 digits'])
+	
+	opt.n_digits	= options_item(10, "Sets the maximum number of digits (for scientific format) if 'Rounding digits' is not set (-1)", 
+									int,"Number of digits", ['0 digits','1 digits','2 digits','3 digits',
+																						 '4 digits','5 digits','6 digits','7 digits','8 digits',
+																						 '9 digits','10 digits'])	
+	opt.round_scientific	= options_item(True, "Determines if small numbers that are displayed in scientific format shall be rounded", 
+								   bool,"Round Scientific", [True,False],['Round Scientific','Do not round scientific'])		
 	opt.make_category_tree()
 	
 	return opt

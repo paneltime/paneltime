@@ -23,6 +23,12 @@ def timer(tic, a):
 	return tac,a
 
 
+def join(path,iterative):
+	for i in iterative:
+		path=os.path.join(path,i)
+	return path
+
+
 def clean(string,split='',cleanchrs=['\n','\t',' ']):
 	"""Cleans the text for linfeed etc., and splits the text wiht split if split is not None. \n
 	If return_string a string is returned when the lenght of the split string is 1"""

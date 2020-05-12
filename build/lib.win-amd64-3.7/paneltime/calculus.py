@@ -11,8 +11,9 @@ import loglikelihood as logl
 
 class gradient:
 	
-	def __init__(self,panel):
+	def __init__(self,panel,progress_bar):
 		self.panel=panel
+		self.progress_bar=progress_bar
 		
 	def arima_grad(self,k,x,sign=1,pre=None):
 		if k==0:
@@ -29,21 +30,21 @@ class gradient:
 			x=cf.dot(pre,x)
 		if sign<0:
 			x=x*sign
-		return x*self.panel.included
+		return x*self.panel.a
 
 	def garch_arima_grad(self,ll,d,dRE,varname):
 		panel=self.panel
 		groupeffect=0
 		groupeffect, dvRE_dx=None, None
 		d_input=0
-		if self.panel.N>1 and panel.settings.group_fixed_random_eff>0 and not dRE is None:
+		if self.panel.N>1 and panel.settings.group_fixed_random_eff.value>0 and not dRE is None:
 			d_eRE_sq=2*ll.e_RE*dRE
 			dmeane2=panel.mean(d_eRE_sq,(0,1))
-			d_input=(d_eRE_sq-dmeane2)*panel.included
-			dvRE_dx=dmeane2*panel.included-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
-			groupeffect=ll.dlnvRE*dvRE_dx*panel.included
+			d_input=(d_eRE_sq-dmeane2)*panel.a
+			dvRE_dx=dmeane2*panel.a-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
+			groupeffect=ll.dlnvRE*dvRE_dx*panel.a
 			
-		if self.panel.settings.pqdmk[3]>0 and not d is None:
+		if self.panel.pqdkm[4]>0 and not d is None:
 			((N,T,k))=d.shape
 			x=cf.prod((ll.h_e_val,d))
 			dlnv_sigma_G=cf.dot(ll.GAR_1MA,x)
@@ -55,19 +56,22 @@ class gradient:
 			return groupeffect,None,dvRE_dx,d_input
 
 	def get(self,ll,DLL_e=None,dLL_lnv=None,return_G=False):
+		if not self.progress_bar(0.05,'Calculating the gradient'):return
 		(self.DLL_e, self.dLL_lnv)=(DLL_e, dLL_lnv)
 		panel=self.panel
 		re_obj_i,re_obj_t=ll.re_obj_i,ll.re_obj_t
 		u,e,h_e_val,lnv_ARMA,h_val,v=ll.u,ll.e,ll.h_e_val,ll.lnv_ARMA,ll.h_val,ll.v
-		p,q,d,m,k=panel.settings.pqdmk
+		p,q,d,k,m=panel.pqdkm
 		nW=panel.nW
 		if DLL_e is None:
 			DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
 			dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)	
+			dLL_lnv*=ll.dlnv_pos
 		#ARIMA:
 		de_rho=self.arima_grad(p,u,-1,ll.AMA_1)
 		de_lambda=self.arima_grad(q,e,-1,ll.AMA_1)
-		de_beta=-cf.dot(ll.AMA_1AR,panel.X)*panel.included
+		de_beta=-cf.dot(ll.AMA_1AR,panel.X)*panel.a
+		
 		(self.de_rho,self.de_lambda,self.de_beta)=(de_rho,de_lambda,de_beta)
 		
 		self.de_rho_RE       =    cf.add((de_rho,     re_obj_i.dRE(de_rho, ll.e,'rho'), 		re_obj_t.dRE(de_rho,ll.e,'rho')), True)
@@ -124,6 +128,7 @@ class gradient:
 		#print(gn)
 		#a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
 		#dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
+		if not self.progress_bar(0.08,'Calculating the hessian'):return
 		if return_G:
 			return  g,G
 		else:
@@ -131,24 +136,25 @@ class gradient:
 
 
 class hessian:
-	def __init__(self,panel,g):
+	def __init__(self,panel,g,progress_bar):
 		self.panel=panel
 		self.its=0
 		self.sec_deriv=self.set_mp_strings()
 		self.g=g
+		self.progress_bar=progress_bar
 		
 	
 	def get(self,ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
-		if mp is None or True:
+		if mp is None:
 			return self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 		else:
 			return self.hessian_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 
 	def hessian(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):
 		panel=self.panel
-		tic=time.clock()
+		tic=time.perf_counter()
 		g=self.g
-		p,q,d,m,k=panel.settings.pqdmk
+		p,q,d,k,m=panel.pqdkm
 		GARM=cf.ARMA_product(ll.GAR_1,m)
 		GARK=cf.ARMA_product(ll.GAR_1,k)
 
@@ -254,7 +260,7 @@ class hessian:
 		#for debugging:
 		#Hn=debug.hess_debug(ll,panel,g,0.00000001)#debugging
 		#v=debug.hess_debug_detail(ll,panel,0.0000001,'grp','beta','beta',0,0)
-		#print (time.clock()-tic)
+		#print (time.perf_counter()-tic)
 		self.its+=1
 		if np.any(np.isnan(H)):
 			return None
@@ -266,9 +272,15 @@ class hessian:
 	def second_derivatives_mp(self,ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2):
 		panel=self.panel
 		g=self.g
-		mp.send_dict({'ll':ll_light(ll),'g':g_obj_light(g)},'dynamic dictionary')	
-		d=mp.execute(self.sec_deriv)
-
+		
+		NT,k=self.panel.NT,self.panel.args.n_args
+		use_mp= (NT*(k**0.5)>200000 and os.cpu_count()>=2) 
+		d={'ll':ll_light(ll),'g':g_obj_light(g)}
+		#if use_mp:
+		mp.send_dict_by_file(d)	
+		progress_bar=[self.progress_bar,0.1,0.9,'Calculating the hessian']
+		t_1=time.perf_counter()
+		d,t=mp.execute(self.evalstr,True,progress_bar=progress_bar)
 		d['d2LL_de2']=d2LL_de2
 		d['d2LL_dln_de']=d2LL_dln_de
 		d['d2LL_dln2']=d2LL_dln2
@@ -281,13 +293,14 @@ class hessian:
 		return d
 	
 	def set_mp_strings(self):
+		panel=self.panel
 		#these are all "k x T x T" matrices:
 		evalstr=[]		
 		#strings are evaluated for the code to be compatible with multi core proccessing
-		evalstr.append("""
-p,q,d,m,k=panel.settings.pqdmk		                        
-GARM=cf.ARMA_product(ll.GAR_1,m)
-GARK=cf.ARMA_product(ll.GAR_1,k)
+		p,q,d,k,m=panel.pqdkm
+		evalstr.append(f"""	                        
+GARM=cf.ARMA_product(ll.GAR_1,{m})
+GARK=cf.ARMA_product(ll.GAR_1,{k})
 
 d2lnv_gamma2		=   cf.prod((2, 
 		                cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_gamma,						g.dLL_lnv,  transpose=True)))
@@ -302,21 +315,24 @@ d2lnv_psi_rho		=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_rho)),
 d2lnv_psi_lambda	=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_lambda)),	g.dLL_lnv)
 d2lnv_psi_beta		=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_beta)),	g.dLL_lnv)
 d2lnv_psi_z			=	cf.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,								g.dLL_lnv)
-		
-GARM=0#Releases memory
-GARK=0#Releases memory
-			                    """)
+""")
 		#ARCH:
-		evalstr.append("""
-AMAq=-cf.ARMA_product(ll.AMA_1,q)
+		evalstr.append(f"""
+AMAq=-cf.ARMA_product(ll.AMA_1,{q})
 d2lnv_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'lambda', transpose=True)
+""")
+		
+		evalstr.append(f"""
+AMAq=-cf.ARMA_product(ll.AMA_1,{q})
 d2lnv_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'rho' )
-d2lnv_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta')
-AMAq=0#Releases memory
-			                    """)
-		evalstr.append("""		
-	
-AMAp=-cf.ARMA_product(ll.AMA_1,p)
+""")
+		
+		evalstr.append(f"""
+AMAq=-cf.ARMA_product(ll.AMA_1,{q})
+d2lnv_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta') """)	
+		
+		evalstr.append(f"""		
+AMAp=-cf.ARMA_product(ll.AMA_1,{p})
 d2lnv_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 
 d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
@@ -327,26 +343,23 @@ if panel.N>1:
 	d2lnv_mu_z=None
 	d2lnv_mu2=0
 
-
 d2lnv_z2				=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, ll.h_2z_val,						g.dLL_lnv) 
 d2lnv_z_rho				=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_rho)),	g.dLL_lnv) 
 d2lnv_z_lambda			=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_lambda)),g.dLL_lnv) 
 d2lnv_z_beta			=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_beta)),	g.dLL_lnv) 
-
-d2lnv_rho2,	d2e_rho2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'rho',		'rho' )
+""")
 		
-AMAp=0#Releases memory
-			                    """)
-		evalstr.append("""
-d2lnv_beta2,d2e_beta2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'beta',		'beta')""")
+		evalstr.append("d2lnv_rho2,	d2e_rho2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'rho',		'rho' )")
+		
+		evalstr.append("d2lnv_beta2,d2e_beta2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'beta',		'beta')")
 	
-		return multi_core.format_args_array(evalstr)	
+		self.evalstr=evalstr
 
 
 
 	def hessian_mp(self,ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2):
 		panel=self.panel
-		tic=time.clock()
+		tic=time.perf_counter()
 		#return debug.hessian_debug(self,args):
 		d=self.second_derivatives_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 		#Final: we need to pass the last code as string, since we want to use the dictionary d in the evaluation
@@ -414,11 +427,14 @@ H= [[D2LL_beta2,			D2LL_beta_rho,		D2LL_beta_lambda,		D2LL_beta_gamma,	D2LL_beta
 		H=cf.concat_matrix(H)
 		if np.any(np.isnan(H)):
 			return None
+		a=False
+		if a==True:
+			Hn=debug.hess_debug(ll,panel,self.g,0.000000001)#debugging
 		#for debugging:
 		#Hn=debug.hess_debug(ll,panel,self.g,0.000000001)#debugging
 		#H_debug=hessian(self, ll)
 		#debug.LL_debug_detail(self,ll,0.0000001)
-		#print (time.clock()-tic)
+		#print (time.perf_counter()-tic)
 		self.its+=1
 		return H 
 	

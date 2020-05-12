@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """A setuptools based setup module.
 See:
 https://packaging.python.org/en/latest/distributing.html
@@ -11,26 +14,39 @@ from codecs import open
 from os import path
 import subprocess
 import sys
+import time
 
 try:
 	import numpy as np
 except:
-	subprocess.check_call([sys.executable, "-m", "pip", "install", 'numpy'])
-	import numpy as np
+	try:
+		subprocess.check_call([sys.executable, "-m", "pip", "install", 'numpy'])
+		time.sleep(2)
+		import numpy as np
+	except:
+		print("""Warning: the python package numpy is not preinstalled. 
+Without it the 'cfunctions' library will not be installed, which will affect performance.
+Try uninstall paneltime, install numpy and install paneltime again""")
 
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
+with open(path.join(here, 'README.txt'), encoding='utf-8') as f:
 	long_description = f.read()
-cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
+try:
+	ext=[]
+	cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
+	ext=[cfunc]
+except:
+	print("""Warning: 'cfunctions' library not compiled. This may affect performance. 
+If you are installing on a Windows machine, precompiled versions exist for python 3.5,3.6 and 3.7, so you should be fine""")
 setup(
     name='paneltime',
-    ext_modules=[cfunc],
+    ext_modules=ext,
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.0.4',
+    version='1.1.12',
 
     description='An efficient integrated panel and GARCH estimator',
     long_description=long_description,
@@ -82,7 +98,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
-    install_requires=['numpy >= 1.11','scipy','matplotlib','pillow','pymysql','json'],
+    install_requires=['numpy >= 1.11','scipy','matplotlib','pymysql'],
     #**************************************************************************<REMOVED
 
     # List additional groups of dependencies here (e.g. development
@@ -102,7 +118,7 @@ setup(
     #**************************************************************************REMOVED>
     
     package_data={
-        '': [
+        '': ['gui/*', '*.ico','gui/img/*.png',
 		'cfunctions.cp35-win_amd64.pyd',
 		'cfunctions.cp36-win_amd64.pyd',
 		'cfunctions.cpython-35m-x86_64-linux-gnu.so',

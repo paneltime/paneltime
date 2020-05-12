@@ -32,9 +32,12 @@ class window(tk.Tk):
 		self.define_styles()
 		self.mc=None
 		self.geometry('%sx%s+%s+%s' %(self.winfo_screenwidth(),self.winfo_screenheight()-75,-5,0))
-		iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
-		self.iconbitmap(iconpath)	
-		self.iconpath=iconpath
+		if 'nt'==os.name:
+			iconpath=os.path.join(fu.currentdir(),'paneltime.ico')
+			self.iconbitmap(iconpath)	
+			self.iconpath=iconpath
+		else:
+			self.iconpath=None
 		#self.add_menu()
 		self.add_panes()
 		#self.main_pane=self
@@ -47,9 +50,8 @@ class window(tk.Tk):
 		self.output = gui_scrolltext.ScrollText(self.frm_left,format_text=False)
 		self.output.grid(row=2, column=0,sticky=tk.NSEW)
 		self.data=datastore(self)
+		self.right_tabs=gui_right_tabs.right_tab_widget(self)
 		self.main_tabs=gui_main_tabs.main_tabs(self)
-		self.right_tabs=gui_right_tabs.right_tab_widget(self,self.main_tabs)
-		self.main_tabs.recreate_tabs()
 		self.locals=dict()
 		self.globals={'window':self,'data':self.right_tabs.data_tree.datasets}
 		sys.stdout=stdout_redir(self.output)

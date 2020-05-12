@@ -10,6 +10,7 @@ fname_args=os.path.join(tdr,'paneltime.args')
 fname_data=os.path.join(tdr,'paneltime.data')
 fname_key=os.path.join(tdr,'paneltime.key')
 fname_temprec=os.path.join(tdr,'paneltime.temprec')
+fname_image_temprec=os.path.join(tdr,'paneltime.tempimagerec')
 fname_window=os.path.join(tdr,'paneltime.win')
 fname_datasets=os.path.join(tdr,'paneltime.datasets')
 max_sessions=20
@@ -94,7 +95,6 @@ def load_obj(fname):
 		f.close()
 		return u 
 	except Exception as e:
-		print(e)
 		return None
 	
 	
@@ -124,7 +124,7 @@ def l(x):
 
 class tempfile_manager:
 	def __init__(self):
-		#at initialization, all temporary files from previous sesstions are deleted
+		#at initialization, all temporary files from previous sessions are deleted
 		self.rec=load_obj(fname_temprec)
 		if self.rec is None:
 			self.rec=[]
@@ -136,9 +136,40 @@ class tempfile_manager:
 		save_obj(fname_temprec,[])
 		
 	def TemporaryFile(self):
-		f=tempfile.TemporaryFile()
+		f=tempfile.NamedTemporaryFile()
 		self.rec.append(f.name)
 		save_obj(fname_temprec,self.rec)
 		return f
 	
+	
+class temp_image_manager:
+	def __init__(self,used_imgs):
+		#at initialization, all temporary images from previous sessions that are not referenced are deleted
+		self.rec=load_obj(fname_image_temprec)	
+		if self.rec is None:
+			self.rec=[]
+		for f in self.rec:
+			if not f in used_imgs:
+				try:
+					os.remove(f)
+				except:
+					pass
+		save_obj(fname_image_temprec,[])		
+		self.assigned_files=used_imgs
+			
+	def TemporaryFile(self):
+		for i in range(10000):
+			f=os.path.join(tdr,f'paneltime {i}.jpg')
+			if (not os.path.isfile(f)) and (not f in self.assigned_files):
+				self.assigned_files.append(f)
+				self.rec.append(f)
+				save_obj(fname_image_temprec,self.rec)				
+				return f
+		a=0
+		raise RuntimeError("""You have over 10000 temporary image files. 
+		There must be some problems with deleting them from your temporary folder""")
+
+				
+			
+		
 	

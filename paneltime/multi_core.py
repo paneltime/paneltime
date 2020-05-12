@@ -27,6 +27,8 @@ class master():
 			self.cpu_count=max_nodes
 		n=self.cpu_count
 		fpath=obtain_fname('./output/')
+		os.makedirs(fpath, exist_ok=True)
+		os.makedirs(fpath+'/slaves', exist_ok=True)
 		self.slaves=[slave(initcommand,i,fpath) for i in range(n)]
 		pids=[]
 		for i in range(n):

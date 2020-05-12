@@ -21,6 +21,7 @@ import maximize
 import tempstore
 import os
 import direction as drctn
+from gui import gui_output_tab
 
 
 warnings.filterwarnings('error')
@@ -28,105 +29,105 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(dataframe, model_string, IDs_name, time_name, descr,settings,window):
+def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window=None,exe_tab=None):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
-
-	datainput=input_processor(dataframe,model_string,IDs_name,time_name, settings,descr)
-	if settings.autofit:
-		return autofit(dataframe, model_string,settings,window,datainput)
-	if settings.loadargs==2:
-		p,q,m,k,d=datainput.args_archive.arimagarch
-	mp=mp_check(datainput.X)	
-	results_obj=results(dataframe,datainput,settings,mp,window)
+	if not exe_tab is None:
+		if exe_tab.isrunning==False:return
+	output_tab=gui_output_tab.output_tab(window,exe_tab)
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors)
+	if datainput.timevar is None:
+		print("No valid time variable defined. This is required")
+		return
+	if settings.loadARIMA_GARCH.value:
+		settings.pqdkm.value=datainput.args_archive.pqdkm
+	mp,close_mp=mp_check(datainput,window)
+	pqdkm=makelist(settings.pqdkm.value)
+	for i in pqdkm:
+		print(f'pqdkm={i}')
+		results_obj=results(dataframe,datainput,settings,mp,output_tab,i)
+		if len(pqdkm)>1:
+			settings.loadargs.value=2
+			settings.loadARIMA_GARCH.value=True
+	if not mp is None and close_mp:
+		mp.quit()
 	return results_obj
 
-class input_processor:
-	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,descr):
+def get_panel(model_string,dataframe, IDs_name, time_name,settings):
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings)
+	return panel.panel(dataframe,datainput,settings)
+	
+def makelist(pqdkm):
+	try:
+		a=pqdkm[0][0]
+		return pqdkm
+	except:
+		return  [pqdkm]
+	
+
+class input_class:
+	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors=None,descr=None):
 		
-		t=type(settings.user_constraints)
-		if t!=list and t!=tuple and (not t is None):
-			print("Warning: user user_constraints must be a list of tuples. user_constraints are not applied.")	
-			
-		
+		t=type(settings.user_constraints.value)
+		if t!=list and t!=tuple and (not settings.user_constraints.value is None):
+			print("User user_constraints must be a list of tuples. user_constraints are not applied.")	
+		if not hasattr(settings,'heteroscedasticity_factors'):
+			settings.heteroscedasticity_factors=heteroscedasticity_factors
+		self.tempfile=tempstore.tempfile_manager()
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,settings)
 		self.descr=descr
 		if descr==None:
-			self.descr=model_string[:50]
-		self.args_archive=tempstore.args_archive(descr, settings.loadargs)
+			self.descr=model_string
+		self.args_archive=tempstore.args_archive(self.descr, settings.loadargs.value)
 		self.args=self.args_archive.args
 
 	
 	
 class results:
-	def __init__(self,dataframe,datainput,settings,mp,window):
+	def __init__(self,dataframe,datainput,settings,mp,output_tab,pqdkm):
 		print ("Creating panel")
-		pnl=panel.panel(dataframe,datainput,settings)
-		direction=drctn.direction(pnl)	
+		pnl=panel.panel(dataframe,datainput,settings,pqdkm)
+		direction=drctn.direction(pnl,mp,output_tab)	
+		self.mp=mp
 		if not mp is None:
-			mp.send_dict({'panel':pnl,'direction':direction},'static dictionary')			
+			mp.send_dict_by_file({'panel':pnl})
+		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,output_tab)	
+		self.panel=direction.panel
+
+
+def mp_check(datainput,window):
+	modules="""
+global cf
+global lgl
+import calculus_functions as cf
+import loglikelihood as lgl
+"""	
+	if window is None:
+		mp=mc.multiprocess(datainput.tempfile,16,modules,['GARM','GARK','AMAq','AMAp'])
+		return mp, True
+	if window.mc is None:
+		window.mc=mc.multiprocess(datainput.tempfile,16,modules,['GARM','GARK','AMAq','AMAp'])
+	return window.mc,False
+	
+
+
+def indentify_dataset(glob,source):
+	try:
+		window=glob['window']
+		datasets=window.right_tabs.data_tree.datasets
+		for i in datasets:
+			data_source=' '.join(datasets[i].source.split())
+			editor_source=' '.join(source.split())
+			if data_source==editor_source:
+				return datasets[i]
+	except:
+		return False
+			
+
 		
-		ll,g,G,H, conv,pr,constraints,dx_norm=maximize.maximize(pnl,direction,mp,pnl.args.args_init,True,window)	
-		self.outputstring=pr
-		self.dx_norm=dx_norm
-		self.constraints=constraints
-		self.ll=ll
-		self.gradient=g
-		self.gradient_matrix=G
-		self.hessian=H
-		self.converged=conv
-		self.constraints=direction.constr
-		self.panel=pnl
-
-	
-def autofit(dataframe, model_string,settings,window,datainput):
-	"""Same as execute, except iterates over ARIMA and GARCH coefficients to find best match"""
-	
-	p,q,m,k=(1,1,1,1)
-	if loadargs:
-		p,q,dtmp,m,k=args_archive.arimagarch
-		if dtmp!=d:
-			print("difference argument d changed, cannot load arguments")
-			args=None
-	s=settings
-	s.p,s.q,s.m,s.k=p,q,m,k
-	p_lim,q_lim,m_lim,k_lim=False,False,False,False
-	mp=mp_check(self.X)	
-	while True:
-		results_obj=results(dataframe,datainput,settings,mp,window)
-		panel=results_obj.panel
-		constraints=results_obj.constraints
-		args=results_obj.ll.args_d
-		diag=output.statistics(results_obj,3,simple_statistics=True,printout=False)	
-		#Testing whether the highest order of each category is significant. If it is not, it is assumed
-		#the maximum order for the category is found, and the order is reduced by one.  When the maximum order
-		#is found for all categories, the loop ends
-		p,p_lim=model_parser.check_sign(panel,diag.tsign,'rho',		p_lim,process_sign_level)
-		q,q_lim=model_parser.check_sign(panel,diag.tsign,'lambda',	q_lim,process_sign_level)
-		m,m_lim=model_parser.check_sign(panel,diag.tsign,'psi',		m_lim,process_sign_level,1)
-		k,k_lim=model_parser.check_sign(panel,diag.tsign,'gamma',	k_lim,process_sign_level,1)
-		if p_lim and q_lim and m_lim and k_lim:
-			break
-		a_lim,a_incr=[],[]
-		for i in ([p_lim,'rho',p],[q_lim,'lambda',q],[m_lim,'psi',m],[k_lim,'gamma',k]):
-			if i[0]:
-				a_lim.append(i[1]+'(%s)' %(i[2]))
-			else:
-				a_incr.append(i[1]+'(%s)' %(i[2]))
-		if len(a_lim)>0:
-			print("Found maximum lag lenght for: %s" %(",".join(a_lim)))
-		if len(a_incr)>0:
-			print("Extending lags for: %s" %(",".join(a_incr)))
-	return results_obj
-
-
-def mp_check(X):
-	N,k=X.shape
-	mp=None
-	if ((N*(k**0.5)>200000 and os.cpu_count()>=2) or os.cpu_count()>=24) or True:#numpy all ready have multiprocessing, so there is no purpose unless you have a lot of processors or the dataset is very big
-		modules='import calculus_functions as cf'
-		mp=mc.multiprocess(4,modules)
-		
-	return mp
-	
-	
+def identify_global(globals,name):
+	try:
+		variable=globals[name]
+	except:
+		variable=None	
+	return variable

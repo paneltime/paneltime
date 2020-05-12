@@ -11,6 +11,7 @@ import sys
 class direction:
 	def __init__(self,panel,mp,output_tab):
 		self.progress_bar=output_tab.progress_bar.set_progress
+		self.progress_bar_obj=output_tab.progress_bar
 		self.gradient=calculus.gradient(panel,self.progress_bar)
 		self.hessian=calculus.hessian(panel,self.gradient,self.progress_bar)
 		self.panel=panel
@@ -33,7 +34,7 @@ class direction:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
 		self.ll=ll
 		self.constr_old=self.constr
-		self.progress_bar.suffix=msg
+		self.progress_bar_obj.suffix=msg
 		self.constr=cnstr.constraints(self.panel,ll.args_v)
 		cnstr.add_static_constraints(self.constr,self.panel,ll,its)			
 		self.calc_gradient(ll)
@@ -51,7 +52,7 @@ class direction:
 			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, ll.args_v),ll.args_v)
 		except:
 			self.dx_unconstr=self.dx_norm
-		self.progress_bar.suffix=''
+		self.progress_bar_obj.suffix=''
 
 	
 	def include(self,all=False):

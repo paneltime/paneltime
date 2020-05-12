@@ -14,15 +14,28 @@ from gui import gui_functions as guif
 
 
 class process_charts(ttk.Frame):
-	def __init__(self,window,master):
+	def __init__(self,window,master,main_tabs,tabs):
 		style = ttk.Style()
 		style.configure("TFrame", background='white')		
 		ttk.Frame.__init__(self,master,style='new.TFrame')
 		self.window=window
 		self.ll=None	
 		self.initialized=False
-		self.subplot=window.main_tabs._tabs.subplot
-		self.print_subplot=window.main_tabs._tabs.print_subplot
+		self.subplot=tabs.subplot
+		self.print_subplot=tabs.print_subplot
+		self.img_tmp=tabs.img_tmp
+		
+	def get_images_for_storage(self):
+		charts=[]
+		for i in self.charts:
+			charts.append((i.path,i.name))
+		return charts
+		
+	def charts_from_stored(self,charts):
+		self.add_content()
+		for i in range(len(charts)):
+			path,name=charts[i]
+			guif.display_from_img(self.charts[i],path,name,i)
 		
 	def add_content(self):
 		self.n_charts=3
@@ -41,6 +54,7 @@ class process_charts(ttk.Frame):
 			frm.columnconfigure(0,weight=1)
 			self.charts.append(tk.Label(frm,background='white'))
 			self.charts[i].grid(row=0,column=0)	
+			self.charts[i].path=self.img_tmp.TemporaryFile()
 			guif.setbutton(frm, 'Save image', lambda: self.save(self.n_charts-i-1),bg='white').grid(row=1,column=0)
 			frm.grid(row=i+1)
 		
@@ -57,7 +71,7 @@ class process_charts(ttk.Frame):
 			self.correlogram,
 			self.correlogram_variance,
 		]
-		flst[i](self.ll,print_subplot,f)
+		flst[i](self.ll,self.print_subplot,f)
 		f.close()
 		
 	def initialize(self,panel):

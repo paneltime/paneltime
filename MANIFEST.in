@@ -1,0 +1,2 @@
+graft paneltime/gui
+include paneltime/*.ico

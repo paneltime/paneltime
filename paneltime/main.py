@@ -12,6 +12,7 @@
 
 import numpy as np
 import output
+import stat_object
 import panel
 import warnings
 import multi_core as mc
@@ -21,7 +22,7 @@ import maximize
 import tempstore
 import os
 import direction as drctn
-from gui import gui_output_tab
+from gui import gui
 
 
 warnings.filterwarnings('error')
@@ -34,8 +35,14 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
 		if exe_tab.isrunning==False:return
-	output_tab=gui_output_tab.output_tab(window,exe_tab)
+	output_tab=None
+	if not window is None:
+		output_tab=window.main_tabs._tabs.add_output(exe_tab)
+	
 	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors)
+	if datainput.timevar is None:
+		print("No valid time variable defined. This is required")
+		return
 	if settings.loadARIMA_GARCH.value:
 		settings.pqdkm.value=datainput.args_archive.pqdkm
 	mp,close_mp=mp_check(datainput,window)
