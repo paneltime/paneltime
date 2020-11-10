@@ -61,8 +61,10 @@ class window(tk.Tk):
 	def exec(self,source):
 		try:
 			exec(source,self.globals,self.locals)
+			return True
 		except Exception as e:
 			traceback.print_exc()
+		return False
 	
 	def define_styles(self):
 		style = ttk.Style()
@@ -187,20 +189,6 @@ class window(tk.Tk):
 						d[i].pop(j)
 			tempstore.save_obj(tempstore.fname_datasets,self.right_tabs.data_tree.datasets)		
 		exit()			
-		
-	def show_scatter(self):
-		if not hasattr(self,'panel'):
-			return		
-		self.schatter_charts=gui_charts.scatter_charts(self,self.panel,self.panel.input.X,self.panel.input.Y,self.iconpath,700,1000)
-
-		
-	def show_scatter_norm(self):
-		if (not hasattr(self,'panel')) or (not hasattr(self,'ll')):
-			return
-		self.ll.standardize()
-		X=self.ll.X_st[self.panel.included[:,:,0]]
-		Y=self.ll.Y_st[self.panel.included[:,:,0]]
-		self.schatter_charts=gui_charts.scatter_charts(self,self.panel,X,Y,self.iconpath,700,1000)	
 	
 	def get(self):
 		return self.process.get()

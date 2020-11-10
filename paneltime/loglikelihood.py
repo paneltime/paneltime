@@ -39,12 +39,8 @@ class LL:
 		self.re_obj_t_v=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre*vfre)
 		
 		self.LL_const=-0.5*np.log(2*np.pi)
-	
-		self.args_v=panel.args.conv_to_vector(args)
-		if not constraints is None:
-			constraints.within(self.args_v,True)	
-			constraints.set_fixed(self.args_v)
-		self.args_d=panel.args.conv_to_dict(self.args_v)
+		
+		self.args=panel.args.create_args(args,constraints)
 		self.h_err=""
 		self.LL=None
 		#self.LL=self.LL_calc()
@@ -63,20 +59,20 @@ class LL:
 	def LL_calc(self):
 		panel=self.panel
 		X=panel.X
-		matrices=set_garch_arch(panel,self.args_d)
+		matrices=set_garch_arch(panel,self.args.args_d)
 		if matrices is None:
 			return None		
 		
 		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 		(N,T,k)=X.shape
 
-		u = panel.Y-cf.dot(X,self.args_d['beta'])
+		u = panel.Y-cf.dot(X,self.args.args_d['beta'])
 		e = cf.dot(AMA_1AR,u)
 		e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included
 		e_REsq = e_RE**2		
 
 		lnv_ARMA = self.garch(GAR_1MA, e)
-		W_omega = cf.dot(panel.W_a, self.args_d['omega'])
+		W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		#self.lnv0=lnv*1#debug
 		grp = self.variance_RE(e_REsq)
@@ -123,7 +119,7 @@ class LL:
 	def garch(self,GAR_1MA,e):
 		if self.panel.pqdkm[4]>0:
 			if self.panel.z_active:
-				h_res=self.h(e, self.args_d['z'][0])
+				h_res=self.h(e, self.args.args_d['z'][0])
 			else:
 				h_res=self.h(e, None)
 			(self.h_val,     self.h_e_val,
@@ -138,13 +134,14 @@ class LL:
 			return 0			
 	
 	def variance_RE(self,e_REsq):
-
-		self.vRE,self.lnvRE,self.dlnvRE=0,0,0
-		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=0,None,None
-		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
-		if self.panel.settings.group_fixed_random_eff.value==0:
-			return 0
+		#todo: currently experimental, needs to be redone. Does not work for fixed effects and very easily causes problems
+		#perhaps calcuate random effects from logs
 		panel=self.panel
+		self.vRE,self.lnvRE,self.dlnvRE=panel.zeros,panel.zeros,panel.zeros
+		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=panel.zeros,None,None
+		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
+		if panel.settings.variance_fixed_random_eff.value==0:
+			return panel.zeros
 		if panel.N==0:
 			return None
 
@@ -156,7 +153,7 @@ class LL:
 		self.vRE_i=self.re_obj_i_v.RE(self.varRE_input)
 		self.vRE_t=self.re_obj_t_v.RE(self.varRE_input)
 		self.meane2=meane2
-		vRE=meane2*panel.included-self.re_obj_i_v.RE(self.varRE_input)-self.re_obj_t_v.RE(self.varRE_input)
+		vRE=meane2*panel.included-self.vRE_i-self.vRE_t
 		self.vRE=vRE
 		small=vRE<=mine2
 		big=small==False
@@ -191,23 +188,26 @@ class LL:
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
 		if 'Intercept' in panel.args.names_d['beta']:
-			m=self.args_d['beta'][0,0]
+			m=self.args.args_d['beta'][0,0]
 		else:
 			m=panel.mean(panel.Y)	
+		#e_st=cf.dot(self.AMA_1AR,self.u)
+		#e_st=(e_st+self.re_obj_i.RE(e_st,False)+self.re_obj_t.RE(e_st,False))*sd_inv		
 		Y=cf.dot(self.AMA_1AR,panel.Y)
 		Y=(Y+self.re_obj_i.RE(Y,False)+self.re_obj_t.RE(Y,False))*sd_inv
 		X=cf.dot(self.AMA_1AR,panel.X)
 		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))*sd_inv
 		self.Y_st=Y
 		self.X_st=X
-		self.Y_pred_st=cf.dot(X,self.args_d['beta'])
+		self.Y_pred_st=cf.dot(X,self.args.args_d['beta'])
+		self.Y_pred=cf.dot(panel.X,self.args.args_d['beta'])
 		incl=panel.included.reshape(N,T)
 		self.e_st_long=self.e_st[incl,:]
 		self.Y_st_long=self.Y_st[incl,:]
 		self.X_st_long=self.X_st[incl,:]
 
 	def copy_args_d(self):
-		return fu.copy_array_dict(self.args_d)
+		return fu.copy_array_dict(self.args.args_d)
 
 	
 	def h(self,e,z):

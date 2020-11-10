@@ -128,7 +128,7 @@ class gradient:
 		#print(gn)
 		#a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
 		#dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
-		if not self.progress_bar(0.08,'Calculating the hessian'):return
+		if not self.progress_bar(0.08,'Calculating Hessian (second derivative)'):return
 		if return_G:
 			return  g,G
 		else:
@@ -145,7 +145,16 @@ class hessian:
 		
 	
 	def get(self,ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
-		if mp is None:
+		n,k=ll.panel.input.X.shape
+		if False:#for testing performance of multi vs single core
+			print(f"N:{n*k/1e+5}")
+			t0=time.time()
+			a=self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+			t1=time.time()
+			print(f"single core: {t1-t0}")
+			a=self.hessian_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+			print(f"multi core: {time.time()-t1}")
+		if (mp is None) or (n*k<2e+5):#limit found with 8 variables
 			return self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 		else:
 			return self.hessian_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
@@ -278,7 +287,7 @@ class hessian:
 		d={'ll':ll_light(ll),'g':g_obj_light(g)}
 		#if use_mp:
 		mp.send_dict_by_file(d)	
-		progress_bar=[self.progress_bar,0.1,0.9,'Calculating the hessian']
+		progress_bar=[self.progress_bar,0.1,0.9,'Calculating Hessian (second derivative)']
 		t_1=time.perf_counter()
 		d,t=mp.execute(self.evalstr,True,progress_bar=progress_bar)
 		d['d2LL_de2']=d2LL_de2
@@ -453,8 +462,7 @@ class ll_light():
 		self.h_2z_val		=	ll.h_2z_val
 		self.h_ez_val		=	ll.h_ez_val
 		self.GAR_1MA		=	ll.GAR_1MA
-		self.args_v			=	ll.args_v
-		self.args_d			=	ll.args_d
+		self.args			=	ll.args
 		self.GAR_1			=	ll.GAR_1
 		self.AMA_1			=	ll.AMA_1
 		self.re_obj_i		=	ll.re_obj_i

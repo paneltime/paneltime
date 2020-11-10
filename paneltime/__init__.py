@@ -16,6 +16,18 @@ import numpy as np
 #Todo: check that if works for no id and date variable
 #add argument for null model (default: Y~Intercept)
 #Put output functionality into the main_tabs object
+#improve abort functionality, including what happens when tab is closed
+#add durbin watson test
+#output seems to be called twice
+#change name of dataset (right click options?)
+#make it possibel to add data by running 
+#fix issues with "+"-button. 
+#create a right tab with a list of previoius estimates
+#create right tab with all previously used and closed tabs available
+#if one AR term is removed by reducing the AR order, the corespondig MA should be set to zero (if exists)
+#have a backup for saved regressions and exe
+
+
 
 
 
@@ -24,12 +36,12 @@ def start():
 	window=gui.window()
 	window.mainloop() 
 
-def execute(model_string,dataframe, ID=None,T=None,HF=None):
+def execute(model_string,dataframe, ID=None,T=None,HF=None,join_table=None):
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab')
-	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab)
+	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table)
 	return r
 
 def statistics(results,correl_vars=None,descriptives_vars=None,name=None):

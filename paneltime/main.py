@@ -30,7 +30,7 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window=None,exe_tab=None):
+def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window=None,exe_tab=None,join_table=None):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
@@ -39,51 +39,48 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 	if not window is None:
 		output_tab=window.main_tabs._tabs.add_output(exe_tab)
 	
-	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors)
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors,join_table)
 	if datainput.timevar is None:
 		print("No valid time variable defined. This is required")
 		return
 	if settings.loadARIMA_GARCH.value:
 		settings.pqdkm.value=datainput.args_archive.pqdkm
 	mp,close_mp=mp_check(datainput,window)
-	pqdkm=makelist(settings.pqdkm.value)
+	results_obj=pqdkm_iteration(dataframe,datainput,settings,mp,output_tab)
+	if not mp is None and close_mp:
+		mp.quit()
+	return results_obj
+	
+def pqdkm_iteration(dataframe,datainput,settings,mp,output_tab):#allows for a list of different ARIMA settings, for example by starting with a more restrictive model
+	pqdkm=settings.pqdkm.value
+	try:
+		a=pqdkm[0][0]
+	except:
+		pqdkm=[pqdkm]
 	for i in pqdkm:
 		print(f'pqdkm={i}')
 		results_obj=results(dataframe,datainput,settings,mp,output_tab,i)
 		if len(pqdkm)>1:
 			settings.loadargs.value=2
-			settings.loadARIMA_GARCH.value=True
-	if not mp is None and close_mp:
-		mp.quit()
+			settings.loadARIMA_GARCH.value=True	
 	return results_obj
-
-def get_panel(model_string,dataframe, IDs_name, time_name,settings):
-	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings)
-	return panel.panel(dataframe,datainput,settings)
-	
-def makelist(pqdkm):
-	try:
-		a=pqdkm[0][0]
-		return pqdkm
-	except:
-		return  [pqdkm]
 	
 
 class input_class:
-	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors=None,descr=None):
+	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors,join_table):
 		
-		t=type(settings.user_constraints.value)
-		if t!=list and t!=tuple and (not settings.user_constraints.value is None):
-			print("User user_constraints must be a list of tuples. user_constraints are not applied.")	
 		if not hasattr(settings,'heteroscedasticity_factors'):
 			settings.heteroscedasticity_factors=heteroscedasticity_factors
 		self.tempfile=tempstore.tempfile_manager()
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,settings)
-		self.descr=descr
-		if descr==None:
-			self.descr=model_string
+		self.descr=model_string
 		self.args_archive=tempstore.args_archive(self.descr, settings.loadargs.value)
-		self.args=self.args_archive.args
+		self.args=None
+		if settings.arguments.value!="":
+			self.args=settings.arguments.value
+		self.join_table=join_table
+			
+		
 
 	
 	

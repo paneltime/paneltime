@@ -26,7 +26,7 @@ class statistics:
 		self.ll=results_obj.ll
 		self.panel=results_obj.panel
 		self.ll.standardize()
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(self.panel,self.ll)
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(self.ll,True)
 		self.LL_restricted=logl.LL(self.panel.args.args_restricted, self.panel).LL
 		self.LL_OLS=logl.LL(self.panel.args.args_OLS, self.panel).LL		
 		(self.reg_output,
@@ -81,7 +81,7 @@ class statistics:
 	
 	def coeficient_output(self,H,G,robustcov_lags,ll):
 		panel=self.panel
-		args=ll.args_v
+		args=ll.args.args_v
 		robust_cov_matrix,cov=rp.sandwich(H,G,robustcov_lags,ret_hessin=True)
 		se_robust=np.maximum(np.diag(robust_cov_matrix).flatten(),1e-200)**0.5
 		se_st=np.maximum(np.diag(cov).flatten(),1e-200)**0.5

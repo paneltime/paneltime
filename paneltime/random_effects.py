@@ -18,7 +18,7 @@ class re_obj:
 	def RE(self,x,recalc=True):
 		panel=self.panel
 		if self.FE_RE==0:
-			return 0*panel.included
+			return np.zeros(x.shape)
 		if self.FE_RE==1:
 			self.xFE=self.FRE(x)
 			return self.xFE
@@ -33,9 +33,6 @@ class re_obj:
 				self.v_var=0
 				self.theta=panel.zeros
 				return panel.zeros
-				
-			#self.e_var=0.01693374924097458
-			#self.v_var=0.0005709978136967248
 			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*self.T_i)))*self.panel.included
 			self.theta*=(self.T_i>1)
 			if np.any(self.theta>1) or np.any(self.theta<0):
@@ -57,11 +54,11 @@ class re_obj:
 		if dx is None:
 			return None
 		if self.FE_RE==0:
-			return 0*panel.included
+			return np.zeros(dx.shape)
 		elif self.FE_RE==1:
 			return self.FRE(dx)	
 		if self.v_var==0:
-			return panel.zeros
+			return np.zeros(dx.shape)
 		(N,T,k)=dx.shape	
 
 		self.dxFE[vname]=(dx+self.FRE(dx))*panel.included
@@ -118,8 +115,10 @@ class re_obj:
 		
 
 	
-		
-		d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/(self.panel.NT*(1-self.avg_Tinv))
+		try:
+			d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/(self.panel.NT*(1-self.avg_Tinv))
+		except:
+			d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/max(((self.panel.NT*(1-self.avg_Tinv)),1e-200))
 		d2v_var=(2*np.sum(np.sum((dx1*dx2+x*ddx)*incl,0),0)/self.panel.NT)-d2e_var	
 		
 		d2theta_d_e_v_var=-0.5*dtheta_dv_var*(1/self.e_var)*(3*(theta-2)*theta+2)

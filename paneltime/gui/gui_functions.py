@@ -14,9 +14,11 @@ def save(subplot,save_file):
 	axs.clear()
 	
 	
-def display(panel,chart,name,i,subplot,action=None):
+def display(chart,name,i,subplot,action=None,path=None):
 	fgr,axs=subplot
-	f=open(chart.path,'wb+')
+	if path is None:
+		path=chart.path
+	f=open(path,'wb+')
 	fgr.savefig(f)
 	plot_to_chart(f,chart)
 	axs.clear()

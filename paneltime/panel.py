@@ -118,6 +118,7 @@ class panel:
 		X, Y, W, IDs=self.input.X, self.input.Y, self.input.W, self.input.IDs
 		timevar=self.input.timevar
 		NT,k=X.shape
+		self.total_obs=NT
 		if IDs is None:
 			self.X=X.reshape((1,NT,k))
 			self.Y=Y.reshape((1,NT,1))
@@ -138,28 +139,28 @@ class panel:
 			sel=(IDs.T==sel.reshape((N,1)))
 			T=np.sum(sel,1)
 			self.max_T=np.max(T)
-			idincl=T>self.lost_obs+self.settings.min_group_df.value
-			self.X=arrayize(X, N,self.max_T,T, idincl,sel)
-			self.Y=arrayize(Y, N,self.max_T,T, idincl,sel)
+			self.idincl=T>self.lost_obs+self.settings.min_group_df.value
+			self.X=arrayize(X, N,self.max_T,T, self.idincl,sel)
+			self.Y=arrayize(Y, N,self.max_T,T, self.idincl,sel)
 			self.tobit_I=[None,None]
 			for i in [0,1]:
-				self.tobit_I[i]=arrayize(self.input.tobit_I[i], N,self.max_T,T, idincl,sel,dtype=bool)
-			self.W=arrayize(W, N,self.max_T,T, idincl,sel)
-			self.N=np.sum(idincl)
-			self.T_arr=T[idincl].reshape((self.N,1))
+				self.tobit_I[i]=arrayize(self.input.tobit_I[i], N,self.max_T,T, self.idincl,sel,dtype=bool)
+			self.W=arrayize(W, N,self.max_T,T, self.idincl,sel)
+			self.N=np.sum(self.idincl)
+			self.T_arr=T[self.idincl].reshape((self.N,1))
 			self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
 			self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
-			self.get_time_map(timevar, self.N,T, idincl,sel)
+			self.get_time_map(timevar, self.N,T, self.idincl,sel)
 			
 	
 			
-			if np.sum(idincl)<len(idincl):
+			if np.sum(self.idincl)<len(self.idincl):
 				idname=self.input.IDs_name[0]
 				if idname + NON_NUMERIC_TAG in self.dataframe:
 					id_orig=self.dataframe[idname + NON_NUMERIC_TAG]
-					idremoved=id_orig[ix,0][idincl==False]
+					idremoved=id_orig[ix,0][self.idincl==False]
 				else:
-					idremoved=(self.dataframe[idname])[ix,0][idincl==False]
+					idremoved=(self.dataframe[idname])[ix,0][self.idincl==False]
 				s=fu.formatarray(idremoved,90,', ')
 				print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
 		self.zeros=np.zeros((self.N,self.max_T,1))
@@ -273,11 +274,6 @@ def h(e,z):
 		self.z_active=True
 		for i in ret[3:]:
 			self.z_active=self.z_active and not (i is None)	
-		if not self.settings.user_constraints.value is None:
-			if not self.z_active and 'z' in self.settings.user_constraints.value:
-				self.settings.user_constraints.value.pop('z')
-			
-
 		
 		
 	def mean(self,X,axis=None):

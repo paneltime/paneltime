@@ -21,18 +21,18 @@ class args_archive:
 		"""Loads parameters if a similar model has been estimated before. Stored parameters are accessed by
 		creating an instance of this class"""  
 		
-		self.model_key=model_string# possibility for determening model based on data: get_model_key(X, Y, W)
+		self.model_key=model_string#perhaps add possibility for determening model based on data: get_model_key(X, Y, W)
 		self.data=load_obj(fname_args)
 		if self.data is None:
-			(self.args,self.conv,self.pqdkm,self.names_d)=(None,0,(0,0,0,0,0),None)
+			(self.args,self.conv)=(None,None)
 			return
 		(d,a)=self.data
-		if self.model_key in d.keys() and loadargs==2:
-			(self.args,self.conv,self.pqdkm,self.names_d)=d[self.model_key]
-		elif 'last_args##' in d.keys() and loadargs>0:
-			(self.args,self.conv,self.pqdkm,self.names_d)=d['last_args##']
+		if self.model_key in list(d.keys()) and loadargs==1:
+			(self.args,self.conv)=d[self.model_key]
+		elif 'last_args##' in list(d.keys()) and loadargs==2:
+			(self.args,self.conv)=d['last_args##']
 		else:
-			(self.args,self.conv,self.pqdkm,self.names_d)=(None,0,(0,0,0,0,0),None)
+			(self.args,self.conv)=(None,None)
 
 	def load(self):#for debugging
 		data=load_obj(fname_args)
@@ -40,9 +40,9 @@ class args_archive:
 		if self.model_key in d.keys():
 			return d[self.model_key]
 		else:
-			return (None,0,None,None)		
+			return (None,None)		
 
-	def save(self,args,conv,panel):
+	def save(self,args,conv):
 		"""Saves the estimated parameters for later use"""
 		if not self.data is None:
 			d,a=self.data#d is d dictionary, and a is a sequental list that allows us to remove the oldest entry when the database is full
@@ -51,7 +51,7 @@ class args_archive:
 		else:
 			d=dict()
 			a=[]
-		d[self.model_key]=(args,conv,panel.pqdkm,panel.args.names_d)
+		d[self.model_key]=(args,conv)
 		d['last_args##']=d[self.model_key]
 		if self.model_key in a:
 			a.remove(self.model_key)
@@ -95,7 +95,8 @@ def load_obj(fname):
 		f.close()
 		return u 
 	except Exception as e:
-		return None
+		print(e)
+		return
 	
 	
 def save_obj(fname,obj):
@@ -144,6 +145,8 @@ class tempfile_manager:
 	
 class temp_image_manager:
 	def __init__(self,used_imgs):
+		if used_imgs is None:
+			used_imgs=[]
 		#at initialization, all temporary images from previous sessions that are not referenced are deleted
 		self.rec=load_obj(fname_image_temprec)	
 		if self.rec is None:

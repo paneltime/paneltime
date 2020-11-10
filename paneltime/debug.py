@@ -13,8 +13,8 @@ import loglikelihood as lgl
 
 
 def hess_debug(ll,panel,g,d):
-	"""Calculate the hessian nummerically, using the analytical gradient. For debugging. Assumes correct and debuggeed gradient"""
-	x=ll.args_v
+	"""Calculate the Hessian nummerically, using the analytical gradient. For debugging. Assumes correct and debuggeed gradient"""
+	x=ll.args.args_v
 	n=len(x)
 	dx=np.identity(n)*d
 	H=np.zeros((n,n))
@@ -31,7 +31,7 @@ def hess_debug(ll,panel,g,d):
 
 def grad_debug(ll,panel,d):
 	"""Calcualtes the gradient numerically. For debugging"""
-	x=ll.args_v
+	x=ll.args.args_v
 	n=len(x)
 	dx=np.abs(x.reshape(n,1))*d
 	dx=dx+(dx==0)*d

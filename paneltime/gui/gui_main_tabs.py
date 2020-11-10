@@ -220,8 +220,8 @@ class tabs(dict):
 				text=t.widget.get('1.0',tk.END)
 			except:
 				text=''
-			try:
-				output_data=t.widget.table,t.widget.chart_images
+			try:			
+				output_data=t.frame.widget.stored_output_data
 			except:
 				output_data=None
 			if not t.name==ADD_EDITOR_NAME:
@@ -229,10 +229,10 @@ class tabs(dict):
 				
 	def load_all_from_temp(self):
 		editor_data=self.notebook.win.data.get('editor_data')
+		used_imgs=self.get_image_refs(editor_data)
+		self.img_tmp=tempstore.temp_image_manager(used_imgs)		
 		if editor_data is None:
 			return
-		used_imgs=self.get_image_refs(editor_data)
-		self.img_tmp=tempstore.temp_image_manager(used_imgs)
 		n=0
 		for i in editor_data:
 			try:
@@ -249,19 +249,19 @@ class tabs(dict):
 			self.add_editor('script').frame.focus()	
 			
 	def get_image_refs(self,editor_data):
+		if editor_data is None:
+			return []
 		used_imgs=[]
 		for i in editor_data:
 			try:
 				name,text, top_text, top_color,path,output_data=editor_data[i]
 				if not output_data is None:
-					table,chart_images=output_data
-					for imgpath,name in chart_images:
+					for imgpath,name in output_data.chart_images:
 						used_imgs.append(imgpath)
 			except:
 				pass
 		return used_imgs
 						
-
 
 			
 	def add_editor(self,name=None,text=None,format_text=True,top_text='',top_color=DEFAULT_GREY,path=None):
@@ -277,6 +277,7 @@ class tabs(dict):
 	
 	def add_output(self,exe_tab=None,name='regression',output_data=None):
 		output_tab=gui_output_tab.output_tab(self.notebook.win,exe_tab,name,self,self.notebook,output_data)
+		#(added to tabs class in gui_output_tab.output_tab)
 		return output_tab
 	
 	def __getitem__(self,k):

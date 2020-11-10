@@ -14,9 +14,15 @@ def parse_model(model_string):
 	try:
 		Y,X=model_string.split('~')
 	except:
-		raise RuntimeError("the 'model' argument should be a string on the form 'Y~X1 X2 X3' as separators for X-variables you can use either linefeed, space '+' or ','")
+		try:
+			Y,X=model_string.split('=')
+		except:
+			raise RuntimeError("the 'model' argument should be a string on the form 'Y~X1 X2 X3' or 'Y=X1 X2 X3'. As separators for X-variables you can use either linefeed, space '+' or ','")
 	Y=fu.clean(Y)
-	X=fu.split_input(X)
+	X=fu.clean(X).replace('++','+')
+	X=X.split('+')
+	for i in range(len(X)):
+		X[i]=fu.clean(X[i])
 	return Y,X
 
 
@@ -100,6 +106,8 @@ def tobit_set_threshold(input_class,settings):
 		
 def parse_and_check(dataframe,model_string,intercept_name):
 	y_name,x_names=parse_model(model_string)
+	if x_names==['']:
+		x_names=['intercept']
 	X,x_names,has_intercept=check_var(dataframe,x_names,'x_names',intercept_name=intercept_name,raise_error=True,intercept_variable=True)
 	Y,y_name,void=check_var(dataframe,y_name,'y_name',raise_error=True)	
 	return X,x_names,has_intercept,Y,y_name
@@ -155,6 +163,7 @@ def sort(dataframe,time_name,IDs_name):
 	
 
 def modify_dataframe(dataframe,transforms=None,filters=None):
+	print ("Checking and parsing variables ...")
 	n=test_dictionary(dataframe)
 	if 'ones' in dataframe.keys():
 		print ("Warning: variable 'ones' is replaced by a constant vector of ones. Do not give any variable this name if you want to avoid this.")
@@ -162,13 +171,13 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 	if not transforms is None:
 		exec(transforms,globals(),dataframe)	
 	if not filters is None:
-		n=filter_data(filters, dataframe)
+		n,d=filter_data(filters, dataframe)
 		if not transforms is None:
 			exec(transforms,globals(),dataframe)
 	for i in list(dataframe.keys()):
 		if callable(dataframe[i]):
 			dataframe.pop(i)		
-	print ("Checking and parsing variables ...")
+	print ("... done")
 
 def check_var(dataframe,names,arg_name,intercept_name=None,raise_error=False,intercept_variable=False):
 	if names is None:
@@ -208,14 +217,14 @@ def remove(X,names,dataframe,raise_error,has_const):
 	if sumtrash>0:
 		remvd=','.join(np.array(names)[keep==False])
 		if sumtrash==1:
-			remvd="Warning: The variable %s was removed because it was requested removed or constant" %(remvd,)
+			remvd="Warning: The variable %s was removed because it was constant" %(remvd,)
 		else:
-			remvd="Warning: The variables %s were removed because they were requested removed or constant" %(remvd,)
+			remvd="Warning: The variables %s were removed because they were constant" %(remvd,)
 		if raise_error and len(X[0])<=sumtrash:
 			raise RuntimeError(remvd+'. Aborting since there are no more variables to run with.')
 		else:
 			a=0
-			#print(remvd)
+		print(remvd)
 		if len(X[0])<=sumtrash:
 			return None,None
 	X=X[:,keep]
@@ -231,35 +240,43 @@ def check_and_add_variables(names,dataframe,arg_name):
 	elif type(names)==str:
 		names=[names]
 	for name in names:
-		if not name in dataframe:
-			if (name.lower() in ['constant','ones','intercept','one','alpha']):
-				dataframe[name]=dataframe['ones']
-			else:
-				try:
-					var=eval(name,globals(),dataframe)
-				except KeyError as e:
-					raise RuntimeError("Variable %s is requested in %s, but it does not exist in the dataframe" %(name,arg_name))
-				dataframe[name]=var
+		if (name.lower() in ['constant','ones','intercept','one','alpha']):
+			dataframe[name]=dataframe['ones']
+		else:
+			try:
+				var=eval(name,globals(),dataframe)
+			except KeyError as e:
+				raise RuntimeError("Variable %s is requested in %s, but it does not exist in the dataframe" %(name,arg_name))
+			dataframe[name]=var
 			
 			
 
 def filter_data(filters,dataframe,copy=True):
 	"""Filters the dataframe based on setting in the string Filters"""
 	if filters is None:
-		return
+		return None,None
 	if not ' and ' in filters:
-		fltrs=filters.split()
+		if type(filters)==str:
+			fltrs=filters.split()
+		else:
+			fltrs=filters
 	else:
 		fltrs=fu.clean(filters,' and ')
 	n=len(dataframe[list(dataframe.keys())[0]])
 	v=np.ones(n,dtype=bool)
+	removed=0
+	filter_results={}
 	for f in fltrs:
 		r=eval(f,globals(),dataframe)
+		if type(r)==tuple:
+			raise RuntimeError("Filters must be entered as a list of strings")
 		r.resize(n)
-		print ('Removing %s observations due to filter %s' %(np.sum(r==0),f))
+		removed=np.sum((r==0)*(v==1))
+		if not copy:print ('Removing %s observations due to filter %s' %(removed,f))
+		filter_results[f]=removed
 		v*=r
 	if copy:
-		d=dict()
+		d=filtered_dict(filter_results, n)
 	else:
 		d=dataframe
 	for i in dataframe:
@@ -267,10 +284,14 @@ def filter_data(filters,dataframe,copy=True):
 			if len(dataframe[i])==n:
 				d[i]=dataframe[i][v]
 				k=len(d[i])
-	print ('Removed %s of %s observations - %s observations remaining' %(n-k,n,k))
+	if not copy:print ('Removed %s of %s observations - %s observations remaining' %(n-k,n,k))
 	return d,k
 
-
+class filtered_dict(dict):
+	def __init__(self,filter_results,filter_original_sample_size,iterable=[]):
+		dict.__init__(self,iterable)
+		self.filter_results=filter_results
+		self.filter_original_sample_size=filter_original_sample_size
 
 			
 		

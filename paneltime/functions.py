@@ -124,6 +124,16 @@ def savevar(variable,name='tmp'):
 	else:
 		savelist(variable, fname)
 
+def round_sign_digits(x,digits,min_digits=0):
+	d=int(np.log10(abs(x)))
+	return np.round(x,max((digits-1,d+min_digits))-d)
+
+def loadvar(name='tmp'):
+	"""takes variable and name and saves variable with filname <name>.csv """	
+	fname=obtain_fname('./output/'+name)
+	print ( 'saves to '+ fname)
+	v=np.loadtxt(fname,delimiter=";",dtype=float)
+	return v
 
 def savelist(variable,name):
 	file = open(name,'w',newline='')

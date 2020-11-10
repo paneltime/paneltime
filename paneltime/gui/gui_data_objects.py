@@ -137,7 +137,9 @@ class data_objects(ttk.Treeview):
 		
 		exe_str=f"""from paneltime import *\n
 data=dict()\ndata['{f}']=load_json('{filename}')"""
-		self.win.exec(exe_str)
+		res=self.win.exec(exe_str)
+		if res==False:
+			return		
 		df=self.win.locals['data'][f]
 		tree=self.right_tabs.data_tree
 		tree.datasets.add(tree,f,df,filename,exe_str,self.win.main_tabs)
@@ -157,10 +159,12 @@ data=dict()\ndata['{f}']=load_json('{filename}')"""
 		self.win.data['current path']=p
 		exe_str=f"""from paneltime import *\n
 data=dict()\ndata['{f}']=load('{filename}')"""
-		self.win.exec(exe_str)
+		res=self.win.exec(exe_str)
+		if res==False:
+			return
 		df=self.win.locals['data'][f]
 		tree=self.right_tabs.data_tree
-		tree.datasets.add(tree,f,df,filename,exe_str,self.win.main_tabs)
+		tree.datasets.add(tree,f,df,filename,exe_str)
 		
 	def open_sql(self):
 		if self.gui_sql is None:
@@ -295,6 +299,8 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 		
 		item=self.selected_item()
 		dname,vname,sel=(item.split(';')+[''])[:3]
+		if (dname,vname,sel)==('', '', ''):
+			return
 		self.win.data['selected data']=dname+';'
 		if vname!='':#not top level
 			if sel!='':
