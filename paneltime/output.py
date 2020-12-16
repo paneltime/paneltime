@@ -9,13 +9,15 @@ from tkinter import font as tkfont
 import tkinter as tk
 import stat_functions as stat
 import functions as fu
+import model_parser
 STANDARD_LENGTH=8
 		
 
 
 class output:
-	def __init__(self,ll,direction):
+	def __init__(self,ll,direction,main_msg):
 		self.ll=ll
+		self.main_msg=main_msg
 		self.direction=direction
 		self.panel=self.ll.panel
 		self.lags=self.panel.settings.robustcov_lags_statistics.value[1]
@@ -72,25 +74,19 @@ class output:
 	def heading(self):
 		CI=self.direction.CI
 		n_CI=len(self.direction.mc_problems)
-		statistics=[['\nDependent',self.panel.input.y_name[0],None,"\n"],
-					['Max condition index',self.direction.CI,3,f'\t ({n_CI} caseses where high CI was associated with more than one variable)']]
-	
 		s=("LL:\t"+str(self.ll.LL)+'  ').ljust(23)
 		if not self.incr is None:
 			s+=("\tIncrement:\t"+ str(self.incr)).ljust(17)+"  "
 		else:
 			s+=str(" ").ljust(19)
 		if not self.iterations is None:
-			s+="\tIteration:\t"+ str(self.iterations).ljust(7)
-			
-		for label,value,decimals,suffix in statistics:
-			if not ((decimals is None) or (value is None)): 
-				value=np.round(value,decimals)
-				s+=("%s:\t%s " %(label,value)).ljust(16)
-			else:
-				s+=str(label)+':\t'+str(value)
-			s+=suffix
-		s+='\n'
+			s+=f"\tIteration:\t{str(self.iterations).ljust(7)}\n"
+		instr='None'
+		if not self.panel.input.z_names is None:
+			instr=', '.join(self.panel.input.z_names[1:])
+			instr+="\t"+self.main_msg
+		s+=f"Dependent: {self.panel.input.y_name[0]}\t\tInstruments: {instr}\n"
+		s+=f"Max condition index: {np.round(self.direction.CI)}\t ({n_CI} caseses where high CI was associated with more than one variable)\n"
 		self.heading_str=s		
 		
 	def constraints_printout(self):
@@ -331,7 +327,9 @@ class statistics:
 		self.no_ac_prob,self.rhos,self.RSqAC=stat.breusch_godfrey_test(panel,ll,10)
 		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)
 		self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
-		self.df_str=self.gen_df_str(panel)		
+		self.df_str=self.gen_df_str(panel)	
+		self.instruments=panel.input.z_names[1:]
+		self.pqdkm=panel.pqdkm
 		
 	def gen_df_str(self,panel):
 		filterstr=""
@@ -530,13 +528,17 @@ def format_html(X,cols,heading):
 	
 alphabet='abcdefghijklmnopqrstuvwxyz'
 class join_table(dict):
-	def __init__(self,args):
+	def __init__(self,args,varnames=[]):
 		dict.__init__(self)
-		self.names_v=args.names_v
-		self.names_category_list=args.names_category_list
-		self.stats=dict()
-		self.LL=dict()
-		self.df=dict()
+		self.names_category_list=list([list(i) for i in args.names_category_list])#making a copy
+		k=0
+		for i in varnames:
+			if i in self.names_category_list[0]:
+				k=self.names_category_list[0].index(i)+1
+			else:
+				self.names_category_list[0].insert(k,i)
+				k+=1
+		self.names_v=[itm for s in self.names_category_list for itm in s]#flattening
 		
 	def update(self,ll,stats,desc):
 		if not desc in self:
@@ -544,11 +546,11 @@ class join_table(dict):
 				for j in ll.args.names_category_list[i]:
 					if not j in self.names_category_list[i]:
 						self.names_category_list[i].append(j)
-			self.names_v=[itm for s in self.names_category_list for itm in s]
+			self.names_v=[itm for s in self.names_category_list for itm in s]#flattening
 		self[desc]=join_table_column(stats, ll)
 		
 		
-	def make_table(self, stacked, brackets,digits):
+	def make_table(self, stacked, brackets,digits,caption):
 		keys=list(self.keys())
 		k=len(keys)
 		n=len(self.names_v)
@@ -569,17 +571,31 @@ class join_table(dict):
 			X[2+n][1]='Degrees of freedom'		
 			X[3+n][1]='Adjusted R-squared'	
 		for i in range(k):
-			self.make_column(i,keys[i],X,stacked, brackets,digits)
+			self.make_column(i,keys[i],X,stacked, brackets,digits,caption)
 		s=format_normal(X,[1,(1+stacked)*n+1,(1+stacked)*n+4])+'\n'
 		s+=f"Significance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
-		for i in range(k):
-			s+=f"\n{alphabet[i]}: {keys[i]}"
+		max_mod=0
+		models=[]
+		for i in range(len(keys)):
+			key=self[keys[i]]
+			p,q,d,k,m=key.pqdkm
+			models.append(f"\n{alphabet[i]}: {keys[i]}")
+			max_mod=max(len(models[i]),max_mod)
+		for i in range(len(keys)):
+			s+=models[i].ljust(max_mod+2)
+			if len(key.instruments):
+				s+=f"\tInstruments: {key.instruments}"
+			s+=f"\tARIMA({p},{d},{q})-GARCH({k},{m})"
 		return s,X
 			
-	def make_column(self,col,key,X,stacked, brackets,digits):
+	def make_column(self,col,key,X,stacked, brackets,digits,caption):
 		if not 'se_robust' in self[key].stats:
 			return
-		X[0][(2-stacked)*col+2]='abcdefghijklmnopqrstuvwxyz'[col]
+		
+		if caption=='JOINED LONG':
+			X[0][(2-stacked)*col+2]+=f"{self[key].Y_name} ({alphabet[col]})"
+		else:
+			X[0][(2-stacked)*col+2]=alphabet[col]
 		n=len(self.names_v)
 		m=len(self[key].args.names_v)
 		ix=[self.names_v.index(i) for i in self[key].args.names_v]
@@ -611,9 +627,13 @@ class join_table(dict):
 
 class join_table_column:
 	def __init__(self,stats,ll):
+		panel=ll.panel
 		self.stats=stats
 		self.LL=ll.LL
 		self.df=ll.panel.df
 		self.args=ll.args
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False)
+		self.instruments=panel.input.z_names[1:]
+		self.pqdkm=panel.pqdkm		
+		self.Y_name=panel.input.y_name[0]
 		

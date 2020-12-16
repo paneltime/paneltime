@@ -6,7 +6,7 @@ import stat_functions as stat
 import functions as fu
 import calculus_functions as cf
 
-MAX_COLLINEARITY=1e+18
+MAX_COLLINEARITY=1e+7
 SMALL_COLLINEARITY=30
 
 def add_static_constraints(constr,panel,ll,its):
@@ -15,7 +15,9 @@ def add_static_constraints(constr,panel,ll,its):
 	general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
 	add_custom_constraints(constr,general_constraints,ll,False)
 	p,q,d,k,m=panel.pqdkm
-	
+	if its==0 and len(panel.args.args_init.args_d['rho'])>0:
+		if panel.args.args_init.args_d['rho'][0]==0:
+			constr.add(panel.args.positions['rho'][0],None,'Initial MA constr',value=0.0)
 	if panel.m_zero:
 		constr.add(panel.args.positions['psi'][0],None,'GARCH input constr',value=0.05)
 	sumsq_psi=0
@@ -313,44 +315,40 @@ def normalize(H,include):
 def decomposition(H,include):
 	C,includemap=normalize(H, include)
 	c_index,var_prop=stat.var_decomposition(XXNorm=C)
-	try:
-		c_index,var_prop=stat.var_decomposition(XXNorm=C)
-	except:
-		return None,None,None
 	c_index=c_index.flatten()
 	return c_index, var_prop,includemap
 	
 	
-def multicoll_problems(direction,H):
-	k,k=H.shape
-	include=np.array(k*[True])
-	include[list(direction.constr.fixed)]=False
+def multicoll_problems(direction,H,include,mc_problems):
 	c_index, var_prop, includemap = decomposition(H, include)
 	if c_index is None:
-		return False
-	mc_problems=[]#list of [index,associate,condition index]
+		return False,False
+	mc_list=[]
 	largest_ci=None
 	for cix in range(1,len(c_index)):
-		if np.sum(var_prop[:,-cix]>0.5)>1:
+		if np.sum(var_prop[-cix]>0.5)>1:
 			if largest_ci is None:
 				largest_ci=c_index[-cix]
 			if c_index[-cix]>SMALL_COLLINEARITY:
-				var_prop_ix=np.argsort(var_prop[:,-cix])[::-1]
-				var_prop_val=var_prop[:,-cix][var_prop_ix]
+				var_prop_ix=np.argsort(var_prop[-cix])[::-1]
+				var_prop_val=var_prop[-cix][var_prop_ix]
 				j=var_prop_ix[0]
 				j=includemap[j]
-				done=var_prop_check(direction.panel,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix])
+				done=var_prop_check(direction.panel,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix],mc_list)
 				if done:
 					break
-	return mc_problems,c_index[-cix]
+	if len(mc_list)==0:
+		return  c_index[-1],mc_list
+	return c_index[-1],mc_list
 
-def var_prop_check(panel,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index):
+def var_prop_check(panel,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
 	for i in range(1,len(var_prop_ix)):
 		if var_prop_val[i]<0.5:
 			return True
 		index=var_prop_ix[i]
 		index=includemap[index]
 		mc_problems.append([index,assc,cond_index])
+		mc_list.append(index)
 		return False
 		
 def add_mc_constraint(direction,mc_problems,weak_mc_dict):
@@ -380,15 +378,21 @@ def get_no_check(direction):
 	
 		
 def remove_all_multicoll(direction,ll):
-	H=direction.H
+	k,k=direction.H.shape
 	weak_mc_dict=dict()
-	mc_problems,CI=multicoll_problems(direction,direction.H)
+	include=np.array(k*[True])
+	include[list(direction.constr.fixed)]=False
+	mc_problems=[]#list of [index,associate,condition index]
+	CI_max=0
+	for i in range(k-1):
+		CI,mc_list=multicoll_problems(direction,direction.H,include,mc_problems)
+		CI_max=max((CI_max,CI))
+		if len(mc_list)==0:
+			break
+		include[mc_list]=False
 	add_mc_constraint(direction,mc_problems,weak_mc_dict)
-	if False:
-		mc_problemsG,CI=multicoll_problems(direction,direction.H_g_approx)
-		remvd=add_mc_constraint(direction,mc_problemsG,weak_mc_dict)
 	select_arma(direction.constr, ll)
-	return weak_mc_dict,CI,mc_problems
+	return weak_mc_dict,CI_max,mc_problems
 
 
 

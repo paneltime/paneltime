@@ -42,8 +42,8 @@ def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=Fals
 		d2lnv_zeta_xi = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
 		if panel.N>1:
-			d_mu = ll.args_d['mu'] * panel.mean(d2lnv_zeta_xi,1)
-			d_mu = d_mu.reshape((N,1,m,k)) * panel.included.reshape((N,T,1,1))	
+			d_mu = ll.args.args_d['mu'] * panel.mean(d2lnv_zeta_xi,1)
+			d_mu = d_mu.reshape((N,1,m,k)) * panel.included[4]
 		else:
 			d_mu=0
 		

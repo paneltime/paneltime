@@ -22,12 +22,14 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 		pass
 		#print( "non-real XX matrix")
 		
-	d=d.real;EVec=EVec.real
+	d=d.real
+	EVec=EVec.real
 	d=np.abs(d)**0.5+1e-100
 	MaxEv=np.max(d)  
 	fi=np.abs(EVec*EVec/((d*d).reshape((1,ub))+1E-200))
 	fiTot=np.sum(fi,1)
-	pi=fi.transpose()/fiTot.reshape((1,ub))
+	pi=fi/fiTot.reshape((ub,1))
+	pi=pi.T
 	CondIx=MaxEv/d
 	ind=np.argsort(CondIx)
 	pi=pi[ind]
@@ -60,7 +62,7 @@ def singular_elim(panel,X):
 	if max(cond_ix)<ci_threshold:
 		return keep,cond_ix
 	for cix in range(1,len(cond_ix)):
-		if (np.sum(pi[:,-cix]>0.5)>1) and cond_ix[-cix]>ci_threshold:
+		if (np.sum(pi[-cix]>0.5)>1) and cond_ix[-cix][0]>ci_threshold:
 			keep[pi[:,-cix]>0.5]=False
 	return keep,cond_ix
 
@@ -83,8 +85,8 @@ def adf_test(panel,ll,p):
 	y=ll.Y_st
 	yl1=cf.roll(y,1,1)
 	dy=y-yl1
-	date_var=np.arange(T).reshape((T,1))*panel.included	#date count
-	X=np.concatenate((panel.included,date_var,yl1),2)
+	date_var=np.arange(T).reshape((T,1))*panel.included[3]	#date count
+	X=np.concatenate((panel.included[3],date_var,yl1),2)
 	dyL=[]
 	for i in range(p):
 		dyL.append(cf.roll(dy,i+1,1))
@@ -123,11 +125,11 @@ def goodness_of_fit(ll,standarized):
 def breusch_godfrey_test(panel,ll, lags):
 	"""returns the probability that err_vec are not auto correlated""" 
 	e=ll.e_st_centered
-	X=ll.X_st
+	X=ll.XIV_st
 	N,T,k=X.shape
 	X_u=X[:,lags:T]
 	u=e[:,lags:T]
-	c=panel.included[:,lags:T]
+	c=panel.included[3][:,lags:T]
 	for i in range(1,lags+1):
 		X_u=np.append(X_u,e[:,lags-i:T-i],2)
 	Beta,Rsq=OLS(panel,X_u,u,False,True,c=c)
@@ -183,7 +185,7 @@ def adf_crit_values(n,trend):
 def JB_normality_test(e,panel):
 	"""Jarque-Bera test for normality. 
 	returns the probability that a set of residuals are drawn from a normal distribution"""
-	e=e[panel.included]
+	e=e[panel.included[3]]
 	a=np.argsort(np.abs(e))[::-1]
 	
 	ec=e[a][int(0.001*len(e)):]
@@ -203,7 +205,7 @@ def JB_normality_test(e,panel):
 def correl(X,panel=None):
 	"""Returns the correlation of X. Assumes three dimensional matrices. """
 	if not panel is None:
-		X=X*panel.included
+		X=X*panel.included[3]
 		N,T,k=X.shape
 		N=panel.NT
 		mean=np.sum(np.sum(X,0),0).reshape((1,k))/N
@@ -223,9 +225,9 @@ def correl(X,panel=None):
 
 def deviation(panel,X):
 	N,T,k=X.shape
-	x=X*panel.included
+	x=X*panel.included[3]
 	mean=np.sum(np.sum(x,0),0).reshape((1,1,k))/panel.NT
-	return (X-mean)*panel.included
+	return (X-mean)*panel.included[3]
 
 def correl_2dim(X,Y=None,covar=False):
 	"""Returns the correlation of X and Y. Assumes two dimensional matrixes. If Y is not supplied, the 
@@ -240,6 +242,8 @@ def correl_2dim(X,Y=None,covar=False):
 	X_dev=X-np.mean(X,0)
 	Y_dev=Y-np.mean(Y,0)
 	cov=np.dot(X_dev.T,Y_dev)
+	if covar:
+		return cov/(len(X)-1)
 	stdx=np.sum(X_dev**2,0).reshape((1,k))**0.5
 	if single:
 		stdy=stdx
@@ -247,24 +251,22 @@ def correl_2dim(X,Y=None,covar=False):
 		stdy=np.sum(Y_dev**2,0).reshape((1,k))**0.5
 	std_matr=stdx.T*stdy
 	std_matr=std_matr+(std_matr==0)*1e-200
-	if covar:
-		return cov
 	corr=cov/std_matr
 	if corr.shape==(1,1): 
 		corr=corr[0][0]
 	return corr
 
-def get_singular_list(panel,X):
-	a,b=singular_elim(panel,X)
+def get_singular_list(panel,XX):
+	a,b=singular_elim(panel,XX)
 	names=np.array(panel.input.x_names)[a==False]
 	idx=np.array(range(len(a)))[a==False]
-	s=', '.join([f"{names[i]}({idx[i]})" for i in range(len(idx))])	
+	s=', '.join([f"{names[i]}" for i in range(len(idx))])	
 	return s
 
 def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_se_lags=0):
 	"""runs OLS after adding const as the last variable"""
 	if c is None:
-		c=panel.included
+		c=panel.included[3]
 	N,T,k=X.shape
 	NT=panel.NT
 	if add_const:
@@ -278,7 +280,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
 		beta=np.linalg.solve(XX,XY)
 	except np.linalg.LinAlgError:
 		s=get_singular_list(panel,X)
-		raise RuntimeError("The following variables caused singularity and must be removed: "+s)
+		raise RuntimeError("The following variables caused singularity runtime and must be removed: "+s)
 	if return_rsq or return_e or robust_se_lags:
 		e=(Y-cf.dot(X,beta))*c
 		if return_rsq:

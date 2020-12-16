@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import calculus
+import calculus_functions as cf
 import numpy as np
 import constraints as cnstr
 import loglikelihood as logl
@@ -27,29 +28,31 @@ class direction:
 		self.G=None
 		self.g=None
 		self.weak_mc_dict=[]
+		self.mc_problems=[]
 
 
-	def get(self,ll,its,newton_failed,msg):
+	def get(self,ll,its,msg):
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
 		self.ll=ll
 		self.constr_old=self.constr
 		self.progress_bar_obj.suffix=msg
-		self.constr=cnstr.constraints(self.panel,ll.args_v)
+		self.constr=cnstr.constraints(self.panel,ll.args.args_v)
 		cnstr.add_static_constraints(self.constr,self.panel,ll,its)			
 		self.calc_gradient(ll)
 		self.calc_hessian(ll,its)
+		self.calc_HG_ratio()
 		
-		self.weak_mc_dict=cnstr.add_dynamic_constraints(ll,self,newton_failed)	
-		self.CI=self.constr.CI
 		
-		self.dx=solve(self.constr,self.H, self.g, ll.args_v)
-		#dx=solve_delete(self.constr,hessian, g, ll.args_v)	
+		self.weak_mc_dict,self.CI,self.mc_problems=cnstr.add_dynamic_constraints(ll,self)	
+		
+		self.dx=solve(self.constr,self.H, self.g, ll.args.args_v)
+		#dx=solve_delete(self.constr,hessian, g, ll.args.args_v)	
 
 		
-		self.dx_norm=self.normalize(self.dx, ll.args_v)
+		self.dx_norm=self.normalize(self.dx, ll.args.args_v)
 		try:
-			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, ll.args_v),ll.args_v)
+			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, ll.args.args_v),ll.args.args_v)
 		except:
 			self.dx_unconstr=self.dx_norm
 		self.progress_bar_obj.suffix=''
@@ -63,12 +66,13 @@ class direction:
 		return include	
 
 	def calc_gradient(self,ll):
-		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
-		dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)	
+		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included[3]
+		dLL_lnv=-0.5*(self.panel.included[3]-(ll.e_REsq*ll.v_inv)*self.panel.included[3])	
 		dLL_lnv*=ll.dlnv_pos
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
 			
-		self.g,self.G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)	
+		self.g,self.G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
+		
 	
 	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
 		g=[1,-1]
@@ -108,29 +112,52 @@ class direction:
 	def calc_hessian(self,ll,its):
 		I=self.I
 		ll=self.ll
-		d2LL_de2=-ll.v_inv*self.panel.included
-		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included
+		d2LL_de2=-ll.v_inv*self.panel.included[3]
+		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included[3]
 		d2LL_dln_de*=ll.dlnv_pos
-		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included	
+		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included[3]	
 		d2LL_dln2*=ll.dlnv_pos
 		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		self.H=self.hessian.get(ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
-		
 		if self.dx_norm is None:
 			m=10
 		else:
 			m=max(self.dx_norm**2)
 		self.H=(self.H+m*I*self.H)/(1+m)	
+	
+	def calc_HG_ratio(self):
+		self.H_g_approx=-cf.dot(self.G,self.G)
+		self.HG_ratio=-1
+		try:
+			detGG=np.linalg.det(self.H_g_approx)
+		except Exception as e:
+			return
+		try:
+			detH=np.linalg.det(self.H)
+		except Exception as e:
+			return		
+		try:
+			if detGG*detH>0:	
+				self.HG_ratio=np.log(detGG/detH)
+		except:
+			return
+
 
 	
 	def init_ll(self,args):
 		self.constr=cnstr.constraints(self.panel,args)
 		cnstr.add_static_constraints(self.constr,self.panel,None,0)	
+		try:
+			args=args.args_v
+		except:
+			pass#args must be a vector
+		for i in self.constr.fixed:
+			args[i]=self.constr.fixed[i].value
 		ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
 		if ll.LL is None:
 			if self.panel.settings.loadargs.value:
 				print("Initial arguments failed, attempting default OLS-arguments ...")
-				self.panel.args.set_init_args(True)
+				self.panel.args.set_init_args(default=True)
 				ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
 				if ll.LL is None:
 					raise RuntimeError("OLS-arguments failed too, you should check the data")

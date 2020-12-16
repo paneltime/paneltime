@@ -7,13 +7,14 @@ import loglikelihood as logl
 import output
 import sys
 from tkinter import _tkinter
+import time
 
 
 
 
 def lnsrch(ll, direction,mp,its,incr,po):
 	rmsg=''
-	args=ll.args_v
+	args=ll.args.args_v
 	g = direction.g
 	dx = direction.dx
 	panel=direction.panel
@@ -24,19 +25,18 @@ def lnsrch(ll, direction,mp,its,incr,po):
 	if np.sum(g*dx)<0:
 		dx=-dx
 		rmsg="convex function at evaluation point, direction reversed - "	
-	
-	ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0)
+	ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0,ll)
 	if  ll.LL/panel.NT<-1e+15:
-		if not printout_func(0.95,'The maximization agorithm has gone mad. Resetting the argument to initial values',ll,its,direction,incr,po):return ll,msg,lmbda,ok	
+		msg='The maximization agorithm has gone mad. Resetting the argument to initial values'
 		ll=logl.LL(panel.args.args_restricted,panel)
-		return ll,'The maximization agorithm has gone mad. Resetting the argument to initial values',0,False
-	if not ok:
-		if not printout_func(0.95,msg,ll,its,direction,incr,po):return ll,msg,lmbda,ok	
+		return ll,msg,0,False
+	if not ok and False:
+		if not direction.progress_bar(0.95,msg):return ll,msg,lmbda,ok	
 		i=np.argsort(np.abs(dx))[-1]
-		dx=-ll.args_v*(np.arange(len(g))==i)
+		dx=-ll.args.args_v*(np.arange(len(g))==i)
 		ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0)
 		if not ok:
-			dx=ll.args_v*(np.arange(len(g))==i)
+			dx=ll.args.args_v*(np.arange(len(g))==i)
 			ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0)			
 	return ll,msg,lmbda,ok
 		
@@ -56,14 +56,15 @@ def solve_square_func(f0,l0,f05,l05,f1,l1,default=None):
 		return default
 	
 	
-def lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0):
+def lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0,ll):
 	mp.send_dict_by_file({'constr':constr})
 	start=0
-	end=1.5
+	end=2.0
 	msg=''
+	single_core=False#single_core=True has been tested, and even with a relatively small sample, multicore is much faster.
 	for i in range(4):
 		delta=(end-start)/(mp.master.cpu_count-1)
-		res=get_likelihoods(args, dx, panel, constr, mp,delta,start)
+		res=get_likelihoods(args, dx, panel, constr, mp,delta,start,single_core)
 		if i==0:
 			res0=res[0]		
 		if (res[0,1]==0 and i==0) or (res[0,0]<=res0[0] and i>0) or np.isnan(res[0,0]):#best was no change
@@ -74,19 +75,22 @@ def lnsrch_master(args, dx,panel,constr,mp,rmsg,LL0):
 				msg=f'Found increment at {round(res[0,2],4)} of Newton step'
 			break
 	if i>0:
+		if np.max(res[:,0])==res0[0]:
+			return ll,rmsg+'No increase in linesearch',0,False
 		res=np.append([res0],res,0)#ensuring the original is in the LL set
 		srt=np.argsort(res[:,0])[::-1]
 		res=res[srt]
 	res=remove_nan(res)
 	if LL0>res[0,0]:
-		raise RuntimeWarning('Best linsearch is poorer than the starting point. You may have discovered a bug, please notify espen.sirnes@uit.no')
+		print('Best linsearch is poorer than the starting point. You may have discovered a bug, please notify espen.sirnes@uit.no')
+		ll,rmsg+'Best linsearch is poorer than the starting point. You may have discovered a bug, please notify espen.sirnes@uit.no',res[0,0]-LL0,False
 	try:
 		lmda=solve_square_func(res[0,0], res[0,2],res[1,0], res[1,2],res[2,0], res[2,2],res[0,2])
 		ll=logl.LL(args+lmda*dx,panel,constr)
 		if ll.LL<res[0,0]:
 			raise RuntimeError('Something wrong with ll. You may have discovered a bug, please notify espen.sirnes@uit.no')
 	except:
-		ll, lmda = mp.remote_recieve(f'f{res[0,1]}',res[0,1]), res[0,2]
+		ll, lmda = mp.remote_recieve(f'f{res[0,1]}',res[0,1],single_core), res[0,2]
 	if lmda==0:
 		return ll,rmsg+'No increase in linesearch',0,False
 	if msg=='':
@@ -101,7 +105,7 @@ def remove_nan(res):
 	return np.array(r)	
 	
 				
-def get_likelihoods(args, dx,panel,constr,mp,delta,start):
+def get_likelihoods(args, dx,panel,constr,mp,delta,start,single_core):
 	expr=[]	
 	lamdas=[]
 	args_lst=[]
@@ -118,7 +122,8 @@ try:
 except:
 	LL{i}=None
 """, f'LL{i}'])
-	d=mp.remote_execute(expr)
+	loca_dict={'panel':panel,'lgl':logl,'constr':constr}
+	d=mp.remote_execute(expr,loca_dict,single_core) #dict only used for single_core
 	res=[]
 	for i in ids:
 		if not d[f'LL{i}'] is None:
@@ -137,109 +142,76 @@ def maximize(panel,direction,mp,args,tab):
 	"""Maxmizes logl.LL"""
 
 	convergence_limit=panel.settings.convergence_limit.value[0]
-	its, k, m, dx_norm,incr		=0,  0,     0,    None, 0
+	its, k, m, dx_norm,incr		=0,  1,     0,    None, 0
 	H,  digits_precision    = None, 12
-	msg,lmbda,newton_failed	='',	1, False
+	msg,lmbda='',	1
 	direction.hessin_num, ll= None, None
 	args_archive			= panel.input.args_archive
 	ll=direction.init_ll(args)
-	po=printout(tab,panel)
-	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po):return ll,direction,po
+	po=printout(tab,panel,ll,direction)
+	min_iter=panel.settings.minimum_iterations.value
+	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po,0):return ll,direction,po
+	b=0
 	while 1:
-		direction.get(ll,its,newton_failed,msg)
+		direction.get(ll,its,msg)
 		LL0=ll.LL
 			
 		#Convergence test:
-		constr_conv=np.max(np.abs(direction.dx_norm))<convergence_limit
-		unconstr_conv=np.max(np.abs(direction.dx_unconstr)) < convergence_limit 
-		conv=constr_conv or (unconstr_conv and its>3)
-		args_archive.save(ll.args_d,conv,panel)
+		conv,k=convergence_test(direction, convergence_limit, its, args_archive, min_iter, b,ll,panel,lmbda,k)
 		if conv: 
-			printout_func(1.0,"Convergence on zero gradient; maximum identified",ll,its,direction,incr,po)
+			printout_func(1.0,"Convergence on zero gradient; maximum identified",ll,its,direction,incr,po,3)
 			return ll,direction,po
-
-		if not printout_func(0.95,"Linesearch",ll,its,direction,incr,po):return ll,direction,po
-		ll,msg,lmbda,ok=lnsrch(ll,direction,mp,its,incr,po) 
+		if lmbda==0:
+			printout_func(1.0,"No increase in lnesearch without convergence. This should not happen. Contact Espen.Sirnes@uit.no",ll,its,direction,incr,po,1)
+		if not printout_func(0.95,"Linesearch",ll,its,direction,incr,po,1):return ll,direction,po
+		ll,msg,lmbda,ok=lnsrch(ll,direction,mp,its,incr,po)
+		
 		incr=ll.LL-LL0
-		if not printout_func(1.0,msg,ll,its,direction,incr,po):return ll,direction,po
+		if not printout_func(1.0,msg,ll,its,direction,incr,po,0):return ll,direction,po
 		its+=1
 		
-def printout_func(percent,msg,ll,its,direction,incr,po):
-	po.printout(ll,its+1,direction,True,incr)	
+def convergence_test(direction,convergence_limit,its,args_archive,min_iter,b,ll,panel,lmbda,k):
+	constr_conv=np.max(np.abs(direction.dx_norm))<convergence_limit*k
+	unconstr_conv=np.max(np.abs(direction.dx_unconstr)) < convergence_limit*k
+	conv=constr_conv or (unconstr_conv and its>3)
+	args_archive.save(ll.args,conv)
+	if lmbda==0:
+		k=min((k*2,100))
+		return conv,k
+	k=1
+	conv*=(its>=min_iter)
+	if hasattr(direction,'HG_ratio'):
+		conv*=(direction.HG_ratio>0)
+	return conv,k
+		
+def printout_func(percent,msg,ll,its,direction,incr,po,update_type):
+	po.printout(ll,its+1,direction,incr,update_type)	
 	return direction.progress_bar(percent,msg)
 		
-	
-def round_sign(x,n):
-	"""rounds to n significant digits"""
-	return round(x, -int(np.log10(abs(x)))+n-1)
 
 
-def impose_OLS(ll,args_d,panel):
-	beta,e=stat.OLS(panel,ll.X_st,ll.Y_st,return_e=True)
-	args_d['omega'][0][0]=np.log(np.var(e*panel.included)*len(e[0])/np.sum(panel.included))
-	args_d['beta'][:]=beta
 	
 class printout:
-	def __init__(self,tab,panel,_print=True):
+	def __init__(self,tab,panel,ll,direction,_print=True):
 		self._print=_print
 		self.tab=tab
 		if tab is None:
 			return
-		self.panel=panel
+		tab.set_output_obj(ll, direction)
+
 		
-	def printout(self,ll, its, direction, display_statistics,incr):
+		
+	def printout(self,ll, its, direction,incr,update_type):
 		if self.tab is None and self._print:
 			print(ll.LL)
 			return
 		if not self._print:
 			return
-		#self.tab.ll=ll
-		self.displaystats(display_statistics,ll)
-				
-		o=output.output(printout_format,ll, direction,self.panel.settings.robustcov_lags_statistics.value[1])
-		o.add_heading(its,
-					  top_header=" "*118+"constraints",
-					  statistics=[['\nDependent: ',self.panel.input.y_name[0],None,"\n"],
-								  ['Max condition index',direction.CI,3,'decimal']],
-					  incr=incr)
-		o.add_footer("Significance codes: .=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
-					+'\n' 
-					+ ll.err_msg)
-		tab_stops=o.get_tab_stops(self.tab.box.text_box.config()['font'][4])
-		self.tab.box.text_box.config(tabs=tab_stops)		
-		self.print(o)
-		self.prtstr=o.printstring
-		self.output_dict=o.dict
+		if update_type>0:
+			self.tab.update_after_direction(direction,its)
+		elif update_type==0 or update_type==2:
+			self.tab.update_after_linesearch(direction,ll,incr)
+
 		
-	def print(self,o):
-		try:
-			o.print(self.tab)
-		except Exception as e:
-			test1=e.args[0]=="main thread is not in main loop"
-			#test2=e==_tkinter.TclError
-			if test1:
-				exit(0)
-			else:
-				raise e		
-		
-	def displaystats(self,display_statistics,ll):
-		if display_statistics:
-			process_charts=self.tab.charts
-			process_charts.initialize(self.panel)
-			process_charts.plot(ll)	
 
-
-
-l=8
-		#python variable name,	lenght,	  not string, display name,	  neg. values,	justification	next tab space
-printout_format=[['names',		'namelen',	True,	'Variable names',			False,		'right', 		2],
-				 ['args',		l,			False,	'Coef',						True,		'right', 		2],
-				 ['dx_norm',	l,			False,	'direction',				True,		'right', 		2],
-				 ['se_robust',	l,			False,	'SE(robust)',				True,		'right', 		3],
-				 ['tstat',		l,			False,	't-stat.',					True,		'right', 		2],
-				 ['tsign',		l,			False,	'sign.',					False,		'right', 		1],
-				 ['sign_codes',	5,			True,	'',							False,		'left', 		1],
-				 ['multicoll',	1,			True,	'',							False,		'left', 		2],
-				 ['assco',		20,			True,	'collinear with',			False,		'center', 		2],
-				 ['set_to',		6,			True,	'set to',					False,		'center', 		2],
-				 ['cause',		50,			True,	'cause',					False,		'right', 		2]]			
+			

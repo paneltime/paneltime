@@ -25,12 +25,12 @@ class gradient:
 		#creates a  "k x T x N x 1": 
 		x=np.array([cf.roll(x,i+1,1) for i in range(k)])
 		#reshapes to  "N x T x k": 
-		x=np.swapaxes(x,0,3).reshape((N,T,k))
+		x=np.moveaxis(x,0,3).reshape((N,T,k))
 		if not pre is None:
 			x=cf.dot(pre,x)
 		if sign<0:
 			x=x*sign
-		return x*self.panel.a
+		return x*self.panel.a[3]
 
 	def garch_arima_grad(self,ll,d,dRE,varname):
 		panel=self.panel
@@ -40,9 +40,9 @@ class gradient:
 		if self.panel.N>1 and panel.settings.group_fixed_random_eff.value>0 and not dRE is None:
 			d_eRE_sq=2*ll.e_RE*dRE
 			dmeane2=panel.mean(d_eRE_sq,(0,1))
-			d_input=(d_eRE_sq-dmeane2)*panel.a
-			dvRE_dx=dmeane2*panel.a-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
-			groupeffect=ll.dlnvRE*dvRE_dx*panel.a
+			d_input=(d_eRE_sq-dmeane2)*panel.a[3]
+			dvRE_dx=dmeane2*panel.a[3]-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
+			groupeffect=ll.dlnvRE*dvRE_dx*panel.a[3]
 			
 		if self.panel.pqdkm[4]>0 and not d is None:
 			((N,T,k))=d.shape
@@ -64,13 +64,13 @@ class gradient:
 		p,q,d,k,m=panel.pqdkm
 		nW=panel.nW
 		if DLL_e is None:
-			DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
-			dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)	
+			DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included[3]
+			dLL_lnv=-0.5*(self.panel.included[3]-(ll.e_REsq*ll.v_inv)*self.panel.included[3])	
 			dLL_lnv*=ll.dlnv_pos
 		#ARIMA:
 		de_rho=self.arima_grad(p,u,-1,ll.AMA_1)
 		de_lambda=self.arima_grad(q,e,-1,ll.AMA_1)
-		de_beta=-cf.dot(ll.AMA_1AR,panel.X)*panel.a
+		de_beta=-cf.dot(ll.AMA_1AR,panel.XIV)*panel.a[3]
 		
 		(self.de_rho,self.de_lambda,self.de_beta)=(de_rho,de_lambda,de_beta)
 		
@@ -90,7 +90,7 @@ class gradient:
 		#GARCH:
 		(dlnv_gamma, dlnv_psi, dlnv_mu, dlnv_z_G, dlnv_z)=(None,None,None,None,None)
 		if panel.N>1:
-			dlnv_mu=cf.prod((ll.dlnvRE_mu,panel.included))
+			dlnv_mu=cf.prod((ll.dlnvRE_mu,panel.included[3]))
 		else:
 			dlnv_mu=None	
 			

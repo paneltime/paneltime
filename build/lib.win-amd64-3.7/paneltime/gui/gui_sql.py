@@ -59,21 +59,25 @@ class sql_query(tk.Toplevel):
 	def ok_pressed(self,event=None):
 		self.win.data['sql_str']='\n'+fu.clean_section(self.sql_str.get_all())
 		self.win.data['conn_str']=fu.clean_section(self.conn_str.get_all())
-		self.win.exec(self.win.data['conn_str'])
+		res=self.win.exec(self.win.data['conn_str'])
+		if res==False:
+			return		
 		name=self.name_txt.get()
 		sqlstr=f"\"\"\"{self.win.data['sql_str']}\"\"\""
 		exe_str=f"""
 from paneltime import *\n
-data=dict()#defining the data as a dict entry avoids having to comply with python naming conventions
+data=dict()
 data['{name}']=load_SQL(conn,{sqlstr})"""
-		self.win.exec(exe_str)
+		res=self.win.exec(exe_str)
+		if res==False:
+			return		
 		if not name in self.win.locals['data']:
 			return
 		df=self.win.locals['data'][name]
 		self.win.grab_set()
 		tree=self.win.right_tabs.data_tree
 		data_import_script=f"{self.win.data['conn_str']}\n{exe_str}"
-		tree.datasets.add(tree,name,df,self.win.data['sql_str'],data_import_script,self.win.main_tabs)
+		tree.datasets.add(tree,name,df,self.win.data['sql_str'],data_import_script)
 		self.withdraw()
 			
 	def on_closing(self):

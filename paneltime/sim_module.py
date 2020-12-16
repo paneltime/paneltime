@@ -47,7 +47,7 @@ class simulation:
 		v=np.exp(lnv)
 		v_inv=np.exp(-lnv)
 
-		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)	
+		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included[3])	
 	
 	def sim(self):
 		args=self.args

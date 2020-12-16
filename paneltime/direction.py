@@ -66,8 +66,8 @@ class direction:
 		return include	
 
 	def calc_gradient(self,ll):
-		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included
-		dLL_lnv=-0.5*(self.panel.included-(ll.e_REsq*ll.v_inv)*self.panel.included)	
+		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included[3]
+		dLL_lnv=-0.5*(self.panel.included[3]-(ll.e_REsq*ll.v_inv)*self.panel.included[3])	
 		dLL_lnv*=ll.dlnv_pos
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
 			
@@ -112,14 +112,13 @@ class direction:
 	def calc_hessian(self,ll,its):
 		I=self.I
 		ll=self.ll
-		d2LL_de2=-ll.v_inv*self.panel.included
-		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included
+		d2LL_de2=-ll.v_inv*self.panel.included[3]
+		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included[3]
 		d2LL_dln_de*=ll.dlnv_pos
-		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included	
+		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included[3]	
 		d2LL_dln2*=ll.dlnv_pos
 		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		self.H=self.hessian.get(ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
-		
 		if self.dx_norm is None:
 			m=10
 		else:

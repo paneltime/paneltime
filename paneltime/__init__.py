@@ -36,12 +36,12 @@ def start():
 	window=gui.window()
 	window.mainloop() 
 
-def execute(model_string,dataframe, ID=None,T=None,HF=None,join_table=None):
+def execute(model_string,dataframe, ID=None,T=None,HF=None,join_table=None,instruments=None):
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab')
-	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table)
+	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table,instruments)
 	return r
 
 def statistics(results,correl_vars=None,descriptives_vars=None,name=None):
@@ -91,7 +91,7 @@ def load_SQL(conn,sql_string,dateformat='%Y-%m-%d',load_tmp_data=True):
 	return dataframe
 
 def filter_data(data_filters,dataset):
-	d,n=main.model_parser.filter_data(data_filters,dataset)
+	d,n=main.model_parser.filter_data(data_filters,dataset,copy=False)
 	return d
 
 def edit_data(edit_script,dataset):
@@ -99,6 +99,12 @@ def edit_data(edit_script,dataset):
 	for i in list(dataset.keys()):
 		if not type(dataset[i])==np.ndarray:
 			dataset.pop(i)
+	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
+	if hasattr(dataset,'datasets') and (not window is None):
+		dataset.datasets.make_tree(dataset.name,window.right_tabs.data_tree)	
+		
+def add_variable(variable_name,variable_data,dataset):
+	dataset[variable_name]=variable_data
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
 	if hasattr(dataset,'datasets') and (not window is None):
 		dataset.datasets.make_tree(dataset.name,window.right_tabs.data_tree)	

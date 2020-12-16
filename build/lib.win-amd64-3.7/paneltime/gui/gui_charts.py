@@ -3,7 +3,6 @@
 
 import tkinter as tk
 from tkinter import ttk
-from tkinter import ttk
 from multiprocessing import pool
 
 import numpy as np
@@ -14,15 +13,30 @@ from gui import gui_functions as guif
 
 
 class process_charts(ttk.Frame):
-	def __init__(self,window,master):
+	def __init__(self,window,master,main_tabs,tabs):
 		style = ttk.Style()
 		style.configure("TFrame", background='white')		
 		ttk.Frame.__init__(self,master,style='new.TFrame')
 		self.window=window
 		self.ll=None	
 		self.initialized=False
-		self.subplot=window.main_tabs._tabs.subplot
-		self.print_subplot=window.main_tabs._tabs.print_subplot
+		self.subplot=tabs.subplot
+		self.print_subplot=tabs.print_subplot
+		self.img_tmp=tabs.img_tmp
+		
+	def get_images_for_storage(self):
+		charts=[]
+		for i in self.charts:
+			charts.append((i.path,i.name))
+		return charts
+		
+	def charts_from_stored(self,charts):
+		self.add_content()
+		if charts is None:
+			return
+		for i in range(len(charts)):
+			path,name=charts[i]
+			guif.display_from_img(self.charts[i],path,name,i)
 		
 	def add_content(self):
 		self.n_charts=3
@@ -41,6 +55,7 @@ class process_charts(ttk.Frame):
 			frm.columnconfigure(0,weight=1)
 			self.charts.append(tk.Label(frm,background='white'))
 			self.charts[i].grid(row=0,column=0)	
+			self.charts[i].path=self.img_tmp.TemporaryFile()
 			guif.setbutton(frm, 'Save image', lambda: self.save(self.n_charts-i-1),bg='white').grid(row=1,column=0)
 			frm.grid(row=i+1)
 		
@@ -57,7 +72,7 @@ class process_charts(ttk.Frame):
 			self.correlogram,
 			self.correlogram_variance,
 		]
-		flst[i](self.ll,print_subplot,f)
+		flst[i](self.ll,self.print_subplot,f)
 		f.close()
 		
 	def initialize(self,panel):
@@ -67,6 +82,7 @@ class process_charts(ttk.Frame):
 			self.initialized=True		
 		
 	def plot(self,ll):
+		self.initialize(ll.panel)
 		self.ll=ll
 		self.histogram(ll,self.subplot)
 		self.correlogram(ll,self.subplot)
@@ -74,8 +90,10 @@ class process_charts(ttk.Frame):
 		
 		
 	def histogram(self,ll,subplot,f=None):
+		N,T,k=ll.panel.X.shape
 		fgr,axs=subplot
-		e=ll.e_st_centered[self.panel.included]
+		n=ll.e_st_centered.shape[2]
+		e=ll.e_st_centered[self.panel.included[2]].flatten()
 		N=e.shape[0]
 		e=e.reshape((N,1))
 		
@@ -90,7 +108,7 @@ class process_charts(ttk.Frame):
 		name='Histogram - frequency'
 		axs.set_title(name)
 		if f is None:
-			guif.display(self.panel, self.charts[0],name,0,subplot)
+			guif.display(self.charts[0],name,0,subplot)
 		else:
 			guif.save(subplot,f)
 
@@ -103,22 +121,23 @@ class process_charts(ttk.Frame):
 		name='Correlogram - residuals'
 		axs.set_title(name)
 		if f is None:
-			guif.display(self.panel, self.charts[1],name,1,subplot)
+			guif.display(self.charts[1],name,1,subplot)
 		else:
 			guif.save(subplot,f)
 		
 	def correlogram_variance(self,ll,subplot,f=None):
+		N,T,k=ll.panel.X.shape
 		fgr,axs=subplot
 		lags=20
 		e2=ll.e_st_centered**2
-		e2=(e2-self.panel.mean(e2))*self.panel.included
+		e2=(e2-self.panel.mean(e2))*self.panel.included[3]
 		rho=stat.correlogram(self.panel, e2,lags)
 		x=np.arange(lags+1)
 		axs.bar(x,rho,color='grey', width=0.5,label='correlogram')
 		name='Correlogram - squared residuals'
 		axs.set_title(name)
 		if f is None:
-			guif.display(self.panel, self.charts[2],name,2,subplot)
+			guif.display(self.charts[2],name,2,subplot)
 		else:
 			guif.save(subplot,f)
 	
@@ -136,138 +155,3 @@ def histogram(x,grid_range,grid_step):
 	return histogram/N,grid
 
 	
-class scatter_charts(tk.Toplevel):
-	def __init__(self, master,panel,X,Y,iconpath,height=400,width=1000):
-		tk.Toplevel.__init__(self, master,height=400,width=1000,)
-		
-		self.panel=panel
-		self.X=X
-		self.Y=Y
-		self.title('Scatter charts')
-		self.geometry('%sx%s' %(width,height))
-		self.iconbitmap(iconpath)
-		self.rowconfigure(0,weight=1)
-		self.columnconfigure(0,weight=1)			
-		
-		self.n_cols=3
-		self.col_height=250
-		self.n_plots=self.panel.input.X.shape[1]
-		self.n_rows=int(self.n_plots/self.n_cols)
-		self.n_rows+=(self.n_rows*self.n_cols<self.n_plots)
-		
-		self.yscrollbar = tk.Scrollbar(self)
-			
-		self.main_frame=tk.Frame(self)
-		self.main_frame.grid(row=0,column=0)			
-		
-		self.btn_saveall = tk.Button(self.main_frame, text='Save all', command=self.saveall,bg='white')
-		self.btn_saveall.grid(row=1,column=0)		
-		
-		self.canvas=tk.Canvas(self.main_frame,yscrollcommand = self.yscrollbar.set,scrollregion=(0,0,width,self.n_rows*self.col_height),height=height,width=width)
-					
-
-		
-		
-		self.wdgt_frame=tk.Frame(self.canvas,width=width,height=self.n_rows*self.col_height)
-			
-		
-		self.yscrollbar.grid(row=0,column=1,sticky='ns')
-		self.wdgt_frame.grid(row=0,column=0,sticky=tk.NSEW)
-		self.canvas.grid(row=0,column=0,sticky=tk.NSEW)	
-		self.plot_all()	
-		
-		
-		
-			
-		
-		self.canvas.create_window(0,0,window=self.wdgt_frame,anchor='nw')
-		self.yscrollbar.config(command = self.canvas.yview)	
-
-		self.transient(master) #set to be on top of the main window
-		self.grab_set() #hijack all commands from the master (clicks on the main window are ignored)
-		#master.wait_window(self) #pause anything on the main window until this one closes (optional)
-
-
-	def plot_all(self):
-		self.charts=dict()
-		for i in range(self.n_rows):
-			self.wdgt_frame.rowconfigure(i,weight=1)	
-		for i in range(self.n_cols):
-			self.wdgt_frame.columnconfigure(i,weight=1)			
-		for row in range(self.n_rows):
-			for col in range(self.n_cols):
-				i=row*self.n_cols+col
-				if i>=self.n_plots:
-					break
-				self.charts[(row,col)]=self.plot(i,row,col,bgframe=self.wdgt_frame)
-		for i in self.charts:			
-			self.charts[i].grid(row=i[0],column=i[1])	
-			
-				
-		
-				
-						
-		
-	def plot(self,i,row,col,subplot=None,f=None,bgframe=None):
-		if subplot is None:
-			subplot=self.subplot
-		fgr,axs=subplot
-		x_name=self.panel.input.x_names[i]
-		y_name=self.panel.input.y_name[0]
-		x=self.X[:,i]
-		y=self.Y[:,0]
-		
-		axs.scatter(x,y, alpha=.1, s=10)
-		axs.yaxis.label.set_text(y_name)
-		axs.yaxis.label.set_text(x_name)
-		name=f'{y_name} - {x_name}'
-		axs.set_title(name)	
-		
-		if f is None:
-			w=int(fgr.get_figwidth()*fgr.get_dpi())
-			h=int(fgr.get_figheight()*fgr.get_dpi())
-			chart=tk.Label(bgframe,width=w,height=h)
-			guif.display(self.panel, chart,name,i,subplot,self.on_scatter_click)
-			return chart
-		
-		else:
-		
-			guif.save(subplot,f)
-					
-	def on_scatter_click(self,event):
-		f = tk.filedialog.asksaveasfile(mode='bw', defaultextension=".jpg",initialfile=f"{event.widget.name}.jpg")	
-		frame=tk.Label(self.wdgt_frame)	
-		self.plot(event.widget.i,subplot=self.print_subplot, f=f)
-		frame.grid(row=0,column=0)		
-		f.close()		
-		
-	def saveall(self):
-		f = tk.filedialog.asksaveasfile(mode='bw', defaultextension=".jpg",initialfile="paneltime_scatter_plots.jpg")	
-		fname=f.name
-		f.close()
-		for i in self.charts:
-			f=open(gui.fix_fname(fname,i.name))
-			self.plot(i.i, self.print_subplot,f)
-			f.close()
-			
-	def on_closing(self):
-		self.withdraw()
-		
-	def save(self,i):
-		f = tk.filedialog.asksaveasfile(mode='bw', defaultextension=".jpg",initialfile=f"paneltime_scatter_plot_{i}.jpg")		
-		self.plot(i, self.print_subplot,f)
-		f.close()
-		
-			
-			
-		
-class ResizingCanvas(tk.Canvas):
-	def __init__(self,parent,**kwargs):
-		tk.Canvas.__init__(self,parent,**kwargs)
-		#print self.winfo_reqwidth(),self.winfo_reqheight() #>>>854, 404
-		self.bind("<Configure>", self.on_resize)
-
-	def on_resize(self,event):
-		self.width = event.width   #>>>854
-		self.height = event.height #>>>404
-		self.config(width=self.width, height=self.height)

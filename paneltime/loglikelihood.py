@@ -18,6 +18,7 @@ from scipy import sparse as sp
 import scipy
 import debug
 import traceback
+import model_parser
 
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and creates an object
@@ -43,7 +44,7 @@ class LL:
 		self.args=panel.args.create_args(args,constraints)
 		self.h_err=""
 		self.LL=None
-		#self.LL=self.LL_calc()
+		self.LL=self.LL_calc()
 		try:
 			self.LL=self.LL_calc()
 			if np.isnan(self.LL):
@@ -58,43 +59,44 @@ class LL:
 
 	def LL_calc(self):
 		panel=self.panel
-		X=panel.X
+		X=panel.XIV
 		matrices=set_garch_arch(panel,self.args.args_d)
 		if matrices is None:
 			return None		
 		
 		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
 		(N,T,k)=X.shape
-
+		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-cf.dot(X,self.args.args_d['beta'])
 		e = cf.dot(AMA_1AR,u)
-		e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included
-		e_REsq = e_RE**2		
+		e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included[3]
+		e_REsq = e_RE**2
 
 		lnv_ARMA = self.garch(GAR_1MA, e)
 		W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		#self.lnv0=lnv*1#debug
-		grp = self.variance_RE(e_REsq)
+		grp = self.variance_RE(e_REsq)#experimental
 		lnv+=grp
 		self.dlnv_pos=(lnv<100)*(lnv>-100)
 		lnv = np.maximum(np.minimum(lnv,100),-100)
-		v = np.exp(lnv)*panel.a
-		v_inv = np.exp(-lnv)*panel.a	
-		
+		v = np.exp(lnv)*panel.a[3]
+		v_inv = np.exp(-lnv)*panel.a[3]
+
 		LL = self.LL_const-0.5*(lnv+(e_REsq)*v_inv)
 		#self.LL_array=LL#debug
-		self.add_variables(matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,e_REsq,v_inv)
 		self.tobit(panel,LL)
-
-		LL=np.sum(LL*panel.included)
+		LL=np.sum(LL*panel.included[3])
+			
+		self.add_variables(matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,e_REsq,v_inv)
 		if abs(LL)>1e+100: 
 			return None				
 		return LL
 		
 	def add_variables(self,matrices,u,e,lnv_ARMA,lnv,v,W_omega,grp,e_RE,e_REsq,v_inv):
-		self.e_st=e_RE*v_inv**0.5	
-		self.e_st_centered=(self.e_st-self.panel.mean(self.e_st))*self.panel.included
+		self.v_inv05=v_inv**0.5
+		self.e_st=e_RE*self.v_inv05	
+		self.e_st_centered=(self.e_st-self.panel.mean(self.e_st))*self.panel.included[3]
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e, self.lnv_ARMA        = u,         e,       lnv_ARMA
 		self.lnv,self.v                     = lnv,       v
@@ -103,6 +105,7 @@ class LL:
 		self.e_RE=e_RE
 		self.e_REsq=e_REsq
 		self.v_inv=v_inv
+
 
 	
 	def tobit(self,panel,LL):
@@ -124,7 +127,7 @@ class LL:
 				h_res=self.h(e, None)
 			(self.h_val,     self.h_e_val,
 			 self.h_2e_val,  self.h_z_val,
-			 self.h_2z_val,  self.h_ez_val)=[cf.prod((i,self.panel.included)) for i in h_res]
+			 self.h_2z_val,  self.h_ez_val)=[cf.prod((i,self.panel.included[3])) for i in h_res]
 			return cf.dot(GAR_1MA,self.h_val)
 		else:
 			(self.h_val,    self.h_e_val,
@@ -137,23 +140,23 @@ class LL:
 		#todo: currently experimental, needs to be redone. Does not work for fixed effects and very easily causes problems
 		#perhaps calcuate random effects from logs
 		panel=self.panel
-		self.vRE,self.lnvRE,self.dlnvRE=panel.zeros,panel.zeros,panel.zeros
-		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=panel.zeros,None,None
+		self.vRE,self.lnvRE,self.dlnvRE=panel.zeros[3],panel.zeros[3],panel.zeros[3]
+		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=panel.zeros[3],None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
 		if panel.settings.variance_fixed_random_eff.value==0:
-			return panel.zeros
+			return panel.zeros[3]
 		if panel.N==0:
 			return None
 
 		meane2=panel.mean(e_REsq)
-		self.varRE_input=(e_REsq-meane2)*panel.included
+		self.varRE_input=(e_REsq-meane2)*panel.included[3]
 
 		mine2=1e-10
 		mu=0.00001
 		self.vRE_i=self.re_obj_i_v.RE(self.varRE_input)
 		self.vRE_t=self.re_obj_t_v.RE(self.varRE_input)
 		self.meane2=meane2
-		vRE=meane2*panel.included-self.vRE_i-self.vRE_t
+		vRE=meane2*panel.included[3]-self.vRE_i-self.vRE_t
 		self.vRE=vRE
 		small=vRE<=mine2
 		big=small==False
@@ -166,14 +169,14 @@ class LL:
 		
 		lnvRE[big]=lnvREbig
 		lnvRE[small]=lnvREsmall
-		self.lnvRE=lnvRE*panel.included
+		self.lnvRE=lnvRE*panel.included[3]
 
 		dlnvRE[big]=1/(vREbig+mu)
 		dlnvRE[small]=1/(mine2+mu)
-		self.dlnvRE=dlnvRE*panel.included
+		self.dlnvRE=dlnvRE*panel.included[3]
 		
 		ddlnvRE[big]=-1/(vREbig+mu)**2
-		self.ddlnvRE=ddlnvRE*panel.included
+		self.ddlnvRE=ddlnvRE*panel.included[3]
 	
 		return self.lnvRE
 		
@@ -183,28 +186,41 @@ class LL:
 		"""Adds X and Y and error terms after ARIMA-E-GARCH transformation and random effects to self"""
 		if hasattr(self,'Y_st'):
 			return		
-		sd_inv=self.v_inv**0.5
 		panel=self.panel
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
-		if 'Intercept' in panel.args.names_d['beta']:
+		if model_parser.DEFAULT_INTERCEPT_NAME in panel.args.names_d['beta']:
 			m=self.args.args_d['beta'][0,0]
 		else:
 			m=panel.mean(panel.Y)	
-		#e_st=cf.dot(self.AMA_1AR,self.u)
-		#e_st=(e_st+self.re_obj_i.RE(e_st,False)+self.re_obj_t.RE(e_st,False))*sd_inv		
-		Y=cf.dot(self.AMA_1AR,panel.Y)
-		Y=(Y+self.re_obj_i.RE(Y,False)+self.re_obj_t.RE(Y,False))*sd_inv
-		X=cf.dot(self.AMA_1AR,panel.X)
-		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))*sd_inv
-		self.Y_st=Y
-		self.X_st=X
-		self.Y_pred_st=cf.dot(X,self.args.args_d['beta'])
-		self.Y_pred=cf.dot(panel.X,self.args.args_d['beta'])
-		incl=panel.included.reshape(N,T)
-		self.e_st_long=self.e_st[incl,:]
-		self.Y_st_long=self.Y_st[incl,:]
-		self.X_st_long=self.X_st[incl,:]
+		#e_st=self.standardize_variable(self.u)
+		self.Y_st,   self.Y_st_long   = self.standardize_variable(panel.Y)
+		self.X_st,   self.X_st_long   = self.standardize_variable(panel.X)
+		self.XIV_st, self.XIV_st_long = self.standardize_variable(panel.XIV)
+		self.Y_pred_st=cf.dot(self.X_st,self.args.args_d['beta'])
+		self.Y_pred=cf.dot(panel.X,self.args.args_d['beta'])	
+		self.e_st_long=self.stretch_variable(self.e_st)
+		self.Y_pred_st_long=self.stretch_variable(self.Y_pred_st)
+		self.Y_pred_long=cf.dot(panel.input.X,self.args.args_d['beta'])
+		self.e_long=panel.input.Y-self.Y_pred_long
+
+		
+	def standardize_variable(self,X):
+		X=cf.dot(self.AMA_1AR,X)
+		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))*self.v_inv05
+		X_long=self.stretch_variable(X)
+		return X,X_long
+	
+	def stretch_variable(self,X):
+		N,T,k=X.shape
+		panel=self.panel
+		m=panel.map
+		NT=panel.total_obs
+		X_long=np.zeros((NT,k))
+		X_long[m]=X
+		return X_long
+		
+		
 
 	def copy_args_d(self):
 		return fu.copy_array_dict(self.args.args_d)

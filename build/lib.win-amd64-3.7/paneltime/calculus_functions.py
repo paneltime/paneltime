@@ -27,12 +27,12 @@ def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 	#ARIMA:
 	if not AMAL is None:
 		if u_gradient:
-			de2_zeta_xi=-dot(AMAL,panel.X,False)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
+			de2_zeta_xi=-dot(AMAL,panel.XIV,False)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
 		else:
 			de2_zeta_xi=dot(AMAL,de_zeta,False)#"T x N x s x m
 		if transpose:#only happens if lags==k
 			de2_zeta_xi=de2_zeta_xi+np.swapaxes(de2_zeta_xi,2,3)#adds the transpose
-		de2_zeta_xi=de2_zeta_xi*panel.included.reshape(N,T,1,1)
+		de2_zeta_xi=de2_zeta_xi*panel.included[4]
 	else:
 		de2_zeta_xi=None
 	de2_zeta_xi_RE=add(([de2_zeta_xi, ll.re_obj_i.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2), ll.re_obj_t.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)]),True)
@@ -53,7 +53,7 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 	(N,T,k)=de_zeta_RE.shape		
 	de_xi_RE_r=de_xi_RE.reshape((N,T,m,1))
 	de_zeta_RE_r=de_zeta_RE.reshape((N,T,1,k))	
-	incl=panel.included.reshape(N,T,1,1)
+	incl=panel.included[4]
 	
 	dvRE_xi=g.__dict__['dvRE_'+vname1].reshape((N,T,m,1))
 	dvRE_zeta=g.__dict__['dvRE_'+vname2].reshape((N,T,1,k))			
@@ -84,7 +84,7 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 	
 	(N,T,m)=de_xi.shape
 	(N,T,k)=de_zeta.shape
-	incl=panel.included.reshape(N,T,1,1)
+	incl=panel.included[4]
 	DLL_e=g.DLL_e.reshape(N,T,1,1)
 	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
 	if de2_zeta_xi is None:

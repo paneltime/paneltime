@@ -66,6 +66,9 @@ class output_tab(tk.Frame):
 			if hasattr(output_data, 'chart_images'):
 				self.widget.stored_output_data=output_data
 				self.charts.charts_from_stored(output_data.chart_images)
+				
+		if not 'menu_selections' in self.window.data:
+			self.window.data['menu_selections']=dict()
 		self.add_buttons(top_size,top_color)
 		self.add_formats()
 		
@@ -87,7 +90,7 @@ class output_tab(tk.Frame):
 		self.txt_double_line=self.txt_double_line.zoom(zoom,1)	
 		self.txt_line_zoom=zoom
 		
-		
+	
 	def add_buttons(self,top_size,top_color):
 		
 		self.button_img=dict()
@@ -104,13 +107,14 @@ class output_tab(tk.Frame):
 		
 		self.menu_buttons={}
 		i=0
+		
 		btnlist=[
 			# Main button caption	Sub captions										command								click		sub 				Default
 			#																												type main	groups				enabled sub							
 			['REGRESSION',			['DIR','CNSTRNTS',['( )', '[ ]', 'disabled:( )'],
 										['FLAT', 'STACKED'],
-										['NORMAL','HTML','LATEX','RTF','INTERNAL'],
-										'JOINED'],									self.print_regression,					'group',	[[2,3,4]],			[0,1,2,3,4]],
+										['NORMAL', 'HTML', 'LATEX', 'RTF','INTERNAL'],
+										['JOINED', 'JOINED LONG', 'disabled:JOINED']],	self.print_regression,				'group',	[[2,3,4]],			[0,1,2,3,4]],
 			['SCATTER PLOTS',		['NORMALIZED'],										self.show_scatter,					'group', 	None,				[1]],
 			[' CORREL ',			['NORMALIZED',[' COVAR ', ' CORREL '],
 										['ESTIMATES', 'VARIABLES','RAW MOMENTS']],		self.print_correl,					'group', 	[[1],[2]],			[1,2]],
@@ -119,6 +123,7 @@ class output_tab(tk.Frame):
 			['DIGITS',				list(range(10))+[16]+['SCI'],						self.print,							None,		[range(12)],		[5]],
 			['DISTRIBUTION CHARTS',	None,												self.show_dist_charts,				'toggle',	None,				[None]]
 		]
+		#"disabled:" must come last in the sublist
 		for caption, captions_sub,cmd,click_type,group_type_sub,def_sub in btnlist:
 			self.menu_buttons[caption]=menu_button(self, i, caption, cmd,captions_sub,click_type,group_type_sub,def_sub)	
 			i+=1
@@ -128,9 +133,21 @@ class output_tab(tk.Frame):
 		self.tab.widget.grid(column=0,row=1,sticky=tk.NSEW)
 		self.scroll_text_frame.grid(column=0,row=0,sticky=tk.NSEW)
 		self.selection_frame.grid(0,0)
-		self.charts.grid(column=1,row=0,sticky=tk.NS)	
+		self.charts.grid(column=1,row=0,sticky=tk.NS)
+		self.get_stored()
 		self.menu_buttons['REGRESSION'].click()
-		
+	
+	
+	def get_stored(self):
+		d=self.window.data['menu_selections']['DIGITS']
+		b=self.menu_buttons['DIGITS']
+		b.select_sub(d[str(b.sub_group['0'])])#key str(b.sub_group['0']) is the same for all items in 'DIGITS', so using '0'
+		d=self.window.data['menu_selections']['REGRESSION']
+		for caption in d:
+			if not caption in ["['JOINED', 'JOINED LONG', 'disabled:JOINED']",
+							   "['NORMAL', 'HTML', 'LATEX', 'RTF', 'INTERNAL']"]:
+				self.menu_buttons['REGRESSION'].click_sub(caption,d[caption],False)
+			
 	def save(self):
 		#possible soloution, a popup window containing only the filled part of the text widget
 		t=self.tab.widget.text_box
@@ -203,8 +220,10 @@ class output_tab(tk.Frame):
 				c=d.hessian
 			else:
 				n=len(d.hessian)
-				s=np.diag(-d.hessian)**0.5
-				c=d.hessian/(s.reshape(n,1)*s.reshape(1,n))
+				s=np.maximum(np.diag(-d.hessian),0)**0.5
+				s=s.reshape(n,1)*s.reshape(1,n)
+				s[s==0]=d.hessian[s==0]
+				c=d.hessian/s
 			names=d.args_names
 		elif self.menu_buttons[' CORREL '].buttons_sub["['ESTIMATES', 'VARIABLES', 'RAW MOMENTS']"]['text']=='VARIABLES':
 			c=st.correl_2dim(np.concatenate((Y,X),1),covar=is_covar)	
@@ -261,8 +280,8 @@ class output_tab(tk.Frame):
 		self.tab.widget.grid_forget()
 		
 		
-	def set_output_obj(self,ll, direction):
-		self.output=output.output(ll, direction)
+	def set_output_obj(self,ll, direction,main_msg):
+		self.output=output.output(ll, direction,main_msg)
 		
 	def update_after_direction(self,direction,its):
 		self.output.update_after_direction(direction,its)
@@ -337,16 +356,17 @@ class output_tab(tk.Frame):
 		else:
 			bracket='('
 		fmt=self.menu_buttons['REGRESSION'].buttons_sub["['NORMAL', 'HTML', 'LATEX', 'RTF', 'INTERNAL']"]['text']
-		if self.menu_buttons['REGRESSION'].buttons_sub['JOINED']['fg']!=fg_normal:
+		joined=self.menu_buttons['REGRESSION'].buttons_sub["['JOINED', 'JOINED LONG', 'disabled:JOINED']"]
+		if joined['fg']!=fg_normal:
 			self.print_regression_single(n,stacked, bracket, fmt)
 		else:
-			self.join_tables(n, stacked,bracket, fmt)
+			self.join_tables(n, stacked,bracket, fmt,joined['text'])
 		
-	def join_tables(self,digits,stacked,bracket,fmt):
+	def join_tables(self,digits,stacked,bracket,fmt,caption):
 		if self.widget.stored_output_data.data is None: return
 		t=self.widget.stored_output_data.data.join_table
 		if t is None:return
-		s,X=t.make_table(stacked, bracket,digits)	
+		s,X=t.make_table(stacked, bracket,digits,caption)	
 		formatting=None
 		n=len(t.names_v)
 		if fmt=='NORMAL':
@@ -417,6 +437,7 @@ class output_tab(tk.Frame):
 		
 	def format_text_widget(self,formatting,text):
 		t=self.tab.widget.text_box
+		t.configure(font=('Garamond', 12))
 		if 'line_length' in formatting:
 			self.add_lines(formatting['line_length'])
 			for i in formatting['single_line']:
@@ -465,14 +486,18 @@ class menu_button:
 		self.caption=caption_main
 		self.sub_enabled=sub_enabled
 		self.add_sub_menu()
+		if not caption_main in self.tab.window.data['menu_selections']:
+			self.tab.window.data['menu_selections'][caption_main]=dict()
+		self.selections=self.tab.window.data['menu_selections'][caption_main]
 		
 	def select(self,withdraw=True):
 		for i in self.tab.menu_buttons:
 			if not i==self.caption and self.click_type=='group':
-				self.tab.menu_buttons[i].alter_state(bg_normal,fg_normal)
-			if withdraw:
-				self.tab.menu_buttons[i].import_buttons.withdraw()
-		self.alter_state(bg_selected,bg_normal)	
+				self.tab.menu_buttons[i].alter_state(bg_normal,fg_normal)#reset all menus to unselected
+			if withdraw:#If withdraw, then all button_frames are hidden
+				self.tab.menu_buttons[i].button_box.withdraw()
+		self.alter_state(bg_selected,bg_normal)	#set current menu to selected
+
 		
 	def toggle(self):
 		if self.button_main['fg']==fg_normal:
@@ -506,31 +531,35 @@ class menu_button:
 		y += self.button_main.winfo_rooty()+self.button_frame.winfo_height()
 		w=self.button_frame.winfo_width()
 		h=(self.button_frame.winfo_height()+5)*self.n_sub
-		self.import_buttons.geometry('%dx%d+%d+%d' % (150,h,x,y))
+		self.button_box.geometry('%dx%d+%d+%d' % (150,h,x,y))
 		for c in self.buttons_sub:
 			self.buttons_sub[c].configure(widt=self.button_main.winfo_width())
-		self.import_buttons.deiconify()	
+		self.button_box.deiconify()	
 		
 	def hide_sub(self,event=None):
-		w,h,x,y=split_geometry_string(self.import_buttons.geometry())
+		w,h,x,y=split_geometry_string(self.button_box.geometry())
 		if event.widget._name=='!toplevel' and event.y>0:
-			self.import_buttons.withdraw()	
+			self.button_box.withdraw()	
 			
 	def button_hide_sub(self,event):
 		if event.y<self.button_main.winfo_height():
-			self.import_buttons.withdraw()
+			self.button_box.withdraw()
 		
-	def click_sub(self,caption,i):
+	def click_sub(self,caption,i,execute=True):
 		if type(self.captions_sub[i])==list:
-			self.toggle_list(caption,i)
+			self.toggle_list(self.captions_sub[i],i)
+			self.selections[str(caption)]=i
 		elif self.sub_group[caption] is None:
 			if self.group_type_sub==[None]:
-				self.toggle_sub_select(caption)
+				r=self.toggle_sub_select(caption)
 			else:
-				self.toggle_sub(caption)
+				r=self.toggle_sub(caption)
+			self.selections[caption]=r
 		else:
 			self.select_sub(caption)
-
+			self.selections[str(self.sub_group[caption])]=caption
+		if not execute:
+			return
 		if self.click_type=='group':
 			self.select(False)
 		if self.command is None:
@@ -547,17 +576,20 @@ class menu_button:
 			self.buttons_sub[caption].configure(fg=fg_normal)
 			
 	def toggle_sub_select(self,caption):
-		self.toggle_sub(caption)
+		r=self.toggle_sub(caption)
 		if self.buttons_sub[caption]['fg']==fg_normal:
 			for i in self.buttons_sub:
 				if not i==caption:
 					self.buttons_sub[i].configure(fg=fg_disabled)
+		return r
 			
 	def toggle_sub(self,caption):
 		if self.buttons_sub[caption]['fg']==fg_disabled:
-			self.buttons_sub[caption].configure(fg=fg_normal)	
+			self.buttons_sub[caption].configure(fg=fg_normal)
+			return True
 		else:
 			self.buttons_sub[caption].configure(fg=fg_disabled)		
+			return False
 			
 	def toggle_list(self,lst,i):
 		caption=str(lst)
@@ -577,12 +609,12 @@ class menu_button:
 	
 	def add_sub_menu(self):
 		# creates a toplevel window
-		self.import_buttons = tk.Toplevel(self.button_main,bg=bg_sub_menu)
-		self.import_buttons.withdraw()
-		self.import_buttons.bind("<Leave>", self.hide_sub)
+		self.button_box = tk.Toplevel(self.button_main,bg=bg_sub_menu)
+		self.button_box.withdraw()
+		self.button_box.bind("<Leave>", self.hide_sub)
 		# Leaves only the label and removes the app window
-		self.import_buttons.wm_overrideredirect(True)
-		frm = tk.Frame(self.import_buttons, background=bg_sub_menu, relief='flat')
+		self.button_box.wm_overrideredirect(True)
+		frm = tk.Frame(self.button_box, background=bg_sub_menu, relief='flat')
 		if self.captions_sub is None:
 			self.n_sub=0
 		else:
@@ -605,7 +637,10 @@ class menu_button:
 			self.buttons_sub[c]=tk.Button(frm, text = text,command=cmd,
 														font=self.tab.font, highlightthickness=0,bd=0,bg=bg_sub_menu,fg=fg,anchor="w")
 			if (not self.sub_enabled is None) and i in self.sub_enabled:
-				self.buttons_sub[c].configure(fg=fg_normal)	
+				self.buttons_sub[c].configure(fg=fg_normal)
+			else:
+				if 'disabled:'==c[:9]:
+					self.buttons_sub[c].configure(text=c[9:])
 			self.buttons_sub[c].grid(row=i,column=0,sticky=tk.E)
 		self.define_sub_grups()
 		frm.grid(padx=10)
@@ -648,13 +683,14 @@ class stored_output:#for storing the editor
 
 class stored_data:
 	def __init__(self,ll,direction,reg_table):
+		N,T,k=ll.panel.X.shape
 		panel=ll.panel
 		self.X=panel.input.X
 		self.Y=panel.input.Y
 		if not hasattr(ll,'X_st'):
 			ll.standardize()
-		self.X_st=ll.X_st[panel.included[:,:,0]]
-		self.Y_st=ll.Y_st[panel.included[:,:,0]]		
+		self.X_st=ll.X_st[panel.included[2]]
+		self.Y_st=ll.Y_st[panel.included[2]]		
 		self.x_names=panel.input.x_names
 		self.y_name=panel.input.y_name
 		self.args_names=panel.args.names_v
@@ -672,8 +708,17 @@ class stored_data:
 		if panel.input.join_table is None:
 			self.join_table=None
 			return
-		if len(panel.input.join_table)==0:
+		elif len(panel.input.join_table)==0:
 			panel.input.join_table.append(output.join_table(ll.args))
+		elif type(panel.input.join_table[0])==str:
+			if len(panel.input.join_table)>1:
+				varnames=list(panel.input.join_table)
+			else:
+				s=panel.input.join_table
+				varnames=s.replace(',','+').split('+')
+			while len(panel.input.join_table):
+				panel.input.join_table.pop()#removes all elements
+			panel.input.join_table.append(output.join_table(ll.args,varnames))
 		self.join_table=panel.input.join_table[0]
 		self.join_table.update(ll,self.reg_stats,self.descr)
 		

@@ -436,6 +436,7 @@ class dataset(dict):
 		self.datasets=datasets
 		self.options=options_module.regression_options()
 		self.make_optionset(tree)
+		self.auto_update=True
 		
 	def make_optionset(self,tree):
 		optionset=tree.optionset
@@ -465,7 +466,10 @@ class dataset(dict):
 				args.append(f"{i}='{d[i]}'")
 		return f"execute({','.join(args)})"
 		
-	def get_exe_editor(self,main_tabs,return_frame_str=True):
+	def get_exe_editor(self,main_tabs,return_frame_str=True,new_name=None):
+		if not new_name is None:
+			editor=main_tabs._tabs.add_editor(new_name+'.py',top_text=' exe',top_color='#fcdbd9')
+			return editor
 		editor=self.get_editor(self.exe_editor,main_tabs, "Model execution editor", '#fcdbd9',' exe')
 		self.exe_editor=str(editor.frame)
 		if not return_frame_str:

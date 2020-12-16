@@ -40,7 +40,6 @@ class data_objects(ttk.Treeview):
 		self.optionset=right_tabs.optionset
 		self.tabs=tabs
 		self.clicked=False
-		self.main_tabs=window.main_tabs
 		self.right_tabs=right_tabs
 		self.win=window
 		self.main_frame=tk.Frame(tabs)
@@ -138,7 +137,9 @@ class data_objects(ttk.Treeview):
 		
 		exe_str=f"""from paneltime import *\n
 data=dict()\ndata['{f}']=load_json('{filename}')"""
-		self.win.exec(exe_str)
+		res=self.win.exec(exe_str)
+		if res==False:
+			return		
 		df=self.win.locals['data'][f]
 		tree=self.right_tabs.data_tree
 		tree.datasets.add(tree,f,df,filename,exe_str,self.win.main_tabs)
@@ -158,10 +159,12 @@ data=dict()\ndata['{f}']=load_json('{filename}')"""
 		self.win.data['current path']=p
 		exe_str=f"""from paneltime import *\n
 data=dict()\ndata['{f}']=load('{filename}')"""
-		self.win.exec(exe_str)
+		res=self.win.exec(exe_str)
+		if res==False:
+			return
 		df=self.win.locals['data'][f]
 		tree=self.right_tabs.data_tree
-		tree.datasets.add(tree,f,df,filename,exe_str,self.win.main_tabs)
+		tree.datasets.add(tree,f,df,filename,exe_str)
 		
 	def open_sql(self):
 		if self.gui_sql is None:
@@ -178,7 +181,6 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 		if self.datasets is None:
 			self.datasets=datasets()
 			return
-		self.datasets.recreate_editors(self.win.data.get('editor_data'),self.win.main_tabs)
 		self.datasets.make_trees(self)
 		s=self.win.data.get('selected data')
 		try:
@@ -297,6 +299,8 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 		
 		item=self.selected_item()
 		dname,vname,sel=(item.split(';')+[''])[:3]
+		if (dname,vname,sel)==('', '', ''):
+			return
 		self.win.data['selected data']=dname+';'
 		if vname!='':#not top level
 			if sel!='':
@@ -370,9 +374,6 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 			self.tag_configure_node(parent_itm,tags[sel])
 		self.item(parent_itm,open=False)
 		
-	def update_editor(self):
-		tb=self.win.main_tabs.current_editor(2)
-		n=len(tb.get('1.0', 'end-1c'))
 				
 	def close_all(self):
 		for i in self.datasets:
@@ -441,34 +442,6 @@ class dataset(dict):
 		options=optionset.new_option_frame(self)	
 		options.register_validation()
 		
-	def recreate_editors(self,datastore,main_tabs):
-		if datastore is None:
-			return
-		pop_editors=[]
-		edit_editor,exe_editor,script_editor=None,None,None
-		for i in datastore:
-			name,text,top_text,top_color,attached_to,path=datastore[i]
-			if i==self.exe_editor:
-				exe_editor=main_tabs.add_editor(name,text=text,top_text="Model execution editor",
-												top_color='#fcdbd9',dataset=self,attached_to=attached_to,path=path)
-				pop_editors.append(i)
-			if i==self.edit_editor:
-				edit_editor=main_tabs.add_editor(name,text=text,top_text="Data editor",
-												 top_color='#ddfcd9',dataset=self,attached_to=attached_to,path=path)
-				pop_editors.append(i)
-			if i==self.script_editor:
-				script_editor=main_tabs.add_editor(name,text=text,top_text="Import script",
-												   top_color='#6bff9c',dataset=self,attached_to=attached_to,path=path)
-				pop_editors.append(i)			
-		for i in pop_editors:
-			datastore.pop(i)
-		if not exe_editor is None:
-			self.exe_editor=str(exe_editor.frame)
-		if not edit_editor is None:
-			self.edit_editor=str(edit_editor.frame)
-		if not script_editor is None:
-			self.script_editor=str(script_editor.frame)
-		
 		
 	def generate_exe_script(self,tree):
 		X=[]
@@ -524,7 +497,7 @@ class dataset(dict):
 		try:
 			editor=main_tabs._tabs[editor]
 		except:
-			editor=main_tabs.add_editor(self.name+suffix+'.py',top_text=top_text,top_color=top_color,dataset=self)
+			editor=main_tabs._tabs.add_editor(self.name+suffix+'.py',top_text=top_text,top_color=top_color)
 		return editor
 
 		
@@ -532,7 +505,7 @@ class datasets(dict):
 	def __init__(self):
 		dict.__init__(self)
 	
-	def add(self,tree,name,data_dict,source,import_script,main_tabs):
+	def add(self,tree,name,data_dict,source,import_script):
 		self[name]=dataset(self,name,data_dict, source, import_script,tree)
 		self.make_trees(tree)
 		tree.item(f"{name};",open=True)
@@ -540,14 +513,7 @@ class datasets(dict):
 	def make_trees(self,tree):
 		for i in self:
 			self.make_tree(i,tree)
-			self[i].make_optionset(tree)
-			
-	def recreate_editors(self,datastore,main_tabs):
-		if datastore is None:
-			return
-		for i in self:
-			self[i].recreate_editors(datastore,main_tabs)
-		
+			self[i].make_optionset(tree)		
 			
 	def make_tree(self,name,tree):
 		try:
@@ -563,13 +529,6 @@ class datasets(dict):
 		
 	def delete(self,item,tree,optionset):
 		self.__delitem__(item)
-		for i in tree.main_tabs._tabs:
-			tab=tree.main_tabs._tabs[i]
-			if hasattr(tab,'attached_to'):
-				if not tab.attached_to is None:
-					if tab.attached_to.get()==item:
-						tab.attached_to.set('')
-						tab.dataset=None
 		tree.delete(item+';')
 		optionset.delete(item)
 		

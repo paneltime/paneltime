@@ -4,34 +4,37 @@
 import numpy as np
 import stat_functions as stat
 import functions as fu
+import calculus_functions as cf
 
 MAX_COLLINEARITY=1e+18
 SMALL_COLLINEARITY=30
 
 def add_static_constraints(constr,panel,ll,its):
 	
-	add_custom_constraints(constr,panel.settings.user_constraints.value,ll)
+	add_custom_constraints(constr,panel.args.user_constraints,ll)
 	general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
-	add_custom_constraints(constr,general_constraints,ll)
+	add_custom_constraints(constr,general_constraints,ll,False)
 	p,q,d,k,m=panel.pqdkm
 	
 	if panel.m_zero:
 		constr.add(panel.args.positions['psi'][0],None,'GARCH input constr',value=0.05)
-	fix_gamma=(k*m>0)
-	if not ll is None and fix_gamma:
-		fix_gamma=ll.args_d['psi'][0]==0
-	if fix_gamma and (not panel.settings.loadargs.value):
+	sumsq_psi=0
+	if ll is None:
+		return
+	for i in panel.args.positions['psi']:
+		sumsq_psi+=ll.args.args_v[i]**2
+	if sumsq_psi==0:
 		for i in panel.args.positions['gamma']:
-			constr.add(i,None,'GARCH term cannot be positive if ARCH term is zero',value=0)
+			constr.add(i,None,'GARCH term cannot be positive if ARCH terms are zero',value=0)
 		
 
 	
 	
-def add_dynamic_constraints(ll, direction,newton_failed):
+def add_dynamic_constraints(ll, direction):
 
-	weak_mc_dict=remove_all_multicoll(direction,ll,newton_failed)
+	weak_mc_dict,CI,mc_problems=remove_all_multicoll(direction,ll)
 	remove_singularities(direction.constr, direction.H)
-	return weak_mc_dict
+	return weak_mc_dict,CI,mc_problems
 
 
 	
@@ -49,16 +52,24 @@ def remove_singularities(constr,hessian):
 		constr.add(i,None,'singularity (zero in diagonal)')
 		
 
-def add_custom_constraints(constr,constraints,ll):
+def add_custom_constraints(constr,constraints,ll,override=True):
 	"""Adds custom range constraints\n\n
 		constraints shall be on the format [(name, minimum, maximum), ...]"""	
-	if constraints is None:
+	if constraints is None or constraints=="":
+		for c in constr.constraints:
+			if constr[c].cause=='user constraint':
+				constr.delete(c)
 		return
-	for i in constraints:
-		add_custom_constraint(constr,i,ll)
+	if type(constraints)==list:
+		for name in constraints:
+			add_custom_constraint_list(constr,name,ll,override)
+	else:
+		for grp in constraints:
+			for name in constraints[grp]:
+				add_custom_constraint_dict(constr,name,constraints[grp][name],ll,override)
 
 
-def add_custom_constraint(constr,constraint,ll):
+def add_custom_constraint_list(constr,constraint,ll,override):
 	"""Adds a custom range constraint\n\n
 		constraint shall be on the format (name, minimum, maximum)"""
 	name, minimum, maximum=constraint
@@ -70,9 +81,16 @@ def add_custom_constraint(constr,constraint,ll):
 			else:
 				return
 	[minimum,maximum]=m
-	constr.add_named(name,None,'user constraint', [minimum,maximum])
+	constr.add_named(name,None,'user constraint', [minimum,maximum],override)
 
 
+def add_custom_constraint_dict(constr,name,constraint,ll,override):
+	"""Adds a custom range constraint\n\n
+		constraint shall be on the format (name, minimum, maximum)"""
+	if type(constraint)==list:
+		constr.add_named(name,None,'user constraint', constraint,override)
+	else:
+		constr.add_named(name,None,'user constraint', [constraint,None],override)
 
 class constraint:
 	def __init__(self,index,assco,cause,value, interval,panel,category):
@@ -200,14 +218,23 @@ class constraints:
 		return True
 		
 
-	def add_named(self,name,assco,cause,interval):
-		positions=self.panel.args.positions[name]
-		for i in positions:
-			if interval[1] is None:
-				self.add(i,assco,cause, value=interval[0])
-			else:
-				self.add(i,assco,cause, interval)
-		return
+	def add_named(self,name,assco,cause,interval,override=True):
+		args=self.panel.args
+		if name in args.names_v:
+			indicies=[args.names_v.index(name)]		
+		elif name in args.positions:
+			indicies=[]
+			positions=args.positions[name]
+			for i in positions:
+				indicies.append(i)
+		else:
+			return
+		for i in indicies:
+			if (not i in self.constraints) or override:
+				if interval[1] is None:
+					self.add(i,assco,cause, value=interval[0])
+				else:
+					self.add(i,assco,cause, interval)			
 	
 	def set_fixed(self,x):
 		"""Sets all elements of x that has fixed constraints to the constraint value"""
@@ -294,70 +321,78 @@ def decomposition(H,include):
 	return c_index, var_prop,includemap
 	
 	
-def multicoll_problems(direction):
-	constr=direction.constr
-	H=direction.H
-	k,k=H.shape
-	include=np.array(k*[True])
-	include[list(constr.fixed)]=False
+def multicoll_problems(direction,H,include,mc_problems):
 	c_index, var_prop, includemap = decomposition(H, include)
 	if c_index is None:
-		return False
-	constr.CI=c_index[-1]
-	mc_problems=[]#list of [index,associate,condition index]
+		return False,False
+	mc_list=[]
+	largest_ci=None
 	for cix in range(1,len(c_index)):
-		if c_index[-cix]>SMALL_COLLINEARITY:
-			if np.sum(var_prop[-cix]>0.5)>1:
+		if np.sum(var_prop[-cix]>0.5)>1:
+			if largest_ci is None:
+				largest_ci=c_index[-cix]
+			if c_index[-cix]>SMALL_COLLINEARITY:
 				var_prop_ix=np.argsort(var_prop[-cix])[::-1]
 				var_prop_val=var_prop[-cix][var_prop_ix]
 				j=var_prop_ix[0]
 				j=includemap[j]
-				done=var_prop_check(direction.panel,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix])
+				done=var_prop_check(direction.panel,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix],mc_list)
 				if done:
 					break
-	return mc_problems
+	return c_index[-cix],mc_list
 
-def var_prop_check(panel,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index):
+def var_prop_check(panel,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
 	for i in range(1,len(var_prop_ix)):
 		if var_prop_val[i]<0.5:
 			return True
 		index=var_prop_ix[i]
 		index=includemap[index]
 		mc_problems.append([index,assc,cond_index])
+		mc_list.append(index)
 		return False
 		
-def add_mc_constraint(direction,mc_problems,weak_mc_dict,newton_failed):
+def add_mc_constraint(direction,mc_problems,weak_mc_dict):
 	"""Adds constraints for severe MC problems"""
 	constr=direction.constr
-	if newton_failed:
-		limit=SMALL_COLLINEARITY
-	else:
-		limit=MAX_COLLINEARITY
 	if len(mc_problems)==0:
-		return False
-	a=np.array(mc_problems)
-	a=np.argsort(a[:,2])[::-1]
-	for i in a:
-		index,assc,cond_index=mc_problems[i]
-		if (not index in weak_mc_dict) and (cond_index>SMALL_COLLINEARITY) and (cond_index<=MAX_COLLINEARITY):
+		return
+	no_check=get_no_check(direction)
+	a=[i[0] for i in mc_problems]
+	if no_check in a:
+		mc=mc_problems[a.index(no_check)]
+		mc[0],mc[1]=mc[1],mc[0]
+	for index,assc,cond_index in mc_problems:
+		if (not index in weak_mc_dict) and (cond_index>SMALL_COLLINEARITY) and (cond_index<=MAX_COLLINEARITY) and (not index==no_check):
 			weak_mc_dict[index]=[assc,cond_index]#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix.	
-		if not ((index in constr.associates) or (index in constr.collinears)) and cond_index>limit:
+		if not ((index in constr.associates) or (index in constr.collinears)) and cond_index>MAX_COLLINEARITY and (not index==no_check):
 			constr.add(index,assc,'collinear')
-			return True
-	return False
 		
+def get_no_check(direction):
+	no_check=direction.panel.settings.do_not_constraint.value
+	x_names=direction.panel.input.x_names
+	if not no_check is None:
+		if no_check in x_names:
+			return x_names.index(no_check)
+		print("A variable was set for the 'Do not constraint' option (do_not_constraint), but it is not among the x-variables")
+			
+	
 		
-def remove_all_multicoll(direction,ll,newton_failed):
-	H=direction.H
-	k,k=H.shape
+def remove_all_multicoll(direction,ll):
+	k,k=direction.H.shape
 	weak_mc_dict=dict()
-	for i in range(k):
-		mc_problems=multicoll_problems(direction)
-		remvd=add_mc_constraint(direction,mc_problems,weak_mc_dict,newton_failed)
-		if not remvd:
+	include=np.array(k*[True])
+	include[list(direction.constr.fixed)]=False
+	mc_problems=[]#list of [index,associate,condition index]
+	CI_max=0
+	for i in range(k-1):
+		CI,mc_list=multicoll_problems(direction,direction.H,include,mc_problems)
+		CI_max=max((CI_max,CI))
+		if len(mc_list)==0:
 			break
+		include[mc_list]=False
+	add_mc_constraint(direction,mc_problems,weak_mc_dict)
 	select_arma(direction.constr, ll)
-	return weak_mc_dict
+	return weak_mc_dict,CI_max,mc_problems
 
 
 
@@ -366,7 +401,7 @@ def select_arma(constr,ll):
 		if constr.constraints[i].category in ['rho','lambda', 'gamma','psi']:
 			assc=constr.collinears[i]
 			if not assc in constr.fixed:
-				if abs(ll.args_v[assc])<abs(ll.args_v[i]):
+				if abs(ll.args.args_v[assc])<abs(ll.args.args_v[i]):
 					constr.delete(i)
 					constr.add(assc,i,'collinear')
 	

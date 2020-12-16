@@ -138,7 +138,7 @@ except:
 
 	
 	
-def maximize(panel,direction,mp,args,tab):
+def maximize(panel,direction,mp,args,tab,msg_main=""):
 	"""Maxmizes logl.LL"""
 
 	convergence_limit=panel.settings.convergence_limit.value[0]
@@ -148,7 +148,7 @@ def maximize(panel,direction,mp,args,tab):
 	direction.hessin_num, ll= None, None
 	args_archive			= panel.input.args_archive
 	ll=direction.init_ll(args)
-	po=printout(tab,panel,ll,direction)
+	po=printout(tab,panel,ll,direction,msg_main)
 	min_iter=panel.settings.minimum_iterations.value
 	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po,0):return ll,direction,po
 	b=0
@@ -192,12 +192,12 @@ def printout_func(percent,msg,ll,its,direction,incr,po,update_type):
 
 	
 class printout:
-	def __init__(self,tab,panel,ll,direction,_print=True):
+	def __init__(self,tab,panel,ll,direction,msg_main,_print=True,):
 		self._print=_print
 		self.tab=tab
 		if tab is None:
 			return
-		tab.set_output_obj(ll, direction)
+		tab.set_output_obj(ll, direction,msg_main)
 
 		
 		

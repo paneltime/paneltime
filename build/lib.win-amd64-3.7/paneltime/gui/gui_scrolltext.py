@@ -8,27 +8,29 @@ import re
 font0="Courier 10"
 ret_chr=['\r','\n']
 
-class ScrollText(tk.Frame):
+class ScrollText(tk.Canvas):
 	def __init__(self,master,readonly=False,text=None,format_text=True,name=None, window=None):
-		tk.Frame.__init__(self,master)
+		tk.Canvas.__init__(self,master,bg='white')
 		self.rowconfigure(0,weight=1)
 		self.columnconfigure(0,weight=1)		
 		
-		xscrollbar = tk.Scrollbar(self,orient='horizontal')
-		yscrollbar = tk.Scrollbar(self)
+		self.xscrollbar = tk.Scrollbar(self,orient='horizontal')
+		self.yscrollbar = tk.Scrollbar(self)
+		self.xscrollbar.set(0,0)
+		self.yscrollbar.set(0,0)			
 		
 		self.master=master
-		self.text_box = CustomText(self, wrap = tk.NONE,xscrollcommand = xscrollbar.set,
-								   yscrollcommand = yscrollbar.set,undo=True,format_text=format_text,name=name,window=window)	
+		self.text_box = CustomText(self, wrap = tk.NONE,xscrollcommand = self.xscrollbar.set,
+								   yscrollcommand = self.yscrollbar.set,undo=True,format_text=format_text,
+								   name=name,window=window)	
 		self.text_box.config(tabs='1c')
-		xscrollbar.config(command = self.text_box.xview)
-		yscrollbar.config(command = self.text_box.yview)
+		self.xscrollbar.config(command = self.text_box.xview)
+		self.yscrollbar.config(command = self.text_box.yview)
 		
-		xscrollbar.grid(row=1,column=0,sticky='ew')
-		yscrollbar.grid(row=0,column=1,sticky='ns')
+		self.xscrollbar.grid(row=1,column=0,sticky='ew')
+		self.yscrollbar.grid(row=0,column=1,sticky='ns')
 		
-		
-		self.text_box.grid(row=0,column=0,sticky=tk.NSEW)
+		self.text_box.grid(row=0,column=0,sticky=tk.NSEW,padx=(15,0),pady=(5,0))
 		
 		self.readonly=readonly
 		if not text is None:
@@ -36,7 +38,8 @@ class ScrollText(tk.Frame):
 		if readonly:
 			self.text_box.configure(state='disabled')
 			
-
+	def bind_to_key_release(self,func):
+		self.text_box.after_key_release=func
 
 		
 	def get(self,index1,index2):
@@ -72,10 +75,19 @@ class ScrollText(tk.Frame):
 		self.text_box.see(index)
 		
 	def replace_all(self,string):
+		if string is None:
+			string=""
 		if self.readonly:
 			self.text_box.configure(state='normal')		
+		x=self.xscrollbar.get()
+		y=self.yscrollbar.get()
 		self.text_box.delete('1.0',tk.END)
 		self.text_box.insert(tk.INSERT,string)
+		self.xscrollbar.set(*x)
+		self.yscrollbar.set(*y)		
+		if x[1]>x[0] and y[1]>y[0]:
+			self.text_box.xview(tk.MOVETO,x[0]/(x[1]-x[0]))
+			self.text_box.yview(tk.MOVETO,y[0]/(y[1]-y[0]))
 		if self.readonly:
 			self.text_box.configure(state='disabled')
 			
@@ -87,12 +99,12 @@ class ScrollText(tk.Frame):
 
 class CustomText(tk.Text):
 
-	def __init__(self,master, wrap, xscrollcommand,yscrollcommand,undo,format_text=True,name=None,window=None,):
+	def __init__(self,master, wrap, xscrollcommand,yscrollcommand,undo,format_text=True,name=None,window=None):
 		font='Courier'
 		size=10
 
 		tk.Text.__init__(self, master,wrap=wrap, 
-						 xscrollcommand=xscrollcommand,yscrollcommand=yscrollcommand,undo=undo)	
+						 xscrollcommand=xscrollcommand,yscrollcommand=yscrollcommand,undo=undo,bd=0)	
 		self.master=master
 		self.configure(font=(font,size,'normal'))
 		self.bind('<KeyRelease>', self.key_released)
@@ -111,6 +123,7 @@ class CustomText(tk.Text):
 		self.released_ignore_key=False
 		self.name=name
 		self.win=window
+		self.after_key_release=None
 		
 		
 		
@@ -140,8 +153,6 @@ class CustomText(tk.Text):
 			self.pressed_key=''
 			return
 		if not event is None:
-			if event.keysym=='Return' and hasattr(self.master.master,'tab'):
-				self.master.master.tab.edit_data_set()			
 			if ((self.released_ignore_key==True) 
 				and (not event.keysym in ignore_press_keys)):
 				self.released_ignore_key=False
@@ -167,6 +178,8 @@ class CustomText(tk.Text):
 		
 		self.highlight_pattern(r"#(.*?)\r", 'comment',end='end-1c')
 		self.highlight_pattern(r"#(.*?)\n", 'comment',end='end-1c')
+		if not self.after_key_release is None:
+			self.after_key_release()
 
 		
 	def highlight_pattern(self, pattern, tag, start="1.0", end="end",

@@ -317,7 +317,10 @@ class option_frame(tk.Frame):
 		desc=option.description[i]
 		lbl=tk.Label(line,text=desc,anchor='nw',background='white')
 		self.entries[name]=managed_text(line,option.dtype,option,self.option_tree,self.node_name,i)
-		self.entries[name].text.set(str(option.value[i]))
+		if option.value is None:
+			self.entries[name].text.set('None')
+		else:
+			self.entries[name].text.set(str(option.value[i]))
 		self.entries[name].grid(row=0,column=2,sticky='nw')
 		lbl.grid(row=0,column=0,sticky='nw')
 		line.grid(row=i,sticky='nw')

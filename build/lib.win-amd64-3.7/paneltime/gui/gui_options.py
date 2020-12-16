@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import ttk
-from gui import gui_charts
 import time
 from gui import gui_scrolltext
-import options as options_module
-from gui import gui_scrolltext
 from gui import gui_script_handling
+import options as options_module
+import numpy as np
 NON_NUMERIC_TAG='|~|'
 font='Arial 9 '
 tags=dict()
@@ -118,8 +117,19 @@ class options_item(ttk.Treeview):
 		d=self.options.__dict__
 		for i in d:
 			if hasattr(d[i],'value'):
-				if d[i].value!=self.default_options.__dict__[i].value:
-					scripts.append(f'options.{i}.set({d[i].value})')
+				v=d[i].value
+				if v!=self.default_options.__dict__[i].value:
+					dtype=d[i].dtype
+					if not type(dtype)==list:
+						dtype=[dtype]
+					if str in dtype:
+						if ('\n' in v):
+							v=f'"""{v}"""'
+						elif '\'' in v:
+							v=f'"{v}"'
+						else:
+							v=f"'{v}'"
+					scripts.append(f'options.{i}.set({v})')
 					search_patterns.append(fr'options.{i}.set\(([\s\S]*?)\)')
 		return scripts,search_patterns
 				
@@ -237,10 +247,12 @@ class options_item(ttk.Treeview):
 	def add_options(self,option,cat):
 		if not option.selection_var:
 			return
-		for i in range(len(option.value_description)):
-			desc=option.value_description[i]
+		for i in range(len(option.permissible_values)):
+			desc=''
+			if not option.value_description is None:
+				desc=option.value_description[i]			
 			val= option.permissible_values[i]
-			self.insert(f"{cat};{option.name}",3, f"{cat};{option.name};{i}",values=(val,), text=desc,tags=('option',))	
+			self.insert(f"{cat};{option.name}",i, f"{cat};{option.name};{i}",values=(val,),text=desc, tags=('option',))	
 			
 	def register_validation(self):
 		for i in self.tree:
@@ -289,6 +301,8 @@ class option_frame(tk.Frame):
 			self.cntrl=gui_scrolltext.ScrollText(self)
 			if not option.value is None:
 				self.cntrl.insert('1.0',option.value)
+			self.scrolltext_updater=update_options_scrolltext(option, self.cntrl, self.option_tree)
+			self.cntrl.bind_to_key_release(self.scrolltext_updater.update)
 		else:
 			self.cntrl=managed_text(self,option.dtype,option,self.option_tree, self.node_name)
 			self.cntrl.text.set(option.value)
@@ -303,12 +317,32 @@ class option_frame(tk.Frame):
 		desc=option.description[i]
 		lbl=tk.Label(line,text=desc,anchor='nw',background='white')
 		self.entries[name]=managed_text(line,option.dtype,option,self.option_tree,self.node_name,i)
-		self.entries[name].text.set(str(option.value[i]))
+		if option.value is None:
+			self.entries[name].text.set('None')
+		else:
+			self.entries[name].text.set(str(option.value[i]))
 		self.entries[name].grid(row=0,column=2,sticky='nw')
 		lbl.grid(row=0,column=0,sticky='nw')
 		line.grid(row=i,sticky='nw')
 			
 			
+class update_options_scrolltext:
+	def __init__(self,option,scrolltext,option_tree):
+		self.option=option
+		self.scrolltext=scrolltext
+		self.option_tree=option_tree
+		
+	def update(self):
+		P=self.scrolltext.get_all()
+		ok=self.option.set(P)
+		if not ok:
+			return
+		if self.option_tree.link_to_script_edit:
+			try:
+				gui_script_handling.edit_options_script(self.option_tree)
+			except:
+				pass
+		return ok
 		
 		
 class managed_text(tk.Entry):
@@ -329,6 +363,7 @@ class managed_text(tk.Entry):
 		
 	def onEnterKey(self,event):
 		self.option_tree.opt_frame.focus()
+
 			
 	def onValidate(self,d,P):
 		try:
@@ -345,6 +380,9 @@ class managed_text(tk.Entry):
 				P=float(P)
 		except:
 			return False
+		return self.update_options(P)
+		
+	def update_options(self,P):
 		ok=self.option.set(P,self.i)
 		if not ok:
 			return

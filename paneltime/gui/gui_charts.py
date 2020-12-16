@@ -90,8 +90,10 @@ class process_charts(ttk.Frame):
 		
 		
 	def histogram(self,ll,subplot,f=None):
+		N,T,k=ll.panel.X.shape
 		fgr,axs=subplot
-		e=ll.e_st_centered[self.panel.included]
+		n=ll.e_st_centered.shape[2]
+		e=ll.e_st_centered[self.panel.included[2]].flatten()
 		N=e.shape[0]
 		e=e.reshape((N,1))
 		
@@ -124,10 +126,11 @@ class process_charts(ttk.Frame):
 			guif.save(subplot,f)
 		
 	def correlogram_variance(self,ll,subplot,f=None):
+		N,T,k=ll.panel.X.shape
 		fgr,axs=subplot
 		lags=20
 		e2=ll.e_st_centered**2
-		e2=(e2-self.panel.mean(e2))*self.panel.included
+		e2=(e2-self.panel.mean(e2))*self.panel.included[3]
 		rho=stat.correlogram(self.panel, e2,lags)
 		x=np.arange(lags+1)
 		axs.bar(x,rho,color='grey', width=0.5,label='correlogram')

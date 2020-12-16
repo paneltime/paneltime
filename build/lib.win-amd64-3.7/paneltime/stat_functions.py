@@ -57,37 +57,12 @@ def singular_elim(panel,X):
 	keep,XXCorrel=find_singulars(panel,X) 
 	XXNorm=square_and_norm(X)
 	cond_ix,pi=var_decomposition(XXNorm)
-	for i in range(0,k):
-		if np.sum(keep)<2:
-			break
-		XXtmp=XXNorm[keep][:,keep]
-		keep_map=r[keep]
-		cond_ix_tmp,pi_tmp=var_decomposition(XXtmp)
-		if cond_ix_tmp is None:
-			break
-		if cond_ix_tmp[len(XXtmp)-1]<ci_threshold:
-			break			
-		cond_ix=np.zeros((k,1))
-		pi[keep[:,None]*keep[None,:]]=pi_tmp.flatten()
-		if not np.all(pi[keep][:,keep]==pi_tmp):
-			raise RuntimeError('OK, so it did not work allways')
-		cond_ix[keep_map]=cond_ix_tmp
-
-		nz=np.nonzero((pi>0.5)*(cond_ix>ci_threshold)+(pi==np.max(pi,1))*(cond_ix>1000))#More than a 50% variance proportion is "high", single items with more than 1000 are also deleted
-		drop_items=np.append(nz[0][1:]==nz[0][:len(nz[1])-1],False)#deleting only k-1 of all k collienar observations
-		keep[nz[1][drop_items]]=False
-		keep[0]=True#Never remove the constant term
+	if max(cond_ix)<ci_threshold:
+		return keep,cond_ix
+	for cix in range(1,len(cond_ix)):
+		if (np.sum(pi[:,-cix]>0.5)>1) and cond_ix[-cix]>ci_threshold:
+			keep[pi[:,-cix]>0.5]=False
 	return keep,cond_ix
-
-def get_full_reg(beta,se,keep):
-	"fills in zeroes where variables have been deleted by singular_elim"
-	k=len(keep)
-	beta_full=np.zeros((k,1))
-	ret[keep]=beta	
-	se_full=np.zeros((k,1))
-	ret[keep]=se	
-	return ret
-
 
 def find_singulars(panel,X):
 	"""Returns a list with True for variables that cause singularity and False otherwise.
@@ -108,8 +83,8 @@ def adf_test(panel,ll,p):
 	y=ll.Y_st
 	yl1=cf.roll(y,1,1)
 	dy=y-yl1
-	date_var=np.arange(T).reshape((T,1))*panel.included	#date count
-	X=np.concatenate((panel.included,date_var,yl1),2)
+	date_var=np.arange(T).reshape((T,1))*panel.included[3]	#date count
+	X=np.concatenate((panel.included[3],date_var,yl1),2)
 	dyL=[]
 	for i in range(p):
 		dyL.append(cf.roll(dy,i+1,1))
@@ -128,12 +103,17 @@ def adf_test(panel,ll,p):
 	res=np.append(adf_stat,critval)
 	return res
 
-def goodness_of_fit(panel,ll):
-	s_res=panel.var(ll.e_st)
-	s_mod=panel.var(ll.Y_pred_st)
-	s_expl=s_res/(s_mod+s_res)
-	Rsq=1-s_expl
-	Rsqadj=1-s_expl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
+def goodness_of_fit(ll,standarized):
+	panel=ll.panel
+	if standarized:
+		s_res=panel.var(ll.e_st)
+		s_tot=panel.var(ll.Y_st)
+	else:
+		s_res=panel.var(ll.u)
+		s_tot=panel.var(ll.panel.Y)		
+	r_unexpl=s_res/s_tot
+	Rsq=1-r_unexpl
+	Rsqadj=1-r_unexpl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
 	panel.args.create_null_ll()
 	LL_ratio_OLS=2*(ll.LL-panel.args.LL_OLS)
 	LL_ratio=2*(ll.LL-panel.args.LL_null)
@@ -143,11 +123,11 @@ def goodness_of_fit(panel,ll):
 def breusch_godfrey_test(panel,ll, lags):
 	"""returns the probability that err_vec are not auto correlated""" 
 	e=ll.e_st_centered
-	X=ll.X_st
+	X=ll.XIV_st
 	N,T,k=X.shape
 	X_u=X[:,lags:T]
 	u=e[:,lags:T]
-	c=panel.included[:,lags:T]
+	c=panel.included[3][:,lags:T]
 	for i in range(1,lags+1):
 		X_u=np.append(X_u,e[:,lags-i:T-i],2)
 	Beta,Rsq=OLS(panel,X_u,u,False,True,c=c)
@@ -178,7 +158,9 @@ def chisq_dist(X,df):
 
 
 def adf_crit_values(n,trend):
-	"""Returns 1 and 5 percent critical values respectively"""
+	"""Returns 1 and 5 percent critical values respectively. Interpolated from table in 
+	Fuller, W. A. (1976). Introduction to Statistical Time Series. New York: John Wiley and Sons. ISBN 0-471-28715-6
+	table is available at https://en.wikipedia.org/wiki/Augmented_Dickey%E2%80%93Fuller_test"""
 	if trend:
 		d={25:np.array([-3.75,-3.00]),50:np.array([-3.58,-2.93]),100:np.array([-3.51,-2.89]),
 		   250:np.array([-3.46,-2.88]),500:np.array([-3.44,-2.87]),10000:np.array([-3.43,-2.86])}
@@ -201,7 +183,7 @@ def adf_crit_values(n,trend):
 def JB_normality_test(e,panel):
 	"""Jarque-Bera test for normality. 
 	returns the probability that a set of residuals are drawn from a normal distribution"""
-	e=e[panel.included]
+	e=e[panel.included[3]]
 	a=np.argsort(np.abs(e))[::-1]
 	
 	ec=e[a][int(0.001*len(e)):]
@@ -219,10 +201,9 @@ def JB_normality_test(e,panel):
 
 
 def correl(X,panel=None):
-	"""Returns the correlation of X and Y. Assumes three dimensional matrixes. If Y is not supplied, the 
-	correlation matrix of X is returned"""
+	"""Returns the correlation of X. Assumes three dimensional matrices. """
 	if not panel is None:
-		X=X*panel.included
+		X=X*panel.included[3]
 		N,T,k=X.shape
 		N=panel.NT
 		mean=np.sum(np.sum(X,0),0).reshape((1,k))/N
@@ -234,17 +215,19 @@ def correl(X,panel=None):
 	cov=cov-(mean.T*mean)
 	stdx=(np.diag(cov)**0.5).reshape((1,k))
 	stdx=(stdx.T*stdx)
+	stdx[np.isnan(stdx)]=0
 	corr=(stdx>0)*cov/(stdx+(stdx==0)*1e-100)
+	corr[stdx<=0]=0
 	
 	return corr
 
 def deviation(panel,X):
 	N,T,k=X.shape
-	x=X*panel.included
+	x=X*panel.included[3]
 	mean=np.sum(np.sum(x,0),0).reshape((1,1,k))/panel.NT
-	return (X-mean)*panel.included
+	return (X-mean)*panel.included[3]
 
-def correl_2dim(X,Y=None):
+def correl_2dim(X,Y=None,covar=False):
 	"""Returns the correlation of X and Y. Assumes two dimensional matrixes. If Y is not supplied, the 
 	correlation matrix of X is returned"""	
 	if type(X)==list:
@@ -264,15 +247,24 @@ def correl_2dim(X,Y=None):
 		stdy=np.sum(Y_dev**2,0).reshape((1,k))**0.5
 	std_matr=stdx.T*stdy
 	std_matr=std_matr+(std_matr==0)*1e-200
+	if covar:
+		return cov
 	corr=cov/std_matr
 	if corr.shape==(1,1): 
 		corr=corr[0][0]
-	return cov/std_matr
+	return corr
+
+def get_singular_list(panel,X):
+	a,b=singular_elim(panel,X)
+	names=np.array(panel.input.x_names)[a==False]
+	idx=np.array(range(len(a)))[a==False]
+	s=', '.join([f"{names[i]}({idx[i]})" for i in range(len(idx))])	
+	return s
 
 def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_se_lags=0):
 	"""runs OLS after adding const as the last variable"""
 	if c is None:
-		c=panel.included
+		c=panel.included[3]
 	N,T,k=X.shape
 	NT=panel.NT
 	if add_const:
@@ -282,7 +274,11 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
 	Y=Y*c
 	XX=cf.dot(X,X)
 	XY=cf.dot(X,Y)
-	beta=np.linalg.solve(XX,XY)
+	try:
+		beta=np.linalg.solve(XX,XY)
+	except np.linalg.LinAlgError:
+		s=get_singular_list(panel,X)
+		raise RuntimeError("The following variables caused singularity and must be removed: "+s)
 	if return_rsq or return_e or robust_se_lags:
 		e=(Y-cf.dot(X,beta))*c
 		if return_rsq:
@@ -295,7 +291,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
 			return beta,e*c
 		elif robust_se_lags:
 			XXInv=np.linalg.inv(XX)
-			se_robust,se=robust_se(panel,robust_se_lags,XXInv,X*e)
+			se_robust,se,V=robust_se(panel,robust_se_lags,XXInv,X*e)
 			return beta,se_robust.reshape(k,1),se.reshape(k,1)
 	return beta
 
@@ -346,26 +342,36 @@ def robust_cluster_weights(panel,XErr,cluster_dim,whites):
 def robust_se(panel,L,hessin,XErr,nw_only=True):
 	"""Returns the maximum robust standard errors considering all combinations of sums of different combinations
 	of clusters and newy-west"""
-	w=sandwich_var(hessin,cf.dot(XErr,XErr))#whites
-	nw=sandwich_var(hessin,newey_west_wghts(L,XErr))#newy-west
-	c0=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 0, w))#cluster dim 1
-	c1=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 1, w))#cluster dim 2
+	w,W=sandwich_var(hessin,cf.dot(XErr,XErr))#whites
+	nw,NW=sandwich_var(hessin,newey_west_wghts(L,XErr))#newy-west
+	c0,C0=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 0, w))#cluster dim 1
+	c1,C1=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 1, w))#cluster dim 2
 	v=np.array([
-		w*0,
 		nw,
 		nw+c0,
 		nw+c1,
-		nw+c1+c0
+		nw+c1+c0,
+		w*0
 	])
-	se_robust=np.maximum(np.max(w+v,0),0)**0.5
+	V=np.array([
+		NW,
+		NW+C0,
+		NW+C1,
+		NW+C1+C0,
+		W*0
+	])
+	V=V+W
+	s=np.max(w+v,0)
+	se_robust=np.maximum(s,0)**0.5
+	i=np.argmax(np.sum(w+v,1))
 	se_std=np.maximum(w,0)**0.5
-	return se_robust,se_std
+	return se_robust,se_std,V[i]
 	
 def sandwich_var(hessin,V):
 	hessinV=cf.dot(hessin,V)
-	v=cf.dot(hessinV,hessin)
-	v=np.diag(v)
-	return v
+	V=cf.dot(hessinV,hessin)
+	v=np.diag(V)
+	return v,V
 	
 
 

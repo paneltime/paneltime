@@ -39,6 +39,8 @@ class arguments:
 			self.user_constraints=eval(panel.settings.user_constraints.value)
 		except SyntaxError:
 			print(f"Syntax error: {e}")
+			self.user_constraints={}
+			return			
 		except:
 			print(e)
 			self.user_constraints={}
@@ -48,7 +50,7 @@ class arguments:
 		for i in self.user_constraints:
 			for j in self.user_constraints[i]:
 				if j not in self.names_v:
-					print(f"Constraint on {name} not applied (name not found in arguments)")
+					print(f"Constraint on {j} not applied (name not found in arguments)")
 		
 
 	def initargs(self,p,d,q,m,k,panel):
@@ -83,8 +85,8 @@ class arguments:
 		#c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
 		
 		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
-		#beta=stat.OLS_simple(panel.input.Y,panel.input.X,True,False)
-		self.init_e_st=e[panel.included]
+		#beta=stat.OLS_simple(panel.input.Y,panel.input.XIV,True,False)
+		self.init_e_st=e[panel.included[3]]
 		self.init_e_st=self.init_e_st/np.var(self.init_e_st)**0.5
 		initargs['beta']=beta
 		if panel.settings.variance_fixed_random_eff.value==0:

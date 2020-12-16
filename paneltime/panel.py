@@ -48,7 +48,7 @@ class panel:
 		p,q,d,k,m=self.pqdkm
 		self.max_lags=self.input.lag_obj.max_lags
 		self.lost_obs=max((p,q,self.max_lags))+max((m,k,self.max_lags))+d#+3
-		self.nW,self.n_beta=self.input.W.shape[1],self.input.X.shape[1]
+		self.nW,self.nZ,self.n_beta=self.input.W.shape[1],self.input.Z.shape[1],self.input.X.shape[1]
 		self.define_h_func()
 		if self.input.IDs_name is None:
 			self.settings.group_fixed_random_eff.value=0
@@ -63,25 +63,27 @@ class panel:
 	def masking(self):
 		
 		#"initial observations" mask: 
-		self.a=np.array([self.date_counter<self.T_arr[i] for i in range(self.N)])# sets observations that shall be zero to zero by multiplying it with the arrayized variable
-	
+		a=np.array([self.date_counter<self.T_arr[i] for i in range(self.N)])# sets observations that shall be zero to zero by multiplying it with the arrayized variable
+		self.a=[None,None]
+		self.a.extend([a.reshape(list(a.shape)[:-1]+[1]*i) for i in range(5)])
 		#"after lost observations" masks: 
-		self.T_i=np.sum(self.included,1).reshape((self.N,1,1))#number of observations for each i
+		self.T_i=np.sum(self.included[3],1).reshape((self.N,1,1))#number of observations for each i
 		self.T_i=self.T_i+(self.T_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
-		self.N_t=np.sum(self.included,0).reshape((1,self.max_T,1))#number of observations for each t
+		self.N_t=np.sum(self.included[3],0).reshape((1,self.max_T,1))#number of observations for each t
 		self.N_t=self.N_t+(self.N_t<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		self.group_var_wght=1-1/np.maximum(self.T_i-1,1)
 		
 	def final_defs(self):
-		self.W_a=self.W*self.a
+		self.W_a=self.W*self.a[3]
 		self.tot_lost_obs=self.lost_obs*self.N
-		self.NT=np.sum(self.included)
+		self.NT=np.sum(self.included[3])
 		self.NT_before_loss=self.NT+self.tot_lost_obs				
 		self.number_of_RE_coef=self.N*(self.settings.group_fixed_random_eff.value>0)+self.n_dates*(self.settings.time_fixed_random_eff.value>0)
 		self.number_of_RE_coef_in_variance=(self.N*(self.settings.group_fixed_random_eff.value>0)
 											+self.n_dates*(self.settings.time_fixed_random_eff.value>0))*(self.settings.variance_fixed_random_eff.value>0)
 		self.args=arguments.arguments(self)
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_RE_coef_in_variance
+		self.set_instrumentals()
 		a=0
 
 	def lag_variables(self):
@@ -97,12 +99,16 @@ class panel:
 		Ld=(self.I-L0)
 		for i in range(1,d):
 			Ld=cf.dot(self.I-L0,Ld)		
-		self.Y=cf.dot(Ld,self.Y)*self.a	
-		self.X=cf.dot(Ld,self.X)*self.a
+		self.Y=cf.dot(Ld,self.Y)*self.a[3]
+		self.X=cf.dot(Ld,self.X)*self.a[3]
+		self.Z=cf.dot(Ld,self.Z)*self.a[3]
 		if self.input.has_intercept:
 			self.X[:,:,0]=1
+			self.Z[:,:,0]=1
 		self.Y[:,:d]=0
 		self.X[:,:d]=0	
+		self.Z[:,:d]=0
+		
 
 	def params_ok(self,args):
 		a=self.q_sel,self.p_sel,self.M_sel,self.K_sel
@@ -111,28 +117,46 @@ class panel:
 				if np.any(np.abs(args[i])>0.999):
 					return False
 		return True
-
+	
+	def set_instrumentals(self):
+		self.XIV=self.X
+		if self.input.Z.shape[1]==1:
+			return
+		ll=logl.LL(self.args.args_init,self)
+		ll.standardize()
+		Z_st=ll.standardize_variable(self.Z)
+		ZZ=cf.dot(Z_st,Z_st)
+		ZZInv=np.linalg.inv(ZZ)
+		ZX=cf.dot(Z_st,ll.X_st)
+		ZZInv_ZX=cf.dot(ZZInv, ZX)
+		self.XIV=cf.dot(self.Z, ZZInv_ZX)#using non-normalized first, since XIV should be unnormalized.	
 
 	def arrayize(self):
 		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs"""
-		X, Y, W, IDs=self.input.X, self.input.Y, self.input.W, self.input.IDs
+		X, Y, W, IDs,Z=self.input.X, self.input.Y, self.input.W, self.input.IDs,self.input.Z
 		timevar=self.input.timevar
 		NT,k=X.shape
 		self.total_obs=NT
+		varmap=np.arange(NT).reshape(NT,1)
 		if IDs is None:
 			self.X=X.reshape((1,NT,k))
 			self.Y=Y.reshape((1,NT,1))
 			for i in [0,1]:
 				if self.input.tobit_active[i]:
 					self.tobit_I=self.input.tobit_I[i].reshape((1,NT,1))
-			NTW,k=W.shape
-			self.W=W.reshape((1,NT,k))
+			NT,kW=W.shape
+			self.W=W.reshape((1,NT,kW))
+			NT,kZ=Z.shape
+			self.Z=None
+			if Z.shape[1]>1:#instrumental variables used
+				self.Z=Z.reshape((1,NT,kZ))
 			self.time_map=None
+			self.map=varmap
 			self.N=1
 			self.max_T=NT
 			self.T_arr=np.array([[NT]])
 			self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
-			self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
+			included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
 		else:
 			sel,ix=np.unique(IDs,return_index=True)
 			N=len(sel)
@@ -146,13 +170,13 @@ class panel:
 			for i in [0,1]:
 				self.tobit_I[i]=arrayize(self.input.tobit_I[i], N,self.max_T,T, self.idincl,sel,dtype=bool)
 			self.W=arrayize(W, N,self.max_T,T, self.idincl,sel)
+			self.Z=arrayize(Z, N,self.max_T,T, self.idincl,sel)		
 			self.N=np.sum(self.idincl)
+			self.map=arrayize(varmap, N,self.max_T,T, self.idincl,sel,dtype=int).reshape((self.N,self.max_T))
 			self.T_arr=T[self.idincl].reshape((self.N,1))
 			self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
-			self.included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
-			self.get_time_map(timevar, self.N,T, self.idincl,sel)
-			
-	
+			included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
+			self.get_time_map(timevar, self.N,T, self.idincl,sel,included)
 			
 			if np.sum(self.idincl)<len(self.idincl):
 				idname=self.input.IDs_name[0]
@@ -163,14 +187,20 @@ class panel:
 					idremoved=(self.dataframe[idname])[ix,0][self.idincl==False]
 				s=fu.formatarray(idremoved,90,', ')
 				print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
-		self.zeros=np.zeros((self.N,self.max_T,1))
-		self.ones=np.ones((self.N,self.max_T,1))
+		zeros=np.zeros((self.N,self.max_T,1))
+		ones=np.ones((self.N,self.max_T,1))		
+		self.included=[None,None]
+		self.zeros=[None,None]
+		self.ones=[None,None]
+		self.included.extend([included.reshape(list(included.shape)[:-1]+[1]*i) for i in range(5)])		
+		self.zeros.extend([zeros.reshape(list(zeros.shape)[:-1]+[1]*i) for i in range(5)])	
+		self.ones.extend([ones.reshape(list(ones.shape)[:-1]+[1]*i) for i in range(5)])	
+
 
 	
-	def get_time_map(self,timevar, N,T_count, idincl,sel):
+	def get_time_map(self,timevar, N,T_count, idincl,sel,incl):
 		if timevar is None:
 			return None
-		incl=self.included
 		N,T,k=incl.shape
 		unq,ix=np.unique(timevar,return_inverse=True)
 		t=arrayize(np.array(ix).reshape((len(timevar),1)), 
@@ -296,7 +326,7 @@ def h(e,z):
 		dims_m=np.array(X.shape)
 		dims[2:]=[1]*(len(dims)-2)	
 		if included is None:
-			a=self.included
+			a=self.included[len(dims)]
 		else:
 			a=included
 		if mean is None:
@@ -305,25 +335,25 @@ def h(e,z):
 			m=mean
 
 		if axis==None:
-			Xm=(X-m)*a.reshape(dims)
+			Xm=(X-m)*a
 			return np.sum(Xm**2)/(self.NT-k)
 
 		if axis==1:
 			dims_m[1]=1
 			m=m.reshape(dims_m)
-			Xm=(X-m)*a.reshape(dims)	
+			Xm=(X-m)*a
 			dims.pop(1)
 			return np.sum((Xm)**2,1)/np.maximum(self.T_i-k,1).reshape(dims)
 		if axis==0:
 			dims_m[0]=1		
 			m=m.reshape(dims_m)
-			Xm=(X-m)*a.reshape(dims)
+			Xm=(X-m)*a
 			dims.pop(0)
 			return np.sum((Xm)**2,0)/np.maximum(self.N_t-k,1).reshape(dims)
 		if axis==(0,1):
 			dims_m[0:2]=1
 			m=m.reshape(dims_m)
-			Xm=(X-m)*a.reshape(dims)			
+			Xm=(X-m)*a			
 			return np.sum((Xm)**2,axis)/(self.NT-k)
 	
 def arrayize(X,N,max_T,T,idincl,sel,dtype=None):

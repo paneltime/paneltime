@@ -6,8 +6,9 @@ import date_time
 from datetime import datetime
 from datetime import date
 import tempstore
+import model_parser
 NON_NUMERIC_TAG='|~|'
-forbidden_names=['tobit_low','tobit_high','Intercept']
+forbidden_names=['tobit_low','tobit_high',model_parser.DEFAULT_INTERCEPT_NAME]
 
 def load(fname,sep,dateformat,load_tmp_data):
 	fname=fu.obtain_fname(fname)

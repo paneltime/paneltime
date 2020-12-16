@@ -15,7 +15,7 @@ class array(np.ndarray):
 		if not res is None:
 			return res
 		res=np.add(self,other)
-		res=np.multiply(res,self.included)
+		res=np.multiply(res,self.included[3])
 		return res
 		
 	def __sub__(self,other):
@@ -23,7 +23,7 @@ class array(np.ndarray):
 		if not res is None:
 			return res		
 		res=np.subtract(self,other)
-		res=np.multiply(res,self.included)
+		res=np.multiply(res,self.included[3])
 		return res		
 		
 	def __mul__(self,other):
@@ -31,7 +31,7 @@ class array(np.ndarray):
 		if not res is None:
 			return res		
 		res=np.multiply(self,other)
-		res=np.multiply(res,self.included)
+		res=np.multiply(res,self.included[3])
 		return res		
 		
 	def __truediv__(self,other):
@@ -39,15 +39,15 @@ class array(np.ndarray):
 		if not res is None:
 			return res		
 		res=np.true_divide(self,other)
-		res=np.multiply(res,self.included)
+		res=np.multiply(res,self.included[3])
 		return res
 		
 	def __eq__(self,other):
 		res=empty_handling(self,other)
 		if not res is None:
 			return res		
-		a=np.multiply(self,self.included)
-		b=np.multiply(other,self.included)		
+		a=np.multiply(self,self.included[3])
+		b=np.multiply(other,self.included[3])		
 		res=np.equal(a,b)
 		return res		
 

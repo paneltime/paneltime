@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 class options_item:
-	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None,descr_for_vector_setting='',category='General'):
+	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None, descr_for_vector_setting='',category='General'):
 		"""permissible values can be a vector or a string with an inequality, 
 		where %s represents the number, for example "1>%s>0"\n
 		if permissible_values is a vector, value_description is a corresponding vector with 
@@ -35,7 +35,8 @@ class options_item:
 		except Exception as e:
 			return False
 		if i is None:
-			self.value=value
+			if self.value!=value:
+				self.value=value
 		else:
 			if self.value[i]!=value:
 				self.value[i]=value
@@ -44,11 +45,11 @@ class options_item:
 		return True
 	
 	def valid(self,value,i=None):
+		if self.permissible_values is None:
+			return (type(value)==self.dtype) or (type(value) in self.dtype)		
 		if i is None:
 			return self.valid_test(value, self.permissible_values)
 		else:
-			if self.permissible_values is None:
-				return (type(value)==self.dtype) or (type(value) in self.dtype)
 			return self.valid_test(value, self.permissible_values[i])
 			
 	def valid_test(self,value,permissible):
@@ -68,7 +69,7 @@ class options_item:
 		elif type(permissible)==str:
 			return eval(permissible %(value,))
 		else:
-			raise RuntimeError('No method to handle this permissible')
+			print('No method to handle this permissible')
 		
 
 		
@@ -95,6 +96,9 @@ class options():
 
 
 def regression_options():
+	#Add option here for it to apear in the "options"-tab. The options are bound
+	#to the data sets loaded. Hence, a change in the options here only has effect
+	#ON DATA SETS LOADED AFTER THE CHANGE
 	self=options()
 	self.pqdkm						= options_item([1,1,0,1,1], 
 																	["Auto Regression order (ARIMA, p)",
@@ -114,9 +118,12 @@ def regression_options():
 	self.loadargs					= options_item(1, 				"Determines whether the regression arguments from the previous run should be kept", 
 																	int, 'Load arguments', [0,1,2],
 																	['No loading',
-																	'Load from last run',
-																	'Load from last matching model',
+																	'Load from last run of identical model',
+																	'Load from last run'
 																	])
+	
+	self.arguments					= options_item("", 				arg_desc, str, 'Initial arguments', descr_for_vector_setting="Arguments (dictionary):")	
+	
 	
 	self.loadARIMA_GARCH			= options_item(False, 				"Determines whether the ARIMA_GARCH arguments from the previous run should be kept", 
 																	bool, 'Load ARIMA_GARCH', [False,True],
@@ -132,14 +139,20 @@ def regression_options():
 	
 	self.tobit_limits				= options_item([None,None],		['lower limit','upper limit'], [float,type(None)], 'Tobit-model limits', descr_for_vector_setting=tobit_desc)
 	
-	self.min_group_df				= options_item(5, 				"The smallest permissible degrees of freedom", int, 'Minimum degrees of freedom', "%s>-1",category='Regression')
+	self.min_group_df				= options_item(1, 				"The smallest permissible number of observations in each group. Must be at least 1", int, 'Minimum degrees of freedom', "%s>0",category='Regression')
 	self.robustcov_lags_statistics	= options_item([100,30],		[robust_desc_0,robust_desc_1], int, 'Robust covariance lags (time)', ["%s>1","%s>1"], descr_for_vector_setting=robust_desc_all,category='Output')
 	self.silent						= options_item(False, 			silent_desc,  bool,'Silent mode',[True,False],['Silent','Not Silent'])
-	self.description				= options_item(None, 			descr_descr, 'entry','Description')	
+	#self.description				= options_item(None, 			descr_descr, 'entry','Description')	
 	
-	self.convergence_limit	= options_item([0.0001], ['Convergence limit:'],float,"Convergence limit", ["%s>0"],
-									descr_for_vector_setting=conv_desc
-									)	
+	self.convergence_limit			= options_item([0.0001], ['Convergence limit:'],float,"Convergence limit", ["%s>0"],
+										descr_for_vector_setting=conv_desc
+										)	
+	
+	self.do_not_constraint			= options_item(None, ['Variable not to constraint:'],[str,type(None)],"Avoid constraint",
+										descr_for_vector_setting="The name of a variable of interest \nthat shall not be constrained due to \nmulticollinearity"
+										)	
+	
+	self.minimum_iterations	= options_item(0, 'Minimum number of iterations in maximization:',int,"Minimum iterations", "%s>-1")		
 	
 	self.make_category_tree()
 	
@@ -149,11 +162,22 @@ def regression_options():
 def application_preferences():
 	opt=options()
 	
-	opt.save_datasets	= options_item(True, "If 1 all loaded datasets are saved on exit and will reappear when the application is restarted", 
+	opt.save_datasets	= options_item(True, "If True, all loaded datasets are saved on exit and will reappear when the application is restarted", 
 									bool,"Save datasets on exit", [False,True],
 									['Save on exit',
 									'No thanks'])
-
+	
+	opt.n_round	= options_item(4, "Sets the number of digits the results are rounded to", 
+									str,"Rounding digits", ['no rounding','0 digits','1 digits','2 digits','3 digits',
+																						 '4 digits','5 digits','6 digits','7 digits','8 digits',
+																						 '9 digits','10 digits'])
+	
+	opt.n_digits	= options_item(10, "Sets the maximum number of digits (for scientific format) if 'Rounding digits' is not set (-1)", 
+									int,"Number of digits", ['0 digits','1 digits','2 digits','3 digits',
+																						 '4 digits','5 digits','6 digits','7 digits','8 digits',
+																						 '9 digits','10 digits'])	
+	opt.round_scientific	= options_item(True, "Determines if small numbers that are displayed in scientific format shall be rounded", 
+								   bool,"Round Scientific", [True,False],['Round Scientific','Do not round scientific'])		
 	opt.make_category_tree()
 	
 	return opt
@@ -202,4 +226,8 @@ A description of the project.
 Used in the final output and to load the project later.\n
 default is the model_string"""
 
+arg_desc="""A string with a dictionary in python syntax, 
+containing the initial arguments. 
+An example can be obtained by
+printing ll.args.args_d"""
 

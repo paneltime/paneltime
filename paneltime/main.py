@@ -30,7 +30,7 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window=None,exe_tab=None,join_table=None):
+def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window=None,exe_tab=None,join_table=None,instruments=None):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
@@ -39,7 +39,7 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 	if not window is None:
 		output_tab=window.main_tabs._tabs.add_output(exe_tab)
 	
-	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors,join_table)
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors,join_table,instruments)
 	if datainput.timevar is None:
 		print("No valid time variable defined. This is required")
 		return
@@ -67,10 +67,10 @@ def pqdkm_iteration(dataframe,datainput,settings,mp,output_tab):#allows for a li
 	
 
 class input_class:
-	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors,join_table):
+	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors,join_table,instruments):
 		
-		if not hasattr(settings,'heteroscedasticity_factors'):
-			settings.heteroscedasticity_factors=heteroscedasticity_factors
+		settings.heteroscedasticity_factors=heteroscedasticity_factors
+		settings.instruments=instruments
 		self.tempfile=tempstore.tempfile_manager()
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,settings)
 		self.descr=model_string
@@ -92,7 +92,7 @@ class results:
 		self.mp=mp
 		if not mp is None:
 			mp.send_dict_by_file({'panel':pnl})
-		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,output_tab)	
+		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,output_tab)
 		self.panel=direction.panel
 
 

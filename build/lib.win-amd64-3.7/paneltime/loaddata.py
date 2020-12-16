@@ -146,6 +146,7 @@ def is_number(s):
 		return False
 	
 def convert_to_numeric_dict(data,names,dateformat,dtypes=None):
+	data=remove_empty_trailing_columns(data,names)
 	N,k=data.shape
 	df=dict()
 	if dtypes is None:
@@ -157,6 +158,19 @@ def convert_to_numeric_dict(data,names,dateformat,dtypes=None):
 			name=name+'_'
 		make_numeric(data[:,i:i+1],name,df,dateformat,dtypes[i])	
 	return df
+
+def remove_empty_trailing_columns(data,names):
+	#Somtimes happens with csv import
+	N,k=data.shape
+	if k>len(names):
+		i=len(names)
+		while True:
+			if data[0][i]=='':
+				if np.any(data[:,i]!=''):
+					print(f"Warning: column {i} has no heading and will be deleted")
+				data=np.delete(data,i,1)
+			else:break	
+	return data
 	
 def make_numeric(variable,name,df,dateformat,dtype):
 	if not dtype is None and dtype in SQL_type_dict:

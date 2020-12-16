@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+DEFAULT_INTERCEPT_NAME='Intercept'
 import numpy as np
 import functions as fu
-
 import loaddata
 import numpy.lib.recfunctions as rfn
 
@@ -47,7 +46,7 @@ def test_dictionary(dataframe):
 	return n
 
 
-def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings):
+def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings,):
 	print ("Analyzing variables ...")
 	for i in dataframe:
 		if type(dataframe[i])==np.ndarray:
@@ -63,9 +62,10 @@ def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings
 	dataframe['L']=input_class.lag_obj.lag#allowing for lag operator in model input
 	input_class.W,input_class.W_names,void=check_var(dataframe,settings.heteroscedasticity_factors,'heteroscedasticity_factors',
                                        intercept_name='log variance constant',raise_error=False,intercept_variable=True)
+	input_class.Z,input_class.z_names,void=check_var(dataframe,settings.instruments,'instruments',intercept_name='instrument intercept',raise_error=False,intercept_variable=True)	
 	intercept_name=None
 	if settings.add_intercept.value:
-		intercept_name='Intercept'
+		intercept_name=DEFAULT_INTERCEPT_NAME
 	(input_class.X,input_class.x_names,
 	 input_class.has_intercept,
 	 input_class.Y,input_class.y_name)=parse_and_check(dataframe,model_string,intercept_name)
@@ -180,17 +180,10 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 	print ("... done")
 
 def check_var(dataframe,names,arg_name,intercept_name=None,raise_error=False,intercept_variable=False):
-	if names is None:
-		if intercept_name is None:
-			return None,None,None
-		else:
-			names=[]
-	has_const=False
-	if type(names)==str:
-		names=[names]
-	if type(names)!=list:
-		raise RuntimeError("The %s argument must be a string or a list of strings" %(arg_name,))
+	names=parse_names(names, intercept_name, arg_name)
+	if names is None: return None,None,None
 	check_and_add_variables(names, dataframe, arg_name)
+	has_const=False
 	if len(names)>0:
 		has_const=np.all(dataframe[names[0]]==1)	
 	if not intercept_name is None:
@@ -207,6 +200,17 @@ def check_var(dataframe,names,arg_name,intercept_name=None,raise_error=False,int
 	X,names=remove(X,names, dataframe, raise_error,has_const)
 	return X,names,has_const
 
+def parse_names(names,intercept_name,arg_name):
+	if names is None:
+		if intercept_name is None:
+			return None
+		else:
+			names=[]
+	if type(names)==str:
+		names=names.split(',')
+	if type(names)!=list:
+		raise RuntimeError("The %s argument must be a string or a list of strings" %(arg_name,))	
+	return names
 	
 def remove(X,names,dataframe,raise_error,has_const):
 	"""Removes constants variables at position 1 or higher, and any zero variable. You shold set raise_error=True for vital variables (X and Y)"""

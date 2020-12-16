@@ -131,7 +131,7 @@ def LL_calc2(ll,panel,d,X=None):
 	args=self.args_d#using dictionary arguments
 	args['beta'][3]+=d
 	if X is None:
-		X=panel.X
+		X=panel.XIV
 	matrices=lgl.set_garch_arch(panel,args)
 	if matrices is None:
 		return None		
@@ -147,12 +147,12 @@ def LL_calc2(ll,panel,d,X=None):
 	grp = self.group_variance(panel, lnv, e,args)
 	lnv+=grp
 	lnv = np.maximum(np.minimum(lnv,100),-100)
-	v = np.exp(lnv)*panel.a
-	v_inv = np.exp(-lnv)*panel.a	
+	v = np.exp(lnv)*panel.a[3]
+	v_inv = np.exp(-lnv)*panel.a[3]
 	e_RE = self.re_obj.RE(e)
 	return e_RE
 	e_REsq = e_RE**2
-	LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+	LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included[3])
 	
 	if abs(LL)>1e+100: 
 		return None
@@ -167,7 +167,7 @@ def LL_calc(ll,panel,d,X=None):
 	self=ll
 	args=self.args_d#using dictionary arguments
 	if X is None:
-		X=panel.X
+		X=panel.XIV
 	matrices=lgl.set_garch_arch(panel,args)
 	if matrices is None:
 		return None		
@@ -183,12 +183,12 @@ def LL_calc(ll,panel,d,X=None):
 	grp = self.group_variance(panel, lnv, e,args)
 	lnv+=grp
 	lnv = np.maximum(np.minimum(lnv,100),-100)
-	v = np.exp(lnv)*panel.a
-	v_inv = np.exp(-lnv)*panel.a	
-	e_RE = self.re_obj.RE(e)+d*panel.included
+	v = np.exp(lnv)*panel.a[3]
+	v_inv = np.exp(-lnv)*panel.a[3]	
+	e_RE = self.re_obj.RE(e)+d*panel.included[3]
 	e_REsq = e_RE**2
-	return -0.5*((lnv+(e_REsq)*v_inv)*panel.included)
-	LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included)
+	return -0.5*((lnv+(e_REsq)*v_inv)*panel.included[3])
+	LL = self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included[3])
 	
 	if abs(LL)>1e+100: 
 		return None

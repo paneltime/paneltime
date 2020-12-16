@@ -6,6 +6,12 @@ import re
 		
 	
 def edit_exe_script(window,dataset):
+	#Finds and edits an exe editor after click
+	#to be removed when fixing this functionality
+	editor=dataset.get_exe_editor(window.main_tabs,new_name='script')
+	return
+	#original script
+	editor=dataset.get_exe_editor(window.main_tabs,False)
 	if dataset is None:
 		return
 	editor=dataset.get_exe_editor(window.main_tabs,False)

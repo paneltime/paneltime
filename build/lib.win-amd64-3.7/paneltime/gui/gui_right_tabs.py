@@ -8,7 +8,7 @@ from gui import gui_options
 
 	
 class right_tab_widget:
-	def __init__(self,window,main_tabs):
+	def __init__(self,window):
 		self.win=window
 		frm=tk.Frame(window.frm_right)
 		self.sel_data=tk.StringVar(frm)

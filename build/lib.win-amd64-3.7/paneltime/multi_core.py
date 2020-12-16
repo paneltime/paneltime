@@ -63,7 +63,8 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			
 			
 	def remote_recieve(self, variable,node):
-		"""Sends a list with keys to variables that are not to be returned by the slaves"""
+		"""Sends a request for a particular variable at node, after remote_execute. 
+		Usefull when large objects shall be returned, and you only need a few/one of them"""
 		self.slaves[node].send('remote recieve',variable)
 		return self.slaves[node].receive()
 
@@ -76,8 +77,8 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			res=s.receive()
 
 	def send_tasks(self,tasks,remote=False,timer=False,progress_bar=None):
-		"""tasks is a list of (strign,id) tuples with string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves
-		if remote=True, the list must be a list of tuples, where the first itmes is the expression and the second is the variable that should be returned"""
+		"""tasks is a list of string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves
+		if remote=True, the list must be a list of tuples, where the first item is the expression and the second is the variable that should be returned"""
 		tasks=list(tasks)
 		n=len(tasks)
 		m=min((self.cpu_count,n))
@@ -87,7 +88,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		if not remote:
 			msg='expression evaluation'
 		else:
-			msg='remote expression valuation'		
+			msg='remote expression valuation'
 		for i in range(m):
 			self.slaves[i].send(msg,tasks.pop(0))#initiating the self.cpus first evaluations
 		q=Queue()
@@ -132,7 +133,7 @@ def get_slave_dicts(d_arr):
 	for i in range(1,len(d_arr)):
 		for key in d_arr[i]:
 			if key in d:
-				raise RuntimeWarning('Slaves returned identical variable names. Some variables will be over-written')
+				raise RuntimeWarning('Slaves returned identical variable names. Some variables will be overwritten')
 			d[key]=d_arr[i][key]
 	return d
 
@@ -217,7 +218,7 @@ class multiprocess:
 
 
 	def execute(self,expr,timer=False,progress_bar=None):
-		"""For submitting multiple functionsargs is an array of argument arrays where the first element in each 
+		"""For submitting multiple functions to be evalated. expr is an array of argument arrays where the first element in each 
 		argument array is the function to be evaluated"""
 		d=self.master.send_tasks(expr,timer=timer,progress_bar=progress_bar)
 		if timer:
@@ -228,15 +229,29 @@ class multiprocess:
 			return self.d,t
 		return self.d
 	
-	def remote_execute(self,expr):
-		"""For submitting multiple functionsargs is an array of argument arrays where the first element in each 
-		argument array is the function to be evaluated"""
-		d=self.master.send_tasks(expr,True)
+	def remote_execute(self,expr,dct=None,single_core=False):
+		"""The same as execute, but only a specified variable is return for each execution element.
+		Usefull when large objects shall be returned, and you only need a few/one of them. Used with remote_recieve"""
+		if not single_core:
+			d=self.master.send_tasks(expr,True)
+		else:
+			self.slave_single_core={}
+			d={}
+			for i in range(len(expr)):
+				e,ret_var=expr[i]
+				ret=dict(dct)
+				exec(e,globals(),ret)
+				self.slave_single_core[i]=ret
+				d[ret_var]=ret[ret_var]
 		return d
 
-	def remote_recieve(self,variable,node):
-		"""Fetches variable from node after remote_execute"""
-		ret=self.master.remote_recieve(variable,node)
+	def remote_recieve(self,variable,node,single_core=False):
+		"""Sends a request for a particular variable at node, after remote_execute. 
+		Usefull when large objects shall be returned, and you only need a few/one of them. Used with remote_execute"""
+		if not single_core:
+			ret=self.master.remote_recieve(variable,node)
+		else:
+			ret=self.slave_single_core[node]	
 		return ret
 		
 	

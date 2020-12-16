@@ -148,7 +148,7 @@ def regression_options():
 										descr_for_vector_setting=conv_desc
 										)	
 	
-	self.do_not_constraint			= options_item([None], ['Variable not to constraint:'],[str,type(None)],"Avoid constraint",
+	self.do_not_constraint			= options_item(None, ['Variable not to constraint:'],[str,type(None)],"Avoid constraint",
 										descr_for_vector_setting="The name of a variable of interest \nthat shall not be constrained due to \nmulticollinearity"
 										)	
 	

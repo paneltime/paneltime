@@ -50,9 +50,8 @@ class window(tk.Tk):
 		self.output = gui_scrolltext.ScrollText(self.frm_left,format_text=False)
 		self.output.grid(row=2, column=0,sticky=tk.NSEW)
 		self.data=datastore(self)
+		self.right_tabs=gui_right_tabs.right_tab_widget(self)
 		self.main_tabs=gui_main_tabs.main_tabs(self)
-		self.right_tabs=gui_right_tabs.right_tab_widget(self,self.main_tabs)
-		self.main_tabs.recreate_tabs()
 		self.locals=dict()
 		self.globals={'window':self,'data':self.right_tabs.data_tree.datasets}
 		sys.stdout=stdout_redir(self.output)
@@ -62,8 +61,10 @@ class window(tk.Tk):
 	def exec(self,source):
 		try:
 			exec(source,self.globals,self.locals)
+			return True
 		except Exception as e:
 			traceback.print_exc()
+		return False
 	
 	def define_styles(self):
 		style = ttk.Style()
@@ -188,20 +189,6 @@ class window(tk.Tk):
 						d[i].pop(j)
 			tempstore.save_obj(tempstore.fname_datasets,self.right_tabs.data_tree.datasets)		
 		exit()			
-		
-	def show_scatter(self):
-		if not hasattr(self,'panel'):
-			return		
-		self.schatter_charts=gui_charts.scatter_charts(self,self.panel,self.panel.input.X,self.panel.input.Y,self.iconpath,700,1000)
-
-		
-	def show_scatter_norm(self):
-		if (not hasattr(self,'panel')) or (not hasattr(self,'ll')):
-			return
-		self.ll.standardize()
-		X=self.ll.X_st[self.panel.included[:,:,0]]
-		Y=self.ll.Y_st[self.panel.included[:,:,0]]
-		self.schatter_charts=gui_charts.scatter_charts(self,self.panel,X,Y,self.iconpath,700,1000)	
 	
 	def get(self):
 		return self.process.get()
