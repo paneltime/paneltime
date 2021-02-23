@@ -4,6 +4,7 @@
 import tkinter as tk
 from gui import gui_functions as guif
 import functions as fu
+from shutil import copyfile
 
 class scatter_window(tk.Toplevel):
 	def __init__(self, master,x_names,y_name,X,Y,iconpath,tabs,height=400,width=1000):
@@ -81,11 +82,11 @@ class scatter_charts(tk.Frame):
 				i=row*self.n_cols+col
 				if i>=self.n_plots:
 					break
-				self.charts[(row,col)]=self.plot_scatter(i,row,col,x_names,y_name,bgframe=self.wdgt_frame)
+				self.charts[(row,col)]=self.plot_scatter(i,x_names,y_name,bgframe=self.wdgt_frame)
 		for i in self.charts:			
 			self.charts[i].grid(row=i[0],column=i[1])	
 					
-	def plot_scatter(self,i,row,col,x_names,y_name,subplot=None,f=None,bgframe=None):
+	def plot_scatter(self,i,x_names,y_name,subplot=None,f=None,bgframe=None):
 		if subplot is None:
 			subplot=self.subplot
 		fgr,axs=subplot
@@ -114,10 +115,11 @@ class scatter_charts(tk.Frame):
 		f = tk.filedialog.asksaveasfile(mode='bw', defaultextension=".jpg",initialfile=f"{event.widget.name}.jpg")	
 		if f is None:
 			return
-		frame=tk.Label(self.wdgt_frame)	
-		self.plot_scatter(event.widget.i,subplot=self.print_subplot, f=f)
-		frame.grid(row=0,column=0)		
-		f.close()		
+		ch=open(event.widget.path,'rb')
+		f.write(ch.read())
+		ch.close()
+		f.close()
+		
 		
 	def saveall(self):
 		f = tk.filedialog.asksaveasfile(mode='bw', defaultextension=".jpg",initialfile="paneltime_scatter_plots.jpg")	

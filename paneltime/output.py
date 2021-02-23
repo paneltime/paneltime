@@ -59,8 +59,9 @@ class output:
 			return
 		d['se_robust'],d['se_st']=sandwich(direction,self.lags)
 		d['se_robust_oposite'],d['se_st_oposite']=sandwich(direction,self.lags,oposite=True)
-		d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
-		d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
+		if not (d['se_st_oposite'] is None):
+			d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
+			d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
 		#d['se_robust_fullsize'],d['se_st_fullsize']=sandwich(direction,self.lags,resize=False)
 		no_nan=np.isnan(d['se_robust'])==False
 		valid=no_nan
@@ -76,17 +77,23 @@ class output:
 		n_CI=len(self.direction.mc_problems)
 		s=("LL:\t"+str(self.ll.LL)+'  ').ljust(23)
 		if not self.incr is None:
-			s+=("\tIncrement:\t"+ str(self.incr)).ljust(17)+"  "
+			s+=("\tIncrement:  "+ str(self.incr)).ljust(17)+"  "
 		else:
 			s+=str(" ").ljust(19)
 		if not self.iterations is None:
-			s+=f"\tIteration:\t{str(self.iterations).ljust(7)}\n"
-		instr='None'
+			s+=f"\tIteration:  {str(self.iterations).ljust(7)}"
+		if hasattr(self.direction,'HG_ratio'):
+			s+=f"\tSingularity problems:  {str(self.direction.singularity_problems).ljust(7)}"
+		instr=''
 		if not self.panel.input.z_names is None:
 			instr=', '.join(self.panel.input.z_names[1:])
 			instr+="\t"+self.main_msg
-		s+=f"Dependent: {self.panel.input.y_name[0]}\t\tInstruments: {instr}\n"
-		s+=f"Max condition index: {np.round(self.direction.CI)}\t ({n_CI} caseses where high CI was associated with more than one variable)\n"
+		s+=f"\nDependent: {self.panel.input.y_name[0]}"
+		n,T,k=self.panel.X.shape
+		s+=f"\tPanel: {self.panel.NT_before_loss} observations,{n} groups and {T} dates"
+		if len(instr):
+			s+=f"\t\tInstruments: {instr}"		
+		s+=f"\nMax condition index: {np.round(self.direction.CI)}\t ({n_CI} caseses where high CI was associated with more than one variable)\n"
 		self.heading_str=s		
 		
 	def constraints_printout(self):
@@ -127,7 +134,7 @@ class reg_table_obj(dict):
 		self.args=output.ll.args.dict_string
 		self.n_variables=output.n_variables
 		self.heading=output.heading_str
-		self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
+		self.footer=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
 	
 	def table(self,n_digits,include_cols,brackets,fmt):
 		if fmt=='INTERNAL':
@@ -155,7 +162,7 @@ class reg_table_obj(dict):
 		
 		
 	def output_matrix_structured(self,digits,brackets):
-		X=[['']*self.n_cols for i in range(2*(self.n_variables+1))]
+		X=[['']*self.n_cols for i in range(3*(self.n_variables+1)-1)]
 		for i in range(self.n_cols):
 			a=self.include_cols[i]
 			if type(a)==list:
@@ -168,18 +175,18 @@ class reg_table_obj(dict):
 					X[0][i]=f"{h}/{self[a[1]].name}:"
 				v=[self[a[j]].values(digits) for j in range(3)]
 				for j in range(self.n_variables):
-					X[(j+1)*2][i]=v[0][j]
+					X[(j+1)*3-1][i]=v[0][j]
 					if brackets=='[':
-						X[(j+1)*2+1][i]=f"[{v[1][j]}]{v[2][j]}"
+						X[(j+1)*3][i]=f"[{v[1][j]}]{v[2][j]}"
 					elif brackets=='(':
-						X[(j+1)*2+1][i]=f"({v[1][j]}){v[2][j]}"
+						X[(j+1)*3][i]=f"({v[1][j]}){v[2][j]}"
 					else:
-						X[(j+1)*2+1][i]=f"{v[1][j]}{v[2][j]}"
+						X[(j+1)*3][i]=f"{v[1][j]}{v[2][j]}"
 			else:
 				X[0][i]=self[a].name
 				v=self[a].values(digits)
 				for j in range(self.n_variables):
-					X[(j+1)*2][i]=v[j]
+					X[(j+1)*3-1][i]=v[j]
 		return X	
 	
 	def output_matrix_flat(self,digits,brackets):
@@ -235,7 +242,11 @@ def sandwich(direction,lags,oposite=False,resize=True):
 	panel=direction.panel
 	H,G,idx=reduce_size(direction,oposite,resize)
 	lags=lags+panel.lost_obs
-	hessin=np.linalg.inv(-H)
+	try:
+		hessin=np.linalg.inv(-H)
+	except Exception as e:
+		print(e)
+		return None,None
 	se_robust,se,V=stat.robust_se(panel,lags,hessin,G)
 	se_robust,se,V=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True)
 	return se_robust,se
@@ -325,7 +336,8 @@ class statistics:
 		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True)	
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False)	
 		self.no_ac_prob,self.rhos,self.RSqAC=stat.breusch_godfrey_test(panel,ll,10)
-		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)
+		self.DW=stat.DurbinWatson(panel,ll)
+		self.norm_prob=stat.JB_normality_test(ll.e_norm,panel)
 		self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
 		self.df_str=self.gen_df_str(panel)	
 		self.instruments=panel.input.z_names[1:]
@@ -406,7 +418,8 @@ class statistics:
 
 \t("Normalized data" means that the data is adjusted with the estimated ARIMA-GARCH parameters and random/fixed effects.)
 
-\tBreusch-Godfrey-test\t\t:\t{round(self.no_ac_prob*100,n_digits)}% \t(significance, probability of no auto correlation)
+\tDurbin-Watson statistic:\t\t:\t{round(self.DW,2)}
+\tBreusch-Godfrey test\t\t:\t{round(self.no_ac_prob*100,n_digits)}% \t(significance, probability of no auto correlation)
 \tJarque–Bera test for normality\t\t:\t{round(self.norm_prob*100,n_digits)}% \t(significance, probability of normality)\n
 """		
 
@@ -486,12 +499,13 @@ def format_normal(X,add_rows=[],cols=[]):
 	if 'multicoll' in cols:
 		constr_pos=cols.index('multicoll')+1
 		p="\t"*constr_pos+"constraints:".center(38)
-	p+="\n\n"
+	p+="\n"
 	for i in range(len(X)):
 		p+='\n'*(i in add_rows)
+		p+='\n'
 		for j in range(len(X[0])):
 			p+=f'\t{X[i][j]}'
-		p+='\n'
+		
 	return p	
 
 
@@ -528,6 +542,8 @@ def format_html(X,cols,heading):
 	
 alphabet='abcdefghijklmnopqrstuvwxyz'
 class join_table(dict):
+	"""Creates a  joint table of several regressions with columns of the join_table_column class.
+	See join_table_column for data handling."""
 	def __init__(self,args,varnames=[]):
 		dict.__init__(self)
 		self.names_category_list=list([list(i) for i in args.names_category_list])#making a copy
@@ -555,13 +571,13 @@ class join_table(dict):
 		k=len(keys)
 		n=len(self.names_v)
 		if stacked:
-			X=[['' for j in range(2+k)] for i in range(4+2*n)]
+			X=[['' for j in range(2+k)] for i in range(4+3*n)]
 			for i in range(n):
-				X[2*i+1][1]=self.names_v[i]		
-				X[2*i+1][0]=i
-			X[1+2*n][1]='Log likelihood'
-			X[2+2*n][1]='Degrees of freedom'	
-			X[3+2*n][1]='Adjusted R-squared'	
+				X[3*i+1][1]=self.names_v[i]		
+				X[3*i+1][0]=i
+			X[1+3*n][1]='Log likelihood'
+			X[2+3*n][1]='Degrees of freedom'	
+			X[3+3*n][1]='Adjusted R-squared'	
 		else:
 			X=[['' for j in range(2+2*k)] for i in range(4+n)]
 			for i in range(n):
@@ -572,8 +588,8 @@ class join_table(dict):
 			X[3+n][1]='Adjusted R-squared'	
 		for i in range(k):
 			self.make_column(i,keys[i],X,stacked, brackets,digits,caption)
-		s=format_normal(X,[1,(1+stacked)*n+1,(1+stacked)*n+4])+'\n'
-		s+=f"Significance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
+		s=format_normal(X,[1,(1+stacked*2)*n+1,(1+stacked*2)*n+4])
+		s+=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
 		max_mod=0
 		models=[]
 		for i in range(len(keys)):
@@ -610,11 +626,11 @@ class join_table(dict):
 			se_sgn=[f"{se[i]}{sgn[i]}" for i in range(m)]				
 		if stacked:
 			for i in range(m):
-				X[2*ix[i]+1][col+2]=args[i]
-				X[ix[i]*2+2][col+2]=se_sgn[i]
-			X[1+2*n][col+2]=fu.round_sign_digits(self[key].LL,5,1)
-			X[2+2*n][col+2]=self[key].df	
-			X[3+2*n][col+2]=f"{round(self[key].Rsqadj*100,1)}%"
+				X[3*ix[i]+1][col+2]=args[i]
+				X[3*ix[i]+2][col+2]=se_sgn[i]
+			X[1+3*n][col+2]=fu.round_sign_digits(self[key].LL,5,1)
+			X[2+3*n][col+2]=self[key].df	
+			X[3+3*n][col+2]=f"{round(self[key].Rsqadj*100,1)}%"
 		else:
 			for i in range(m):
 				X[ix[i]+1][col*2+2]=args[i]
@@ -632,7 +648,7 @@ class join_table_column:
 		self.LL=ll.LL
 		self.df=ll.panel.df
 		self.args=ll.args
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False)
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True)
 		self.instruments=panel.input.z_names[1:]
 		self.pqdkm=panel.pqdkm		
 		self.Y_name=panel.input.y_name[0]

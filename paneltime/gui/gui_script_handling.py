@@ -5,16 +5,16 @@ import tkinter as tk
 import re
 		
 	
-def edit_exe_script(window,dataset):
+def edit_exe_script(window,dataset,editor=None):
 	#Finds and edits an exe editor after click
 	#to be removed when fixing this functionality
 	editor=dataset.get_exe_editor(window.main_tabs,new_name='script')
-	return
 	#original script
-	editor=dataset.get_exe_editor(window.main_tabs,False)
-	if dataset is None:
-		return
-	editor=dataset.get_exe_editor(window.main_tabs,False)
+	if editor is None:
+		editor=dataset.get_exe_editor(window.main_tabs,False)
+		if dataset is None:
+			return
+		editor=dataset.get_exe_editor(window.main_tabs,False)
 	script=editor.widget.get('1.0',tk.END)
 	#insert execution part:
 	exe_script=dataset.generate_exe_script(window.right_tabs.data_tree)
@@ -37,7 +37,7 @@ def edit_options_script(options):
 	optns,search_patterns=options.get_script()
 	m=re.search(r"execute\(([\s\S]*?)\)", script)
 	if m is None:
-		script=edit_exe_script(options.win,options.dataset)
+		script=edit_exe_script(options.win,options.dataset,editor)
 	end=re.search(r"execute\(([\s\S]*?)\)", script).start()
 	if script[end-2:end]!='\n\n':
 		script=script[:end]+'\n\n'+script[end:]

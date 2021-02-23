@@ -276,14 +276,12 @@ class option_frame(tk.Frame):
 		self.node_name=node_name
 		self.option=option
 		self.lines=dict()
-		desc=option.descr_for_vector_setting
-		if not type(option.description)==list:
-			desc+=option.description
+		desc=option.description
 		self.desc=tk.Label(self,text=desc,anchor='nw',justify=tk.LEFT,background='white')
 		self.desc.grid(row=0,column=0,sticky='nw')		
 		if option.is_inputlist:#
 			self.cntrl=tk.Frame(self,background='white')
-			for i in range(len(option.description)):
+			for i in range(len(option.descr_for_input_boxes)):
 				self.add_control_multi(option,self.cntrl,i)
 			self.cntrl.grid(row=1,column=0,sticky='nw')
 		elif not option.selection_var:
@@ -314,7 +312,7 @@ class option_frame(tk.Frame):
 		name=self.node_name+str(i)
 		line.columnconfigure(0,weight=1)
 		line.columnconfigure(1,weight=1)
-		desc=option.description[i]
+		desc=option.descr_for_input_boxes[i]
 		lbl=tk.Label(line,text=desc,anchor='nw',background='white')
 		self.entries[name]=managed_text(line,option.dtype,option,self.option_tree,self.node_name,i)
 		if option.value is None:

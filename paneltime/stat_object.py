@@ -29,7 +29,7 @@ class statistics:
 		self.name=name
 		
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(self.panel,self.ll,10)
-		self.norm_prob=stat.JB_normality_test(self.ll.e_st,self.panel)	
+		self.norm_prob=stat.JB_normality_test(self.ll.e_norm,self.panel)	
 		self.multicollinearity_check(self.G)
 
 		self.data_correlations,self.data_statistics=self.correl_and_statistics(correl_vars,descriptives_vars)

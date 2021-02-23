@@ -39,6 +39,7 @@ class panel:
 		self.arrayize()
 		self.masking()
 		self.lag_variables()
+		self.pool()
 		self.final_defs()
 		
 
@@ -50,10 +51,11 @@ class panel:
 		self.lost_obs=max((p,q,self.max_lags))+max((m,k,self.max_lags))+d#+3
 		self.nW,self.nZ,self.n_beta=self.input.W.shape[1],self.input.Z.shape[1],self.input.X.shape[1]
 		self.define_h_func()
+		self.Ld_inv=None
 		if self.input.IDs_name is None:
-			self.settings.group_fixed_random_eff.value=0
+			self.settings.fixed_random_group_eff.value=0
 		if self.input.timevar is None:
-			self.settings.group_fixed_random_eff.value=0		
+			self.settings.fixed_random_group_eff.value=0		
 		self.m_zero = False
 		if  m==0 and k>0:
 			self.m_zero = True
@@ -77,38 +79,48 @@ class panel:
 		self.W_a=self.W*self.a[3]
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT=np.sum(self.included[3])
-		self.NT_before_loss=self.NT+self.tot_lost_obs				
-		self.number_of_RE_coef=self.N*(self.settings.group_fixed_random_eff.value>0)+self.n_dates*(self.settings.time_fixed_random_eff.value>0)
-		self.number_of_RE_coef_in_variance=(self.N*(self.settings.group_fixed_random_eff.value>0)
-											+self.n_dates*(self.settings.time_fixed_random_eff.value>0))*(self.settings.variance_fixed_random_eff.value>0)
+		self.NT_before_loss=self.NT+self.tot_lost_obs
+		if not hasattr(self,'n_dates'):
+			self.number_of_RE_coef=0
+			self.number_of_RE_coef_in_variance=0
+			self.settings.fixed_random_group_eff.set(0)
+			self.settings.fixed_random_time_eff.set(0)
+			self.settings.fixed_random_variance_eff.set(0)
+		else:
+			self.number_of_RE_coef=self.N*(self.settings.fixed_random_group_eff.value>0)+self.n_dates*(self.settings.fixed_random_time_eff.value>0)
+			self.number_of_RE_coef_in_variance=(self.N*(self.settings.fixed_random_group_eff.value>0)
+												+self.n_dates*(self.settings.fixed_random_time_eff.value>0))*(self.settings.fixed_random_variance_eff.value>0)
 		self.args=arguments.arguments(self)
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_RE_coef_in_variance
 		self.set_instrumentals()
-		a=0
+		self.tobit()
 
 	def lag_variables(self):
 		T=self.max_T
 		d=self.pqdkm[2]
 		self.I=np.diag(np.ones(T))
-		
-
-		#differencing:
+		#differencing operator:
 		if d==0:
 			return
 		L0=np.diag(np.ones(T-1),-1)
 		Ld=(self.I-L0)
+		Ld_inv=np.tril(np.ones((T,T)))
 		for i in range(1,d):
-			Ld=cf.dot(self.I-L0,Ld)		
-		self.Y=cf.dot(Ld,self.Y)*self.a[3]
-		self.X=cf.dot(Ld,self.X)*self.a[3]
-		self.Z=cf.dot(Ld,self.Z)*self.a[3]
-		if self.input.has_intercept:
-			self.X[:,:,0]=1
-			self.Z[:,:,0]=1
-		self.Y[:,:d]=0
-		self.X[:,:d]=0	
-		self.Z[:,:d]=0
-		
+			Ld=cf.dot(self.I-L0,Ld)
+			Ld_inv=np.cumsum(Ld_inv,0)
+		self.Ld_inv=Ld_inv
+		#multiplication:
+		self.X=self.lag_variable(self.X, Ld, d, True)
+		self.Y=self.lag_variable(self.Y, Ld, d, False)
+		if not self.Z is None:
+			self.Z=self.lag_variable(self.Z, Ld, d, True)
+				
+	def lag_variable(self,X,Ld,d,recreate_intercept):
+		X_out=cf.dot(Ld,X)*self.a[3]
+		if self.input.has_intercept and recreate_intercept:
+			X_out[:,:,0]=1
+		X_out[:,:d]=0
+		return X_out
 
 	def params_ok(self,args):
 		a=self.q_sel,self.p_sel,self.M_sel,self.K_sel
@@ -119,44 +131,74 @@ class panel:
 		return True
 	
 	def set_instrumentals(self):
-		self.XIV=self.X
 		if self.input.Z.shape[1]==1:
-			return
+			self.XIV=self.X
+		else:
+			self.XIV=self.X=self.Z
+		return
 		ll=logl.LL(self.args.args_init,self)
 		ll.standardize()
-		Z_st=ll.standardize_variable(self.Z)
+		Z_st,Z_st_long=ll.standardize_variable(self.Z)
 		ZZ=cf.dot(Z_st,Z_st)
 		ZZInv=np.linalg.inv(ZZ)
 		ZX=cf.dot(Z_st,ll.X_st)
 		ZZInv_ZX=cf.dot(ZZInv, ZX)
 		self.XIV=cf.dot(self.Z, ZZInv_ZX)#using non-normalized first, since XIV should be unnormalized.	
 
+	def subtract_means(self,X,Y,Z):
+		subtract=self.settings.subtract_means.value
+		if not subtract:
+			return X,Y,Z
+		X=X-np.mean(X,0)
+		if self.input.has_intercept:
+			X[:,0]=1
+		Y=Y-np.mean(Y,0)
+		if self.input.Z.shape[1]==1:
+			return X,Y,Z
+		Z=Z-np.mean(Z,0)
+		Z[:,0]=1
+		
+		
+	def is_single(self):
+		IDs,t=self.input.IDs,self.input.timevar
+		try:
+			if (np.all(IDs[0,0]==IDs) or np.all(t[0,0]==t) or
+				 np.all(np.isnan(IDs)) or  np.all(np.isnan(t))):
+				return True
+		except:
+			return True
+		return False
+		
+		
 	def arrayize(self):
 		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs"""
-		X, Y, W, IDs,Z=self.input.X, self.input.Y, self.input.W, self.input.IDs,self.input.Z
-		timevar=self.input.timevar
+		X, Y, W, IDs,timevar,Z=self.input.X, self.input.Y, self.input.W, self.input.IDs,self.input.timevar,self.input.Z
+		X,Y,Z=self.subtract_means(X,Y,Z)
 		NT,k=X.shape
 		self.total_obs=NT
-		varmap=np.arange(NT).reshape(NT,1)
-		if IDs is None:
-			self.X=X.reshape((1,NT,k))
-			self.Y=Y.reshape((1,NT,1))
-			for i in [0,1]:
-				if self.input.tobit_active[i]:
-					self.tobit_I=self.input.tobit_I[i].reshape((1,NT,1))
+		if self.is_single():
+			if not np.all(timevar[:,0]==np.sort(timevar[:,0])):#remove in production
+				raise RuntimeError("The time variable is not sorted!?!")			
+			self.X=np.array(X.reshape((1,NT,k)))
+			self.Y=np.array(Y.reshape((1,NT,1)))
 			NT,kW=W.shape
-			self.W=W.reshape((1,NT,kW))
+			self.W=np.array(W.reshape((1,NT,kW)))
 			NT,kZ=Z.shape
 			self.Z=None
 			if Z.shape[1]>1:#instrumental variables used
-				self.Z=Z.reshape((1,NT,kZ))
+				self.Z=np.array(Z.reshape((1,NT,kZ)))
 			self.time_map=None
-			self.map=varmap
+			self.map=np.arange(NT).reshape(1,NT)
 			self.N=1
 			self.max_T=NT
 			self.T_arr=np.array([[NT]])
 			self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
 			included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
+			self.date_count_mtrx=None
+			self.date_count=None
+			self.idincl=np.array([True])
+			if not np.all(timevar[:,0]==np.sort(timevar[:,0])):#remove in production
+				raise RuntimeError("The arrayize procedure has unsorted the time variable!?!")					
 		else:
 			sel,ix=np.unique(IDs,return_index=True)
 			N=len(sel)
@@ -166,16 +208,16 @@ class panel:
 			self.idincl=T>self.lost_obs+self.settings.min_group_df.value
 			self.X=arrayize(X, N,self.max_T,T, self.idincl,sel)
 			self.Y=arrayize(Y, N,self.max_T,T, self.idincl,sel)
-			self.tobit_I=[None,None]
-			for i in [0,1]:
-				self.tobit_I[i]=arrayize(self.input.tobit_I[i], N,self.max_T,T, self.idincl,sel,dtype=bool)
 			self.W=arrayize(W, N,self.max_T,T, self.idincl,sel)
 			self.Z=arrayize(Z, N,self.max_T,T, self.idincl,sel)		
 			self.N=np.sum(self.idincl)
+			varmap=np.arange(NT).reshape(NT,1)
 			self.map=arrayize(varmap, N,self.max_T,T, self.idincl,sel,dtype=int).reshape((self.N,self.max_T))
 			self.T_arr=T[self.idincl].reshape((self.N,1))
 			self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
 			included=np.array([(self.date_counter>=self.lost_obs)*(self.date_counter<self.T_arr[i]) for i in range(self.N)])
+			if len(included)<5:
+				raise RuntimeError(f"{len(included)} valid observations, cannot perform panel analysis. Try without panel (don't specify ID and time)")
 			self.get_time_map(timevar, self.N,T, self.idincl,sel,included)
 			
 			if np.sum(self.idincl)<len(self.idincl):
@@ -187,16 +229,127 @@ class panel:
 					idremoved=(self.dataframe[idname])[ix,0][self.idincl==False]
 				s=fu.formatarray(idremoved,90,', ')
 				print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
+			#remove in production. Checking sorting:
+			tvar=arrayize(timevar, N,self.max_T,T, self.idincl,sel)
+			a=[tvar[i][0][0] for i in self.date_map]
+			if not np.all(a==np.sort(a)):	
+				raise RuntimeError("It seems the data is not properly sorted on time")
+		
 		zeros=np.zeros((self.N,self.max_T,1))
-		ones=np.ones((self.N,self.max_T,1))		
+		ones=np.ones((self.N,self.max_T,1))			
 		self.included=[None,None]
 		self.zeros=[None,None]
 		self.ones=[None,None]
 		self.included.extend([included.reshape(list(included.shape)[:-1]+[1]*i) for i in range(5)])		
 		self.zeros.extend([zeros.reshape(list(zeros.shape)[:-1]+[1]*i) for i in range(5)])	
 		self.ones.extend([ones.reshape(list(ones.shape)[:-1]+[1]*i) for i in range(5)])	
+		
 
+			
+	def pool(self):
+		if self.settings.pool.value==0:
+			return
+		elif self.settings.pool.value==1 and self.max_T==1:
+			raise RuntimeError("Can't pool a dataset on ID with only one date/no date variable")
+		elif self.settings.pool.value==2 and self.N==1:
+			raise RuntimeError("Can't pool a dataset on time with only one group/no ID variable")
+		
+		self.X=self.pool_data(self.X)
+		self.Y=self.pool_data(self.Y)
+		if not self.Z is None:
+			self.Z=self.pool_data(self.Z)
+		self.W=self.pool_data(self.W)
+		
+		if self.settings.pool.value==1:
+			self.pool_id()
+		elif self.settings.pool.value==2:
+			self.pool_time()
+			
+		
+	def pool_time(self):
+		self.idincl=np.array([True])
+		self.N=1
+		self.NT=len(self.date_map)
+		self.max_T=self.NT
+		self.map=self.map=np.arange(self.NT).reshape(1,self.NT)
+		self.T_arr=np.array([[self.NT]])
+		self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
+		included=np.array([self.date_counter>=self.lost_obs])
+		self.date_count_mtrx=None
+		self.date_count=None	
+		zeros=np.zeros((1,self.max_T,1))
+		ones=np.ones((1,self.max_T,1))			
+		for i in range(5):
+			self.included[i+2]=included.reshape([1,self.NT]+[1]*i)
+			self.zeros[i+2]=zeros.reshape([1,self.NT]+[1]*i)
+			self.ones[i+2]=ones.reshape([1,self.NT]+[1]*i)		
+		#masking:
+		self.a=self.ones
 
+		#"after lost observations" masks: 
+		self.T_i=np.array([[[self.NT]]])#number of observations for each i
+		self.N_t=np.sum(self.ones[3],0).reshape((1,self.max_T,1))#number of observations for each t
+		self.group_var_wght=None	
+	
+	def pool_id(self):
+		#Not finished or tested
+		self.idincl=np.array([True])
+		self.NT=self.N
+		self.map=self.map=np.arange(self.NT).reshape(self.NT,1)
+		self.T_arr=np.array([[1]*self.NT])
+		included=self.T_arr
+		self.date_count_mtrx=None
+		self.date_count=None	
+		zeros=np.zeros((self.N,1,1))
+		ones=np.ones((self.N,1,1))			
+		for i in range(5):
+			self.included[i+2]=included.reshape([1,self.NT]+[1]*i)
+			self.zeros[i+2]=zeros.reshape([1,self.NT]+[1]*i)
+			self.ones[i+2]=ones.reshape([1,self.NT]+[1]*i)		
+		#masking:
+		self.a=self.ones
+
+		#"after lost observations" masks: 
+		self.T_i=self.T_arr.reshape(self.N,1,1)#number of observations for each i
+		self.N_t=np.array([self.N]).reshape((1,1,1))#number of observations for each t
+		self.group_var_wght=None		
+		
+	def pool_data(self,X):
+		N,T,k=X.shape
+		if self.settings.pool.value==1:
+			X=np.mean(X,1).reshape((N,1,k))
+		elif self.settings.pool.value==2:
+			T=len(self.date_map)
+			X=np.array([np.mean(X[i],0) for i in self.date_map]).reshape((1,T,k))
+		return X	
+
+	def tobit(self):
+		"""Sets the tobit threshold"""
+		tobit_limits=self.settings.tobit_limits.value
+		if tobit_limits is None:
+			return
+		if len(tobit_limits)!=2:
+			print("Warning: The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
+		if (not (tobit_limits[0] is None)) and (not( tobit_limits[1] is None)):
+			if tobit_limits[0]>tobit_limits[1]:
+				raise RuntimeError("floor>ceiling. The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
+		g=[1,-1]
+		self.tobit_I=[None,None]
+		self.tobit_active=[False, False]#lower/upper threshold
+		desc=['tobit_low','tobit_high']
+		for i in [0,1]:
+			self.tobit_active[i]=not (tobit_limits[i] is None)
+			if self.tobit_active[i]:
+				if np.sum((g[i]*self.Y<g[i]*tobit_limits[i])*self.a[3]):
+					print("Warning: there are observations of self.Y outside the non-censored interval. These will be ignored.")
+				I=(g[i]*self.Y<=g[i]*tobit_limits[i])*self.a[3]
+				self.Y[I]=tobit_limits[i]
+				if np.var(self.Y)==0:
+					raise RuntimeError("Your tobit limits are too restrictive. All observationss would have been cencored. Cannot run regression with these limits.")
+				self.tobit_I[i]=I
+				if np.sum(I)>0 and np.sum(I)<self.NT and False:#avoiding singularity #Not sure why this is here, shuld be deleted?
+					self.X=np.concatenate((self.X,I),2)
+					self.input.x_names.append(desc[i])
 	
 	def get_time_map(self,timevar, N,T_count, idincl,sel,incl):
 		if timevar is None:
@@ -225,7 +378,7 @@ class panel:
 			if len(a):
 				m=(tuple(a[0]),tuple(a[1]))#group and day sequence reference tuple
 				n_t=len(a[0])#number of groups at this unique date
-				t_map_tuple.append(m)	#group and day sequence reference tuple, for each unique date
+				t_map_tuple.append(m)	#group and day reference tuple for the data matrix, for each unique date
 				tcnt.append(n_t) #count of groups at each date
 				self.date_count_mtrx[m]=n_t#timeseries matrix of the group count
 				
@@ -372,6 +525,8 @@ def arrayize(X,N,max_T,T,idincl,sel,dtype=None):
 			k+=1
 	Xarr=Xarr[:k]
 	return Xarr
+
+
 
 
 

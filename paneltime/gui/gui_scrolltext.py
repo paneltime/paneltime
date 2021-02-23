@@ -61,6 +61,7 @@ class ScrollText(tk.Canvas):
 		if not index2 is None:
 			self.text_box.delete(index1, index2)
 		self.text_box.insert(index1,chars)
+		self.text_box.replace
 		if self.readonly:
 			self.text_box.configure(state='disabled')
 		self.text_box.key_released()
@@ -81,8 +82,16 @@ class ScrollText(tk.Canvas):
 			self.text_box.configure(state='normal')		
 		x=self.xscrollbar.get()
 		y=self.yscrollbar.get()
-		self.text_box.delete('1.0',tk.END)
-		self.text_box.insert(tk.INSERT,string)
+		lines=string.split('\n')
+		n=int(self.text_box.index('end').split('.')[0])-1
+		if len(lines)==n and False:#attemting to reduce flickering, but does not seem to help
+			for i in range(n):
+				s=f'{i+1}.0',f'{i+1}.end'
+				self.text_box.delete(s[0],s[1])
+				self.text_box.insert(s[0],lines[i])
+		else:
+			self.text_box.delete('1.0',tk.END)
+			self.text_box.insert('1.0',string)			
 		self.xscrollbar.set(*x)
 		self.yscrollbar.set(*y)		
 		if x[1]>x[0] and y[1]>y[0]:

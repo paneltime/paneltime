@@ -65,7 +65,13 @@ class output_tab(tk.Frame):
 		if not output_data is None:
 			if hasattr(output_data, 'chart_images'):
 				self.widget.stored_output_data=output_data
-				self.charts.charts_from_stored(output_data.chart_images)
+				try:
+					self.charts.charts_from_stored(output_data.chart_images)
+				except Exception as e:
+					print(e)
+					print('Chart images not found in temp folder. Change settings to\n'
+						  'clean up the temp folder less frequently, in order ot avoid\n'
+						  'this problem again\n')
 				
 		if not 'menu_selections' in self.window.data:
 			self.window.data['menu_selections']=dict()
@@ -79,6 +85,7 @@ class output_tab(tk.Frame):
 		t.tag_configure('bold_G', font=('Garamond', 12,'bold'))
 		t.tag_configure('bold_G_underline', font=('Garamond', 12,'bold','underline'))
 		t.tag_configure('10p', font=('Garamond', 10))		
+		t.tag_configure('space_line', font=('Garamond', 7))
 		
 	def add_lines(self,zoom):		
 		dirname=os.path.dirname(__file__)	
@@ -116,8 +123,8 @@ class output_tab(tk.Frame):
 										['NORMAL', 'HTML', 'LATEX', 'RTF','INTERNAL'],
 										['JOINED', 'JOINED LONG', 'disabled:JOINED']],	self.print_regression,				'group',	[[2,3,4]],			[0,1,2,3,4]],
 			['SCATTER PLOTS',		['NORMALIZED'],										self.show_scatter,					'group', 	None,				[1]],
-			[' CORREL ',			['NORMALIZED',[' COVAR ', ' CORREL '],
-										['ESTIMATES', 'VARIABLES','RAW MOMENTS']],		self.print_correl,					'group', 	[[1],[2]],			[1,2]],
+			[' CORREL ',			['NORMALIZED',[' CORREL ',' COVAR '],
+										['VARIABLES','ESTIMATES','RAW MOMENTS']],		self.print_correl,					'group', 	[[1],[2]],			[1,2]],
 			['DIAGNOSTICS',			['SAMP.SIZE','TESTS'],								self.print_stats,					'group',	[None],				[None]],
 			['DESCRIPTIVES',		['EXP','LN','ORIGINAL'],							self.print_descriptive_statistics,	'group', 	[[0,1,2]],			[2]],
 			['DIGITS',				list(range(10))+[16]+['SCI'],						self.print,							None,		[range(12)],		[5]],
@@ -139,6 +146,8 @@ class output_tab(tk.Frame):
 	
 	
 	def get_stored(self):
+		if len(self.window.data['menu_selections']['DIGITS'])==0:
+			return
 		d=self.window.data['menu_selections']['DIGITS']
 		b=self.menu_buttons['DIGITS']
 		b.select_sub(d[str(b.sub_group['0'])])#key str(b.sub_group['0']) is the same for all items in 'DIGITS', so using '0'
@@ -210,11 +219,11 @@ class output_tab(tk.Frame):
 	def print_correl(self):
 		if self.data_doesnt_exist():return
 		d=self.widget.stored_output_data.data
-		is_covar=self.menu_buttons[' CORREL '].buttons_sub["[' COVAR ', ' CORREL ']"]['text']!=' COVAR '
+		is_covar=self.menu_buttons[' CORREL '].buttons_sub["[' CORREL ', ' COVAR ']"]['text']==' COVAR '
 		X,Y=d.X,d.Y
 		if self.menu_buttons[' CORREL '].buttons_sub["NORMALIZED"]['fg']==fg_normal:
 			X,Y=d.X_st,d.Y_st		
-		if self.menu_buttons[' CORREL '].buttons_sub["['ESTIMATES', 'VARIABLES', 'RAW MOMENTS']"]['text']=='ESTIMATES':
+		if self.menu_buttons[' CORREL '].buttons_sub["['VARIABLES', 'ESTIMATES', 'RAW MOMENTS']"]['text']=='ESTIMATES':
 			if d.hessian is None: return
 			if is_covar:
 				c=d.hessian
@@ -223,12 +232,12 @@ class output_tab(tk.Frame):
 				s=np.maximum(np.diag(-d.hessian),0)**0.5
 				s=s.reshape(n,1)*s.reshape(1,n)
 				s[s==0]=d.hessian[s==0]
-				c=d.hessian/s
+				c=-d.hessian/s
 			names=d.args_names
-		elif self.menu_buttons[' CORREL '].buttons_sub["['ESTIMATES', 'VARIABLES', 'RAW MOMENTS']"]['text']=='VARIABLES':
+		elif self.menu_buttons[' CORREL '].buttons_sub["['VARIABLES', 'ESTIMATES', 'RAW MOMENTS']"]['text']=='VARIABLES':
 			c=st.correl_2dim(np.concatenate((Y,X),1),covar=is_covar)	
 			names=d.all_names
-		else:
+		else:#RAW MOMENTS (remove?)
 			V=np.concatenate((Y,X),1)
 			c=np.dot(V.T,V)
 			names=d.all_names
@@ -376,8 +385,9 @@ class output_tab(tk.Frame):
 						'line_length':[len(t)*(2-stacked)+3]
 						}
 			if stacked:
-				formatting['10p']=[6+i*2 for i in range(len(t.names_v))]
-				formatting['single_line']=[2,5+n*2,9+n*2]
+				formatting['10p']=[6+i*3 for i in range(len(t.names_v))]
+				formatting['space_line']=[7+i*3 for i in range(len(t.names_v))]
+				formatting['single_line']=[2,5+n*3,9+n*3]
 			else:
 				formatting['single_line']=[2,5+n,9+n]
 		self.print_text(s,X,formatting)
@@ -403,14 +413,15 @@ class output_tab(tk.Frame):
 		s=self.reg_table.table(digits,cols,bracket,fmt)
 		formatting=None
 		if fmt=='NORMAL':
-			formatting={'single_line':[5],
+			formatting={'single_line':[5,9+self.reg_table.n_variables*3],
 						'double_line':[7],
 						'bold':[4,5,6],
 						'bold_col':0,
 						'line_length':[llength]
 						}
 			if stacked:
-				formatting['10p']=[8+i*2 for i in range(len(self.reg_table.X)-1)]			
+				formatting['10p']=[7+i*3 for i in range(self.reg_table.n_variables)]		
+				formatting['space_line']=[8+i*3 for i in range(self.reg_table.n_variables)]		
 		self.print_text(s,self.reg_table.X,formatting)
 		
 	def print_text(self,text,X=None,formatting=None,tab_stops="1c"):
@@ -453,6 +464,9 @@ class output_tab(tk.Frame):
 		if '10p' in formatting:
 			for i in formatting['10p']:
 				t.tag_add('10p',f'{i}.0' , f'{i}.end')		
+		if 'space_line' in formatting:
+			for i in formatting['space_line']:
+				t.tag_add('space_line',f'{i-1}.end' , f'{i+1}.0')
 		if 'bold_col' in formatting:
 			if formatting['bold_col']>0:
 				for i in range(formatting['double_line'][-1]+1,text.count('\n')+1):
@@ -724,27 +738,79 @@ class stored_data:
 		
 class bar(tk.Frame):
 	def __init__(self,master,exe_tab):
-		tk.Frame.__init__(self,master,background=bg_normal,height=25)
+		self.n_lines=3
+		tk.Frame.__init__(self,master,background=bg_normal,height=75)
 		self.tab=master
-		self.suffix=''
 		self.exe_tab=exe_tab
-		self.text=tk.StringVar(self)
-		self.text_lbl=tk.Label(self,textvariable=self.text,background=bg_normal)
+		self.text_frame=tk.Frame(self,bg=bg_normal)
+		self.text_frame_L=tk.Frame(self.text_frame,bg=bg_normal)
+		self.text_frame_R=tk.Frame(self.text_frame,bg=bg_normal)
+		self.task_text=tk.StringVar(self)
+		self.task_lbl=tk.Label(self.text_frame_R,textvariable=self.task_text,background=bg_normal,anchor='e', justify=tk.RIGHT,width=15)
+		self.text=[tk.StringVar(self) for i in range(self.n_lines)]
+		self.text_lbl=[tk.Label(self.text_frame_L,textvariable=self.text[i],background=bg_normal,anchor='w', justify=tk.LEFT) for i in range(self.n_lines)]
+		
+		for i in range(self.n_lines):
+			self.text_lbl[i].grid(row=i,column=0,sticky=tk.W)
+			if i>0:
+				self.text_lbl[i].config(fg="grey")
+		self.task_lbl.grid(row=0,column=0,sticky=tk.E)
+		self.text_frame.columnconfigure(0,weight=1)
+		self.text_frame.columnconfigure(1,weight=1)
+		self.columnconfigure(0,weight=1)
+		self.text_frame_L.grid(row=0,column=0,sticky=tk.W)
+		self.text_frame_R.grid(row=0,column=1,sticky=tk.E)
+		self.text_frame.grid(row=0,column=0,sticky=tk.EW)
 		self.progress=tk.Frame(self,background='#9cff9d',height=5,width=0)
-		self.text_lbl.grid(row=0,column=0,sticky=tk.W)
 		self.progress.grid(row=1,column=0,sticky=tk.W)
 		
-	def set_progress(self,percent,text):
+	def set_progress(self,percent=None,text="",task=''):
 		total_width=self.winfo_width()
-		self.progress.config(width=int(total_width*percent))
-		self.progress.grid()
-		if len(self.suffix):
-			text=self.suffix + ' - ' + text
-		self.text.set(text)
+		if not percent==None:
+			self.progress.config(width=int(total_width*percent))
+			self.progress.grid()
+		if len(task):
+			self.set_task(task)
+		if len(text):
+			self.print(text)
 		if not self.exe_tab is None:
 			return self.exe_tab.isrunning
 		else:
 			return True
+		
+	def set_task(self,task):
+		if task=='linesearch':
+			self.progress.config(bg='#9cff9d')
+			self.task_lbl.config(bg='#9cff9d')
+			self.task_text.set('Linesearch')
+			
+		if task=='gradient':
+			self.progress.config(bg='#8dd68e')
+			self.task_lbl.config(bg='#8dd68e')
+			self.task_text.set('Calculating gradient')	
+			
+		if task=='hessian':
+			self.progress.config(bg='#82bd83')
+			self.task_lbl.config(bg='#82bd83')
+			self.task_text.set('Calculating hessian')	
+			
+		if task=='done':
+			self.progress.config(bg='#9cff9d')
+			self.task_lbl.config(bg='#9cff9d')
+			self.task_text.set('Done')		
+			
+		if task=='err':
+			self.progress.config(bg='red')
+			self.task_lbl.config(bg='red')
+			self.task_text.set('No convergence')			
+			
+		
+		
+	def print(self,text):
+		s=[self.text[i].get() for i in range(self.n_lines)]
+		self.text[0].set('> '+text)
+		[self.text[i].set(s[i-1]) for i in range(1,self.n_lines)]
+				
 		
 		
 		

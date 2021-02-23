@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 class options_item:
-	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None, descr_for_vector_setting='',category='General'):
+	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None, descr_for_input_boxes=[],category='General'):
 		"""permissible values can be a vector or a string with an inequality, 
 		where %s represents the number, for example "1>%s>0"\n
 		if permissible_values is a vector, value_description is a corresponding vector with 
@@ -20,11 +20,11 @@ class options_item:
 			
 		self.permissible_values=permissible_values
 		self.value_description=value_description
-		self.descr_for_vector_setting=descr_for_vector_setting
+		self.descr_for_input_boxes=descr_for_input_boxes
 		self.category=category
 		self.name=name
-		self.selection_var= (descr_for_vector_setting=='') and type(permissible_values)==list
-		self.is_inputlist=len(self.descr_for_vector_setting)>0 and type(self.description)==list
+		self.selection_var= len(descr_for_input_boxes)==0 and type(permissible_values)==list
+		self.is_inputlist=len(self.descr_for_input_boxes)>0
 	
 		
 		
@@ -33,6 +33,8 @@ class options_item:
 			if not self.valid(value,i):
 				return False
 		except Exception as e:
+			a=self.valid(value,i)
+			print(e)
 			return False
 		if i is None:
 			if self.value!=value:
@@ -100,21 +102,52 @@ def regression_options():
 	#to the data sets loaded. Hence, a change in the options here only has effect
 	#ON DATA SETS LOADED AFTER THE CHANGE
 	self=options()
-	self.pqdkm						= options_item([1,1,0,1,1], 
-																	["Auto Regression order (ARIMA, p)",
-																	"Moving Average order (ARIMA, q)",
-																	"difference order (ARIMA, d)",
-																	"Variance Moving Average order (GARCH, k)",
-																	"Variance Auto Regression order (GARCH, m)"],int, 'ARIMA-GARCH orders',
-																	["%s>=0","%s>=0","%s>=0","%s>=0","%s>=0"],
-																	descr_for_vector_setting="ARIMA-GARCH parameters",category='Regression')
-	self.group_fixed_random_eff		= options_item(2,				'Fixed, random or no group effects', int, 'Group fixed random effect',[0,1,2], 
+	
+	self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
+																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
+
+	self.arguments					= options_item("", 				"A string or dict with a dictionary in python syntax containing the initial arguments." 
+																	"An example can be obtained by printing ll.args.args_d"
+																	, [str,dict], 'Initial arguments')	
+
+	self.convergence_limit			= options_item([0.0001], 		"Convergence limit. When this exceedes the maximum absolute value of "
+																	"new directions (as percentage of parameter value), the procedure is "
+																	"determined to have converged.",
+																	float,"Convergence limit", ["%s>0"],
+																	descr_for_input_boxes=['Convergence limit:'])	
+
+	#self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
+	
+	self.do_not_constrain			= options_item(None, 			"The name of a variable of interest \nthat shall not be constrained due to \nmulticollinearity",
+													 				[str,type(None)],"Avoid constraint",
+																	descr_for_input_boxes=['Variable not to constraint:'])	
+	
+	self.fixed_random_group_eff		= options_item(2,				'Fixed, random or no group effects', int, 'Group fixed random effect',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
-	self.time_fixed_random_eff		= options_item(2,				'Fixed, random or no time effects', int, 'Time fixed random effect',[0,1,2], 
+	self.fixed_random_time_eff		= options_item(2,				'Fixed, random or no time effects', int, 'Time fixed random effect',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
-	self.variance_fixed_random_eff	= options_item(2,				'Fixed, random or no group effects for variance', int, 'Variance fixed random effects',[0,1,2], 
+	self.fixed_random_variance_eff	= options_item(2,				'Fixed, random or no group effects for variance', int, 'Variance fixed random effects',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 	
+	self.h_function					= options_item(	"def h(e,z):\n"
+													"	e2			=	e**2+1e-5\n"
+													"	h_val		=	np.log(e2)\n"	
+													"	h_e_val		=	2*e/e2\n"
+													"	h_2e_val	=	2/e2-4*e**2/e2**2\n"
+													"	return h_val,h_e_val,h_2e_val,None,None,None\n",	
+													
+																	"You can supply your own heteroskedasticity function. It must be a function of\n"
+																	"residuals e and a shift parameter z that is determined by the maximization procedure\n"
+																	"the function must return the value and its derivatives in the following order:\n"
+																	"h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
+																	, str,"GARCH function",category='Regression')
+
+	self.loadARIMA_GARCH			= options_item(False, 			"Determines whether the ARIMA_GARCH arguments from the previous run should be kept", 
+																	bool, 'Load ARIMA_GARCH', [False,True],
+																	['No loading',
+																	'Load arguments'
+																	])	
+		
 	self.loadargs					= options_item(1, 				"Determines whether the regression arguments from the previous run should be kept", 
 																	int, 'Load arguments', [0,1,2],
 																	['No loading',
@@ -122,37 +155,45 @@ def regression_options():
 																	'Load from last run'
 																	])
 	
-	self.arguments					= options_item("", 				arg_desc, str, 'Initial arguments', descr_for_vector_setting="Arguments (dictionary):")	
-	
-	
-	self.loadARIMA_GARCH			= options_item(False, 				"Determines whether the ARIMA_GARCH arguments from the previous run should be kept", 
-																	bool, 'Load ARIMA_GARCH', [False,True],
-																	['No loading',
-																	'Load arguments'
-																	])	
-	
-	self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
-																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
-	
-	self.h_function					= options_item(h_func,			h_descr, str,"GARCH function",category='Regression')
-	self.user_constraints			= options_item(None,			constr_str,str, 'User constraints')
-	
-	self.tobit_limits				= options_item([None,None],		['lower limit','upper limit'], [float,type(None)], 'Tobit-model limits', descr_for_vector_setting=tobit_desc)
-	
 	self.min_group_df				= options_item(1, 				"The smallest permissible number of observations in each group. Must be at least 1", int, 'Minimum degrees of freedom', "%s>0",category='Regression')
-	self.robustcov_lags_statistics	= options_item([100,30],		[robust_desc_0,robust_desc_1], int, 'Robust covariance lags (time)', ["%s>1","%s>1"], descr_for_vector_setting=robust_desc_all,category='Output')
-	self.silent						= options_item(False, 			silent_desc,  bool,'Silent mode',[True,False],['Silent','Not Silent'])
-	#self.description				= options_item(None, 			descr_descr, 'entry','Description')	
+
+	self.minimum_iterations			= options_item(0, 				'Minimum number of iterations in maximization:',
+													  				int,"Minimum iterations", "%s>-1")		
 	
-	self.convergence_limit			= options_item([0.0001], ['Convergence limit:'],float,"Convergence limit", ["%s>0"],
-										descr_for_vector_setting=conv_desc
-										)	
+	self.pool						= options_item(False, 			"True if sample is to be pooled, otherwise False." 
+																	"For running a pooled regression",  
+																	bool,'Pooling',[True,False],['Pooled','Not Pooled'])
 	
-	self.do_not_constraint			= options_item(None, ['Variable not to constraint:'],[str,type(None)],"Avoid constraint",
-										descr_for_vector_setting="The name of a variable of interest \nthat shall not be constrained due to \nmulticollinearity"
-										)	
+	self.pqdkm						= options_item([1,1,0,1,1], 
+																	"ARIMA-GARCH parameters:",int, 'ARIMA-GARCH orders',
+																	["%s>=0","%s>=0","%s>=0","%s>=0","%s>=0"],
+																	descr_for_input_boxes=["Auto Regression order (ARIMA, p)",
+																	"Moving Average order (ARIMA, q)",
+																	"difference order (ARIMA, d)",
+																	"Variance Moving Average order (GARCH, k)",
+																	"Variance Auto Regression order (GARCH, m)"],category='Regression')
+
+	self.robustcov_lags_statistics	= options_item([100,30],		"Numer of lags used in calculation of the robust \ncovariance matrix for the time dimension", 
+																	 int, 'Robust covariance lags (time)', ["%s>1","%s>1"], 
+													 	 	 	 	 descr_for_input_boxes=["# lags in final statistics calulation",
+																	 "# lags iterations (smaller saves time)"],
+																	 category='Output')
+
+	self.silent						= options_item(False, 			"True if silent mode, otherwise False." 
+																	"For running the procedure in a script, where output should be suppressed",  
+																	bool,'Silent mode',[True,False],['Silent','Not Silent'])
+
+	self.subtract_means				= options_item(False,			"If True, subtracts the mean of all variables. This may be a remedy for multicollinearity if the mean is not of interest.",
+																	bool,'Subtract means', [True,False],['Subtracts the means','Do not subtract the means'],category='Regression')
 	
-	self.minimum_iterations	= options_item(0, 'Minimum number of iterations in maximization:',int,"Minimum iterations", "%s>-1")		
+	self.tobit_limits				= options_item([None,None],		"Determines the limits in a tobit regression. "
+																	"Element 0 is lower limit and element1 is upper limit. "
+																	"If None, the limit is not active", 
+																	[float,type(None)], 'Tobit-model limits', 
+																	descr_for_input_boxes=['lower limit','upper limit'])
+	
+	self.user_constraints			= options_item(None,			"You can add constraints as a dict or as a string in python dictonary syntax.\n",
+																	[str,dict], 'User constraints')
 	
 	self.make_category_tree()
 	
@@ -182,52 +223,4 @@ def application_preferences():
 	
 	return opt
 
-
-h_func="""
-def h(e,z):
-	e2			=	e**2+1e-5
-	h_val		=	np.log(e2)	
-	h_e_val		=	2*e/e2
-	h_2e_val	=	2/e2-4*e**2/e2**2
-
-	return h_val,h_e_val,h_2e_val,None,None,None
-"""
-
-conv_desc="""
-Convergence limit. When this exceedes the maximum absolute value of 
-new directions (as percentage of parameter value), the procedure is 
-determined to have converged"""
-h_descr="""
-You can supply your own heteroskedasticity function. It must be a function of\n
-residuals e and a shift parameter z that is determined by the maximization procedure\n
-the function must return the value and its derivatives in the following order:\n
-h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"""
-
-constr_str="""
-You can add constraints in python dictonary syntax.\n
-"""
-
-tobit_desc="""
-Determines the limits in a tobit regression. 
-Element 0 is lower limit and element1 is upper limit. 
-If None, the limit is not active"""
-
-robust_desc_all="""
-Numer of lags used in calculation of the robust \ncovariance matrix for the time dimension.\n"""
-robust_desc_0="""# lags in final statistics calulation       """
-robust_desc_1="""# lags iterations (smaller saves time) """
-
-silent_desc="""
-True if silent mode, otherwise False. 
-For running the procedure in a script, where output should be suppressed"""
-
-descr_descr="""
-A description of the project. 
-Used in the final output and to load the project later.\n
-default is the model_string"""
-
-arg_desc="""A string with a dictionary in python syntax, 
-containing the initial arguments. 
-An example can be obtained by
-printing ll.args.args_d"""
 

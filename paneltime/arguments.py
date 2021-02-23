@@ -7,6 +7,8 @@ import stat_functions as stat
 import numpy as np
 import functions as fu
 import loglikelihood as logl
+import random_effects as re
+import calculus_functions as cf
 
 
 
@@ -27,24 +29,27 @@ class arguments:
 		initargs=self.initargs(p, d, q, m, k, panel)
 		self.position_defs(initargs)
 		self.set_init_args(initargs)
-		self.init_args(panel)
+		self.get_user_constraints(panel)
 		
 		
-	def init_args(self,panel):
+	def get_user_constraints(self,panel):
 		e="User contraints must be a dict of dicts or a string evaluating to that, on the form of ll.args.dict_string. User constraints not applied"
-		if panel.settings.user_constraints.value is None or panel.settings.user_constraints.value=='':
-			self.user_constraints={}
-			return
-		try:
-			self.user_constraints=eval(panel.settings.user_constraints.value)
-		except SyntaxError:
-			print(f"Syntax error: {e}")
-			self.user_constraints={}
-			return			
-		except:
-			print(e)
-			self.user_constraints={}
-			return
+		if type(panel.settings.user_constraints.value)==dict:
+			self.user_constraints=panel.settings.user_constraints.value
+		else:
+			if panel.settings.user_constraints.value is None or panel.settings.user_constraints.value=='':
+				self.user_constraints={}
+				return
+			try:
+				self.user_constraints=eval(panel.settings.user_constraints.value)
+			except SyntaxError:
+				print(f"Syntax error: {e}")
+				self.user_constraints={}
+				return			
+			except:
+				print(e)
+				self.user_constraints={}
+				return
 		if not panel.z_active and 'z' in self.user_constraints:
 			self.user_constraints.pop('z')	
 		for i in self.user_constraints:
@@ -84,15 +89,8 @@ class arguments:
 		#de2=np.roll(e**2,1)-e**2
 		#c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
 		
-		beta,e=stat.OLS(panel,panel.X,panel.Y,return_e=True)
-		#beta=stat.OLS_simple(panel.input.Y,panel.input.XIV,True,False)
-		self.init_e_st=e[panel.included[3]]
-		self.init_e_st=self.init_e_st/np.var(self.init_e_st)**0.5
-		initargs['beta']=beta
-		if panel.settings.variance_fixed_random_eff.value==0:
-			initargs['omega'][0]=np.log(panel.var(e))
-			if panel.var(e)<1e-20:
-				print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')
+
+		beta,omega=set_init_regression(initargs,panel)
 		self.args_start=self.create_args(initargs)
 		if not default:
 			#previous arguments
@@ -102,7 +100,7 @@ class arguments:
 			self.process_init_user_args(self.panel.input.args,
 												initargs,'user defined')
 		self.args_init=self.create_args(initargs)
-		self.set_restricted_args(p, d, q, m, k,panel,e,beta)
+		self.set_restricted_args(p, d, q, m, k,panel,omega,beta)
 		self.n_args=len(self.args_init.args_v)
 		
 	def process_init_user_args(self,old_args,initargs,errstr):
@@ -123,7 +121,7 @@ class arguments:
 
 		
 
-	def set_restricted_args(self,p, d, q, m, k, panel,e,beta):
+	def set_restricted_args(self,p, d, q, m, k, panel,omega,beta):
 		args_restricted=self.initargs(p, d, q, m, k, panel)
 		args_restricted['beta'][0][0]=np.mean(panel.Y)
 		args_restricted['omega'][0][0]=np.log(panel.var(panel.Y))
@@ -131,7 +129,7 @@ class arguments:
 		
 		args_OLS=self.initargs(p, d, q, m, k, panel)	
 		args_OLS['beta']=beta
-		args_OLS['omega'][0][0]=np.log(panel.var(e))
+		args_OLS['omega'][0][0]=omega
 		self.args_OLS=self.create_args(args_OLS)
 		
 	
@@ -183,7 +181,8 @@ class arguments:
 			s=np.array(args[i])
 			if len(s.shape)==2:
 				s=s.flatten()
-			v=np.concatenate((v,s))
+			if len(s)>0:
+				v=np.concatenate((v,s))
 		return v
 
 
@@ -276,6 +275,89 @@ class arguments:
 				raise RuntimeError("argument inconsistency")
 			
 		
+def set_init_regression(initargs,panel):
+	p, q, d, k, m=panel.pqdkm
+	beta,rho,lmbda,corr,u=ARMA_regression(panel)
+	initargs['beta']=beta
+	set_ARMA_GARCH(q,p,initargs,corr,rho,lmbda,'rho','lambda')
+	#set_GARCH(panel, initargs, u, m) trying to figure out the GARCH coefficients does not seem to help
+	omega=np.log(panel.var(u))#-panel.mean(h)
+	if panel.settings.fixed_random_variance_eff.value==0:
+		initargs['omega'][0]=omega
+		if np.exp(omega)<1e-20:
+			print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
+	return beta,omega
+
+def set_GARCH(panel,initargs,u,m):
+	matrices=logl.set_garch_arch(panel,initargs)
+	if matrices is None:
+		e=u
+	else:
+		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
+		e = cf.dot(AMA_1AR,u)*panel.included[3]		
+	h=h_func(e, panel,initargs)
+	if m>0:
+		corr_v=stat.correlogram(panel,h,1,center=True)[1:]
+		initargs['gamma'][0]=0#corr_v[0]
+		initargs['psi'][0]=0#corr_v[0]
+	#set_ARMA_GARCH(q,p,initargs,v_corr,gamma,psi,'gamma','psi',sum_ma=False)	
+
+def h_func(e,panel,initargs):
+	z=None
+	if len(initargs['z'])>0:
+		z=initargs['z'][0]	
+	h_val,h_e_val,h_2e_val,h_z,h_2z,h_e_z=logl.h(e,z,panel)
+	return h_val*panel.included[3]
+	
+	
+def set_ARMA_GARCH(q,p,initargs,corr,rho,lmbda,rho_name,lambda_name,mod=1,sum_ma=True):
+	if q+p==0:
+		return
+	n=min((len(corr),q))
+	if q*p>0:
+		if rho!=0:
+			initargs[rho_name][0]=rho*mod
+			initargs[lambda_name][0]=lmbda*mod
+		else:
+			initargs[lambda_name][:n]=corr[:n]*mod
+			if sum_ma:
+				initargs[lambda_name][n-1]=sum(corr[n-1:])*mod
+	elif q>0:
+		initargs[lambda_name][:n]=corr[:n]*mod
+		if sum_ma:
+			initargs[lambda_name][n-1]=sum(corr[n-1:])*mod
+	else:
+		initargs[rho_name][0]=(rho+corr[0]*(rho==0))*mod
+	
+def ARMA_regression(panel):
+	gfre=panel.settings.fixed_random_group_eff.value
+	tfre=panel.settings.fixed_random_time_eff.value
+	re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
+	re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
+	X=(panel.X+re_obj_i.RE(panel.X)+re_obj_t.RE(panel.X))*panel.included[3]
+	Y=(panel.Y+re_obj_i.RE(panel.Y)+re_obj_t.RE(panel.Y))*panel.included[3]
+	beta,u=stat.OLS(panel,X,Y,return_e=True)
+	rho,lmbda,corr=ARMA_process_calc(u,panel)
+	return beta,rho,lmbda,corr,u
+
+def ARMA_process_calc(e,panel):
+	c=stat.correlogram(panel,e,7,center=True)[1:]
+	decay=c[1:]/(c[:-1]+(c[:-1]==0))
+	rho=np.median(decay)	
+	if abs(rho)>1 or np.std(np.abs(decay))>1:
+		return 0,0,c
+	r=c[0]
+	t=1-2*r*rho+rho**2
+	root=((rho**2-1)*(rho**2-1+4*r*(r-rho)))
+	den=2*(r-rho)
+	lambda_1=(t-root**0.5)/(den+(den==0))
+	lambda_2=(t+root**0.5)/(den+(den==0))	
+	if (root<0) or (den==0) or ((lambda_1>1 or lambda_1<-1) and (lambda_2>1 or lambda_2<-1)):
+		return c[1],0,c[1:]
+	if (lambda_1>1 or lambda_1<-1):
+		return rho,lambda_2,c[1:]
+	return rho,lambda_1,c
+		
 			
 def add_names(T,namsestr,category,d,c,names):
 	a=[]
@@ -284,8 +366,8 @@ def add_names(T,namsestr,category,d,c,names):
 	names.extend(a)
 	d[category]=a
 	c.append(a)
-	
-	
+
+
 class arguments_set:
 	"""A class that contains the arguments in all shapes and forms needed."""
 	def __init__(self,args_d,args_v,dict_string,arguments):

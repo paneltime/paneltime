@@ -26,6 +26,7 @@ def display(chart,name,i,subplot,action=None,path=None):
 	
 	chart.name=name
 	chart.i=i
+	chart.path=path
 	chart.bind("<Button-1>", action)	
 
 def display_from_img(chart,f,name,i,action=None):

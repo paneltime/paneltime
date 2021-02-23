@@ -46,7 +46,7 @@ def test_dictionary(dataframe):
 	return n
 
 
-def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings,):
+def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings):
 	print ("Analyzing variables ...")
 	for i in dataframe:
 		if type(dataframe[i])==np.ndarray:
@@ -54,63 +54,36 @@ def get_variables(input_class,dataframe,model_string,IDs_name,time_name,settings
 				raise RuntimeError("There are no valid observations")
 			else:
 				break
+			
 	sort(dataframe,time_name,IDs_name)
 	
 	input_class.timevar,input_class.time_name,void=check_var(dataframe,time_name,'time_name')
 	input_class.IDs,input_class.IDs_name,void=check_var(dataframe,IDs_name,'ID_name')
 	input_class.lag_obj=lag_object(input_class.IDs)
 	dataframe['L']=input_class.lag_obj.lag#allowing for lag operator in model input
+	dataframe['D']=input_class.lag_obj.diff#allowing for lag operator in model input
 	input_class.W,input_class.W_names,void=check_var(dataframe,settings.heteroscedasticity_factors,'heteroscedasticity_factors',
-                                       intercept_name='log variance constant',raise_error=False,intercept_variable=True)
-	input_class.Z,input_class.z_names,void=check_var(dataframe,settings.instruments,'instruments',intercept_name='instrument intercept',raise_error=False,intercept_variable=True)	
+                                       intercept_name='log variance constant',raise_error=False)
+	input_class.Z,input_class.z_names,void=check_var(dataframe,settings.instruments,'instruments',intercept_name='instrument intercept',raise_error=False)	
 	intercept_name=None
-	if settings.add_intercept.value:
+	if settings.add_intercept.value>0:
 		intercept_name=DEFAULT_INTERCEPT_NAME
+	trend_name=None
+	if settings.add_intercept.value==2:
+		trend_name=DEFAULT_INTERCEPT_NAME	
 	(input_class.X,input_class.x_names,
 	 input_class.has_intercept,
-	 input_class.Y,input_class.y_name)=parse_and_check(dataframe,model_string,intercept_name)
-	
-	tobit_set_threshold(input_class,settings)
-	
-		
+	 input_class.Y,input_class.y_name)=parse_and_check(dataframe,model_string,intercept_name,trend_name,input_class)
 
-
-def tobit_set_threshold(input_class,settings):
-	"""Sets the tobit threshold"""
-	tobit_limits=settings.tobit_limits.value
-	Y=input_class.Y
-	if tobit_limits is None:
-		return
-	if len(tobit_limits)!=2:
-		print("Warning: The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
-	if (not (tobit_limits[0] is None)) and (not( tobit_limits[1] is None)):
-		if tobit_limits[0]>tobit_limits[1]:
-			raise RuntimeError("floor>ceiling. The tobit_limits argument must have lenght 2, and be on the form [floor, ceiling]. None is used to indicate no active limit")
-	g=[1,-1]
-	input_class.tobit_active=[False, False]#lower/upper threshold
-	input_class.tobit_I=[None,None]
-	desc=['tobit_low','tobit_high']
-	for i in [0,1]:
-		input_class.tobit_active[i]=not (tobit_limits[i] is None)
-		if input_class.tobit_active[i]:
-			if np.sum(g[i]*Y<g[i]*tobit_limits[i]):
-				print("Warning: there are observations of Y outside the non-cencored interval. These ")
-			I=g[i]*Y<=g[i]*tobit_limits[i]
-			Y[I]=tobit_limits[i]
-			if np.var(Y)==0:
-				raise RuntimeError("Your tobit limits are too restrictive. All observationss were cencored.")
-			input_class.tobit_I[i]=I
-			if np.sum(I)>0 and np.sum(I)<len(I):#avoiding singularity
-				input_class.X=np.concatenate((input_class.X,I),1)
-				input_class.x_names.append(desc[i])
 		
-def parse_and_check(dataframe,model_string,intercept_name):
+def parse_and_check(dataframe,model_string,intercept_name,trend_name,input_class):
 	y_name,x_names=parse_model(model_string)
 	if x_names==['']:
 		x_names=['intercept']
-	X,x_names,has_intercept=check_var(dataframe,x_names,'x_names',intercept_name=intercept_name,raise_error=True,intercept_variable=True)
+	X,x_names,has_intercept=check_var(dataframe,x_names,'x_names',intercept_name=intercept_name,raise_error=True)
 	Y,y_name,void=check_var(dataframe,y_name,'y_name',raise_error=True)	
 	return X,x_names,has_intercept,Y,y_name
+
 
 class lag_object:
 
@@ -124,6 +97,9 @@ class lag_object:
 		keep=idroll==self.IDs
 		self.max_lags=max((self.max_lags,lags))
 		return v*keep
+	
+	def diff(self,variable,lags):
+		return variable-self.lag(variable, lags)
 		
 
 def sort(dataframe,time_name,IDs_name):
@@ -137,7 +113,7 @@ def sort(dataframe,time_name,IDs_name):
 		srt=np.argsort(g,0).flatten()
 	elif (not time_name is None) and (IDs_name is None):
 		dt=dataframe[time_name]
-		if np.var(g)==None:
+		if np.var(dt)==None:
 			return
 		srt=np.argsort(dt,0).flatten()	
 	else:
@@ -179,26 +155,35 @@ def modify_dataframe(dataframe,transforms=None,filters=None):
 			dataframe.pop(i)		
 	print ("... done")
 
-def check_var(dataframe,names,arg_name,intercept_name=None,raise_error=False,intercept_variable=False):
+def check_var(dataframe,names,arg_name,intercept_name=None,raise_error=False):
 	names=parse_names(names, intercept_name, arg_name)
 	if names is None: return None,None,None
 	check_and_add_variables(names, dataframe, arg_name)
-	has_const=False
-	if len(names)>0:
-		has_const=np.all(dataframe[names[0]]==1)	
-	if not intercept_name is None:
-		if not has_const:
-			names=[intercept_name]+names
-		else:
-			names[0]=intercept_name
-		dataframe[intercept_name]=dataframe['ones']
-		has_const=True
+	has_const,names=check_intercept(names, dataframe, intercept_name)
 	X=[]
 	for i in names:
 		X.append(dataframe[i])
 	X=np.concatenate(X,1)
 	X,names=remove(X,names, dataframe, raise_error,has_const)
 	return X,names,has_const
+	
+
+def check_intercept(names,dataframe,intercept_name):
+	"The intercept MUST be the FIRST variable if supplied as a variable"
+	has_const=False
+	if len(names)>0:
+		has_const=np.all(dataframe[names[0]]==1)
+	if has_const:
+		return True,names
+	if not (intercept_name is None):
+		if (intercept_name in names):
+			if (not has_const):#the user has all ready suplied the intercept
+				raise RuntimeError(f"If an intercept variable named '{intercept_name}' is supplied by the user, it needs to be the first variable and a constant equal to one. ")
+		elif not has_const:
+			names=[intercept_name]+names
+			dataframe[intercept_name]=np.array(dataframe['ones'])
+		has_const=True
+	return has_const,names
 
 def parse_names(names,intercept_name,arg_name):
 	if names is None:

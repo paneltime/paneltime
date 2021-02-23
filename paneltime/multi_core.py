@@ -154,10 +154,14 @@ class slave():
 		self.p_id = self.receive()
 		self.slave_id=slave_id
 		self.send('init_transact',(initcommand,slave_id,fpath))
+		self.initcommand=initcommand
+		self.fpath=fpath
 		pass
 
 	def send(self,msg,obj):
 		"""Sends msg and obj to the slave"""
+		if not self.p.poll() is None:
+			self.__init__(self.initcommand,self.slave_id,self.fpath)
 		self.t.send((msg,obj))          
 
 	def receive(self,q=None):

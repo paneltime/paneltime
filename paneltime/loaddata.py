@@ -7,6 +7,8 @@ from datetime import datetime
 from datetime import date
 import tempstore
 import model_parser
+import pandas as pd
+import xarray as xr
 NON_NUMERIC_TAG='|~|'
 forbidden_names=['tobit_low','tobit_high',model_parser.DEFAULT_INTERCEPT_NAME]
 
@@ -21,9 +23,11 @@ def load(fname,sep,dateformat,load_tmp_data):
 	print ("opening file ...")
 	data=np.loadtxt(fname,delimiter=s,skiprows=1,dtype=bytes)
 	data=data.astype(str)
-	print ("... done")
+	print ("... done - converting to dataframe ...")
 	data=convert_to_numeric_dict(data,heading,dateformat)
+	print ("... done - saving for to temorary file")
 	tempstore.savedata(fname,data)
+	print ("... done")
 	load_data_printout(data)
 	return data
 
@@ -194,7 +198,7 @@ def try_float_int(a,df,name):
 	try:
 		
 		if np.all(np.equal(np.mod(a, 1), 0)):
-			a=a.astype(int)
+			a=a.astype(np.int64)
 	except:
 		pass
 	df[name]=a	
@@ -211,29 +215,34 @@ def check_dateness(a,df,name,dateformat):
 	a[a==np.array(None)]=''
 	dts=np.unique(a)
 	d=dict()
-	lst=[]
-	
-	if 'datetime.date' in str(type(dts[0])):
-		for dt in dts:
-			d[dt]=(dt-date(1900,1,1)).days
-			lst.append(d[dt])
-	else:
-		for dt in dts:
-			d[dt]=(datetime.strptime(dt,dateformat)-datetime(1900,1,1)).days
-			lst.append(d[dt])
+	lst=convert_date(dts,d, 'days')
 	if np.max(lst)-np.min(lst)<3:#seconds
-		if 'datetime.date' in str(type(dts[0])):
-			for dt in dts:
-				d[dt]=(dt-date(2000,1,1)).seconds
-				lst.append(d[dt])
-		else:
-			for dt in dts:
-				d[dt]=(datetime.strptime(dt,dateformat)-datetime(2000,1,1)).seconds
-				lst.append(d[dt])
+		lst=convert_date(dts,d, 'seconds')
 	df[name]=np.array([[d[k[0]]] for k in a])
 	a=0
 
-
+def convert_date(dts,d,interval):
+	lst=[]
+	if 'datetime.date' in str(type(dts[0])):
+		for dt in dts:
+			d[dt]=getattr(dt-date(2000,1,1),interval)
+			lst.append(d[dt])
+	else:
+		dateformat=get_date_format(dts[0])
+		for dt in dts:
+			d[dt]=getattr(datetime.strptime(dt,dateformat)-datetime(2000,1,1),interval)
+			lst.append(d[dt])
+	return lst
+			
+def get_date_format(dt):
+	for df in ['%Y-%m-%d','%d.%m.%Y']:
+		try:
+			t=datetime.strptime(dt,df)
+			return df
+		except ValueError:
+			pass
+	raise ValueError
+		
 
 
 	

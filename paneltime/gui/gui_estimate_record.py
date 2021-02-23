@@ -227,14 +227,12 @@ class estimate_frame(tk.Frame):
 		self.node_name=node_name
 		self.estimate=estimate
 		self.lines=dict()
-		desc=estimate.descr_for_vector_setting
-		if not type(estimate.description)==list:
-			desc+=estimate.description
+		desc=estimate.description
 		self.desc=tk.Label(self,text=desc,anchor='nw',justify=tk.LEFT,background='white')
 		self.desc.grid(row=0,column=0,sticky='nw')		
 		if estimate.is_inputlist:#
 			self.cntrl=tk.Frame(self,background='white')
-			for i in range(len(estimate.description)):
+			for i in range(len(estimate.descr_for_input_boxes)):
 				self.add_control_multi(estimate,self.cntrl,i)
 			self.cntrl.grid(row=1,column=0,sticky='nw')
 		elif not estimate.selection_var:
@@ -263,7 +261,7 @@ class estimate_frame(tk.Frame):
 		name=self.node_name+str(i)
 		line.columnconfigure(0,weight=1)
 		line.columnconfigure(1,weight=1)
-		desc=estimate.description[i]
+		desc=estimate.descr_for_input_boxes[i]
 		lbl=tk.Label(line,text=desc,anchor='nw',background='white')
 		self.entries[name]=managed_text(line,estimate.dtype,estimate,self.estimate_tree,self.node_name,i)
 		self.entries[name].text.set(str(estimate.value[i]))

@@ -20,6 +20,9 @@ import debug
 import traceback
 import model_parser
 
+
+	
+
 class LL:
 	"""Calculates the log likelihood given arguments arg (either in dictonary or array form), and creates an object
 	that store dynamic variables that depend on the \n
@@ -31,9 +34,9 @@ class LL:
 		self.err_msg=''
 		self.errmsg_h=''
 		self.panel=panel
-		gfre=panel.settings.group_fixed_random_eff.value
-		tfre=panel.settings.time_fixed_random_eff.value
-		vfre=panel.settings.variance_fixed_random_eff.value
+		gfre=panel.settings.fixed_random_group_eff.value
+		tfre=panel.settings.fixed_random_time_eff.value
+		vfre=panel.settings.fixed_random_variance_eff.value
 		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
 		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
 		self.re_obj_i_v=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre*vfre)
@@ -44,7 +47,7 @@ class LL:
 		self.args=panel.args.create_args(args,constraints)
 		self.h_err=""
 		self.LL=None
-		self.LL=self.LL_calc()
+		#self.LL=self.LL_calc()
 		try:
 			self.LL=self.LL_calc()
 			if np.isnan(self.LL):
@@ -95,8 +98,8 @@ class LL:
 		
 	def add_variables(self,matrices,u,e,lnv_ARMA,lnv,v,W_omega,grp,e_RE,e_REsq,v_inv):
 		self.v_inv05=v_inv**0.5
-		self.e_st=e_RE*self.v_inv05	
-		self.e_st_centered=(self.e_st-self.panel.mean(self.e_st))*self.panel.included[3]
+		self.e_norm=e_RE*self.v_inv05	
+		self.e_norm_centered=(self.e_norm-self.panel.mean(self.e_norm))*self.panel.included[3]
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
 		self.u,self.e, self.lnv_ARMA        = u,         e,       lnv_ARMA
 		self.lnv,self.v                     = lnv,       v
@@ -109,14 +112,14 @@ class LL:
 
 	
 	def tobit(self,panel,LL):
-		if sum(panel.input.tobit_active)==0:
+		if sum(panel.tobit_active)==0:
 			return
 		g=[1,-1]
 		self.F=[None,None]	
 		for i in [0,1]:
-			if panel.input.tobit_active[i]:
+			if panel.tobit_active[i]:
 				I=panel.tobit_I[i]
-				self.F[i]= scipy.stats.norm.cdf(g[i]*self.e_st[I])
+				self.F[i]= scipy.stats.norm.cdf(g[i]*self.e_norm[I])
 				LL[I]=np.log(self.F[i])
 
 	def garch(self,GAR_1MA,e):
@@ -143,7 +146,7 @@ class LL:
 		self.vRE,self.lnvRE,self.dlnvRE=panel.zeros[3],panel.zeros[3],panel.zeros[3]
 		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=panel.zeros[3],None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
-		if panel.settings.variance_fixed_random_eff.value==0:
+		if panel.settings.fixed_random_variance_eff.value==0:
 			return panel.zeros[3]
 		if panel.N==0:
 			return None
@@ -182,8 +185,11 @@ class LL:
 		
 
 
-	def standardize(self):
-		"""Adds X and Y and error terms after ARIMA-E-GARCH transformation and random effects to self"""
+	def standardize(self,reverse_difference=False):
+		"""Adds X and Y and error terms after ARIMA-E-GARCH transformation and random effects to self. 
+		If reverse_difference and the ARIMA difference term d>0, the standardized variables are converted to
+		the original undifferenced order. This may be usefull if the predicted values should be used in another 
+		differenced regression."""
 		if hasattr(self,'Y_st'):
 			return		
 		panel=self.panel
@@ -193,23 +199,47 @@ class LL:
 			m=self.args.args_d['beta'][0,0]
 		else:
 			m=panel.mean(panel.Y)	
-		#e_st=self.standardize_variable(self.u)
-		self.Y_st,   self.Y_st_long   = self.standardize_variable(panel.Y)
-		self.X_st,   self.X_st_long   = self.standardize_variable(panel.X)
-		self.XIV_st, self.XIV_st_long = self.standardize_variable(panel.XIV)
+		#e_norm=self.standardize_variable(self.u,reverse_difference)
+		self.Y_st,   self.Y_st_long   = self.standardize_variable(panel.Y,reverse_difference)
+		self.X_st,   self.X_st_long   = self.standardize_variable(panel.X,reverse_difference)
+		self.XIV_st, self.XIV_st_long = self.standardize_variable(panel.XIV,reverse_difference)
 		self.Y_pred_st=cf.dot(self.X_st,self.args.args_d['beta'])
 		self.Y_pred=cf.dot(panel.X,self.args.args_d['beta'])	
-		self.e_st_long=self.stretch_variable(self.e_st)
+		self.e_norm_long=self.stretch_variable(self.e_norm)
 		self.Y_pred_st_long=self.stretch_variable(self.Y_pred_st)
 		self.Y_pred_long=cf.dot(panel.input.X,self.args.args_d['beta'])
 		self.e_long=panel.input.Y-self.Y_pred_long
-
 		
-	def standardize_variable(self,X):
+		Rsq, Rsqadj, LL_ratio,LL_ratio_OLS=self.goodness_of_fit(False)
+		Rsq2, Rsqadj2, LL_ratio2,LL_ratio_OLS2=self.goodness_of_fit(True)
+		a=0
+				
+	
+	def standardize_variable(self,X,norm=False,reverse_difference=False):
 		X=cf.dot(self.AMA_1AR,X)
-		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))*self.v_inv05
+		X=(X+self.re_obj_i.RE(X,False)+self.re_obj_t.RE(X,False))
+		if (not self.panel.Ld_inv is None) and reverse_difference:
+			X=cf.dot(self.panel.Ld_inv,X)*self.panel.a[3]		
+		if norm:
+			X=X*self.v_inv05
 		X_long=self.stretch_variable(X)
-		return X,X_long
+		return X,X_long	
+
+	def goodness_of_fit(self,standarized):
+		panel=self.panel
+		if standarized:
+			s_res=panel.var(self.e_RE)
+			s_tot=panel.var(self.Y_st)
+		else:
+			s_res=panel.var(self.u)
+			s_tot=panel.var(panel.Y)		
+		r_unexpl=s_res/s_tot
+		Rsq=1-r_unexpl
+		Rsqadj=1-r_unexpl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
+		panel.args.create_null_ll()
+		LL_ratio_OLS=2*(self.LL-panel.args.LL_OLS)
+		LL_ratio=2*(self.LL-panel.args.LL_null)
+		return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS		
 	
 	def stretch_variable(self,X):
 		N,T,k=X.shape
@@ -227,15 +257,17 @@ class LL:
 
 	
 	def h(self,e,z):
-		try:
-			d=dict()
-			exec(self.panel.h_def,globals(),d)
-			return d['h'](e,z)
-		except Exception as err:
-			if self.h_err!=str(err):
-				self.errmsg_h="Warning,error in the ARCH error function h(e,z): %s" %(err)
-			h_err=str(e)
-
+		return h(e, z, self.panel)
+	
+			
+def h(e,z,panel):
+	try:
+		d=dict()
+		exec(panel.h_def,globals(),d)
+		return d['h'](e,z)
+	except Exception as err:
+		raise RuntimeError("Warning,error in the ARCH error function h(e,z): %s" %(err))
+	
 
 def set_garch_arch(panel,args):
 	if c is None:

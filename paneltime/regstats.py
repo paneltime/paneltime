@@ -43,7 +43,7 @@ class statistics:
 			return	
 		self.coeficient_printout(sign_codes)
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(self.panel,self.ll,10)
-		self.norm_prob=stat.JB_normality_test(self.ll.e_st,self.panel)		
+		self.norm_prob=stat.JB_normality_test(self.ll.e_norm,self.panel)		
 
 		self.multicollinearity_check(self.G)
 

@@ -30,7 +30,7 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window=None,exe_tab=None,join_table=None,instruments=None):
+def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window,exe_tab,join_table,instruments):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
@@ -71,6 +71,7 @@ class input_class:
 		
 		settings.heteroscedasticity_factors=heteroscedasticity_factors
 		settings.instruments=instruments
+		tempstore.test_and_repair()
 		self.tempfile=tempstore.tempfile_manager()
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,settings)
 		self.descr=model_string

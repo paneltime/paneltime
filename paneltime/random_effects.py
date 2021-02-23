@@ -8,6 +8,10 @@ import functions as fu
 class re_obj:
 	def __init__(self,panel,group,T_i,T_i_count,fixed_random_eff):
 		"""Following Greene(2012) p. 413-414"""
+		if fixed_random_eff==0:
+			self.panel=panel
+			self.FE_RE=0
+			return
 		self.panel=panel
 		self.sigma_u=0
 		self.group=group
@@ -16,9 +20,9 @@ class re_obj:
 		self.FE_RE=fixed_random_eff
 	
 	def RE(self,x,recalc=True):
-		panel=self.panel
 		if self.FE_RE==0:
 			return np.zeros(x.shape)
+		panel=self.panel
 		if self.FE_RE==1:
 			self.xFE=self.FRE(x)
 			return self.xFE
@@ -43,6 +47,10 @@ class re_obj:
 	
 	def dRE(self,dx,x,vname):
 		"""Returns the first and second derivative of RE"""
+		if dx is None:
+			return None
+		if self.FE_RE==0:
+			return np.zeros(dx.shape)		
 		panel=self.panel
 		if not hasattr(self,'dxFE'):
 			self.dxFE=dict()
@@ -53,8 +61,6 @@ class re_obj:
 		
 		if dx is None:
 			return None
-		if self.FE_RE==0:
-			return np.zeros(dx.shape)
 		elif self.FE_RE==1:
 			return self.FRE(dx)	
 		if self.v_var==0:
@@ -79,11 +85,13 @@ class re_obj:
 	def ddRE(self,ddx,dx1,dx2,x,vname1,vname2):
 		"""Returns the first and second derivative of RE"""
 		panel=self.panel
+		if self.FE_RE==0:
+			return 0*panel.included[4]		
 		if dx1 is None or dx2 is None:
 			return None
 		(N,T,k)=dx1.shape
 		(N,T,m)=dx2.shape			
-		if self.FE_RE==0 or self.sigma_u<0:
+		if self.sigma_u<0:
 			return 0*panel.included[4]
 		elif self.FE_RE==1:
 			return self.FRE(ddx)	

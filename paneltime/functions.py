@@ -4,6 +4,7 @@ import sys
 sys.path.append(__file__.replace("paneltime\\functions.py",'build\\lib.win-amd64-3.5'))
 sys.path.append(__file__.replace("paneltime\\functions.py",'build\\lib.linux-x86_64-3.5'))
 import cfunctions as c
+from ctypes import Structure, windll, c_uint, sizeof, byref
 import numpy as np
 import sys
 import os
@@ -168,5 +169,16 @@ def append(arr,values):
 	for i in range(len(arr)):
 		arr[i].append(values[i])
 		
-
 		
+class LASTINPUTINFO(Structure):
+	_fields_ = [
+		('cbSize', c_uint),
+		('dwTime', c_uint),
+	]
+
+def get_idle_duration():
+	lastInputInfo = LASTINPUTINFO()
+	lastInputInfo.cbSize = sizeof(lastInputInfo)
+	windll.user32.GetLastInputInfo(byref(lastInputInfo))
+	millis = windll.kernel32.GetTickCount() - lastInputInfo.dwTime
+	return millis / 1000.0
