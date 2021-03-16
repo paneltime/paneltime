@@ -48,6 +48,36 @@ class simulation:
 		v_inv=np.exp(-lnv)
 
 		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included[3])	
+		
+		
+	def sim_new(self):
+		panel=self.panel
+		X=panel.XIV
+		matrices=set_garch_arch(panel,self.args.args_d)
+		if matrices is None:
+			return None		
+		
+		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
+		(N,T,k)=X.shape
+		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
+		u = panel.Y-cf.dot(X,self.args.args_d['beta'])
+		e = cf.dot(AMA_1AR,u)
+		e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included[3]
+		e_REsq = e_RE**2
+
+		lnv_ARMA = self.garch(GAR_1MA, e)
+		W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
+		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
+		#self.lnv0=lnv*1#debug
+		grp = self.variance_RE(e_REsq)#experimental
+		lnv+=grp
+		self.dlnv_pos=(lnv<100)*(lnv>-100)
+		lnv = np.maximum(np.minimum(lnv,100),-100)
+		v = np.exp(lnv)*panel.a[3]
+		v_inv = np.exp(-lnv)*panel.a[3]
+		
+		e_RE=e*v_inv**0.5
+	
 	
 	def sim(self):
 		args=self.args

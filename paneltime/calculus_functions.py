@@ -11,7 +11,7 @@ import debug
 def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=False):
 	de2_zeta_xi_RE,de2_zeta_xi 	= dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 	dd_re_variance 							= dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient)
-	d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE 	= dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient)
+	d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE 	= dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,dd_re_variance,u_gradient)
 	
 	return d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE
 
@@ -75,27 +75,27 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 	return dd_re_variance
 
 
-def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient):
+def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,dd_re_variance,u_gradient):
 	#GARCH: 
-	de_xi=g.__dict__['de_'+vname1]
-	de_zeta=g.__dict__['de_'+vname2]
-	if de_xi is None or de_zeta is None:
+	de_xi_RE=g.__dict__['de_'+vname1+'_RE']
+	de_zeta_RE=g.__dict__['de_'+vname2+'_RE']	
+	if de_xi_RE is None or de_zeta_RE is None:
 		return None, None
 	
-	(N,T,m)=de_xi.shape
-	(N,T,k)=de_zeta.shape
+	(N,T,m)=de_xi_RE.shape
+	(N,T,k)=de_zeta_RE.shape
 	incl=panel.included[4]
 	DLL_e=g.DLL_e.reshape(N,T,1,1)
 	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
-	if de2_zeta_xi is None:
-		de2_zeta_xi=0
+	if de2_zeta_xi_RE is None:
+		de2_zeta_xi_RE=0
 	d2lnv_zeta_xi=None
 	d2LL_d2lnv_zeta_xi=None
 	if panel.pqdkm[4]>0:
 		if u_gradient:
-			de_zeta=g.__dict__['de_'+vname2]
-		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi
-		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi.reshape((N,T,m,1)) * de_zeta.reshape((N,T,1,k))
+			de_zeta_RE=g.__dict__['de_'+vname2+'_RE']
+		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi_RE
+		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi_RE.reshape((N,T,m,1)) * de_zeta_RE.reshape((N,T,1,k))
 
 		d2lnv_zeta_xi_h = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		

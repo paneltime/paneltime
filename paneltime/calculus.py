@@ -44,9 +44,9 @@ class gradient:
 			dvRE_dx=dmeane2*panel.a[3]-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
 			groupeffect=ll.dlnvRE*dvRE_dx*panel.a[3]
 			
-		if self.panel.pqdkm[4]>0 and not d is None:
-			((N,T,k))=d.shape
-			x=cf.prod((ll.h_e_val,d))
+		if self.panel.pqdkm[4]>0 and not dRE is None: 			#eqs. 33-34
+			((N,T,k))=dRE.shape
+			x=cf.prod((ll.h_e_val,dRE))	
 			dlnv_sigma_G=cf.dot(ll.GAR_1MA,x)
 
 

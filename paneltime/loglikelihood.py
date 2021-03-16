@@ -75,7 +75,7 @@ class LL:
 		e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included[3]
 		e_REsq = e_RE**2
 
-		lnv_ARMA = self.garch(GAR_1MA, e)
+		lnv_ARMA = self.garch(GAR_1MA, e_RE)
 		W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		#self.lnv0=lnv*1#debug
