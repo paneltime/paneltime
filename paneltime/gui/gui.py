@@ -60,10 +60,10 @@ class window(tk.Tk):
 		sys.stderr=stdout_redir(self.output)
 		self.protocol("WM_DELETE_WINDOW", self.on_closing)
 		
-	def autosave(self):
-		if fu.get_idle_duration()>600:
+	def autosave(self,save=False):
+		if save:
 			self.data.save()
-		self.after(600000,self.autosave)
+		self.after(600000,lambda : self.autosave(True))
 	
 	def exec(self,source):
 		try:

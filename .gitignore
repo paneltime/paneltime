@@ -1,3 +1,6 @@
 *.egg-info
 *.csv
 *.pyc
+build/
+dist/
+paneltime.egg-info/

@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.1.13'
+version='1.1.16'
 
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages, Extension
@@ -37,7 +37,9 @@ with open(path.join(here, 'README.txt'), encoding='utf-8') as f:
 	long_description = f.read()
 try:
 	ext=[]
+	print("Building C-extension")
 	cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
+	print("Done building C-extension")
 	ext=[cfunc]
 except:
 	print("""Warning: 'cfunctions' library not compiled. This may affect performance. 
@@ -101,6 +103,7 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
     install_requires=['numpy >= 1.11','scipy','matplotlib','pymysql'],
+	extras_require={'linux':'gcc'},	
     #**************************************************************************<REMOVED
 
     # List additional groups of dependencies here (e.g. development
