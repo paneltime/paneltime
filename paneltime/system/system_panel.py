@@ -17,7 +17,7 @@ def posdef(a,da):
 	return list(range(a,a+da)),a+da
 
 class panel:
-	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,x_names,y_name,IDs_name,
+	def __init__(self,p,d,q,m,k,X,Y,IDs,timevar,X_names,Y_names,IDs_name,
 	             fixed_random_eff,time_fixed_eff,W,heteroscedasticity_factors,descr,dataframe,h,
 	             has_intercept,args,loadargs, user_constraints
 	             ):
@@ -38,7 +38,7 @@ class panel:
 		if not time_fixed_eff:
 			timevar=None
 
-		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,
+		self.initial_defs(h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,X_names,Y_names,
 		                  IDs_name,heteroscedasticity_factors,descr,fixed_random_eff,loadargs,user_constraints)
 		
 		self.arrayize(X, Y, W, IDs,timevar)
@@ -62,13 +62,13 @@ class panel:
 		self.N_t=self.N_t+(self.N_t<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
 		self.group_var_wght=1-1/np.maximum(self.T_i-1,1)
 		
-	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,x_names,y_name,IDs_name,
+	def initial_defs(self,h,X,Y,IDs,W,has_intercept,dataframe,p,q,m,k,d,X_names,Y_names,IDs_name,
 	                 heteroscedasticity_factors,descr,fixed_random_eff,loadargs):
 		self.has_intercept=has_intercept
 		self.dataframe=dataframe
 		self.lost_obs=np.max((p,q))+max((m,k))+d#+3
-		self.x_names=x_names
-		self.y_name=y_name
+		self.X_names=X_names
+		self.Y_names=Y_names
 		self.raw_X=X
 		self.raw_Y=Y
 		self.IDs_name=IDs_name

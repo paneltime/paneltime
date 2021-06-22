@@ -4,6 +4,7 @@ import sys
 import pickle
 import tempfile
 import os
+import zipfile
 
 tdr=tempfile.gettempdir()
 fname_args=os.path.join(tdr,'paneltime.args')
@@ -14,6 +15,7 @@ fname_image_temprec=os.path.join(tdr,'paneltime.tempimagerec')
 fname_window=os.path.join(tdr,'paneltime.win')
 fname_datasets=os.path.join(tdr,'paneltime.datasets')
 max_sessions=20
+file_name_list=[fname_args,fname_data,fname_key,fname_image_temprec,fname_window,fname_datasets]
 
 class args_archive:
 
@@ -88,16 +90,54 @@ def load_model(self):#for debugging
 		return (None,0,None,None)		
 
 def load_obj(fname):
-	try:
-		f=open(fname, "r+b")
-		u= pickle.Unpickler(f)
-		u=u.load()
-		f.close()
-		return u 
-	except Exception as e:
-		print(e)
-		return
+	for i in [0,1]:
+		try:
+			f=open(fname, "r+b")
+			u= pickle.Unpickler(f)
+			u=u.load()
+			f.close()
+			return u 
+		except Exception as e:
+			print(e)
+			recreate_from_zip()
+			if i==1:
+				return
 	
+def save_zip():
+	wdr=os.getcwd()
+	zip_file_path=os.path.join(wdr,'data.paneltime')
+	zip_arch=zipfile.ZipFile(zip_file_path,'w')	
+	for f in file_name_list:
+		if os.path.isfile(f):
+			zip_arch.write(f,os.path.basename(f))
+	for i in range(100):
+		f=os.path.join(tdr,f'paneltime {i}.jpg')
+		if os.path.isfile(f):
+			zip_arch.write(f,os.path.basename(f))
+	zip_arch.close()
+	
+def test_and_repair():
+	ok=True
+	for f in file_name_list:
+		ok=ok and os.path.isfile(f)
+		if not ok:
+			a=0
+	if not ok:
+		recreate_from_zip()
+	
+def recreate_from_zip():
+	wdr=os.getcwd()
+	zip_file_path=os.path.join(wdr,'data.paneltime')
+	try:
+		zip_arch=zipfile.ZipFile(zip_file_path,'r')
+	except:
+		return
+	for f in zip_arch.filelist:
+		zf=zip_arch.read(f.filename)
+		fl=open(os.path.join(tdr,f.filename),'wb')
+		fl.write(zf)
+		fl.close()
+	zip_arch.close()
 	
 def save_obj(fname,obj):
 	f=open(fname, "w+b")
@@ -171,6 +211,7 @@ class temp_image_manager:
 		a=0
 		raise RuntimeError("""You have over 10000 temporary image files. 
 		There must be some problems with deleting them from your temporary folder""")
+	
 
 				
 			

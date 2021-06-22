@@ -9,6 +9,8 @@ import numpy as np
 import stat_functions as stat
 from scipy import stats as scstats
 from gui import gui_functions as guif
+import os
+import functions as fu
 
 
 
@@ -55,7 +57,8 @@ class process_charts(ttk.Frame):
 			frm.columnconfigure(0,weight=1)
 			self.charts.append(tk.Label(frm,background='white'))
 			self.charts[i].grid(row=0,column=0)	
-			self.charts[i].path=self.img_tmp.TemporaryFile()
+			chart_path=os.path.join(os.getcwd(),'img',f'chart{i}.png')
+			self.charts[i].path=fu.obtain_fname(chart_path)# self.img_tmp.TemporaryFile()
 			guif.setbutton(frm, 'Save image', lambda: self.save(self.n_charts-i-1),bg='white').grid(row=1,column=0)
 			frm.grid(row=i+1)
 		
@@ -92,8 +95,8 @@ class process_charts(ttk.Frame):
 	def histogram(self,ll,subplot,f=None):
 		N,T,k=ll.panel.X.shape
 		fgr,axs=subplot
-		n=ll.e_st_centered.shape[2]
-		e=ll.e_st_centered[self.panel.included[2]].flatten()
+		n=ll.e_norm_centered.shape[2]
+		e=ll.e_norm_centered[self.panel.included[2]].flatten()
 		N=e.shape[0]
 		e=e.reshape((N,1))
 		
@@ -115,7 +118,7 @@ class process_charts(ttk.Frame):
 	def correlogram(self,ll,subplot,f=None):
 		fgr,axs=subplot
 		lags=20
-		rho=stat.correlogram(self.panel, ll.e_st_centered,lags)
+		rho=stat.correlogram(self.panel, ll.e_norm_centered,lags)
 		x=np.arange(lags+1)
 		axs.bar(x,rho,color='grey', width=0.5,label='correlogram')
 		name='Correlogram - residuals'
@@ -129,7 +132,7 @@ class process_charts(ttk.Frame):
 		N,T,k=ll.panel.X.shape
 		fgr,axs=subplot
 		lags=20
-		e2=ll.e_st_centered**2
+		e2=ll.e_norm_centered**2
 		e2=(e2-self.panel.mean(e2))*self.panel.included[3]
 		rho=stat.correlogram(self.panel, e2,lags)
 		x=np.arange(lags+1)

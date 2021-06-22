@@ -7,7 +7,7 @@ import functions as fu
 from shutil import copyfile
 
 class scatter_window(tk.Toplevel):
-	def __init__(self, master,x_names,y_name,X,Y,iconpath,tabs,height=400,width=1000):
+	def __init__(self, master,X_names,Y_names,X,Y,iconpath,tabs,height=400,width=1000):
 		tk.Toplevel.__init__(self, master,height=height,width=width,)	
 		self.title('Scatter charts')
 		self.geometry('%sx%s' %(width,height))
@@ -16,7 +16,7 @@ class scatter_window(tk.Toplevel):
 		self.columnconfigure(0,weight=1)			
 		
 		self.main_frame=scatter_charts(self,tabs)
-		self.main_frame.plot(x_names,y_name,X,Y)
+		self.main_frame.plot(X_names,Y_names,X,Y)
 		self.main_frame.grid(row=0,column=0)
 		
 		
@@ -52,7 +52,7 @@ class scatter_charts(tk.Frame):
 		self.xscrollbar.grid(row=2,column=0,sticky='ew')
 		self.canvas.grid(row=0,column=0,sticky=tk.NSEW)		
 		
-	def plot(self,x_names,y_name,X,Y):
+	def plot(self,X_names,Y_names,X,Y):
 		self.X=X
 		self.Y=Y		
 		self.n_plots=X.shape[1]
@@ -61,7 +61,7 @@ class scatter_charts(tk.Frame):
 		self.canvas.configure(scrollregion=(0,0,1000,self.n_rows*self.col_height))
 		self.wdgt_frame.configure(height=self.n_rows*self.col_height,width=1000)
 		self.wdgt_frame.grid(row=0,column=0,sticky=tk.NSEW)
-		self.plot_all(x_names,y_name)	
+		self.plot_all(X_names,Y_names)	
 		self.canvas.create_window(0,0,window=self.wdgt_frame,anchor='nw')
 		self.plotted=True
 		
@@ -71,7 +71,7 @@ class scatter_charts(tk.Frame):
 		
 
 
-	def plot_all(self,x_names,y_name):
+	def plot_all(self,X_names,Y_names):
 		self.charts=dict()
 		for i in range(self.n_rows):
 			self.wdgt_frame.rowconfigure(i,weight=1)	
@@ -82,11 +82,11 @@ class scatter_charts(tk.Frame):
 				i=row*self.n_cols+col
 				if i>=self.n_plots:
 					break
-				self.charts[(row,col)]=self.plot_scatter(i,x_names,y_name,bgframe=self.wdgt_frame)
+				self.charts[(row,col)]=self.plot_scatter(i,X_names,Y_names,bgframe=self.wdgt_frame)
 		for i in self.charts:			
 			self.charts[i].grid(row=i[0],column=i[1])	
 					
-	def plot_scatter(self,i,x_names,y_name,subplot=None,f=None,bgframe=None):
+	def plot_scatter(self,i,X_names,Y_names,subplot=None,f=None,bgframe=None):
 		if subplot is None:
 			subplot=self.subplot
 		fgr,axs=subplot
@@ -94,9 +94,9 @@ class scatter_charts(tk.Frame):
 		y=self.Y[:,0]
 		
 		axs.scatter(x,y, alpha=.1, s=10)
-		axs.yaxis.label.set_text(y_name[0])
-		axs.xaxis.label.set_text(x_names[i])
-		name=f'{x_names[i]}'
+		axs.yaxis.label.set_text(Y_names[0])
+		axs.xaxis.label.set_text(X_names[i])
+		name=f'{X_names[i]}'
 		axs.set_title(name)	
 		
 		if f is None:

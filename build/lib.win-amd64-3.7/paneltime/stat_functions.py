@@ -22,12 +22,14 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 		pass
 		#print( "non-real XX matrix")
 		
-	d=d.real;EVec=EVec.real
+	d=d.real
+	EVec=EVec.real
 	d=np.abs(d)**0.5+1e-100
 	MaxEv=np.max(d)  
 	fi=np.abs(EVec*EVec/((d*d).reshape((1,ub))+1E-200))
 	fiTot=np.sum(fi,1)
-	pi=fi.transpose()/fiTot.reshape((1,ub))
+	pi=fi/fiTot.reshape((ub,1))
+	pi=pi.T
 	CondIx=MaxEv/d
 	ind=np.argsort(CondIx)
 	pi=pi[ind]
@@ -60,7 +62,7 @@ def singular_elim(panel,X):
 	if max(cond_ix)<ci_threshold:
 		return keep,cond_ix
 	for cix in range(1,len(cond_ix)):
-		if (np.sum(pi[:,-cix]>0.5)>1) and cond_ix[-cix]>ci_threshold:
+		if (np.sum(pi[-cix]>0.5)>1) and cond_ix[-cix][0]>ci_threshold:
 			keep[pi[:,-cix]>0.5]=False
 	return keep,cond_ix
 
@@ -106,11 +108,11 @@ def adf_test(panel,ll,p):
 def goodness_of_fit(ll,standarized):
 	panel=ll.panel
 	if standarized:
-		s_res=panel.var(ll.e_st)
+		s_res=panel.var(ll.e_RE)
 		s_tot=panel.var(ll.Y_st)
 	else:
 		s_res=panel.var(ll.u)
-		s_tot=panel.var(ll.panel.Y)		
+		s_tot=panel.var(panel.Y)		
 	r_unexpl=s_res/s_tot
 	Rsq=1-r_unexpl
 	Rsqadj=1-r_unexpl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
@@ -122,7 +124,7 @@ def goodness_of_fit(ll,standarized):
 
 def breusch_godfrey_test(panel,ll, lags):
 	"""returns the probability that err_vec are not auto correlated""" 
-	e=ll.e_st_centered
+	e=ll.e_norm_centered
 	X=ll.XIV_st
 	N,T,k=X.shape
 	X_u=X[:,lags:T]
@@ -137,16 +139,27 @@ def breusch_godfrey_test(panel,ll, lags):
 	ProbNoAC=1.0-chisq_dist(BGStat,lags)
 	return ProbNoAC, rho, Rsq #The probability of no AC given H0 of AC.
 
-def correlogram(panel,e,lags):
+def DurbinWatson(panel,ll):
 	"""returns the probability that err_vec are not auto correlated""" 
+	X=ll.XIV_st
+	N,T,k=X.shape	
+	e=ll.e_norm_centered
+	c=panel.included[3][:,:-1]
+	DW=np.sum((c*(e[:,1:]-e[:,:-1]))**2)/np.sum((e*panel.included[3])**2)
+	return DW
+
+def correlogram(panel,e,lags,center=False):
 	N,T,k=e.shape	
 	v=panel.var(e)
+	if center:
+		e=e-panel.mean(e)
 	rho=np.zeros(lags+1)
 	rho[0]=1
 	for i in range(1,lags+1):
 		a=panel.T_i-i-1>0
-		df=np.sum(a*(panel.T_i-i-1))
-		rho[i]=np.sum(a*e[:,i:]*e[:,0:-i])/(v*df)
+		incl=(a*panel.included[3])[:,i:,:]
+		df=np.sum(incl)
+		rho[i]=np.sum(incl*e[:,i:]*e[:,0:-i])/(v*df)
 	return rho #The probability of no AC given H0 of AC.
 
 def chisq_dist(X,df):
@@ -240,6 +253,8 @@ def correl_2dim(X,Y=None,covar=False):
 	X_dev=X-np.mean(X,0)
 	Y_dev=Y-np.mean(Y,0)
 	cov=np.dot(X_dev.T,Y_dev)
+	if covar:
+		return cov/(len(X)-1)
 	stdx=np.sum(X_dev**2,0).reshape((1,k))**0.5
 	if single:
 		stdy=stdx
@@ -247,18 +262,16 @@ def correl_2dim(X,Y=None,covar=False):
 		stdy=np.sum(Y_dev**2,0).reshape((1,k))**0.5
 	std_matr=stdx.T*stdy
 	std_matr=std_matr+(std_matr==0)*1e-200
-	if covar:
-		return cov
 	corr=cov/std_matr
 	if corr.shape==(1,1): 
 		corr=corr[0][0]
 	return corr
 
-def get_singular_list(panel,X):
-	a,b=singular_elim(panel,X)
-	names=np.array(panel.input.x_names)[a==False]
+def get_singular_list(panel,XX):
+	a,b=singular_elim(panel,XX)
+	names=np.array(panel.input.X_names)[a==False]
 	idx=np.array(range(len(a)))[a==False]
-	s=', '.join([f"{names[i]}({idx[i]})" for i in range(len(idx))])	
+	s=', '.join([f"{names[i]}" for i in range(len(idx))])	
 	return s
 
 def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_se_lags=0):
@@ -278,7 +291,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
 		beta=np.linalg.solve(XX,XY)
 	except np.linalg.LinAlgError:
 		s=get_singular_list(panel,X)
-		raise RuntimeError("The following variables caused singularity and must be removed: "+s)
+		raise RuntimeError("The following variables caused singularity runtime and must be removed: "+s)
 	if return_rsq or return_e or robust_se_lags:
 		e=(Y-cf.dot(X,beta))*c
 		if return_rsq:
@@ -344,8 +357,11 @@ def robust_se(panel,L,hessin,XErr,nw_only=True):
 	of clusters and newy-west"""
 	w,W=sandwich_var(hessin,cf.dot(XErr,XErr))#whites
 	nw,NW=sandwich_var(hessin,newey_west_wghts(L,XErr))#newy-west
-	c0,C0=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 0, w))#cluster dim 1
-	c1,C1=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 1, w))#cluster dim 2
+	if panel.N>1:
+		c0,C0=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 0, w))#cluster dim 1
+		c1,C1=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 1, w))#cluster dim 2
+	else:
+		c0,c1,C0,C1=0,0,0*W,0*W
 	v=np.array([
 		nw,
 		nw+c0,

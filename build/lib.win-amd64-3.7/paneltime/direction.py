@@ -3,16 +3,15 @@
 import calculus
 import calculus_functions as cf
 import numpy as np
-import constraints as cnstr
+import constraints
 import loglikelihood as logl
 from scipy import stats
 import sys
 
 
 class direction:
-	def __init__(self,panel,mp,output_tab):
-		self.progress_bar=output_tab.progress_bar.set_progress
-		self.progress_bar_obj=output_tab.progress_bar
+	def __init__(self,panel,mp,channel):
+		self.progress_bar=channel.set_progress
 		self.gradient=calculus.gradient(panel,self.progress_bar)
 		self.hessian=calculus.hessian(panel,self.gradient,self.progress_bar)
 		self.panel=panel
@@ -21,57 +20,85 @@ class direction:
 		self.do_shocks=True
 		self.input_old=None
 		self.CI=0
-		self.I=np.diag(np.ones(panel.args.n_args))
 		self.mp=mp
 		self.dx_norm=None
+		self.dx=None
 		self.H=None
 		self.G=None
 		self.g=None
 		self.weak_mc_dict=[]
 		self.mc_problems=[]
+		self.H_correl_problem=False
+		self.singularity_problems=False
+		self.record=[]
+		self.Hess_correction=1
+		self.g_rec=[]
+		self.overflow_problem=False
 
 
-	def get(self,ll,its,msg):
+	def calculate(self,ll,its,msg,increment,lmbda,rev):
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
 		self.ll=ll
+		self.its=its
+		self.lmbda=lmbda
+		self.has_reversed_directions=rev
+		self.increment=increment
 		self.constr_old=self.constr
-		self.progress_bar_obj.suffix=msg
-		self.constr=cnstr.constraints(self.panel,ll.args.args_v)
-		cnstr.add_static_constraints(self.constr,self.panel,ll,its)			
-		self.calc_gradient(ll)
-		self.calc_hessian(ll,its)
+		self.constr=constraints.constraints(self,ll.args,its)
+		self.constr.add_static_constraints(self.overflow_problem)			
+		self.calc_gradient()
+		self.calc_hessian()
 		self.calc_HG_ratio()
 		
+		self.constr.add_dynamic_constraints(self)	
+		self.CI=self.constr.CI
+		self.H_correl_problem=self.constr.H_correl_problem	
+		self.mc_problems=self.constr.mc_problems
+		self.weak_mc_dict=self.constr.weak_mc_dict
 		
-		self.weak_mc_dict,self.CI,self.mc_problems=cnstr.add_dynamic_constraints(ll,self)	
+		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
 		
-		self.dx=solve(self.constr,self.H, self.g, ll.args.args_v)
-		#dx=solve_delete(self.constr,hessian, g, ll.args.args_v)	
-
-		
-		self.dx_norm=self.normalize(self.dx, ll.args.args_v)
+	def set(self,mp,args,constraints=None):
+		if not constraints is None:
+			self.constr.add_custom_constraints(constraints,
+										 cause='pedantic constraint',
+										 clear=True,args=args)
+		mp.send_dict_by_file({'constr':self.constr})
+		self.dx=solve(self.constr,self.H, self.g, args.args_v)
+		#self.dx=solve_delete(self.constr,self.H, self.g, args.args_v)	
+		self.dx_norm=self.normalize(self.dx)
 		try:
-			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, ll.args.args_v),ll.args.args_v)
+			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, args.args_v))
 		except:
 			self.dx_unconstr=self.dx_norm
-		self.progress_bar_obj.suffix=''
-
 	
 	def include(self,all=False):
 		include=np.array(self.panel.args.n_args*[True])
 		if all:
 			return include
-		include[list(self.constr.constraints)]=False
+		include[list(self.constr)]=False
 		return include	
 
-	def calc_gradient(self,ll):
+	def calc_gradient(self):
+		
+		ll=self.ll
 		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included[3]
 		dLL_lnv=-0.5*(self.panel.included[3]-(ll.e_REsq*ll.v_inv)*self.panel.included[3])	
 		dLL_lnv*=ll.dlnv_pos
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
-			
 		self.g,self.G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
+		if len(self.g_rec):
+			if not np.all(self.g_rec[-1]==self.g):
+				self.g_rec.append(self.g)
+		else:
+			self.g_rec.append(self.g)
+			
+		max_history=3
+		start=2
+		max_history=min((max_history+start,len(self.g_rec)+start))
+		self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
+		#self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
 		
 	
 	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
@@ -79,9 +106,9 @@ class direction:
 		self.f=[None,None]
 		self.f_F=[None,None]
 		for i in [0,1]:
-			if self.panel.input.tobit_active[i]:
+			if self.panel.tobit_active[i]:
 				I=self.panel.tobit_I[i]
-				self.f[i]=stats.norm.pdf(g[i]*ll.e_st[I])
+				self.f[i]=stats.norm.pdf(g[i]*ll.e_norm[I])
 				self.f_F[i]=(ll.F[i]!=0)*self.f[i]/(ll.F[i]+(ll.F[i]==0))
 				self.v_inv05=ll.v_inv**0.5
 				DLL_e[I]=g[i]*self.f_F[i]*self.v_inv05[I]
@@ -91,10 +118,10 @@ class direction:
 
 	def LL_hessian_tobit(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):
 		g=[1,-1]
-		if sum(self.panel.input.tobit_active)==0:
+		if sum(self.panel.tobit_active)==0:
 			return
 		self.f=[None,None]
-		e1s1=ll.e_st
+		e1s1=ll.e_norm
 		e2s2=ll.e_REsq*ll.v_inv
 		e3s3=e2s2*e1s1
 		e1s2=e1s1*self.v_inv05
@@ -102,15 +129,14 @@ class direction:
 		e2s3=e2s2*self.v_inv05
 		f_F=self.f_F
 		for i in [0,1]:
-			if self.panel.input.tobit_active[i]:
+			if self.panel.tobit_active[i]:
 				I=self.panel.tobit_I[i]
 				f_F2=self.f_F[i]**2
 				d2LL_de2[I]=      -(g[i]*f_F[i]*e1s3[I] + f_F2*ll.v_inv[I])
 				d2LL_dln_de[I] =   0.5*(f_F2*e1s2[I]  +  g[i]*f_F[i]*(e2s3[I]-self.v_inv05[I]))
 				d2LL_dln2[I] =     0.25*(f_F2*e2s2[I]  +  g[i]*f_F[i]*(e1s1[I]-e3s3[I]))
 
-	def calc_hessian(self,ll,its):
-		I=self.I
+	def calc_hessian(self):
 		ll=self.ll
 		d2LL_de2=-ll.v_inv*self.panel.included[3]
 		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included[3]
@@ -119,11 +145,46 @@ class direction:
 		d2LL_dln2*=ll.dlnv_pos
 		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		self.H=self.hessian.get(ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
-		if self.dx_norm is None:
-			m=10
-		else:
-			m=max(self.dx_norm**2)
-		self.H=(self.H+m*I*self.H)/(1+m)	
+		self.handle_overflow()
+		d=np.diag(self.H)
+		self.CI=constraints.decomposition(self.H)[0][-1]
+		det=np.linalg.det(self.H)
+		self.record.append([self.ll.LL,self.increment,self.CI,det]+list(d))
+
+		if (self.overflow_problem 
+			or np.any(d==0) 
+			#or (np.any(d>=0) and det>0) 
+			or (self.CI>1e+18 and self.increment<1)
+			or self.increment<1e-3
+			):
+			self.H=0.5*(self.H+np.diag(d))
+			self.progress_bar(text='Hessian diagonal doubled because it had positive or zero elements')
+
+	def handle_overflow(self):
+		self.overflow_problem=False
+		try:
+			self.H_det=np.linalg.det(self.H)
+			return
+		except (RuntimeWarning,OverflowError) as e:
+			self.overflow_problem=True
+			self.H=np.diag(np.ones(len(self.H)))
+			self.g[np.abs(self.g)>1e+30]=0
+			self.H_det=np.linalg.det(self.H)	
+			return
+		d=np.array(np.diag(self.H))	
+		log_d=np.log(np.abs(d))
+		if np.sum(log_d)<max_ln_sum:
+			self.H=np.diag(d)
+			self.H_det=np.linalg.det(self.H)
+			return
+		d_srtd=np.sort(np.abs(d))[::-1]
+		for i in range(len(d_srtd)-1):
+			d[np.abs(d)>=d_srtd[i]]=d_srtd[i+1]
+			if np.sum(np.log(np.abs(d)))<max_ln_sum:
+				self.H=np.diag(d)
+				self.H_det=np.linalg.det(self.H)				
+				return 
+
 	
 	def calc_HG_ratio(self):
 		self.H_g_approx=-cf.dot(self.G,self.G)
@@ -145,8 +206,8 @@ class direction:
 
 	
 	def init_ll(self,args):
-		self.constr=cnstr.constraints(self.panel,args)
-		cnstr.add_static_constraints(self.constr,self.panel,None,0)	
+		self.constr=constraints.constraints(self,args)
+		self.constr.add_static_constraints(False)			
 		try:
 			args=args.args_v
 		except:
@@ -155,9 +216,9 @@ class direction:
 			args[i]=self.constr.fixed[i].value
 		ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
 		if ll.LL is None:
-			if self.panel.settings.loadargs.value:
+			if self.panel.options.loadargs.value:
 				print("Initial arguments failed, attempting default OLS-arguments ...")
-				self.panel.args.set_init_args(default=True)
+				self.panel.args.set_init_args(self.panel,default=True)
 				ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
 				if ll.LL is None:
 					raise RuntimeError("OLS-arguments failed too, you should check the data")
@@ -168,7 +229,8 @@ class direction:
 				
 		return ll
 	
-	def normalize(self,dx,args_v):
+	def normalize(self,dx):
+		args_v=self.ll.args.args_v
 		dx_norm=(args_v!=0)*dx/(np.abs(args_v)+(args_v==0))
 		dx_norm=(args_v<1e-2)*dx+(args_v>=1e-2)*dx_norm	
 		return dx_norm	
@@ -214,7 +276,7 @@ def solve(constr,H, g, x):
 	if constr is None:
 		return -np.linalg.solve(H,g).flatten()	
 	n=len(H)
-	k=len(constr.constraints)
+	k=len(constr)
 	H=np.concatenate((H,np.zeros((n,k))),1)
 	H=np.concatenate((H,np.zeros((k,n+k))),0)
 	g=np.append(g,(k)*[0])
@@ -222,27 +284,27 @@ def solve(constr,H, g, x):
 	for i in range(k):
 		H[n+i,n+i]=1
 	j=0
-	xi=np.zeros(len(g))
+	dx=np.zeros(len(g))
 	for i in constr.fixed:
-		kuhn_tucker(constr.fixed[i],i,j,n, H, g, x,xi, recalc=False)
+		kuhn_tucker(constr.fixed[i],i,j,n, H, g, x,dx, recalc=False)
 		j+=1
-	xi=-np.linalg.solve(H,g).flatten()	
+	dx=-np.linalg.solve(H,g).flatten()	
 	OK=False
 	w=0
 	for r in range(50):
 		j2=j
 		
 		for i in constr.intervals:
-			xi=kuhn_tucker(constr.intervals[i],i,j2,n, H, g, x,xi)
+			dx=kuhn_tucker(constr.intervals[i],i,j2,n, H, g, x,dx)
 			j2+=1
-		OK=constr.within(x+xi[:n],False)
+		OK=constr.within(x+dx[:n],False)
 		if OK: 
 			break
 		if r==k+3:
 			#print('Unable to set constraints in direction calculation')
 			break
 
-	return xi[:n]
+	return dx[:n]
 
 
 def solve_delete(constr,H, g, x):
@@ -252,7 +314,7 @@ def solve_delete(constr,H, g, x):
 	if H is None:
 		return None,g*0
 	try:
-		list(constr.constraints.keys())[0]
+		list(constr.keys())[0]
 	except:
 		return -np.linalg.solve(H,g).flatten()	
 	
@@ -274,15 +336,15 @@ def solve_delete(constr,H, g, x):
 	
 	for i in range(k):
 		H[n+i,n+i]=1
-	xi=-np.linalg.solve(H,g).flatten()	
+	dx=-np.linalg.solve(H,g).flatten()	
 	xi_full=np.zeros(m)
 	OK=False
 	keys=list(constr.intervals.keys())
 	for r in range(50):		
 		for j in range(k):
 			key=keys[j]
-			xi=kuhn_tucker_del(constr,key,j,n, H, g, x,xi,delmap)
-		xi_full[idx]=xi[:n]
+			dx=kuhn_tucker_del(constr,key,j,n, H, g, x,dx,delmap)
+		xi_full[idx]=dx[:n]
 		OK=constr.within(x+xi_full,False)
 		if OK: 
 			break
@@ -290,18 +352,18 @@ def solve_delete(constr,H, g, x):
 			#print('Unable to set constraints in direction calculation')
 			break
 	xi_full=np.zeros(m)
-	xi_full[idx]=xi[:n]
+	xi_full[idx]=dx[:n]
 	return xi_full
 
-def kuhn_tucker_del(constr,key,j,n,H,g,x,xi,delmap,recalc=True):
+def kuhn_tucker_del(constr,key,j,n,H,g,x,dx,delmap,recalc=True):
 	q=None
 	c=constr.intervals[key]
 	i=delmap[key]
 	if not c.value is None:
 		q=-(c.value-x[i])
-	elif x[i]+xi[i]<c.min:
+	elif x[i]+dx[i]<c.min:
 		q=-(c.min-x[i])
-	elif x[i]+xi[i]>c.max:
+	elif x[i]+dx[i]>c.max:
 		q=-(c.max-x[i])
 	if q!=None:
 		H[i,n+j]=1
@@ -309,17 +371,17 @@ def kuhn_tucker_del(constr,key,j,n,H,g,x,xi,delmap,recalc=True):
 		H[n+j,n+j]=0
 		g[n+j]=q
 		if recalc:
-			xi=-np.linalg.solve(H,g).flatten()	
-	return xi
+			dx=-np.linalg.solve(H,g).flatten()	
+	return dx
 
 
-def kuhn_tucker(c,i,j,n,H,g,x,xi,recalc=True):
+def kuhn_tucker(c,i,j,n,H,g,x,dx,recalc=True):
 	q=None
 	if not c.value is None:
 		q=-(c.value-x[i])
-	elif x[i]+xi[i]<c.min:
+	elif x[i]+dx[i]<c.min:
 		q=-(c.min-x[i])
-	elif x[i]+xi[i]>c.max:
+	elif x[i]+dx[i]>c.max:
 		q=-(c.max-x[i])
 	if q!=None:
 		H[i,n+j]=1
@@ -327,7 +389,7 @@ def kuhn_tucker(c,i,j,n,H,g,x,xi,recalc=True):
 		H[n+j,n+j]=0
 		g[n+j]=q
 		if recalc:
-			xi=-np.linalg.solve(H,g).flatten()	
-	return xi
+			dx=-np.linalg.solve(H,g).flatten()	
+	return dx
 
 

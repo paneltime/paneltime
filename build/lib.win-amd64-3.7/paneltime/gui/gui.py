@@ -7,6 +7,7 @@ from multiprocessing import pool
 import sys
 from gui import gui_charts
 from gui import gui_functions as guif
+import functions as fu
 import os
 from gui import gui_buttons
 import functions as fu
@@ -50,6 +51,7 @@ class window(tk.Tk):
 		self.output = gui_scrolltext.ScrollText(self.frm_left,format_text=False)
 		self.output.grid(row=2, column=0,sticky=tk.NSEW)
 		self.data=datastore(self)
+		self.autosave()
 		self.right_tabs=gui_right_tabs.right_tab_widget(self)
 		self.main_tabs=gui_main_tabs.main_tabs(self)
 		self.locals=dict()
@@ -57,6 +59,11 @@ class window(tk.Tk):
 		sys.stdout=stdout_redir(self.output)
 		sys.stderr=stdout_redir(self.output)
 		self.protocol("WM_DELETE_WINDOW", self.on_closing)
+		
+	def autosave(self):
+		if fu.get_idle_duration()>600:
+			self.data.save()
+		self.after(600000,self.autosave)
 	
 	def exec(self,source):
 		try:
@@ -180,14 +187,9 @@ class window(tk.Tk):
 		self.quit()
 		
 	def on_closing(self):
-		self.data.save()
 		if self.right_tabs.preferences.options.save_datasets.value:
-			d=self.right_tabs.data_tree.datasets
-			for i in list(d.keys()):
-				for j in list(d[i].keys()):
-					if not type(d[i][j])==np.ndarray:
-						d[i].pop(j)
 			tempstore.save_obj(tempstore.fname_datasets,self.right_tabs.data_tree.datasets)		
+		self.data.save()
 		exit()			
 	
 	def get(self):
@@ -239,6 +241,7 @@ class datastore(dict):
 	def save(self):
 		self.win.main_tabs._tabs.save_all_in_temp()
 		tempstore.save_obj(tempstore.fname_window,dict(self))
+		tempstore.save_zip()
 
 				
 	

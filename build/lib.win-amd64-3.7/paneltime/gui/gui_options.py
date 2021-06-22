@@ -7,7 +7,6 @@ from gui import gui_scrolltext
 from gui import gui_script_handling
 import options as options_module
 import numpy as np
-NON_NUMERIC_TAG='|~|'
 font='Arial 9 '
 tags=dict()
 tags['option']={'fg':'#025714','bg':'#e6eaf0','font':font+'bold'}
@@ -31,35 +30,14 @@ class optionset(dict):
 		self.frames['default']=tk.Frame(self.main_frame,background='white')
 		self.default_msg=tk.Label(self.frames['default'],text='Please select a data set before editing options',background='white')
 		self.frames['default'].grid()
+		self.option_frame=options_item(self.frames['default'], self.win,self.default_options,'Options')
+		self.option_frame.register_validation()
 
-		
-		
-	def new_option_frame(self,dataset):
-		name=dataset.name
-		self.frames[name]=tk.Frame(self.main_frame,background='white')
-		self[name]=options_item(self.frames[name], self.win,dataset.options,self.default_options,True,dataset)
-		#self.frames[name].grid(row=0,column=0,sticky=tk.NSEW)
-		return self[name]
-		
-	def show_options(self,dataset):
-		for i in self.frames:
-			self.frames[i].grid_remove()
-		if dataset.name in self:
-			self[dataset.name].gridding()
 
-	
-	def delete(self,name):
-		try:
-			f=self.frames.pop(name)
-			f.grid_remove()
-			self.pop(name)
-		except:
-			return
 		
 def add_preferences_tab(tabs,window):
 	tabs.rowconfigure(0,weight=1)
 	tabs.columnconfigure(0,weight=1)		
-	
 	main_frame=tk.Frame(tabs,background='white')	
 	main_frame.rowconfigure(0,weight=1)
 	main_frame.columnconfigure(0,weight=1)			
@@ -67,7 +45,7 @@ def add_preferences_tab(tabs,window):
 	f=tk.Frame(main_frame,background='white')
 	opt=options_module.application_preferences()
 	opt_def=options_module.application_preferences()
-	o=options_item(f, window,opt , opt_def, False)
+	o=options_item(f, window,opt_def, 'Preferences')
 	return o,main_frame
 	
 	
@@ -75,12 +53,11 @@ def add_preferences_tab(tabs,window):
 
 class options_item(ttk.Treeview):
 		
-	def __init__(self,frame,window,options,default_options,link_to_script_edit,dataset=None):
+	def __init__(self,frame,window,options,heading):
 		self.win=window
-		self.link_to_script_edit=link_to_script_edit
 		self.options=options
-		self.dataset=dataset
-		self.default_options=default_options
+		self.frame_heading=heading
+		self.options=options
 		self.main_frame=frame
 		self.canvas=tk.Canvas(self.main_frame,background='white')
 		self.opt_frame=tk.Frame(self.main_frame,background='white')
@@ -97,19 +74,12 @@ class options_item(ttk.Treeview):
 		self.gridding()
 		
 		self.binding()
-		self.script=''
 		
 	def add_heading(self):
 		self.name_frame=tk.Frame(self.main_frame,background='white')
-		if self.dataset is None:
-			name_lbl=tk.Label(self.name_frame,text='General preferences',background='white')
-			name_lbl.grid()
-		else:
-			self.name=tk.StringVar(value=self.dataset.name)
-			name_lbl1=tk.Label(self.name_frame,text='Options for:',background='white')
-			name_lbl2=tk.Label(self.name_frame,textvariable=self.name,background='white',font='Arial 12 bold')	
-			name_lbl1.grid(row=0,column=0)
-			name_lbl2.grid(row=0,column=1)			
+		name_lbl=tk.Label(self.name_frame,text=self.frame_heading,background='white')
+		name_lbl.grid()
+			
 		
 	def get_script(self):
 		scripts=[]
@@ -214,9 +184,7 @@ class options_item(ttk.Treeview):
 			else:
 				self.item(item,open=True)
 			self.hide_all_frames()
-			self.tree[i][j].grid(row=1,column=0)
-		if self.link_to_script_edit:
-			gui_script_handling.edit_options_script(self)						
+			self.tree[i][j].grid(row=1,column=0)				
 			
 	def close_all(self):
 		for i in self.tree:
@@ -276,14 +244,12 @@ class option_frame(tk.Frame):
 		self.node_name=node_name
 		self.option=option
 		self.lines=dict()
-		desc=option.descr_for_vector_setting
-		if not type(option.description)==list:
-			desc+=option.description
+		desc=option.description
 		self.desc=tk.Label(self,text=desc,anchor='nw',justify=tk.LEFT,background='white')
 		self.desc.grid(row=0,column=0,sticky='nw')		
 		if option.is_inputlist:#
 			self.cntrl=tk.Frame(self,background='white')
-			for i in range(len(option.description)):
+			for i in range(len(option.descr_for_input_boxes)):
 				self.add_control_multi(option,self.cntrl,i)
 			self.cntrl.grid(row=1,column=0,sticky='nw')
 		elif not option.selection_var:
@@ -314,7 +280,7 @@ class option_frame(tk.Frame):
 		name=self.node_name+str(i)
 		line.columnconfigure(0,weight=1)
 		line.columnconfigure(1,weight=1)
-		desc=option.description[i]
+		desc=option.descr_for_input_boxes[i]
 		lbl=tk.Label(line,text=desc,anchor='nw',background='white')
 		self.entries[name]=managed_text(line,option.dtype,option,self.option_tree,self.node_name,i)
 		if option.value is None:
@@ -336,13 +302,8 @@ class update_options_scrolltext:
 		P=self.scrolltext.get_all()
 		ok=self.option.set(P)
 		if not ok:
-			return
-		if self.option_tree.link_to_script_edit:
-			try:
-				gui_script_handling.edit_options_script(self.option_tree)
-			except:
-				pass
-		return ok
+			return False
+		return True
 		
 		
 class managed_text(tk.Entry):
@@ -388,11 +349,6 @@ class managed_text(tk.Entry):
 			return
 		value=displayvalue(self.option.value)
 		self.option_tree.item(self.node_name,values=(value,self.option.dtype_str))
-		if self.option_tree.link_to_script_edit:
-			try:
-				gui_script_handling.edit_options_script(self.option_tree)
-			except:
-				pass
 		return ok
 	
 def displayvalue(value):

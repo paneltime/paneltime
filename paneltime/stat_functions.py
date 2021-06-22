@@ -269,7 +269,7 @@ def correl_2dim(X,Y=None,covar=False):
 
 def get_singular_list(panel,XX):
 	a,b=singular_elim(panel,XX)
-	names=np.array(panel.input.x_names)[a==False]
+	names=np.array(panel.input.X_names)[a==False]
 	idx=np.array(range(len(a)))[a==False]
 	s=', '.join([f"{names[i]}" for i in range(len(idx))])	
 	return s

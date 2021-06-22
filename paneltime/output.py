@@ -20,7 +20,7 @@ class output:
 		self.main_msg=main_msg
 		self.direction=direction
 		self.panel=self.ll.panel
-		self.lags=self.panel.settings.robustcov_lags_statistics.value[1]
+		self.lags=self.panel.options.robustcov_lags_statistics.value[1]
 		self.n_variables=self.panel.args.n_args
 		self.incr=0
 		self.d={'names':np.array(self.panel.args.names_v),
@@ -85,10 +85,10 @@ class output:
 		if hasattr(self.direction,'HG_ratio'):
 			s+=f"\tSingularity problems:  {str(self.direction.singularity_problems).ljust(7)}"
 		instr=''
-		if not self.panel.input.z_names is None:
-			instr=', '.join(self.panel.input.z_names[1:])
+		if not self.panel.input.Z_names is None:
+			instr=', '.join(self.panel.input.Z_names[1:])
 			instr+="\t"+self.main_msg
-		s+=f"\nDependent: {self.panel.input.y_name[0]}"
+		s+=f"\nDependent: {self.panel.input.Y_names[0]}"
 		n,T,k=self.panel.X.shape
 		s+=f"\tPanel: {self.panel.NT_before_loss} observations,{n} groups and {T} dates"
 		if len(instr):
@@ -130,23 +130,24 @@ class reg_table_obj(dict):
 	def __init__(self,output):
 		dict.__init__(self)
 		self.d=output.d
-		self.y_name=output.ll.panel.input.y_name
+		self.Y_names=output.ll.panel.input.Y_names
 		self.args=output.ll.args.dict_string
 		self.n_variables=output.n_variables
 		self.heading=output.heading_str
 		self.footer=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
 	
-	def table(self,n_digits,include_cols,brackets,fmt):
+	def table(self,n_digits,brackets,fmt,stacked, show_direction, show_constraints):
+		include_cols,llength=self.get_cols(stacked, show_direction, show_constraints)
 		if fmt=='INTERNAL':
 			self.X=None
-			return str(self.args)
+			return str(self.args),None
 		self.include_cols=include_cols
 		self.n_cols=len(include_cols)		
 		for a, l,is_string,name,neg,just,sep,default_digits in pr:		
 			self[a]=column(self.d,a,l, is_string, name, neg, just, sep, default_digits,self.n_variables)
 		self.X=self.output_matrix(n_digits,brackets)
-		s=format_table(self.X, include_cols,fmt,'Regression on ',self.heading,self.footer)
-		return s
+		s=format_table(self.X, include_cols,fmt,f'Regression on {self.Y_names[0]}',self.heading,self.footer)
+		return s,llength
 
 	
 	def output_matrix(self,digits,brackets):
@@ -198,6 +199,29 @@ class reg_table_obj(dict):
 			for j in range(self.n_variables):
 				X[j+1][i]=v[j]
 		return X	
+	
+
+	def get_cols(self,stacked,
+				show_direction,
+				show_constraints):
+		"prints a single regression"
+		dx_col=[]
+		llength=9
+		if show_direction:
+			dx_col=['dx_norm']
+		else:
+			llength-=1
+		mcoll_col=[]
+		if show_constraints:
+			mcoll_col=[ 'multicoll','assco','set_to', 'cause']
+		else:
+			llength-=2		
+		if stacked:
+			cols=['count','names', ['args','se_robust', 'sign_codes']] + dx_col + ['tstat', 'tsign'] + mcoll_col
+		else:
+			cols=['count','names', 'args','se_robust', 'sign_codes'] + dx_col + ['tstat', 'tsign'] + mcoll_col		
+		return cols,llength
+	
 	
 class column:
 	def __init__(self,d,a,l,is_string,name,neg,just,sep,default_digits,n_variables):		
@@ -340,28 +364,10 @@ class statistics:
 		self.norm_prob=stat.JB_normality_test(ll.e_norm,panel)
 		self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
 		self.df_str=self.gen_df_str(panel)	
-		self.instruments=panel.input.z_names[1:]
+		self.instruments=panel.input.Z_names[1:]
 		self.pqdkm=panel.pqdkm
 		
 	def gen_df_str(self,panel):
-		filterstr=""
-		a=""
-		if hasattr(panel.dataframe,'filter_results'):
-			f=list(panel.dataframe.filter_results)
-			f_d=panel.dataframe.filter_results
-			n=len(f)
-			ab=[chr(i) for i in range(66,66+n)]
-			c=chr(66+n)
-			a=""
-			for i in range(n):
-				a+=f"\n\t{ab[i]})\tObservations lost to\n\t\t{f[i][:33]}\t:\t{f_d[f[i]]}"
-			remain="(A-"+"-".join(ab)+f"-{c})"
-			orig_size=panel.dataframe.filter_original_sample_size
-		else:
-			remain="(A-B)"
-			c='B'
-			orig_size=panel.input.X.shape[0]
-			
 		summary=f"""
   SAMPLE SIZE SUMMARY:
 \tOriginal sample size\t\t:\t{orig_size}
@@ -374,8 +380,8 @@ class statistics:
   REMOVED GROUPS BECAUSE OF TOO FEW OBSERVATIONS:
 \tObservations per group lost because of
 \tA)\tARIMA/GARCH\t:\t{panel.lost_obs}
-\tB)\tMin # of obs in user preferences:\t:\t{panel.settings.min_group_df.value}
-\tMin # observations required (A+B)\t\t:\t{panel.lost_obs+panel.settings.min_group_df.value}\n
+\tB)\tMin # of obs in user preferences:\t:\t{panel.options.min_group_df.value}
+\tMin # observations required (A+B)\t\t:\t{panel.lost_obs+panel.options.min_group_df.value}\n
 \tGroups removed
 \tA)\tTotal # of groups\t:\t{len(panel.idincl)}
 \tB)\t# of groups removed\t:\t{sum(panel.idincl==False)}
@@ -383,19 +389,10 @@ class statistics:
 
 \t# of observations removed\t\t:\t{panel.input.X.shape[0]-panel.NT_before_loss}\n"""
 		
-		filterstr+=f"""
-  EFFECTS OF FILTERS:
-\tA)\tOriginal sample size\t:\t{orig_size}{a}
-\t{c})\tObservations lost because of
-\t\ttoo few observations in group\t:\t{panel.input.X.shape[0]-panel.NT_before_loss}\n
-\tRemaining {remain}\t\t:\t{panel.NT_before_loss}\n"""
-			
-	
 		
 		s=f"""
 {summary}
 {group_rmv}
-{filterstr}
   DEGREES OF FREEDOM:
 \tA)\tSample size\t:\t{panel.NT_before_loss}
 \tB)\tObservations lost to
@@ -491,7 +488,7 @@ def format_table(X,cols,fmt,heading,head,tail):
 	if fmt=='LATEX':
 		return head+format_latex(X,cols,heading)+tail
 	if fmt=='HTML':
-		return head+format_html(X,cols,heading)+tail	
+		return format_html(X,cols,heading,head)+tail	
 	
 	
 def format_normal(X,add_rows=[],cols=[]):
@@ -528,16 +525,19 @@ def format_latex(X,cols,heading):
 \end{table}"""
 	return p	
 
-def format_html(X,cols,heading):
+def format_html(X,cols,heading,head):
 	X=np.array(X,dtype='U128')
 	n,k=X.shape
-	p="""
-	<h1>%s</h1>
-	<table>""" %(heading,)
+	head=head.replace('\n','<br>')
+	head=head.replace('\t','&nbsp;'*4)
+	p=f"""
+	<h1>{heading}</h1>
+	<p>{head}</p>
+	<p><table>"""
 	p+='\t</tr><th>'+'\t</th><th>'.join(X[0])+'</th></tr>\n'
 	for i in range(1,len(X)):
 		p+='\t</tr><td>'+'\t</td><td>'.join(X[i])+'</td></tr>\n'
-	p+='</table>'
+	p+='</table></p>'
 	return p		
 	
 alphabet='abcdefghijklmnopqrstuvwxyz'
@@ -649,7 +649,7 @@ class join_table_column:
 		self.df=ll.panel.df
 		self.args=ll.args
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True)
-		self.instruments=panel.input.z_names[1:]
+		self.instruments=panel.input.Z_names[1:]
 		self.pqdkm=panel.pqdkm		
-		self.Y_name=panel.input.y_name[0]
+		self.Y_name=panel.input.Y_names
 		

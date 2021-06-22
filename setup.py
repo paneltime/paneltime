@@ -7,6 +7,8 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
+version='1.1.13'
+
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages, Extension
 # To use a consistent encoding
@@ -46,7 +48,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.1.12',
+    version=version,
 
     description='An efficient integrated panel and GARCH estimator',
     long_description=long_description,

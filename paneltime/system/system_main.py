@@ -36,7 +36,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 
-	(X,x_names,Y,y_name,
+	(X,X_names,Y,Y_names,
 	 IDs,IDs_name,timevar,time_name,
 	 W,heteroscedasticity_factors,has_intercept,
 	 mp,descr,args_archive, args,user_constraints)=setvars(loadargs,dataframe,model_string,
@@ -44,7 +44,7 @@ def execute(dataframe, model_string, p=1, d=0, q=1, m=1, k=1, IDs_name=None, tim
 	if loadargs==2:
 		settings.pqdkm.value=args_archive.pqdkm
 
-	results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name, time_name,
+	results_obj=results(p, d, q, m, k, X, Y, IDs,timevar,X_names,Y_names,IDs_name, time_name,
 	                                            group_fixed_random_eff, time_fixed_eff,W,heteroscedasticity_factors,descr,dataframe,h,has_intercept,
 	                                            args_archive,user_constraints,args,mp,window,loadargs)
 	return results_obj
@@ -56,7 +56,7 @@ def setvars(loadargs,dataframe,model_string,IDs_name,heteroscedasticity_factors,
 		
 	if type(model_string)==str:
 		model_string=[model_string]	
-	(X,x_names,Y,y_name,
+	(X,X_names,Y,Y_names,
 	 IDs,IDs_name,timevar,time_name,
 	 W,heteroscedasticity_factors,has_intercept)=model_parser.get_variables(dataframe,model_string,IDs_name,heteroscedasticity_factors,add_intercept,time_name)
 
@@ -69,19 +69,19 @@ def setvars(loadargs,dataframe,model_string,IDs_name,heteroscedasticity_factors,
 
 	args=args_archive.args
 	
-	return (X,x_names,Y,y_name,IDs,
+	return (X,X_names,Y,Y_names,IDs,
 	        IDs_name,timevar,time_name,
 	        W,heteroscedasticity_factors,has_intercept,
 	        mp,descr,args_archive,args,user_constraints)
 	
 	
 class results:
-	def __init__(self,p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,time_name,
+	def __init__(self,p, d, q, m, k, X, Y, IDs,timevar,X_names,Y_names,IDs_name,time_name,
 		                     group_fixed_random_eff, time_fixed_eff, W, heteroscedasticity_factors, descr, dataframe, h, has_intercept,
 		                     args_archive,user_constraints,
 		                     args,mp,window,loadargs):
 		print ("Creating panel")
-		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,timevar,x_names,y_name,IDs_name,group_fixed_random_eff, time_fixed_eff,W,
+		pnl=panel.panel(p, d, q, m, k, X, Y, IDs,timevar,X_names,Y_names,IDs_name,group_fixed_random_eff, time_fixed_eff,W,
 			            heteroscedasticity_factors,descr,dataframe,h,has_intercept,user_constraints,args,loadargs)
 		
 		direction=drctn.direction(pnl)

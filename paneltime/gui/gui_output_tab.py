@@ -13,6 +13,7 @@ import output
 import os
 import numpy as np
 from PIL import ImageGrab
+import communication
 
 #color map:
 bg_normal='white'
@@ -135,7 +136,7 @@ class output_tab(tk.Frame):
 			self.menu_buttons[caption]=menu_button(self, i, caption, cmd,captions_sub,click_type,group_type_sub,def_sub)	
 			i+=1
 
-		self.no_print_menues=['DIGITS','FORMAT']
+		self.no_print_menus=['DIGITS','FORMAT']
 		self.widget.grid(row=1,column=0,sticky=tk.NSEW)
 		self.tab.widget.grid(column=0,row=1,sticky=tk.NSEW)
 		self.scroll_text_frame.grid(column=0,row=0,sticky=tk.NSEW)
@@ -146,6 +147,7 @@ class output_tab(tk.Frame):
 	
 	
 	def get_stored(self):
+		"Obtains stored states of the buttons"
 		if len(self.window.data['menu_selections']['DIGITS'])==0:
 			return
 		d=self.window.data['menu_selections']['DIGITS']
@@ -158,64 +160,107 @@ class output_tab(tk.Frame):
 				self.menu_buttons['REGRESSION'].click_sub(caption,d[caption],False)
 			
 	def save(self):
-		#possible soloution, a popup window containing only the filled part of the text widget
+		"Saves the table part of the screen"
+		#Problem: don't save all if table is bigger than screen. possible soloution, a popup window containing only the filled part of the text widget
 		t=self.tab.widget.text_box
 		img=ImageGrab.grab((t.winfo_rootx(),t.winfo_rooty(),t.winfo_width(),t.winfo_height()))
 		img.save(os.path.join(self.window.data['current path'],'screen.png'))
 		
 	def data_doesnt_exist(self):
+		"tests if data exists"
 		if not hasattr(self.widget.stored_output_data,'data'):
 			return True
 		if self.widget.stored_output_data.data is None:
 			print("Data not found")
 			return True
 		return False
-	
+
+	def set_output_obj(self,ll, direction,main_msg):
+		"sets the outputobject in the output" 
+		self.output=output.output(ll, direction,main_msg)
+		
+		
+	def get_digits(self):
+		"returns the selected number of digits"
+		b=self.menu_buttons['DIGITS']
+		for i in b.buttons_sub:
+			if b.buttons_sub[i]['fg']==fg_normal:
+				try:
+					return int(i)
+				except:
+					return i
+
 	def get_active(self):
+		"returns the active menu button"
 		for i in self.menu_buttons:
 			b=self.menu_buttons[i]
 			if b.button_main['bg']==bg_selected:
-				return i
+				return i	
+		
+	#****UPDATE CALLS********
+		
+	def update_after_direction(self,direction,its):
+		self.output.update_after_direction(direction,its)
+		self.reg_table=self.output.reg_table()
+		self.print()
+		
+	def update_after_linesearch(self,direction,ll,incr):
+		self.output.update_after_linesearch(direction,ll,incr)
+		if self.menu_buttons['DIAGNOSTICS'].button_main['bg']==bg_selected:
+			self.statistics=self.output.statistics()
+			self.widget.stored_output_data.statistics=self.statistics
+		self.reg_table=self.output.reg_table()
+		self.widget.stored_output_data.reg_table=self.reg_table		
+		
+		if self.menu_buttons['DISTRIBUTION CHARTS'].button_main["fg"]==fg_normal:
+			self.charts.plot(ll)
+		self.widget.stored_output_data.chart_images=self.charts.get_images_for_storage()#for storing the editor
+		self.widget.stored_output_data.data=stored_data(ll,direction,self.reg_table)#for storing the editor		
+		self.print()
+		
+	#****END UPDATE CALLS********
+		
+
 			
-	def show_dist_charts(self):
-		b=self.menu_buttons['DISTRIBUTION CHARTS']
-		if b.button_main['fg']==fg_disabled:
-			self.charts.grid_forget()
+	#********MENU METHODS***********
+		
+	def print_regression(self):
+		if self.reg_table is None:
+			self.reg_table=self.widget.stored_output_data.reg_table
+			if self.reg_table is None:return
+		#for storing the editor
+		n=self.get_digits()
+		stacked=self.menu_buttons['REGRESSION'].buttons_sub["['FLAT', 'STACKED']"]['text']!='STACKED'
+		if self.menu_buttons['REGRESSION'].buttons_sub[ "['( )', '[ ]', 'disabled:( )']"]['fg']==fg_disabled:
+			bracket=''
+		elif self.menu_buttons['REGRESSION'].buttons_sub[ "['( )', '[ ]', 'disabled:( )']"]['text']=='[ ]':
+			bracket='['
 		else:
-			self.charts.grid(column=1,row=0,sticky=tk.NS)
-				
+			bracket='('
+		fmt=self.menu_buttons['REGRESSION'].buttons_sub["['NORMAL', 'HTML', 'LATEX', 'RTF', 'INTERNAL']"]['text']
+		joined=self.menu_buttons['REGRESSION'].buttons_sub["['JOINED', 'JOINED LONG', 'disabled:JOINED']"]
+		if joined['fg']!=fg_normal:
+			self.print_regression_single(n,stacked, bracket, fmt)
+		else:
+			self.join_tables(n, stacked,bracket, fmt,joined['text'])
 			
-		
-	def print_descriptive_statistics(self,exp=False):
+	def show_scatter(self):
 		if self.data_doesnt_exist():return
-		d=self.widget.stored_output_data.data
-		data=np.concatenate((d.Y,d.X),1)
-		if self.menu_buttons['DESCRIPTIVES'].buttons_sub['EXP']['fg']!=fg_disabled:
-			data=np.exp(data)
-		elif self.menu_buttons['DESCRIPTIVES'].buttons_sub['LN']['fg']!=fg_disabled:
-			data=np.log(data)
-		n,k=data.shape
-		stat=[['']+d.all_names]
-		for operator,name in [
-			(np.mean,'Mean:'),
-			(np.median,'Median:'),
-			(np.std,'S.D.:'),
-			(np.min,'Minimum:'),
-			(np.max,'Maximum:')]:
-			stat.append([name]+list(operator(data,0)))
-		stat_t=[]
-		for i in range(len(stat[0])):
-			stat_t.append([])
-			for j in range(len(stat)):
-				stat_t[i].append(stat[j][i])
-		s=self.format_table(stat_t)
-		formatting={'single_line':[1],
-					'double_line':[3],
-					'bold':[2],
-					'bold_col':2,
-					'line_length':[len(stat_t[0])]}			
-		self.print_text(s,stat_t,formatting)
-		
+		d=self.widget.stored_output_data.data	
+		#gui_scatter_charts.scatter_window(self,d.X_names,d.Y_name,d.X_st,d.Y_st,self.window.iconpath,self.tabs,700,1000)	
+		if self.menu_buttons['SCATTER PLOTS'].buttons_sub['NORMALIZED']['fg']!=fg_disabled:
+			if d.changed_since_last_scatter:
+				self.scatter_norm.plot(d.X_names,d.Y_name,d.X_st,d.Y_st)
+				d.changed_since_last_scatter=False
+			self.scatter_norm.grid(column=0,row=1,sticky=tk.NSEW)
+			self.scatter.grid_forget()
+		else:
+			if self.scatter.plotted==False:
+				self.scatter.plot(d.X_names,d.Y_name,d.X,d.Y)
+			self.scatter.grid(column=0,row=1,sticky=tk.NSEW)
+			self.scatter_norm.grid_forget()
+		self.tab.widget.grid_forget()
+
 	def print_correl(self):
 		if self.data_doesnt_exist():return
 		d=self.widget.stored_output_data.data
@@ -244,7 +289,7 @@ class output_tab(tk.Frame):
 		correl=[['']+names]
 		for i in range(len(c)):
 			correl.append([names[i]]+list(c[i]))
-		s=self.format_table(correl)
+		s=self.generate_table(correl)
 		formatting={'single_line':[1],
 					'double_line':[3],
 					'bold':[2],
@@ -252,74 +297,6 @@ class output_tab(tk.Frame):
 					'line_length':[len(c[0])]}		
 		self.print_text(s,correl,formatting)
 		
-	def format_table(self,tbl):
-		n=self.get_digits()
-		for i in range(len(tbl)):
-			for j in range(len(tbl[0])):
-				try:
-					tbl[i][j]=np.round(tbl[i][j],n)
-				except:
-					tbl[i][j]=tbl[i][j]
-		s="\n"
-		for i in range(len(tbl)):
-			if i in [1]:
-				s+='\n'			
-			s+="\t"
-			for j in range(len(tbl[0])):
-				s+=f"{tbl[i][j]}\t"	
-			s+="\n"
-		return s	
-		
-
-	def show_scatter(self):
-		if self.data_doesnt_exist():return
-		d=self.widget.stored_output_data.data	
-		#gui_scatter_charts.scatter_window(self,d.x_names,d.y_name,d.X_st,d.Y_st,self.window.iconpath,self.tabs,700,1000)	
-		if self.menu_buttons['SCATTER PLOTS'].buttons_sub['NORMALIZED']['fg']!=fg_disabled:
-			if d.changed_since_last_scatter:
-				self.scatter_norm.plot(d.x_names,d.y_name,d.X_st,d.Y_st)
-				d.changed_since_last_scatter=False
-			self.scatter_norm.grid(column=0,row=1,sticky=tk.NSEW)
-			self.scatter.grid_forget()
-		else:
-			if self.scatter.plotted==False:
-				self.scatter.plot(d.x_names,d.y_name,d.X,d.Y)
-			self.scatter.grid(column=0,row=1,sticky=tk.NSEW)
-			self.scatter_norm.grid_forget()
-		self.tab.widget.grid_forget()
-		
-		
-	def set_output_obj(self,ll, direction,main_msg):
-		self.output=output.output(ll, direction,main_msg)
-		
-	def update_after_direction(self,direction,its):
-		self.output.update_after_direction(direction,its)
-		self.reg_table=self.output.reg_table()
-		self.print()
-		
-	def update_after_linesearch(self,direction,ll,incr):
-		self.output.update_after_linesearch(direction,ll,incr)
-		if self.menu_buttons['DIAGNOSTICS'].button_main['bg']==bg_selected:
-			self.statistics=self.output.statistics()
-			self.widget.stored_output_data.statistics=self.statistics
-		self.reg_table=self.output.reg_table()
-		self.widget.stored_output_data.reg_table=self.reg_table		
-		
-		if self.menu_buttons['DISTRIBUTION CHARTS'].button_main["fg"]==fg_normal:
-			self.charts.plot(ll)
-		self.widget.stored_output_data.chart_images=self.charts.get_images_for_storage()#for storing the editor
-		self.widget.stored_output_data.data=stored_data(ll,direction,self.reg_table)#for storing the editor		
-		self.print()
-		
-	def get_digits(self):
-		b=self.menu_buttons['DIGITS']
-		for i in b.buttons_sub:
-			if b.buttons_sub[i]['fg']==fg_normal:
-				try:
-					return int(i)
-				except:
-					return i
-
 	def print_stats(self):
 		if self.statistics is None:#in that case, this is an active output tab
 			self.statistics=self.output.statistics()
@@ -348,30 +325,60 @@ class output_tab(tk.Frame):
 			s+=self.statistics.adf_str(n)			
 			self.print_text(s,formatting=formatting,tab_stops=tab_stops)	
 			
+	def print_descriptive_statistics(self,exp=False):
+		if self.data_doesnt_exist():return
+		d=self.widget.stored_output_data.data
+		data=np.concatenate((d.Y,d.X),1)
+		if self.menu_buttons['DESCRIPTIVES'].buttons_sub['EXP']['fg']!=fg_disabled:
+			data=np.exp(data)
+		elif self.menu_buttons['DESCRIPTIVES'].buttons_sub['LN']['fg']!=fg_disabled:
+			data=np.log(data)
+		n,k=data.shape
+		stat=[['']+d.all_names]
+		for operator,name in [
+			(np.mean,'Mean:'),
+			(np.median,'Median:'),
+			(np.std,'S.D.:'),
+			(np.min,'Minimum:'),
+			(np.max,'Maximum:')]:
+			stat.append([name]+list(operator(data,0)))
+		stat_t=[]
+		for i in range(len(stat[0])):
+			stat_t.append([])
+			for j in range(len(stat)):
+				stat_t[i].append(stat[j][i])
+		s=self.generate_table(stat_t)
+		formatting={'single_line':[1],
+					'double_line':[3],
+					'bold':[2],
+					'bold_col':2,
+					'line_length':[len(stat_t[0])]}			
+		self.print_text(s,stat_t,formatting)
+		
+		
+	def print(self):
+		for c in self.menu_buttons:
+			if not (c in self.no_print_menus):
+				b=self.menu_buttons[c]
+				if b.button_main['bg']==bg_selected:
+					b.command()
+					return
+				
+			
+	def show_dist_charts(self):
+		b=self.menu_buttons['DISTRIBUTION CHARTS']
+		if b.button_main['fg']==fg_disabled:
+			self.charts.grid_forget()
+		else:
+			self.charts.grid(column=1,row=0,sticky=tk.NS)
 
+
+	#********END MENU METHODS***********
 		
-		
-	def print_regression(self):
-		if self.reg_table is None:
-			self.reg_table=self.widget.stored_output_data.reg_table
-			if self.reg_table is None:return
-		#for storing the editor
-		n=self.get_digits()
-		stacked=self.menu_buttons['REGRESSION'].buttons_sub["['FLAT', 'STACKED']"]['text']!='STACKED'
-		if self.menu_buttons['REGRESSION'].buttons_sub[ "['( )', '[ ]', 'disabled:( )']"]['fg']==fg_disabled:
-			bracket=''
-		elif self.menu_buttons['REGRESSION'].buttons_sub[ "['( )', '[ ]', 'disabled:( )']"]['text']=='[ ]':
-			bracket='['
-		else:
-			bracket='('
-		fmt=self.menu_buttons['REGRESSION'].buttons_sub["['NORMAL', 'HTML', 'LATEX', 'RTF', 'INTERNAL']"]['text']
-		joined=self.menu_buttons['REGRESSION'].buttons_sub["['JOINED', 'JOINED LONG', 'disabled:JOINED']"]
-		if joined['fg']!=fg_normal:
-			self.print_regression_single(n,stacked, bracket, fmt)
-		else:
-			self.join_tables(n, stacked,bracket, fmt,joined['text'])
+	#******PRINTING METHODS*************
 		
 	def join_tables(self,digits,stacked,bracket,fmt,caption):
+		"prints a table joined with previoius results"
 		if self.widget.stored_output_data.data is None: return
 		t=self.widget.stored_output_data.data.join_table
 		if t is None:return
@@ -390,27 +397,13 @@ class output_tab(tk.Frame):
 				formatting['single_line']=[2,5+n*3,9+n*3]
 			else:
 				formatting['single_line']=[2,5+n,9+n]
-		self.print_text(s,X,formatting)
-		
-		
+		self.print_text(s,X,formatting)		
 		
 	def print_regression_single(self,digits,stacked,bracket,fmt):
-		dx_col=[]
-		llength=9
-		if self.menu_buttons['REGRESSION'].buttons_sub['DIR']['fg']==fg_normal:
-			dx_col=['dx_norm']
-		else:
-			llength-=1
-		mcoll_col=[]
-		if self.menu_buttons['REGRESSION'].buttons_sub['CNSTRNTS']['fg']==fg_normal:
-			mcoll_col=[ 'multicoll','assco','set_to', 'cause']
-		else:
-			llength-=2		
-		if stacked:
-			cols=['count','names', ['args','se_robust', 'sign_codes']] + dx_col + ['tstat', 'tsign'] + mcoll_col
-		else:
-			cols=['count','names', 'args','se_robust', 'sign_codes'] + dx_col + ['tstat', 'tsign'] + mcoll_col		
-		s=self.reg_table.table(digits,cols,bracket,fmt)
+		"prints a single regression"
+		s,llength=self.reg_table.table(digits,bracket,fmt,stacked,
+							   self.menu_buttons['REGRESSION'].buttons_sub['DIR']['fg']==fg_normal,
+							   self.menu_buttons['REGRESSION'].buttons_sub['CNSTRNTS']['fg']==fg_normal)
 		formatting=None
 		if fmt=='NORMAL':
 			formatting={'single_line':[5,9+self.reg_table.n_variables*3],
@@ -425,6 +418,7 @@ class output_tab(tk.Frame):
 		self.print_text(s,self.reg_table.X,formatting)
 		
 	def print_text(self,text,X=None,formatting=None,tab_stops="1c"):
+		"prints the argument text"
 		self.tab.widget.replace_all(text)	
 		if not formatting is None:
 			self.format_text_widget(formatting,text)	
@@ -437,16 +431,10 @@ class output_tab(tk.Frame):
 		self.scatter_norm.grid_forget()
 		self.tab.widget.grid(column=0,row=1,sticky=tk.NSEW)
 		
-	def print(self):
-		for c in self.menu_buttons:
-			if c in self.no_print_menues:
-				return
-			b=self.menu_buttons[c]
-			if b.button_main['bg']==bg_selected:
-				b.command()
-				return
+
 		
 	def format_text_widget(self,formatting,text):
+		"formats the output widget accoring to formatting"
 		t=self.tab.widget.text_box
 		t.configure(font=('Garamond', 12))
 		if 'line_length' in formatting:
@@ -475,9 +463,31 @@ class output_tab(tk.Frame):
 						ix=t.search('\t',ix0,f'{i}.end')
 						t.tag_add('bold_G',ix0 ,ix)
 						ix0=f"{i}.{int(ix.split('.')[1])+1}"
-
+						
+	def generate_table(self,tbl):
+		"generates a table as a text string from tbl"
+		n=self.get_digits()
+		for i in range(len(tbl)):
+			for j in range(len(tbl[0])):
+				try:
+					tbl[i][j]=np.round(tbl[i][j],n)
+				except:
+					tbl[i][j]=tbl[i][j]
+		s="\n"
+		for i in range(len(tbl)):
+			if i in [1]:
+				s+='\n'			
+			s+="\t"
+			for j in range(len(tbl[0])):
+				s+=f"{tbl[i][j]}\t"	
+			s+="\n"
+		return s	
+						
+		#******END PRINTING METHODS*************
+		
 		
 class menu_button:
+	"Class for the top level menu buttons"
 	def __init__(self,output_tab,loc,caption_main,command,captions_sub,click_type,group_type_sub,sub_enabled):
 		self.tab=output_tab	
 		self.loc=loc
@@ -705,10 +715,10 @@ class stored_data:
 			ll.standardize()
 		self.X_st=ll.X_st[panel.included[2]]
 		self.Y_st=ll.Y_st[panel.included[2]]		
-		self.x_names=panel.input.x_names
-		self.y_name=panel.input.y_name
+		self.X_names=panel.input.X_names
+		self.Y_name=panel.input.Y_names
 		self.args_names=panel.args.names_v
-		self.all_names=panel.input.y_name+list(panel.input.x_names)
+		self.all_names=panel.input.Y_names+list(panel.input.X_names)
 		self.args=ll.args
 		self.LL=ll.LL
 		self.changed_since_last_scatter=True
@@ -738,28 +748,29 @@ class stored_data:
 		
 class bar(tk.Frame):
 	def __init__(self,master,exe_tab):
-		self.n_lines=3
+
 		tk.Frame.__init__(self,master,background=bg_normal,height=75)
 		self.tab=master
 		self.exe_tab=exe_tab
 		self.text_frame=tk.Frame(self,bg=bg_normal)
 		self.text_frame_L=tk.Frame(self.text_frame,bg=bg_normal)
 		self.text_frame_R=tk.Frame(self.text_frame,bg=bg_normal)
+		self.text_frame_R.grid(row=0,column=1,sticky=tk.E)
 		self.task_text=tk.StringVar(self)
 		self.task_lbl=tk.Label(self.text_frame_R,textvariable=self.task_text,background=bg_normal,anchor='e', justify=tk.RIGHT,width=15)
-		self.text=[tk.StringVar(self) for i in range(self.n_lines)]
-		self.text_lbl=[tk.Label(self.text_frame_L,textvariable=self.text[i],background=bg_normal,anchor='w', justify=tk.LEFT) for i in range(self.n_lines)]
+		self.info_txt=tk.Text(self.text_frame_L,height=3,width=120,borderwidth = 0, highlightthickness = 0)
+		self.info_txt.grid(row=0,column=0,sticky=tk.EW)
+		self.info_txt.tag_configure('bold', font="Courier 10 bold")
 		
-		for i in range(self.n_lines):
-			self.text_lbl[i].grid(row=i,column=0,sticky=tk.W)
-			if i>0:
-				self.text_lbl[i].config(fg="grey")
+		
+		
 		self.task_lbl.grid(row=0,column=0,sticky=tk.E)
+		#self.text_frame_L.columnconfigure(0,weight=1)
 		self.text_frame.columnconfigure(0,weight=1)
-		self.text_frame.columnconfigure(1,weight=1)
+		
 		self.columnconfigure(0,weight=1)
-		self.text_frame_L.grid(row=0,column=0,sticky=tk.W)
-		self.text_frame_R.grid(row=0,column=1,sticky=tk.E)
+		
+		self.text_frame_L.grid(row=0,column=0,sticky=tk.EW)
 		self.text_frame.grid(row=0,column=0,sticky=tk.EW)
 		self.progress=tk.Frame(self,background='#9cff9d',height=5,width=0)
 		self.progress.grid(row=1,column=0,sticky=tk.W)
@@ -807,9 +818,15 @@ class bar(tk.Frame):
 		
 		
 	def print(self,text):
-		s=[self.text[i].get() for i in range(self.n_lines)]
-		self.text[0].set('> '+text)
-		[self.text[i].set(s[i-1]) for i in range(1,self.n_lines)]
+		n=max((int(self.info_txt.index('end').split('.')[0]),1))
+		text='>'+text
+		if len(self.info_txt.get('1.0','end')):
+			text='\n'+text
+		self.info_txt.insert('end',text)
+		self.info_txt.tag_add('bold',f'{n}.0' , f'{n}.end')
+		self.info_txt.tag_remove('bold','1.0' , f'{n-1}.end')
+		self.info_txt.see('end')
+
 				
 		
 		

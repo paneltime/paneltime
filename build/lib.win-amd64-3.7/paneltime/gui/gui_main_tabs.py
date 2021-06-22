@@ -35,7 +35,7 @@ class main_tabs(ttk.Notebook):
 	def main_tab_pressed(self,event):	
 		s=self.current_editor(0)
 		if s==ADD_EDITOR_NAME:
-			self._tabs.add_editor()
+			self._tabs.get_new_editor()
 		else:
 			self._tabs.selection_change(self.select())
 			
@@ -167,11 +167,23 @@ The following error occured in you script:
 		pass
 		
 	def tab_name_edited(self,event=None):
-		self.notebook.tab(self.frame,text=self.display_name.get())
+		new_name=self.display_name.get()
+		if new_name in self.tabs.names:
+			if not self.frame==self.tabs.names[new_name].frame:
+				print('Name all ready exist')
+				return
+		self_name=self.name
+		if (not self_name in self.tabs.names) or (new_name==self_name):
+			return
+		self.tabs.names[new_name]=self.tabs.names[self_name]
+		self.tabs.names.pop(self_name)
+		self.name=new_name
+		self.notebook.tab(self.frame,text=new_name)
 		
 	def save(self):
 		p=self.notebook.win.data['current path']
-		filename = filedialog.asksaveasfilename(initialdir=p,title="Save",
+		initname=self.display_name.get().replace('.txt','')+'.txt'
+		filename = filedialog.asksaveasfilename(initialdir=os.path.join(p,initname),title="Save",
 			filetypes = (("text", "*.txt"),("Rich Text Format", "*.rtf"),("Python file", "*.py")), defaultextension=True)
 		if not filename: 
 			return
@@ -182,6 +194,7 @@ The following error occured in you script:
 		file = open(filename,'w')
 		file.write(txt)
 		file.close()	
+		self.display_name.set(initname)
 	
 	def delete(self):
 		self.notebook.isdeleting=True
@@ -209,7 +222,7 @@ class tabs(dict):
 		self.names[name]=self[frame]
 		self.count+=1
 		self.sel_list.append(str(frame))
-		return self[frame]
+		return self[frame]	
 	
 	def save_all_in_temp(self):
 		win=self.notebook.win
@@ -230,7 +243,7 @@ class tabs(dict):
 	def load_all_from_temp(self):
 		editor_data=self.notebook.win.data.get('editor_data')
 		used_imgs=self.get_image_refs(editor_data)
-		self.img_tmp=tempstore.temp_image_manager(used_imgs)		
+		self.img_tmp=tempstore.temp_image_manager(used_imgs)	
 		if editor_data is None:
 			return
 		n=0
@@ -246,7 +259,7 @@ class tabs(dict):
 			except:
 				print(f'Could not add tab {i}')
 		if n==0:
-			self.add_editor('script').frame.focus()	
+			self.get_new_editor().frame.focus()	
 			
 	def get_image_refs(self,editor_data):
 		if editor_data is None:
@@ -262,7 +275,8 @@ class tabs(dict):
 				pass
 		return used_imgs
 						
-
+	def get_new_editor(self):
+		return self.add_editor('script.py',top_text="editor",top_color='#fcdbd9')
 			
 	def add_editor(self,name=None,text=None,format_text=True,top_text='',top_color=DEFAULT_GREY,path=None):
 		name=self.gen_name(name)
@@ -305,7 +319,7 @@ class tabs(dict):
 		dict.pop(self,k, d)
 		self.count-=1
 		if add_new:
-			self.add_editor('script')
+			self.get_new_editor()
 			self.count+=1
 		
 	def selection_change(self,selection):

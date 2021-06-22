@@ -40,7 +40,7 @@ class statistics:
 	
 	def correl_and_statistics(self,correl_vars,descriptives_vars):
 		panel=self.panel
-		x_names=[]
+		X_names=[]
 		X=[]
 		correl_X,correl_names=get_variables(panel, correl_vars)
 		descr_X,descr_names=get_variables(panel, descriptives_vars)
@@ -97,7 +97,7 @@ class statistics:
 		    ['no ac_prob:',self.no_ac_prob],
 		    ['norm prob:',self.norm_prob],
 		    ['ADF (dicky fuller):',self.adf_test, "1% and 5 % lower limit of confidence intervals, respectively"],
-		    ['Dependent:',panel.input.y_name]
+		    ['Dependent:',panel.input.Y_names]
 		    ])
 		
 		add_output(output,name_list,'Regression',self.reg_output)
@@ -130,10 +130,8 @@ class statistics:
 	
 
 def add_variable(name,panel,names,variables):
-	if '|~|' in name:
-		return
 	if name in panel.dataframe.keys():
-		d=panel.dataframe[name]
+		d=dict(panel.dataframe[[name]])
 		if type(d)==np.ndarray:
 			names.append(name)
 			variables.append(d)

@@ -23,6 +23,8 @@ import tempstore
 import os
 import direction as drctn
 from gui import gui
+import communication as comm
+import functions as fu
 
 
 warnings.filterwarnings('error')
@@ -30,55 +32,50 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,settings,window,exe_tab,join_table,instruments):
+def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,exe_tab,join_table,instruments):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
 		if exe_tab.isrunning==False:return
-	output_tab=None
-	if not window is None:
-		output_tab=window.main_tabs._tabs.add_output(exe_tab)
-	
-	datainput=input_class(dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors,join_table,instruments)
+	channel=comm.get_channel(window,exe_tab)
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,join_table,instruments)
 	if datainput.timevar is None:
 		print("No valid time variable defined. This is required")
 		return
-	if settings.loadARIMA_GARCH.value:
-		settings.pqdkm.value=datainput.args_archive.pqdkm
+	if options.loadARIMA_GARCH.value:
+		options.pqdkm.value=datainput.args_archive.pqdkm
 	mp,close_mp=mp_check(datainput,window)
-	results_obj=pqdkm_iteration(dataframe,datainput,settings,mp,output_tab)
+	results_obj=pqdkm_iteration(datainput,options,mp,channel)
 	if not mp is None and close_mp:
 		mp.quit()
 	return results_obj
 	
-def pqdkm_iteration(dataframe,datainput,settings,mp,output_tab):#allows for a list of different ARIMA settings, for example by starting with a more restrictive model
-	pqdkm=settings.pqdkm.value
+def pqdkm_iteration(datainput,options,mp,channel):#allows for a list of different ARIMA options, for example by starting with a more restrictive model
+	pqdkm=options.pqdkm.value
 	try:
 		a=pqdkm[0][0]
 	except:
 		pqdkm=[pqdkm]
 	for i in pqdkm:
 		print(f'pqdkm={i}')
-		results_obj=results(dataframe,datainput,settings,mp,output_tab,i)
+		results_obj=results(datainput,options,mp,channel,i)
 		if len(pqdkm)>1:
-			settings.loadargs.value=2
-			settings.loadARIMA_GARCH.value=True	
+			options.loadargs.value=2
+			options.loadARIMA_GARCH.value=True	
 	return results_obj
 	
 
 class input_class:
-	def __init__(self,dataframe,model_string,IDs_name,time_name, settings,heteroscedasticity_factors,join_table,instruments):
+	def __init__(self,dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,join_table,instruments):
 		
-		settings.heteroscedasticity_factors=heteroscedasticity_factors
-		settings.instruments=instruments
 		tempstore.test_and_repair()
 		self.tempfile=tempstore.tempfile_manager()
-		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,settings)
+		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,heteroscedasticity_factors,instruments,options)
 		self.descr=model_string
-		self.args_archive=tempstore.args_archive(self.descr, settings.loadargs.value)
+		self.args_archive=tempstore.args_archive(self.descr, options.loadargs.value)
 		self.args=None
-		if settings.arguments.value!="":
-			self.args=settings.arguments.value
+		if options.arguments.value!="":
+			self.args=options.arguments.value
 		self.join_table=join_table
 			
 		
@@ -86,14 +83,16 @@ class input_class:
 	
 	
 class results:
-	def __init__(self,dataframe,datainput,settings,mp,output_tab,pqdkm):
+	def __init__(self,datainput,options,mp,channel,pqdkm):
 		print ("Creating panel")
-		pnl=panel.panel(dataframe,datainput,settings,pqdkm)
-		direction=drctn.direction(pnl,mp,output_tab)	
+		pnl=panel.panel(datainput,options,pqdkm)
+		direction=drctn.direction(pnl,mp,channel)	
 		self.mp=mp
 		if not mp is None:
 			mp.send_dict_by_file({'panel':pnl})
-		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,output_tab)
+		log=[]
+		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,channel,log=log)
+		fu.savevar(log,'log_of_LL_process.csv')
 		self.panel=direction.panel
 
 

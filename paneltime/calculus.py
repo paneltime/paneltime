@@ -30,6 +30,9 @@ class gradient:
 			x=cf.dot(pre,x)
 		if sign<0:
 			x=x*sign
+		extr_value=1e+100
+		if np.max(np.abs(x))>extr_value:
+			x[np.abs(x)>extr_value]=np.sign(x[np.abs(x)>extr_value])*extr_value
 		return x*self.panel.a[3]
 
 	def garch_arima_grad(self,ll,d,dRE,varname):
@@ -37,19 +40,19 @@ class gradient:
 		groupeffect=0
 		groupeffect, dvRE_dx=None, None
 		d_input=0
-		if self.panel.N>1 and panel.settings.fixed_random_group_eff.value>0 and not dRE is None:
+		if self.panel.N>1 and panel.options.fixed_random_group_eff.value>0 and not dRE is None:
 			d_eRE_sq=2*ll.e_RE*dRE
 			dmeane2=panel.mean(d_eRE_sq,(0,1))
 			d_input=(d_eRE_sq-dmeane2)*panel.a[3]
 			dvRE_dx=dmeane2*panel.a[3]-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
 			groupeffect=ll.dlnvRE*dvRE_dx*panel.a[3]
-			
+		
+		if (not panel.options.fixed_random_in_GARCH.value) and (not panel.options.fixed_random_pre_ARIMA.value):
+			dRE=d
 		if self.panel.pqdkm[4]>0 and not dRE is None: 			#eqs. 33-34
 			((N,T,k))=dRE.shape
 			x=cf.prod((ll.h_e_val,dRE))	
 			dlnv_sigma_G=cf.dot(ll.GAR_1MA,x)
-
-
 			dlnv_e=cf.add((dlnv_sigma_G,groupeffect),True)
 			return dlnv_e,dlnv_sigma_G,dvRE_dx,d_input
 		else:
@@ -131,7 +134,7 @@ class gradient:
 		if not self.progress_bar(0.08,'','hessian'):return
 		if return_G:
 			return  g,G
-		else:
+		else:	
 			return g
 
 

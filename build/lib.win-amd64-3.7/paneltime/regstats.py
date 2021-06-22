@@ -43,7 +43,7 @@ class statistics:
 			return	
 		self.coeficient_printout(sign_codes)
 		self.no_ac_prob,rhos,RSqAC=stat.breusch_godfrey_test(self.panel,self.ll,10)
-		self.norm_prob=stat.JB_normality_test(self.ll.e_st,self.panel)		
+		self.norm_prob=stat.JB_normality_test(self.ll.e_norm,self.panel)		
 
 		self.multicollinearity_check(self.G)
 
@@ -58,7 +58,7 @@ class statistics:
 	
 	def correl_and_statistics(self,correl_vars,descriptives_vars):
 		panel=self.panel
-		x_names=[]
+		X_names=[]
 		X=[]
 		correl_X,correl_names=get_variables(panel, correl_vars)
 		descr_X,descr_names=get_variables(panel, descriptives_vars)
@@ -187,7 +187,7 @@ class statistics:
 		    ['no ac_prob:',self.no_ac_prob],
 		    ['norm prob:',self.norm_prob],
 		    ['ADF (dicky fuller):',self.adf_test, "1% and 5 % lower limit of confidence intervals, respectively"],
-		    ['Dependent:',panel.y_name]
+		    ['Dependent:',panel.Y_names]
 		    ])
 		
 		add_output(output,name_list,'Regression',self.reg_output)
@@ -214,7 +214,7 @@ class statistics:
 
 def add_variable(name,panel,names,variables):
 	if name in panel.dataframe.keys():
-		d=panel.dataframe[name]
+		d=dict(panel.dataframe[[name]])
 		if type(d)==np.ndarray:
 			names.append(name)
 			variables.append(d)
@@ -281,18 +281,18 @@ def get_sign_codes(tsign):
 
 def scatterplots(panel):
 	
-	x_names=panel.x_names
-	y_name=panel.y_name
+	X_names=panel.X_names
+	Y_names=panel.Y_names
 	X=panel.raw_X
 	Y=panel.raw_Y
 	N,k=X.shape
 	for i in range(k):
 		fgr=plt.figure()
 		plt.scatter(X[:,i],Y[:,0], alpha=.1, s=10)
-		plt.ylabel(y_name)
-		plt.xlabel(x_names[i])
-		xname=remove_illegal_signs(x_names[i])
-		fname=fu.obtain_fname('figures/%s-%s.png' %(y_name,xname))
+		plt.ylabel(Y_names)
+		plt.xlabel(X_names[i])
+		xname=remove_illegal_signs(X_names[i])
+		fname=fu.obtain_fname('figures/%s-%s.png' %(Y_names,xname))
 		fgr.savefig(fname)
 		plt.close()
 		

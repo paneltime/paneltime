@@ -17,8 +17,8 @@ import tempstore
 import time
 import paneltime as pt
 import numpy as np
+import pandas as pd
 
-NON_NUMERIC_TAG='|~|'
 font='Arial 9 '
 tags=dict()
 tags['dependent']={'fg':'#025714','bg':'#e6eaf0','font':font+'bold','short':'Y'}
@@ -37,7 +37,6 @@ class data_objects(ttk.Treeview):
 		s = ttk.Style()
 		s.configure('new.TFrame', background='white',font=font)	
 		
-		self.optionset=right_tabs.optionset
 		self.tabs=tabs
 		self.clicked=False
 		self.right_tabs=right_tabs
@@ -66,6 +65,7 @@ class data_objects(ttk.Treeview):
 		self.expand_time=time.perf_counter()
 		self.gui_sql=None
 		self.import_buttons=None
+
 		
 		
 	def add_buttons(self):
@@ -217,7 +217,7 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 		df=self.get_selected_dataset()
 		if df is None:
 			return
-		self.datasets.delete(df.name,self,self.optionset)
+		self.datasets.delete(df.name,self)
 		
 	def binding(self):
 		self.bind('<Double-Button-1>',self.tree_double_click)	
@@ -311,7 +311,6 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 		else:
 			self.expand_collaps_parent(item)
 		self.select_selected(dname+';')
-		self.optionset.show_options(self.datasets[dname])
 		self.clicked=False
 		self.right_tabs.sel_data.set(dname)
 		
@@ -364,7 +363,7 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 		short,vtype=self.item(parent_itm)['values']
 		s=tags[sel]['short']
 		if s=='Y' or s=='T' or s=='ID':#only one of these are allowed
-			for i in self.datasets[dname].nodes:
+			for i in self.datasets.desc[dname].nodes:
 				short_i,vtype_i=self.item(i)['values']
 				if s==short_i:
 					self.tag_configure_node(i,unselected)
@@ -377,7 +376,7 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 				
 	def close_all(self):
 		for i in self.datasets:
-			for j in self.datasets[i].nodes:
+			for j in self.datasets.desc[i].nodes:
 				self.item(j,open=False)
 				
 	def selected_item(self):
@@ -405,43 +404,24 @@ data=dict()\ndata['{f}']=load('{filename}')"""
 		short,dtype=self.item(name)['values']
 		self.item(name,values=(d['short'],dtype))
 		fname=name.split(';')[0]
-		self.datasets[fname].nodes[name]=d
+		self.datasets.desc[fname].nodes[name]=d
 
 def np_type(name,df):
 	x=df[name]
-	if NON_NUMERIC_TAG in name or name=='ones':
-		return 'na'
-	non_num=name+NON_NUMERIC_TAG
-	if non_num in df:
-		x=df[non_num]
-	nptype='na'
-	t=str(type(x)).replace(' ','')[7:][:-2]
-	if t.split('.')[0]=='numpy':
-		nptype=str(x.dtype)		
-	return nptype
+	return x.dtype
 
-class dataset(dict):
-	def __init__(self,datasets,name,data_dict,source,import_script,tree):
-		dict.__init__(self)
-		for i in data_dict:
-			if type(data_dict[i])==np.ndarray:
-				self[i]=data_dict[i]
+class dataset_description():
+	def __init__(self,datasets,name,source,import_script,tree):
 		self.source=source
 		self.data_import_script=import_script
 		self.exe_editor=None
 		self.edit_editor=None
 		self.script_editor=None
 		self.name=name
-		self.nodes=dict()
+		self.nodes={}
 		self.datasets=datasets
 		self.options=options_module.regression_options()
-		self.make_optionset(tree)
 		self.auto_update=True
-		
-	def make_optionset(self,tree):
-		optionset=tree.optionset
-		options=optionset.new_option_frame(self)	
-		options.register_validation()
 		
 		
 	def generate_exe_script(self,tree):
@@ -466,58 +446,21 @@ class dataset(dict):
 				args.append(f"{i}='{d[i]}'")
 		return f"execute({','.join(args)})"
 		
-	def get_exe_editor(self,main_tabs,return_frame_str=True,new_name=None):
-		if not new_name is None:
-			editor=main_tabs._tabs.add_editor(new_name+'.py',top_text=' exe',top_color='#fcdbd9')
-			return editor
-		editor=self.get_editor(self.exe_editor,main_tabs, "Model execution editor", '#fcdbd9',' exe')
-		self.exe_editor=str(editor.frame)
-		if not return_frame_str:
-			return editor
-		else:
-			return str(editor.frame)
-		return editor
-		
-	def get_data_editor(self,main_tabs,return_frame_str=True):
-		editor=self.get_editor(self.edit_editor,main_tabs, "Data editor", '#ddfcd9',' data')
-		self.edit_editor=str(editor.frame)
-		if not return_frame_str:
-			return editor
-		else:
-			return str(editor.frame)
-		return editor
-	
-	def get_script_editor(self,main_tabs,return_frame_str=True):
-		editor=self.get_editor(self.edit_editor,main_tabs, "Import script", '#6bff9c',' data')
-		editor.widget.replace_all(self.data_import_script)
-		self.script_editor=str(editor.frame)
-		if not return_frame_str:
-			return editor
-		else:
-			return str(editor.frame)
-		return editor	
-	
-	def get_editor(self,editor,main_tabs,top_text,top_color,suffix):
-		try:
-			editor=main_tabs._tabs[editor]
-		except:
-			editor=main_tabs._tabs.add_editor(self.name+suffix+'.py',top_text=top_text,top_color=top_color)
-		return editor
-
-		
+			
 class datasets(dict):
 	def __init__(self):
 		dict.__init__(self)
+		self.desc={}
 	
 	def add(self,tree,name,data_dict,source,import_script):
-		self[name]=dataset(self,name,data_dict, source, import_script,tree)
+		self[name]=pd.DataFrame(data_dict)
+		self.desc[name]=dataset_description(self,name, source, import_script,tree)
 		self.make_trees(tree)
 		tree.item(f"{name};",open=True)
 		
 	def make_trees(self,tree):
 		for i in self:
-			self.make_tree(i,tree)
-			self[i].make_optionset(tree)		
+			self.make_tree(i,tree)	
 			
 	def make_tree(self,name,tree):
 		try:
@@ -531,14 +474,14 @@ class datasets(dict):
 		tree.item(name+';',open=True)
 		self.expand_check=[True,name+';']
 		
-	def delete(self,item,tree,optionset):
+	def delete(self,item,tree):
 		self.__delitem__(item)
 		tree.delete(item+';')
-		optionset.delete(item)
 		
 				
 	def add_nodes(self,tree,name,d=None):
 		df=self[name]
+		nodes=self.desc[name].nodes
 		item_list=list(df)
 		if not d is None:
 			if len(item_list)!=len(d.keys()):
@@ -549,14 +492,13 @@ class datasets(dict):
 		n_tags=len(tags_list)
 		for j in item_list:
 			nptype=np_type(j,df)
-			if nptype!='na':
-				nodename=f"{name};{j}"
-				tree.insert(f"{name};",n, nodename, text=' '+j,values=('',nptype),tags=(nodename,), image=tree.var_img)	
-				if not nodename in df.nodes:
-					df.nodes[nodename]=unselected
-				tree.tag_configure_node(nodename,df.nodes[nodename])
-				for k in tags_list:
-					tree.insert(nodename,n_tags, f"{name};{j};{k}",values=('',tags[k]['short']), text=k,tags=(k,))
+			nodename=f"{name};{j}"
+			tree.insert(f"{name};",n, nodename, text=' '+j,values=('',nptype),tags=(nodename,), image=tree.var_img)	
+			if not nodename in nodes:
+				nodes[nodename]=unselected
+			tree.tag_configure_node(nodename,nodes[nodename])
+			for k in tags_list:
+				tree.insert(nodename,n_tags, f"{name};{j};{k}",values=('',tags[k]['short']), text=k,tags=(k,))
 	
 		
 

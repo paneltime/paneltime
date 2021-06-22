@@ -35,7 +35,7 @@ class main_tabs(ttk.Notebook):
 	def main_tab_pressed(self,event):	
 		s=self.current_editor(0)
 		if s==ADD_EDITOR_NAME:
-			self._tabs.add_editor()
+			self._tabs.get_new_editor()
 		else:
 			self._tabs.selection_change(self.select())
 			
@@ -222,7 +222,7 @@ class tabs(dict):
 		self.names[name]=self[frame]
 		self.count+=1
 		self.sel_list.append(str(frame))
-		return self[frame]
+		return self[frame]	
 	
 	def save_all_in_temp(self):
 		win=self.notebook.win
@@ -259,7 +259,7 @@ class tabs(dict):
 			except:
 				print(f'Could not add tab {i}')
 		if n==0:
-			self.add_editor('script').frame.focus()	
+			self.get_new_editor().frame.focus()	
 			
 	def get_image_refs(self,editor_data):
 		if editor_data is None:
@@ -275,7 +275,8 @@ class tabs(dict):
 				pass
 		return used_imgs
 						
-
+	def get_new_editor(self):
+		return self.add_editor('script.py',top_text="editor",top_color='#fcdbd9')
 			
 	def add_editor(self,name=None,text=None,format_text=True,top_text='',top_color=DEFAULT_GREY,path=None):
 		name=self.gen_name(name)
@@ -318,7 +319,7 @@ class tabs(dict):
 		dict.pop(self,k, d)
 		self.count-=1
 		if add_new:
-			self.add_editor('script')
+			self.get_new_editor()
 			self.count+=1
 		
 	def selection_change(self,selection):

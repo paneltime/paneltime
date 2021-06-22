@@ -12,27 +12,39 @@ from gui import gui
 import options as opt_module
 import inspect
 import numpy as np
+import loaddata
+import tempstore
+from pandas.api.types import is_numeric_dtype
+import pandas as pd
 
 #Todo: check that if works for no id and date variable
 #add argument for null model (default: Y~Intercept)
 #Put output functionality into the main_tabs object
 #improve abort functionality, including what happens when tab is closed
-#add durbin watson test
+#add durbin watson test:done
 #output seems to be called twice
 #change name of dataset (right click options?)
 #make it possibel to add data by running 
-#fix issues with "+"-button. 
+#fix location issues with "+"-button. 
 #create a right tab with a list of previoius estimates
 #create right tab with all previously used and closed tabs available
 #if one AR term is removed by reducing the AR order, the corespondig MA should be set to zero (if exists)
 #have a backup for saved regressions and exe
-
+#fix confusion about two option sets: one  in the starting environment and one in the data set
+#Have a save symbol on all main tabs, so that the user can select a temporary folder
+#save all files inside one zip-file
+#check if Y is among the X variables
+#add immediate command functionality to sub-pane
+#add keyboard run shortcut and run selection
+#make the dataset remember previoius alterations
+#Add warning for un-nice hessian (avoid variables with huge variations in denomination)
 
 
 
 
 def start():
 	"""Starts the GUI"""
+	tempstore.test_and_repair()
 	window=gui.window()
 	window.mainloop() 
 
@@ -57,11 +69,10 @@ def load_json(fname):
 		dataframe=main.loaddata.load_json(fname)
 	except FileNotFoundError:
 		raise RuntimeError("File %s not found" %(fname))
-	main.model_parser.modify_dataframe(dataframe)
 	return dataframe
 
 
-def load(fname,sep=None,dateformat='%Y-%m-%d',load_tmp_data=False):
+def load(fname,sep=None,load_tmp_data=False):
 
 	"""Loads data from file <fname>, asuming column separator <sep>.\n
 	Returns a dataframe (a dictionary of numpy column matrices).\n
@@ -71,39 +82,24 @@ def load(fname,sep=None,dateformat='%Y-%m-%d',load_tmp_data=False):
 		if (not dataframe==False) and (not dataframe is None):
 			return dataframe	
 	try:
-		dataframe=main.loaddata.load(fname,sep,dateformat,load_tmp_data)
+		dataframe=main.loaddata.load(fname,load_tmp_data,sep)
 	except FileNotFoundError:
 		raise RuntimeError("File %s not found" %(fname))
-	main.model_parser.modify_dataframe(dataframe)
 	return dataframe
 
-def load_SQL(conn,sql_string,dateformat='%Y-%m-%d',load_tmp_data=True):
+def load_SQL(conn,sql_string,load_tmp_data=True):
 
 	"""Loads data from an SQL server, using sql_string as query"""
 	if False:#detects previously loaded dataset in the environment
 		dataframe=main.indentify_dataset(globals(),sql_string)
 		if (not dataframe==False) and (not dataframe is None):
 			return dataframe
-	dataframe=main.loaddata.load_SQL(conn,sql_string,dateformat,load_tmp_data)
+	dataframe=main.loaddata.load_SQL(sql_string,conn,load_tmp_data)
 	#except RuntimeError as e:
 	#	raise RuntimeError(e)
-	main.model_parser.modify_dataframe(dataframe)
 	return dataframe
-
-def filter_data(data_filters,dataset):
-	d,n=main.model_parser.filter_data(data_filters,dataset)
-	return d
-
-def edit_data(edit_script,dataset):
-	exec(edit_script,dataset,dataset)
-	for i in list(dataset.keys()):
-		if not type(dataset[i])==np.ndarray:
-			dataset.pop(i)
-	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
-	if hasattr(dataset,'datasets') and (not window is None):
-		dataset.datasets.make_tree(dataset.name,window.right_tabs.data_tree)	
 		
+	
 options=opt_module.regression_options()
 preferences=opt_module.application_preferences()
 
-start()

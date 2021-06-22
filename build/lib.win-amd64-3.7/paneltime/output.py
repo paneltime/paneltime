@@ -9,16 +9,18 @@ from tkinter import font as tkfont
 import tkinter as tk
 import stat_functions as stat
 import functions as fu
+import model_parser
 STANDARD_LENGTH=8
 		
 
 
 class output:
-	def __init__(self,ll,direction):
+	def __init__(self,ll,direction,main_msg):
 		self.ll=ll
+		self.main_msg=main_msg
 		self.direction=direction
 		self.panel=self.ll.panel
-		self.lags=self.panel.settings.robustcov_lags_statistics.value[1]
+		self.lags=self.panel.options.robustcov_lags_statistics.value[1]
 		self.n_variables=self.panel.args.n_args
 		self.incr=0
 		self.d={'names':np.array(self.panel.args.names_v),
@@ -57,8 +59,9 @@ class output:
 			return
 		d['se_robust'],d['se_st']=sandwich(direction,self.lags)
 		d['se_robust_oposite'],d['se_st_oposite']=sandwich(direction,self.lags,oposite=True)
-		d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
-		d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
+		if not (d['se_st_oposite'] is None):
+			d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
+			d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
 		#d['se_robust_fullsize'],d['se_st_fullsize']=sandwich(direction,self.lags,resize=False)
 		no_nan=np.isnan(d['se_robust'])==False
 		valid=no_nan
@@ -74,16 +77,23 @@ class output:
 		n_CI=len(self.direction.mc_problems)
 		s=("LL:\t"+str(self.ll.LL)+'  ').ljust(23)
 		if not self.incr is None:
-			s+=("\tIncrement:\t"+ str(self.incr)).ljust(17)+"  "
+			s+=("\tIncrement:  "+ str(self.incr)).ljust(17)+"  "
 		else:
 			s+=str(" ").ljust(19)
 		if not self.iterations is None:
-			s+=f"\tIteration:\t{str(self.iterations).ljust(7)}\n"
-		instr='None'
-		if not self.panel.input.z_names is None:
-			instr=', '.join(self.panel.input.z_names[1:])
-		s+=f"Dependent: {self.panel.input.y_name[0]}\t\tInstruments: {instr}\n"
-		s+=f"Max condition index: {np.round(self.direction.CI)}\t ({n_CI} caseses where high CI was associated with more than one variable)\n"
+			s+=f"\tIteration:  {str(self.iterations).ljust(7)}"
+		if hasattr(self.direction,'HG_ratio'):
+			s+=f"\tSingularity problems:  {str(self.direction.singularity_problems).ljust(7)}"
+		instr=''
+		if not self.panel.input.Z_names is None:
+			instr=', '.join(self.panel.input.Z_names[1:])
+			instr+="\t"+self.main_msg
+		s+=f"\nDependent: {self.panel.input.Y_names[0]}"
+		n,T,k=self.panel.X.shape
+		s+=f"\tPanel: {self.panel.NT_before_loss} observations,{n} groups and {T} dates"
+		if len(instr):
+			s+=f"\t\tInstruments: {instr}"		
+		s+=f"\nMax condition index: {np.round(self.direction.CI)}\t ({n_CI} caseses where high CI was associated with more than one variable)\n"
 		self.heading_str=s		
 		
 	def constraints_printout(self):
@@ -120,23 +130,24 @@ class reg_table_obj(dict):
 	def __init__(self,output):
 		dict.__init__(self)
 		self.d=output.d
-		self.y_name=output.ll.panel.input.y_name
+		self.Y_names=output.ll.panel.input.Y_names
 		self.args=output.ll.args.dict_string
 		self.n_variables=output.n_variables
 		self.heading=output.heading_str
-		self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
+		self.footer=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
 	
-	def table(self,n_digits,include_cols,brackets,fmt):
+	def table(self,n_digits,brackets,fmt,stacked, show_direction, show_constraints):
+		include_cols,llength=self.get_cols(stacked, show_direction, show_constraints)
 		if fmt=='INTERNAL':
 			self.X=None
-			return str(self.args)
+			return str(self.args),None
 		self.include_cols=include_cols
 		self.n_cols=len(include_cols)		
 		for a, l,is_string,name,neg,just,sep,default_digits in pr:		
 			self[a]=column(self.d,a,l, is_string, name, neg, just, sep, default_digits,self.n_variables)
 		self.X=self.output_matrix(n_digits,brackets)
-		s=format_table(self.X, include_cols,fmt,'Regression on ',self.heading,self.footer)
-		return s
+		s=format_table(self.X, include_cols,fmt,f'Regression on {self.Y_names[0]}',self.heading,self.footer)
+		return s,llength
 
 	
 	def output_matrix(self,digits,brackets):
@@ -152,7 +163,7 @@ class reg_table_obj(dict):
 		
 		
 	def output_matrix_structured(self,digits,brackets):
-		X=[['']*self.n_cols for i in range(2*(self.n_variables+1))]
+		X=[['']*self.n_cols for i in range(3*(self.n_variables+1)-1)]
 		for i in range(self.n_cols):
 			a=self.include_cols[i]
 			if type(a)==list:
@@ -165,18 +176,18 @@ class reg_table_obj(dict):
 					X[0][i]=f"{h}/{self[a[1]].name}:"
 				v=[self[a[j]].values(digits) for j in range(3)]
 				for j in range(self.n_variables):
-					X[(j+1)*2][i]=v[0][j]
+					X[(j+1)*3-1][i]=v[0][j]
 					if brackets=='[':
-						X[(j+1)*2+1][i]=f"[{v[1][j]}]{v[2][j]}"
+						X[(j+1)*3][i]=f"[{v[1][j]}]{v[2][j]}"
 					elif brackets=='(':
-						X[(j+1)*2+1][i]=f"({v[1][j]}){v[2][j]}"
+						X[(j+1)*3][i]=f"({v[1][j]}){v[2][j]}"
 					else:
-						X[(j+1)*2+1][i]=f"{v[1][j]}{v[2][j]}"
+						X[(j+1)*3][i]=f"{v[1][j]}{v[2][j]}"
 			else:
 				X[0][i]=self[a].name
 				v=self[a].values(digits)
 				for j in range(self.n_variables):
-					X[(j+1)*2][i]=v[j]
+					X[(j+1)*3-1][i]=v[j]
 		return X	
 	
 	def output_matrix_flat(self,digits,brackets):
@@ -188,6 +199,29 @@ class reg_table_obj(dict):
 			for j in range(self.n_variables):
 				X[j+1][i]=v[j]
 		return X	
+	
+
+	def get_cols(self,stacked,
+				show_direction,
+				show_constraints):
+		"prints a single regression"
+		dx_col=[]
+		llength=9
+		if show_direction:
+			dx_col=['dx_norm']
+		else:
+			llength-=1
+		mcoll_col=[]
+		if show_constraints:
+			mcoll_col=[ 'multicoll','assco','set_to', 'cause']
+		else:
+			llength-=2		
+		if stacked:
+			cols=['count','names', ['args','se_robust', 'sign_codes']] + dx_col + ['tstat', 'tsign'] + mcoll_col
+		else:
+			cols=['count','names', 'args','se_robust', 'sign_codes'] + dx_col + ['tstat', 'tsign'] + mcoll_col		
+		return cols,llength
+	
 	
 class column:
 	def __init__(self,d,a,l,is_string,name,neg,just,sep,default_digits,n_variables):		
@@ -232,7 +266,11 @@ def sandwich(direction,lags,oposite=False,resize=True):
 	panel=direction.panel
 	H,G,idx=reduce_size(direction,oposite,resize)
 	lags=lags+panel.lost_obs
-	hessin=np.linalg.inv(-H)
+	try:
+		hessin=np.linalg.inv(-H)
+	except Exception as e:
+		print(e)
+		return None,None
 	se_robust,se,V=stat.robust_se(panel,lags,hessin,G)
 	se_robust,se,V=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True)
 	return se_robust,se
@@ -322,29 +360,14 @@ class statistics:
 		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True)	
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False)	
 		self.no_ac_prob,self.rhos,self.RSqAC=stat.breusch_godfrey_test(panel,ll,10)
-		self.norm_prob=stat.JB_normality_test(ll.e_st,panel)
+		self.DW=stat.DurbinWatson(panel,ll)
+		self.norm_prob=stat.JB_normality_test(ll.e_norm,panel)
 		self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
-		self.df_str=self.gen_df_str(panel)		
+		self.df_str=self.gen_df_str(panel)	
+		self.instruments=panel.input.Z_names[1:]
+		self.pqdkm=panel.pqdkm
 		
 	def gen_df_str(self,panel):
-		filterstr=""
-		a=""
-		if hasattr(panel.dataframe,'filter_results'):
-			f=list(panel.dataframe.filter_results)
-			f_d=panel.dataframe.filter_results
-			n=len(f)
-			ab=[chr(i) for i in range(66,66+n)]
-			c=chr(66+n)
-			a=""
-			for i in range(n):
-				a+=f"\n\t{ab[i]})\tObservations lost to\n\t\t{f[i][:33]}\t:\t{f_d[f[i]]}"
-			remain="(A-"+"-".join(ab)+f"-{c})"
-			orig_size=panel.dataframe.filter_original_sample_size
-		else:
-			remain="(A-B)"
-			c='B'
-			orig_size=panel.input.X.shape[0]
-			
 		summary=f"""
   SAMPLE SIZE SUMMARY:
 \tOriginal sample size\t\t:\t{orig_size}
@@ -357,8 +380,8 @@ class statistics:
   REMOVED GROUPS BECAUSE OF TOO FEW OBSERVATIONS:
 \tObservations per group lost because of
 \tA)\tARIMA/GARCH\t:\t{panel.lost_obs}
-\tB)\tMin # of obs in user preferences:\t:\t{panel.settings.min_group_df.value}
-\tMin # observations required (A+B)\t\t:\t{panel.lost_obs+panel.settings.min_group_df.value}\n
+\tB)\tMin # of obs in user preferences:\t:\t{panel.options.min_group_df.value}
+\tMin # observations required (A+B)\t\t:\t{panel.lost_obs+panel.options.min_group_df.value}\n
 \tGroups removed
 \tA)\tTotal # of groups\t:\t{len(panel.idincl)}
 \tB)\t# of groups removed\t:\t{sum(panel.idincl==False)}
@@ -366,19 +389,10 @@ class statistics:
 
 \t# of observations removed\t\t:\t{panel.input.X.shape[0]-panel.NT_before_loss}\n"""
 		
-		filterstr+=f"""
-  EFFECTS OF FILTERS:
-\tA)\tOriginal sample size\t:\t{orig_size}{a}
-\t{c})\tObservations lost because of
-\t\ttoo few observations in group\t:\t{panel.input.X.shape[0]-panel.NT_before_loss}\n
-\tRemaining {remain}\t\t:\t{panel.NT_before_loss}\n"""
-			
-	
 		
 		s=f"""
 {summary}
 {group_rmv}
-{filterstr}
   DEGREES OF FREEDOM:
 \tA)\tSample size\t:\t{panel.NT_before_loss}
 \tB)\tObservations lost to
@@ -401,7 +415,8 @@ class statistics:
 
 \t("Normalized data" means that the data is adjusted with the estimated ARIMA-GARCH parameters and random/fixed effects.)
 
-\tBreusch-Godfrey-test\t\t:\t{round(self.no_ac_prob*100,n_digits)}% \t(significance, probability of no auto correlation)
+\tDurbin-Watson statistic:\t\t:\t{round(self.DW,2)}
+\tBreusch-Godfrey test\t\t:\t{round(self.no_ac_prob*100,n_digits)}% \t(significance, probability of no auto correlation)
 \tJarque–Bera test for normality\t\t:\t{round(self.norm_prob*100,n_digits)}% \t(significance, probability of normality)\n
 """		
 
@@ -473,7 +488,7 @@ def format_table(X,cols,fmt,heading,head,tail):
 	if fmt=='LATEX':
 		return head+format_latex(X,cols,heading)+tail
 	if fmt=='HTML':
-		return head+format_html(X,cols,heading)+tail	
+		return format_html(X,cols,heading,head)+tail	
 	
 	
 def format_normal(X,add_rows=[],cols=[]):
@@ -481,12 +496,13 @@ def format_normal(X,add_rows=[],cols=[]):
 	if 'multicoll' in cols:
 		constr_pos=cols.index('multicoll')+1
 		p="\t"*constr_pos+"constraints:".center(38)
-	p+="\n\n"
+	p+="\n"
 	for i in range(len(X)):
 		p+='\n'*(i in add_rows)
+		p+='\n'
 		for j in range(len(X[0])):
 			p+=f'\t{X[i][j]}'
-		p+='\n'
+		
 	return p	
 
 
@@ -509,27 +525,36 @@ def format_latex(X,cols,heading):
 \end{table}"""
 	return p	
 
-def format_html(X,cols,heading):
+def format_html(X,cols,heading,head):
 	X=np.array(X,dtype='U128')
 	n,k=X.shape
-	p="""
-	<h1>%s</h1>
-	<table>""" %(heading,)
+	head=head.replace('\n','<br>')
+	head=head.replace('\t','&nbsp;'*4)
+	p=f"""
+	<h1>{heading}</h1>
+	<p>{head}</p>
+	<p><table>"""
 	p+='\t</tr><th>'+'\t</th><th>'.join(X[0])+'</th></tr>\n'
 	for i in range(1,len(X)):
 		p+='\t</tr><td>'+'\t</td><td>'.join(X[i])+'</td></tr>\n'
-	p+='</table>'
+	p+='</table></p>'
 	return p		
 	
 alphabet='abcdefghijklmnopqrstuvwxyz'
 class join_table(dict):
-	def __init__(self,args):
+	"""Creates a  joint table of several regressions with columns of the join_table_column class.
+	See join_table_column for data handling."""
+	def __init__(self,args,varnames=[]):
 		dict.__init__(self)
-		self.names_v=args.names_v
-		self.names_category_list=args.names_category_list
-		self.stats=dict()
-		self.LL=dict()
-		self.df=dict()
+		self.names_category_list=list([list(i) for i in args.names_category_list])#making a copy
+		k=0
+		for i in varnames:
+			if i in self.names_category_list[0]:
+				k=self.names_category_list[0].index(i)+1
+			else:
+				self.names_category_list[0].insert(k,i)
+				k+=1
+		self.names_v=[itm for s in self.names_category_list for itm in s]#flattening
 		
 	def update(self,ll,stats,desc):
 		if not desc in self:
@@ -537,22 +562,22 @@ class join_table(dict):
 				for j in ll.args.names_category_list[i]:
 					if not j in self.names_category_list[i]:
 						self.names_category_list[i].append(j)
-			self.names_v=[itm for s in self.names_category_list for itm in s]
+			self.names_v=[itm for s in self.names_category_list for itm in s]#flattening
 		self[desc]=join_table_column(stats, ll)
 		
 		
-	def make_table(self, stacked, brackets,digits):
+	def make_table(self, stacked, brackets,digits,caption):
 		keys=list(self.keys())
 		k=len(keys)
 		n=len(self.names_v)
 		if stacked:
-			X=[['' for j in range(2+k)] for i in range(4+2*n)]
+			X=[['' for j in range(2+k)] for i in range(4+3*n)]
 			for i in range(n):
-				X[2*i+1][1]=self.names_v[i]		
-				X[2*i+1][0]=i
-			X[1+2*n][1]='Log likelihood'
-			X[2+2*n][1]='Degrees of freedom'	
-			X[3+2*n][1]='Adjusted R-squared'	
+				X[3*i+1][1]=self.names_v[i]		
+				X[3*i+1][0]=i
+			X[1+3*n][1]='Log likelihood'
+			X[2+3*n][1]='Degrees of freedom'	
+			X[3+3*n][1]='Adjusted R-squared'	
 		else:
 			X=[['' for j in range(2+2*k)] for i in range(4+n)]
 			for i in range(n):
@@ -562,17 +587,31 @@ class join_table(dict):
 			X[2+n][1]='Degrees of freedom'		
 			X[3+n][1]='Adjusted R-squared'	
 		for i in range(k):
-			self.make_column(i,keys[i],X,stacked, brackets,digits)
-		s=format_normal(X,[1,(1+stacked)*n+1,(1+stacked)*n+4])+'\n'
-		s+=f"Significance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
-		for i in range(k):
-			s+=f"\n{alphabet[i]}: {keys[i]}"
+			self.make_column(i,keys[i],X,stacked, brackets,digits,caption)
+		s=format_normal(X,[1,(1+stacked*2)*n+1,(1+stacked*2)*n+4])
+		s+=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
+		max_mod=0
+		models=[]
+		for i in range(len(keys)):
+			key=self[keys[i]]
+			p,q,d,k,m=key.pqdkm
+			models.append(f"\n{alphabet[i]}: {keys[i]}")
+			max_mod=max(len(models[i]),max_mod)
+		for i in range(len(keys)):
+			s+=models[i].ljust(max_mod+2)
+			if len(key.instruments):
+				s+=f"\tInstruments: {key.instruments}"
+			s+=f"\tARIMA({p},{d},{q})-GARCH({k},{m})"
 		return s,X
 			
-	def make_column(self,col,key,X,stacked, brackets,digits):
+	def make_column(self,col,key,X,stacked, brackets,digits,caption):
 		if not 'se_robust' in self[key].stats:
 			return
-		X[0][(2-stacked)*col+2]='abcdefghijklmnopqrstuvwxyz'[col]
+		
+		if caption=='JOINED LONG':
+			X[0][(2-stacked)*col+2]+=f"{self[key].Y_name} ({alphabet[col]})"
+		else:
+			X[0][(2-stacked)*col+2]=alphabet[col]
 		n=len(self.names_v)
 		m=len(self[key].args.names_v)
 		ix=[self.names_v.index(i) for i in self[key].args.names_v]
@@ -587,11 +626,11 @@ class join_table(dict):
 			se_sgn=[f"{se[i]}{sgn[i]}" for i in range(m)]				
 		if stacked:
 			for i in range(m):
-				X[2*ix[i]+1][col+2]=args[i]
-				X[ix[i]*2+2][col+2]=se_sgn[i]
-			X[1+2*n][col+2]=fu.round_sign_digits(self[key].LL,5,1)
-			X[2+2*n][col+2]=self[key].df	
-			X[3+2*n][col+2]=f"{round(self[key].Rsqadj*100,1)}%"
+				X[3*ix[i]+1][col+2]=args[i]
+				X[3*ix[i]+2][col+2]=se_sgn[i]
+			X[1+3*n][col+2]=fu.round_sign_digits(self[key].LL,5,1)
+			X[2+3*n][col+2]=self[key].df	
+			X[3+3*n][col+2]=f"{round(self[key].Rsqadj*100,1)}%"
 		else:
 			for i in range(m):
 				X[ix[i]+1][col*2+2]=args[i]
@@ -604,9 +643,13 @@ class join_table(dict):
 
 class join_table_column:
 	def __init__(self,stats,ll):
+		panel=ll.panel
 		self.stats=stats
 		self.LL=ll.LL
 		self.df=ll.panel.df
 		self.args=ll.args
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False)
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True)
+		self.instruments=panel.input.Z_names[1:]
+		self.pqdkm=panel.pqdkm		
+		self.Y_name=panel.input.Y_names
 		

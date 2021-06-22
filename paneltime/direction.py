@@ -3,16 +3,15 @@
 import calculus
 import calculus_functions as cf
 import numpy as np
-import constraints as cnstr
+import constraints
 import loglikelihood as logl
 from scipy import stats
 import sys
 
 
 class direction:
-	def __init__(self,panel,mp,output_tab):
-		self.progress_bar=output_tab.progress_bar.set_progress
-		self.progress_bar_obj=output_tab.progress_bar
+	def __init__(self,panel,mp,channel):
+		self.progress_bar=channel.set_progress
 		self.gradient=calculus.gradient(panel,self.progress_bar)
 		self.hessian=calculus.hessian(panel,self.gradient,self.progress_bar)
 		self.panel=panel
@@ -30,58 +29,76 @@ class direction:
 		self.weak_mc_dict=[]
 		self.mc_problems=[]
 		self.H_correl_problem=False
-		self.bad_cond_count=1
 		self.singularity_problems=False
 		self.record=[]
 		self.Hess_correction=1
-		self.non_convergence=False
+		self.g_rec=[]
+		self.overflow_problem=False
 
 
-	def get(self,ll,its,msg,increment):
+	def calculate(self,ll,its,msg,increment,lmbda,rev):
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
 		self.ll=ll
 		self.its=its
+		self.lmbda=lmbda
+		self.has_reversed_directions=rev
 		self.increment=increment
 		self.constr_old=self.constr
-		self.constr=cnstr.constraints(self.panel,ll.args.args_v)
-		cnstr.add_static_constraints(self.constr,self.panel,ll,its)			
+		self.constr=constraints.constraints(self,ll.args,its)
+		self.constr.add_static_constraints(self.overflow_problem)			
 		self.calc_gradient()
 		self.calc_hessian()
 		self.calc_HG_ratio()
 		
+		self.constr.add_dynamic_constraints(self)	
+		self.CI=self.constr.CI
+		self.H_correl_problem=self.constr.H_correl_problem	
+		self.mc_problems=self.constr.mc_problems
+		self.weak_mc_dict=self.constr.weak_mc_dict
 		
-		(self.weak_mc_dict,
-		 self.CI,
-		 self.mc_problems,
-		 self.H_correl_problem)=cnstr.add_dynamic_constraints(ll,self)	
 		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
-		self.dx=solve(self.constr,self.H, self.g, ll.args.args_v)
-		#dx=solve_delete(self.constr,hessian, g, ll.args.args_v)	
-		self.handle_bad_condition()
 		
-		self.dx_norm=self.normalize(self.dx, ll.args.args_v)
+	def set(self,mp,args,constraints=None):
+		if not constraints is None:
+			self.constr.add_custom_constraints(constraints,
+										 cause='pedantic constraint',
+										 clear=True,args=args)
+		mp.send_dict_by_file({'constr':self.constr})
+		self.dx=solve(self.constr,self.H, self.g, args.args_v)
+		#self.dx=solve_delete(self.constr,self.H, self.g, args.args_v)	
+		self.dx_norm=self.normalize(self.dx)
 		try:
-			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, ll.args.args_v),ll.args.args_v)
+			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, args.args_v))
 		except:
 			self.dx_unconstr=self.dx_norm
-
 	
 	def include(self,all=False):
 		include=np.array(self.panel.args.n_args*[True])
 		if all:
 			return include
-		include[list(self.constr.constraints)]=False
+		include[list(self.constr)]=False
 		return include	
 
 	def calc_gradient(self):
+		
 		ll=self.ll
 		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included[3]
 		dLL_lnv=-0.5*(self.panel.included[3]-(ll.e_REsq*ll.v_inv)*self.panel.included[3])	
 		dLL_lnv*=ll.dlnv_pos
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
-			
 		self.g,self.G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
+		if len(self.g_rec):
+			if not np.all(self.g_rec[-1]==self.g):
+				self.g_rec.append(self.g)
+		else:
+			self.g_rec.append(self.g)
+			
+		max_history=3
+		start=2
+		max_history=min((max_history+start,len(self.g_rec)+start))
+		self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
+		#self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
 		
 	
 	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
@@ -128,34 +145,46 @@ class direction:
 		d2LL_dln2*=ll.dlnv_pos
 		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		self.H=self.hessian.get(ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+		self.handle_overflow()
 		d=np.diag(self.H)
-		self.CI=cnstr.decomposition(self.H)[0][-1]
-		self.record.append([self.ll.LL,self.increment,self.CI,np.linalg.det(self.H)]+list(d))
-		if ((np.any(d>=0) and  (np.linalg.det(self.H)>0)) or (self.CI>1e+18 and self.increment<5) or self.non_convergence) and self.Hess_correction:
+		self.CI=constraints.decomposition(self.H)[0][-1]
+		det=np.linalg.det(self.H)
+		self.record.append([self.ll.LL,self.increment,self.CI,det]+list(d))
+
+		if (self.overflow_problem 
+			or np.any(d==0) 
+			#or (np.any(d>=0) and det>0) 
+			or (self.CI>1e+18 and self.increment<1)
+			or self.increment<1e-3
+			):
 			self.H=0.5*(self.H+np.diag(d))
 			self.progress_bar(text='Hessian diagonal doubled because it had positive or zero elements')
-			if self.Hess_correction>4:
-				self.Hess_correction=0
-			else:
-				self.Hess_correction+=1
-		else:
-			self.Hess_correction=1
-		self.non_convergence=False
 
-
-
-
-
-		
-	def handle_bad_condition(self):
-		d=np.diag(self.H)
-		
-		return#didn't work to set the largest direction in abs.val to zero
-		if self.CI<1e+16 or self.bad_cond_count<3:
+	def handle_overflow(self):
+		self.overflow_problem=False
+		try:
+			self.H_det=np.linalg.det(self.H)
 			return
-		dx=np.abs(self.dx)
-		i=np.nonzero(dx==max(dx))[0][0]			
-		self.dx[i]=0
+		except (RuntimeWarning,OverflowError) as e:
+			self.overflow_problem=True
+			self.H=np.diag(np.ones(len(self.H)))
+			self.g[np.abs(self.g)>1e+30]=0
+			self.H_det=np.linalg.det(self.H)	
+			return
+		d=np.array(np.diag(self.H))	
+		log_d=np.log(np.abs(d))
+		if np.sum(log_d)<max_ln_sum:
+			self.H=np.diag(d)
+			self.H_det=np.linalg.det(self.H)
+			return
+		d_srtd=np.sort(np.abs(d))[::-1]
+		for i in range(len(d_srtd)-1):
+			d[np.abs(d)>=d_srtd[i]]=d_srtd[i+1]
+			if np.sum(np.log(np.abs(d)))<max_ln_sum:
+				self.H=np.diag(d)
+				self.H_det=np.linalg.det(self.H)				
+				return 
+
 	
 	def calc_HG_ratio(self):
 		self.H_g_approx=-cf.dot(self.G,self.G)
@@ -177,8 +206,8 @@ class direction:
 
 	
 	def init_ll(self,args):
-		self.constr=cnstr.constraints(self.panel,args)
-		cnstr.add_static_constraints(self.constr,self.panel,None,0)	
+		self.constr=constraints.constraints(self,args)
+		self.constr.add_static_constraints(False)			
 		try:
 			args=args.args_v
 		except:
@@ -187,9 +216,9 @@ class direction:
 			args[i]=self.constr.fixed[i].value
 		ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
 		if ll.LL is None:
-			if self.panel.settings.loadargs.value:
+			if self.panel.options.loadargs.value:
 				print("Initial arguments failed, attempting default OLS-arguments ...")
-				self.panel.args.set_init_args(default=True)
+				self.panel.args.set_init_args(self.panel,default=True)
 				ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
 				if ll.LL is None:
 					raise RuntimeError("OLS-arguments failed too, you should check the data")
@@ -200,7 +229,8 @@ class direction:
 				
 		return ll
 	
-	def normalize(self,dx,args_v):
+	def normalize(self,dx):
+		args_v=self.ll.args.args_v
 		dx_norm=(args_v!=0)*dx/(np.abs(args_v)+(args_v==0))
 		dx_norm=(args_v<1e-2)*dx+(args_v>=1e-2)*dx_norm	
 		return dx_norm	
@@ -246,7 +276,7 @@ def solve(constr,H, g, x):
 	if constr is None:
 		return -np.linalg.solve(H,g).flatten()	
 	n=len(H)
-	k=len(constr.constraints)
+	k=len(constr)
 	H=np.concatenate((H,np.zeros((n,k))),1)
 	H=np.concatenate((H,np.zeros((k,n+k))),0)
 	g=np.append(g,(k)*[0])
@@ -284,7 +314,7 @@ def solve_delete(constr,H, g, x):
 	if H is None:
 		return None,g*0
 	try:
-		list(constr.constraints.keys())[0]
+		list(constr.keys())[0]
 	except:
 		return -np.linalg.solve(H,g).flatten()	
 	

@@ -41,7 +41,7 @@ def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 
 
 def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
-	if panel.N<=1 or panel.settings.group_fixed_random_eff.value==0:
+	if panel.N<=1 or panel.options.fixed_random_group_eff.value==0:
 		return None
 	#voaltility RE:
 
@@ -60,8 +60,11 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 	
 	if not de2_zeta_xi_RE is None:
 		d_xi_input=g.__dict__['d_'+vname1+'_input']
-		d_zeta_input=g.__dict__['d_'+vname2+'_input']			
-		dd_e_RE_sq=(2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE)*incl
+		d_zeta_input=g.__dict__['d_'+vname2+'_input']		
+		try:
+			dd_e_RE_sq=(2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE)*incl
+		except:
+			dd_e_RE_sq=(2*de_xi_RE_r*de_zeta_RE_r+2*ll.e_RE.reshape(N,T,1,1)*de2_zeta_xi_RE)*incl
 		ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl
 		dd_input=(dd_e_RE_sq-ddmeane2)*incl
 
@@ -77,25 +80,35 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 
 def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient):
 	#GARCH: 
-	de_xi=g.__dict__['de_'+vname1]
-	de_zeta=g.__dict__['de_'+vname2]
-	if de_xi is None or de_zeta is None:
+	incl=panel.included[4]
+	(N,T,m)=g.__dict__['de_'+vname1].shape
+	(N,T,k)=g.__dict__['de_'+vname2].shape
+	DLL_e=g.DLL_e.reshape(N,T,1,1)
+	
+	d2LL_d2e_zeta_xi_RE=None
+	if not de2_zeta_xi_RE is None:	
+		d2LL_d2e_zeta_xi_RE = de2_zeta_xi_RE * DLL_e	
+		d2LL_d2e_zeta_xi_RE = np.sum(np.sum(d2LL_d2e_zeta_xi_RE*incl,0),0)
+		
+	RE_suffix='_RE'
+	if (not panel.options.fixed_random_in_GARCH.value) and (not panel.options.fixed_random_pre_ARIMA.value):
+		de2_zeta_xi_RE=de2_zeta_xi
+		RE_suffix=''
+	de_xi_RE=g.__dict__['de_'+vname1+RE_suffix]
+	de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]	
+	if de_xi_RE is None or de_zeta_RE is None:
 		return None, None
 	
-	(N,T,m)=de_xi.shape
-	(N,T,k)=de_zeta.shape
-	incl=panel.included[4]
-	DLL_e=g.DLL_e.reshape(N,T,1,1)
 	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
-	if de2_zeta_xi is None:
-		de2_zeta_xi=0
+	if de2_zeta_xi_RE is None:
+		de2_zeta_xi_RE=0
 	d2lnv_zeta_xi=None
 	d2LL_d2lnv_zeta_xi=None
 	if panel.pqdkm[4]>0:
 		if u_gradient:
-			de_zeta=g.__dict__['de_'+vname2]
-		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi
-		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi.reshape((N,T,m,1)) * de_zeta.reshape((N,T,1,k))
+			de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]
+		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi_RE
+		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi_RE.reshape((N,T,m,1)) * de_zeta_RE.reshape((N,T,1,k))
 
 		d2lnv_zeta_xi_h = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
@@ -107,10 +120,7 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 	elif not dd_re_variance is None:
 		d2LL_d2lnv_zeta_xi=np.sum(dd_re_variance*dLL_lnv*incl,(0,1))
 		
-	d2LL_d2e_zeta_xi_RE=None
-	if not de2_zeta_xi_RE is None:	
-		d2LL_d2e_zeta_xi_RE = de2_zeta_xi_RE * DLL_e	
-		d2LL_d2e_zeta_xi_RE = np.sum(np.sum(d2LL_d2e_zeta_xi_RE*incl,0),0)
+
 	
 	return d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE
 

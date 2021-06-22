@@ -187,14 +187,9 @@ class window(tk.Tk):
 		self.quit()
 		
 	def on_closing(self):
-		self.data.save()
 		if self.right_tabs.preferences.options.save_datasets.value:
-			d=self.right_tabs.data_tree.datasets
-			for i in list(d.keys()):
-				for j in list(d[i].keys()):
-					if not type(d[i][j])==np.ndarray:
-						d[i].pop(j)
 			tempstore.save_obj(tempstore.fname_datasets,self.right_tabs.data_tree.datasets)		
+		self.data.save()
 		exit()			
 	
 	def get(self):

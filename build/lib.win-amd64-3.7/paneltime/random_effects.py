@@ -8,6 +8,10 @@ import functions as fu
 class re_obj:
 	def __init__(self,panel,group,T_i,T_i_count,fixed_random_eff):
 		"""Following Greene(2012) p. 413-414"""
+		if fixed_random_eff==0:
+			self.panel=panel
+			self.FE_RE=0
+			return
 		self.panel=panel
 		self.sigma_u=0
 		self.group=group
@@ -16,9 +20,9 @@ class re_obj:
 		self.FE_RE=fixed_random_eff
 	
 	def RE(self,x,recalc=True):
-		panel=self.panel
 		if self.FE_RE==0:
 			return np.zeros(x.shape)
+		panel=self.panel
 		if self.FE_RE==1:
 			self.xFE=self.FRE(x)
 			return self.xFE
@@ -43,6 +47,10 @@ class re_obj:
 	
 	def dRE(self,dx,x,vname):
 		"""Returns the first and second derivative of RE"""
+		if dx is None:
+			return None
+		if self.FE_RE==0:
+			return np.zeros(dx.shape)		
 		panel=self.panel
 		if not hasattr(self,'dxFE'):
 			self.dxFE=dict()
@@ -53,8 +61,6 @@ class re_obj:
 		
 		if dx is None:
 			return None
-		if self.FE_RE==0:
-			return np.zeros(dx.shape)
 		elif self.FE_RE==1:
 			return self.FRE(dx)	
 		if self.v_var==0:
@@ -63,10 +69,7 @@ class re_obj:
 
 		self.dxFE[vname]=(dx+self.FRE(dx))*panel.included[3]
 		self.de_var[vname]=2*np.sum(np.sum(self.xFE*self.dxFE[vname],0),0)/(self.panel.NT*(1-self.avg_Tinv))
-		self.dv_var[vname]=(2*np.sum(np.sum(x*dx*panel.included[3],0),0)/self.panel.NT)-self.de_var[vname]
-		
-
-		
+		self.dv_var[vname]=(2*np.sum(np.sum(x*dx*panel.included[3],0),0)/self.panel.NT)-self.de_var[vname]		
 
 		self.dtheta_de_var=(-0.5*(1/self.e_var)*(1-self.theta)*self.theta*(2-self.theta))
 		self.dtheta_dv_var=(0.5*(self.T_i/self.e_var)*(1-self.theta)**3)
@@ -74,16 +77,20 @@ class re_obj:
 		self.dtheta[vname]*=(self.T_i>1)
 		dRE0=self.FRE(dx,self.theta)
 		dRE1=self.FRE(x,self.dtheta[vname])
-		return (dRE0+dRE1)*self.panel.included[3]
+		ret=(dRE0+dRE1)*self.panel.included[3]
+		remove_extreemes(ret)
+		return ret
 	
 	def ddRE(self,ddx,dx1,dx2,x,vname1,vname2):
 		"""Returns the first and second derivative of RE"""
 		panel=self.panel
+		if self.FE_RE==0:
+			return 0*panel.included[4]		
 		if dx1 is None or dx2 is None:
 			return None
 		(N,T,k)=dx1.shape
 		(N,T,m)=dx2.shape			
-		if self.FE_RE==0 or self.sigma_u<0:
+		if self.sigma_u<0:
 			return 0*panel.included[4]
 		elif self.FE_RE==1:
 			return self.FRE(ddx)	
@@ -109,16 +116,38 @@ class re_obj:
 		dtheta_de_var=self.dtheta_de_var.reshape(N,T,1,1)
 		dtheta_dv_var=self.dtheta_dv_var.reshape(N,T,1,1)
 		theta=self.theta.reshape(N,T,1,1)
-		T_i=self.T_i.reshape(N,T,1,1)
 		x=x.reshape(N,T,1,1)
 		incl=panel.included[4]
 		
-
-	
+		overflow=False
+		theta_args=dxFE1, dxFE2, ddxFE, dx1, dx2, x, ddx, dtheta_dv_var, theta, dtheta_de_var, de_var1, de_var2, dv_var1, dv_var2
 		try:
-			d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/(self.panel.NT*(1-self.avg_Tinv))
-		except:
-			d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/max(((self.panel.NT*(1-self.avg_Tinv)),1e-200))
+			ddtheta=self.calc_theta(*theta_args)
+		except (RuntimeWarning,OverflowError) as e:
+			print(e)
+			remove_extreemes(theta_args)
+			ddtheta=self.calc_theta(*theta_args)
+			overflow=True
+			
+		if hasdd:
+			dRE00=self.FRE(ddx,self.theta.reshape(N,T,1,1))
+		else:
+			dRE00=0
+		dRE01=self.FRE(dx1,self.dtheta[vname2].reshape(N,T,1,m),True)
+		dRE10=self.FRE(dx2,self.dtheta[vname1].reshape(N,T,k,1),True)
+		dRE11=self.FRE(x,ddtheta,True)
+		ret=(dRE00+dRE01+dRE10+dRE11)*panel.included[4]
+		if overflow:
+			remove_extreemes([ret])
+		return (dRE00+dRE01+dRE10+dRE11)*panel.included[4]
+	
+	def calc_theta(self,dxFE1,dxFE2,ddxFE,dx1,dx2,x,ddx,dtheta_dv_var,theta,dtheta_de_var,de_var1,de_var2,dv_var1,dv_var2):
+		incl=self.panel.included[4]
+		(N,T,k,_)=dx1.shape
+		(N,T,_,m)=dx2.shape		
+		T_i=self.T_i.reshape(N,T,1,1)
+		
+		d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/(self.panel.NT*(1-self.avg_Tinv))
 		d2v_var=(2*np.sum(np.sum((dx1*dx2+x*ddx)*incl,0),0)/self.panel.NT)-d2e_var	
 		
 		d2theta_d_e_v_var=-0.5*dtheta_dv_var*(1/self.e_var)*(3*(theta-2)*theta+2)
@@ -129,17 +158,10 @@ class re_obj:
 		ddtheta +=d2theta_d_e_v_var * (de_var1* dv_var2+dv_var1* de_var2)
 		ddtheta +=d2theta_d_v_var * dv_var1* dv_var2  
 		ddtheta +=dtheta_de_var*d2e_var+dtheta_dv_var*d2v_var
-		ddtheta*=(T_i>1)
-	
-		if hasdd:
-			dRE00=self.FRE(ddx,self.theta.reshape(N,T,1,1))
-		else:
-			dRE00=0
-		dRE01=self.FRE(dx1,self.dtheta[vname2].reshape(N,T,1,m),True)
-		dRE10=self.FRE(dx2,self.dtheta[vname1].reshape(N,T,k,1),True)
-		dRE11=self.FRE(x,ddtheta,True)
-		return (dRE00+dRE01+dRE10+dRE11)*panel.included[4]
-	
+		ddtheta*=(T_i>1)	
+		
+		return ddtheta
+		
 	def FRE(self,x,w=1,d=False):
 		if self.group:
 			return self.FRE_group(x,w,d)
@@ -157,8 +179,13 @@ class re_obj:
 		sum_x=np.sum(x*incl,1).reshape(s)
 		mean_x=sum_x/T_i
 		mean_x_all=np.sum(sum_x,0)/self.panel.NT
-		
-		dFE=w*(mean_x_all-mean_x)*incl#last product expands the T vector to a TxN matrix
+		try:
+			dFE=w*(mean_x_all-mean_x)*incl#last product expands the T vector to a TxN matrix
+		except (RuntimeWarning,OverflowError) as e:
+			print(e)
+			remove_extreemes([w])
+			dFE=w*(mean_x_all-mean_x)*incl#last product expands the T vector to a TxN matrix
+			remove_extreemes([dFE])
 		return dFE
 	
 	def FRE_time(self,x,w,d):
@@ -168,7 +195,13 @@ class re_obj:
 		if x is None:
 			return None
 		mean_x,mean_x_all,incl=mean_time(self.panel, x)
-		dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix
+		try:
+			dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix
+		except (RuntimeWarning,OverflowError) as e:
+			print(e)
+			remove_extreemes([w])
+			dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix		
+			remove_extreemes([dFE])
 		return dFE
 	
 def mean_time(panel,x,mean_dates=False):
@@ -214,3 +247,10 @@ def get_subshapes(panel,x,group):
 			s=(n_dates,1,k,m)
 			date_count=date_count.reshape((n_dates,1,1,1))	
 		return date_count,s			
+	
+	
+	
+def remove_extreemes(args,max_arg=1e+100):
+	for i in range(len(args)):
+		s=np.sign(args[i][np.abs(args[i])>max_arg])
+		args[i][np.abs(args[i])>max_arg]=s*max_arg

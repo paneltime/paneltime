@@ -34,9 +34,12 @@ class LL:
 		self.err_msg=''
 		self.errmsg_h=''
 		self.panel=panel
-		gfre=panel.settings.fixed_random_group_eff.value
-		tfre=panel.settings.fixed_random_time_eff.value
-		vfre=panel.settings.fixed_random_variance_eff.value
+		
+		#checking settings. If fixed_random_pre_ARIMA, the FE/RE is done on the data before LL
+		gfre=panel.options.fixed_random_group_eff.value
+		tfre=panel.options.fixed_random_time_eff.value
+		vfre=panel.options.fixed_random_variance_eff.value
+		
 		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
 		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
 		self.re_obj_i_v=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre*vfre)
@@ -44,7 +47,7 @@ class LL:
 		
 		self.LL_const=-0.5*np.log(2*np.pi)
 		
-		self.args=panel.args.create_args(args,constraints)
+		self.args=panel.args.create_args(args,panel,constraints)
 		self.h_err=""
 		self.LL=None
 		#self.LL=self.LL_calc()
@@ -71,11 +74,20 @@ class LL:
 		(N,T,k)=X.shape
 		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-cf.dot(X,self.args.args_d['beta'])
-		e = cf.dot(AMA_1AR,u)
-		e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included[3]
+		if panel.options.fixed_random_pre_ARIMA.value:
+			u_RE = (u+self.re_obj_i.RE(u)+self.re_obj_t.RE(u))*panel.included[3]
+			e_RE = cf.dot(AMA_1AR,u_RE)
+			e=e_RE
+			lnv_ARMA = self.garch(GAR_1MA, e_RE)
+		else:
+			u_RE=None
+			e = cf.dot(AMA_1AR,u)
+			e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included[3]
+			if panel.options.fixed_random_in_GARCH.value:
+				lnv_ARMA = self.garch(GAR_1MA, e_RE)
+			else:
+				lnv_ARMA = self.garch(GAR_1MA, e)			
 		e_REsq = e_RE**2
-
-		lnv_ARMA = self.garch(GAR_1MA, e_RE)
 		W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
 		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 		#self.lnv0=lnv*1#debug
@@ -91,12 +103,12 @@ class LL:
 		self.tobit(panel,LL)
 		LL=np.sum(LL*panel.included[3])
 			
-		self.add_variables(matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,e_REsq,v_inv)
+		self.add_variables(matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,u_RE,e_REsq,v_inv)
 		if abs(LL)>1e+100: 
 			return None				
 		return LL
 		
-	def add_variables(self,matrices,u,e,lnv_ARMA,lnv,v,W_omega,grp,e_RE,e_REsq,v_inv):
+	def add_variables(self,matrices,u,e,lnv_ARMA,lnv,v,W_omega,grp,e_RE,u_RE,e_REsq,v_inv):
 		self.v_inv05=v_inv**0.5
 		self.e_norm=e_RE*self.v_inv05	
 		self.e_norm_centered=(self.e_norm-self.panel.mean(self.e_norm))*self.panel.included[3]
@@ -106,6 +118,7 @@ class LL:
 		self.W_omega=W_omega
 		self.grp=grp
 		self.e_RE=e_RE
+		self.u_RE=u_RE
 		self.e_REsq=e_REsq
 		self.v_inv=v_inv
 
@@ -140,13 +153,12 @@ class LL:
 			return 0			
 	
 	def variance_RE(self,e_REsq):
-		#todo: currently experimental, needs to be redone. Does not work for fixed effects and very easily causes problems
-		#perhaps calcuate random effects from logs
+		"""Calculates random/fixed effects for variance."""
 		panel=self.panel
 		self.vRE,self.lnvRE,self.dlnvRE=panel.zeros[3],panel.zeros[3],panel.zeros[3]
 		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=panel.zeros[3],None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
-		if panel.settings.fixed_random_variance_eff.value==0:
+		if panel.options.fixed_random_variance_eff.value==0:
 			return panel.zeros[3]
 		if panel.N==0:
 			return None
@@ -154,8 +166,8 @@ class LL:
 		meane2=panel.mean(e_REsq)
 		self.varRE_input=(e_REsq-meane2)*panel.included[3]
 
-		mine2=1e-10
-		mu=0.00001
+		mine2=0
+		mu=panel.options.variance_RE_norm.value
 		self.vRE_i=self.re_obj_i_v.RE(self.varRE_input)
 		self.vRE_t=self.re_obj_t_v.RE(self.varRE_input)
 		self.meane2=meane2
@@ -167,7 +179,7 @@ class LL:
 		vREsmall=vRE[small]
 
 		lnvREbig=np.log(vREbig+mu)
-		lnvREsmall=(np.log(mine2+mu)-1+(1/(mine2+mu))*vREsmall)
+		lnvREsmall=(np.log(mine2+mu)+((vREsmall-mine2)/(mine2+mu)))
 		lnvRE,dlnvRE,ddlnvRE=np.zeros(vRE.shape),np.zeros(vRE.shape),np.zeros(vRE.shape)
 		
 		lnvRE[big]=lnvREbig
@@ -236,7 +248,7 @@ class LL:
 		r_unexpl=s_res/s_tot
 		Rsq=1-r_unexpl
 		Rsqadj=1-r_unexpl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
-		panel.args.create_null_ll()
+		panel.args.create_null_ll(self.panel)
 		LL_ratio_OLS=2*(self.LL-panel.args.LL_OLS)
 		LL_ratio=2*(self.LL-panel.args.LL_null)
 		return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS		

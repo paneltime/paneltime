@@ -9,6 +9,8 @@ import numpy as np
 import stat_functions as stat
 from scipy import stats as scstats
 from gui import gui_functions as guif
+import os
+import functions as fu
 
 
 
@@ -55,7 +57,8 @@ class process_charts(ttk.Frame):
 			frm.columnconfigure(0,weight=1)
 			self.charts.append(tk.Label(frm,background='white'))
 			self.charts[i].grid(row=0,column=0)	
-			self.charts[i].path=self.img_tmp.TemporaryFile()
+			chart_path=os.path.join(os.getcwd(),'img',f'chart{i}.png')
+			self.charts[i].path=fu.obtain_fname(chart_path)# self.img_tmp.TemporaryFile()
 			guif.setbutton(frm, 'Save image', lambda: self.save(self.n_charts-i-1),bg='white').grid(row=1,column=0)
 			frm.grid(row=i+1)
 		

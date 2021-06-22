@@ -110,12 +110,6 @@ def regression_options():
 																	"An example can be obtained by printing ll.args.args_d"
 																	, [str,dict], 'Initial arguments')	
 
-	self.convergence_limit			= options_item([0.0001], 		"Convergence limit. When this exceedes the maximum absolute value of "
-																	"new directions (as percentage of parameter value), the procedure is "
-																	"determined to have converged.",
-																	float,"Convergence limit", ["%s>0"],
-																	descr_for_input_boxes=['Convergence limit:'])	
-
 	#self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
 	
 	self.do_not_constrain			= options_item(None, 			"The name of a variable of interest \nthat shall not be constrained due to \nmulticollinearity",
@@ -129,12 +123,19 @@ def regression_options():
 	self.fixed_random_variance_eff	= options_item(2,				'Fixed, random or no group effects for variance', int, 'Variance fixed random effects',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 	
-	self.h_function					= options_item(	"def h(e,z):\n"
-													"	e2			=	e**2+1e-5\n"
-													"	h_val		=	np.log(e2)\n"	
-													"	h_e_val		=	2*e/e2\n"
-													"	h_2e_val	=	2/e2-4*e**2/e2**2\n"
-													"	return h_val,h_e_val,h_2e_val,None,None,None\n",	
+	
+	self.fixed_random_pre_ARIMA	    = options_item(False,			'Fixed or random effects calculated before ARIMA', bool, 'Calculate fixed/random effects before ARIMA',
+																	[True,False],['Before ARIMA','After ARIMA'],category='Fixed-random effects')	
+	
+	self.fixed_random_in_GARCH      = options_item(False,			'GARCH process is calculated after FE/RE', bool, 'If True, GARCH is calcualted after FE/RE, an not ',
+																	[True,False],['GARCH calcualted after FE/RE','GARCH calcualted before FE/RE'],category='Fixed-random effects')	
+	
+	self.h_function					= options_item(					"def h(e,z):\n"
+																	"	e2			=	e**2+1e-5\n"
+																	"	h_val		=	np.log(e2)\n"	
+																	"	h_e_val		=	2*e/e2\n"
+																	"	h_2e_val	=	2/e2-4*e**2/e2**2\n"
+																	"	return h_val,h_e_val,h_2e_val,None,None,None\n",	
 													
 																	"You can supply your own heteroskedasticity function. It must be a function of\n"
 																	"residuals e and a shift parameter z that is determined by the maximization procedure\n"
@@ -159,6 +160,12 @@ def regression_options():
 
 	self.minimum_iterations			= options_item(0, 				'Minimum number of iterations in maximization:',
 													  				int,"Minimum iterations", "%s>-1")		
+	
+	#self.pedantic					= options_item(0, 				"Determines how pedantic the maximization shuould be\n"
+	#																"If slightly pedantic, the linesearch is allways run twice after the direction is calcualted\n"
+	#																"If pedantic, the maximization also tries to fix supected variables\n"
+	#																"If very pedantic the maximization also uses brute force as a last resort",  
+	#																int,'Pedantic',[0,1,2,3],['Not pedantic', 'Slightly pedantic','Pedantic','Very pedantic'])
 	
 	self.pool						= options_item(False, 			"True if sample is to be pooled, otherwise False." 
 																	"For running a pooled regression",  
@@ -191,7 +198,15 @@ def regression_options():
 																	"If None, the limit is not active", 
 																	[float,type(None)], 'Tobit-model limits', 
 																	descr_for_input_boxes=['lower limit','upper limit'])
+
+	self.tolerance					= options_item(0.000001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
+																	"is smaller than the tolerance, the procedure is "
+																	"determined to have converged.",
+																	float,"Tolerance", "%s>0")	
 	
+	self.variance_RE_norm			= options_item(0.000005, 		"This parameter determines at which point the log function involved in the variance RE/FE calculations, "
+																	"will be extrapolate by a linear function for smaller values",
+																	float,"Variance RE/FE normalization point in log function", "%s>0")		
 	self.user_constraints			= options_item(None,			"You can add constraints as a dict or as a string in python dictonary syntax.\n",
 																	[str,dict], 'User constraints')
 	

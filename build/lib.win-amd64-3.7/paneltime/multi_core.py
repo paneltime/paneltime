@@ -99,9 +99,9 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		sent=m
 		while 1:
 			if got<n:
-				r,s=q.get()
+				d,s=q.get()
 				got+=1
-				d_arr.append(r)
+				d_arr.append([d,s])
 				if timer:
 					t_arr[s]+=time.perf_counter()
 			if sent<n:
@@ -114,10 +114,10 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			if not progress_bar is None:
 				pb_func,pb_min,pb_max,text=progress_bar			
 				pb_func(pb_min+(pb_max-pb_min)*got/n,text)
-		d=get_slave_dicts(d_arr)
+		d,d_node=get_slave_dicts(d_arr)
 		if timer:
 			return d,t_arr
-		return d
+		return d,d_node
 	
 	def quit(self):
 		for i in self.slaves:
@@ -129,13 +129,15 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 
 def get_slave_dicts(d_arr):
 
-	d=d_arr[0]
-	for i in range(1,len(d_arr)):
-		for key in d_arr[i]:
-			if key in d:
+	d_var={}
+	d_node={}
+	for d,s in d_arr:
+		for key in d:
+			if key in d_var:
 				raise RuntimeWarning('Slaves returned identical variable names. Some variables will be overwritten')
-			d[key]=d_arr[i][key]
-	return d
+			d_var[key]=d[key]
+			d_node[key]=s
+	return d_var,d_node
 
 
 
@@ -154,10 +156,14 @@ class slave():
 		self.p_id = self.receive()
 		self.slave_id=slave_id
 		self.send('init_transact',(initcommand,slave_id,fpath))
+		self.initcommand=initcommand
+		self.fpath=fpath
 		pass
 
 	def send(self,msg,obj):
 		"""Sends msg and obj to the slave"""
+		if not self.p.poll() is None:
+			self.__init__(self.initcommand,self.slave_id,self.fpath)
 		self.t.send((msg,obj))          
 
 	def receive(self,q=None):
@@ -170,10 +176,6 @@ class slave():
 
 	def kill(self):
 		self.p.kill()
-
-
-
-
 
 class transact():
 	"""Local worker class"""
@@ -215,12 +217,10 @@ class multiprocess:
 		self.d=dict()
 		self.master=master(initcommand,max_nodes,holdbacks,tempfile)#for paralell computing
 
-
-
 	def execute(self,expr,timer=False,progress_bar=None):
 		"""For submitting multiple functions to be evalated. expr is an array of argument arrays where the first element in each 
 		argument array is the function to be evaluated"""
-		d=self.master.send_tasks(expr,timer=timer,progress_bar=progress_bar)
+		d,d_node=self.master.send_tasks(expr,timer=timer,progress_bar=progress_bar)
 		if timer:
 			d,t=d
 		for i in d:
@@ -233,17 +233,19 @@ class multiprocess:
 		"""The same as execute, but only a specified variable is return for each execution element.
 		Usefull when large objects shall be returned, and you only need a few/one of them. Used with remote_recieve"""
 		if not single_core:
-			d=self.master.send_tasks(expr,True)
+			d,d_node=self.master.send_tasks(expr,True)
 		else:
 			self.slave_single_core={}
 			d={}
+			d_node={}
 			for i in range(len(expr)):
 				e,ret_var=expr[i]
-				ret=dict(dct)
+				ret=dict()
 				exec(e,globals(),ret)
 				self.slave_single_core[i]=ret
 				d[ret_var]=ret[ret_var]
-		return d
+				d_node[ret_var]=i
+		return d,d_node
 
 	def remote_recieve(self,variable,node,single_core=False):
 		"""Sends a request for a particular variable at node, after remote_execute. 

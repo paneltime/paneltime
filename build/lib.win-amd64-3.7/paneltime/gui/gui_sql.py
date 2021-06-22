@@ -67,7 +67,7 @@ class sql_query(tk.Toplevel):
 		exe_str=f"""
 from paneltime import *\n
 data=dict()
-data['{name}']=load_SQL(conn,{sqlstr})"""
+data['{name}']=load_SQL({sqlstr},conn)"""
 		res=self.win.exec(exe_str)
 		if res==False:
 			return		

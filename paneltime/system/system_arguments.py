@@ -28,7 +28,7 @@ class arguments:
 		if args_d_old is None:
 			args_d_old=[None]*self.n_equations
 		for i in range(self.n_equations):
-			e=equation(panel.X[i],panel.Y[i],panel.W,self, args_d_old[i],i,arg_count,panel.x_names[i])
+			e=equation(panel.X[i],panel.Y[i],panel.W,self, args_d_old[i],i,arg_count,panel.X_names[i])
 			self.equations.append(e)
 			self.n_args.append(e.n_args)
 			self.args_init[i]=e.args_init
@@ -106,14 +106,14 @@ class arguments:
 	
 	
 class equation:
-	def __init__(self,X,Y,W,arguments,args_d_old,i,arg_count,x_names):
+	def __init__(self,X,Y,W,arguments,args_d_old,i,arg_count,X_names):
 		a=arguments
 		self.id=i
 		p,q,d,k,m=panel.pqdkm
 		self.args_init,self.args_d_OLS, self.args_d_restricted=set_init_args(X,Y,W,args_d_old,p, d, q, m, k,a.panel)
-		self.names_d=get_namevector(a.panel,p, q, m, k,x_names,a,i)
+		self.names_d=get_namevector(a.panel,p, q, m, k,X_names,a,i)
 		
-		self.position_defs(a,arg_count,x_names)
+		self.position_defs(a,arg_count,X_names)
 		
 		self.args_v=conv_to_vector(self.args_init,a.categories)
 		self.n_args=len(self.args_v)
@@ -122,7 +122,7 @@ class equation:
 		
 		
 				
-	def position_defs(self,system,arg_count,x_names):
+	def position_defs(self,system,arg_count,X_names):
 		"""Defines positions in vector argument in each equation for the system args_v vector"""
 		self.positions_map=dict()#a dictionary of indicies containing the string name and sub-position of index within the category
 		self.positions=dict()#a dictionary of category strings containing the index range of the category
@@ -141,8 +141,8 @@ class equation:
 				system.positions_map[j]=[self.id,category,j-k]#system.positions_map[<system position>]=<equation number>,<category>,<equation position>
 			k+=n
 		
-		for i in range(len(x_names)):
-			self.beta_map[x_names[i]]=self.positions['beta'][i]		
+		for i in range(len(X_names)):
+			self.beta_map[X_names[i]]=self.positions['beta'][i]		
 			
 
 
@@ -238,7 +238,7 @@ def conv_to_vector(args,categories):
 	return v
 
 
-def get_namevector(panel,p, q, m, k,x_names,system,eq_num):
+def get_namevector(panel,p, q, m, k,X_names,system,eq_num):
 	"""Creates a vector of the names of all regression varaibles, 
 	including variables, ARIMA and GARCH terms. This defines the positions
 	of the variables througout the estimation."""
@@ -247,7 +247,7 @@ def get_namevector(panel,p, q, m, k,x_names,system,eq_num):
 	#sequence must match definition of categories in arguments.__init__:
 	#self.categories=['beta','rho','lambda','gamma','psi','omega','z']
 	eq_prefix='%02d|' %(eq_num,)
-	names_v=[eq_prefix+i for i in x_names]#copy variable names
+	names_v=[eq_prefix+i for i in X_names]#copy variable names
 	names_d['beta']=names_v
 	add_names(p,eq_prefix+'AR term %s (p)','rho',names_d,names_v)
 	add_names(q,eq_prefix+'MA term %s (q)','lambda',names_d,names_v)

@@ -15,10 +15,9 @@ import calculus
 import copy
 import loglikelihood as logl
 from scipy import sparse as sp
-import random_effects as re
 import arguments
 
-NON_NUMERIC_TAG='|~|'
+
 min_AC=0.000001
 
 #todo: split up panel in sub classes
@@ -26,11 +25,11 @@ def posdef(a,da):
 	return list(range(a,a+da)),a+da
 
 class panel:
-	def __init__(self,dataframe,datainput,settings,pqdkm=None):
+	def __init__(self,datainput,settings,pqdkm=None):
 
 		self.input=datainput
-		self.settings=settings
-		self.dataframe=dataframe
+		self.options=settings
+		self.dataframe=datainput.dataframe
 		if not pqdkm is None:
 			self.pqdkm=pqdkm
 		else:
@@ -39,7 +38,6 @@ class panel:
 		self.arrayize()
 		self.masking()
 		self.lag_variables()
-		self.pool()
 		self.final_defs()
 		
 
@@ -47,15 +45,15 @@ class panel:
 		if np.all(np.var(self.input.Y,0)==0):
 			raise RuntimeError("No variation in Y")
 		p,q,d,k,m=self.pqdkm
-		self.max_lags=self.input.lag_obj.max_lags
+		self.max_lags=self.input.max_lags
 		self.lost_obs=max((p,q,self.max_lags))+max((m,k,self.max_lags))+d#+3
-		self.nW,self.nZ,self.n_beta=self.input.W.shape[1],self.input.Z.shape[1],self.input.X.shape[1]
+		self.nW,self.nZ,self.n_beta=len(self.input.W.columns),len(self.input.Z.columns),len(self.input.X.columns)
 		self.define_h_func()
 		self.Ld_inv=None
-		if self.input.IDs_name is None:
-			self.settings.fixed_random_group_eff.value=0
-		if self.input.timevar is None:
-			self.settings.fixed_random_group_eff.value=0		
+		if self.input.IDs is None:
+			self.options.fixed_random_group_eff.value=0
+		if self.input.IDs is None:
+			self.options.fixed_random_group_eff.value=0		
 		self.m_zero = False
 		if  m==0 and k>0:
 			self.m_zero = True
@@ -83,13 +81,13 @@ class panel:
 		if not hasattr(self,'n_dates'):
 			self.number_of_RE_coef=0
 			self.number_of_RE_coef_in_variance=0
-			self.settings.fixed_random_group_eff.set(0)
-			self.settings.fixed_random_time_eff.set(0)
-			self.settings.fixed_random_variance_eff.set(0)
+			self.options.fixed_random_group_eff.set(0)
+			self.options.fixed_random_time_eff.set(0)
+			self.options.fixed_random_variance_eff.set(0)
 		else:
-			self.number_of_RE_coef=self.N*(self.settings.fixed_random_group_eff.value>0)+self.n_dates*(self.settings.fixed_random_time_eff.value>0)
-			self.number_of_RE_coef_in_variance=(self.N*(self.settings.fixed_random_group_eff.value>0)
-												+self.n_dates*(self.settings.fixed_random_time_eff.value>0))*(self.settings.fixed_random_variance_eff.value>0)
+			self.number_of_RE_coef=self.N*(self.options.fixed_random_group_eff.value>0)+self.n_dates*(self.options.fixed_random_time_eff.value>0)
+			self.number_of_RE_coef_in_variance=(self.N*(self.options.fixed_random_group_eff.value>0)
+												+self.n_dates*(self.options.fixed_random_time_eff.value>0))*(self.options.fixed_random_variance_eff.value>0)
 		self.args=arguments.arguments(self)
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_RE_coef_in_variance
 		self.set_instrumentals()
@@ -146,7 +144,7 @@ class panel:
 		self.XIV=cf.dot(self.Z, ZZInv_ZX)#using non-normalized first, since XIV should be unnormalized.	
 
 	def subtract_means(self,X,Y,Z):
-		subtract=self.settings.subtract_means.value
+		subtract=self.options.subtract_means.value
 		if not subtract:
 			return X,Y,Z
 		X=X-np.mean(X,0)
@@ -156,14 +154,12 @@ class panel:
 		if self.input.Z.shape[1]==1:
 			return X,Y,Z
 		Z=Z-np.mean(Z,0)
-		Z[:,0]=1
-		
+		Z[:,0]=1		
 		
 	def is_single(self):
-		IDs,t=self.input.IDs,self.input.timevar
+		IDs,t=self.input.IDs_num,self.input.timevar_num
 		try:
-			if (np.all(IDs[0,0]==IDs) or np.all(t[0,0]==t) or
-				 np.all(np.isnan(IDs)) or  np.all(np.isnan(t))):
+			if (np.all(IDs.iloc[0]==IDs) or np.all(t.iloc[0]==t)):
 				return True
 		except:
 			return True
@@ -172,7 +168,9 @@ class panel:
 		
 	def arrayize(self):
 		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs"""
-		X, Y, W, IDs,timevar,Z=self.input.X, self.input.Y, self.input.W, self.input.IDs,self.input.timevar,self.input.Z
+
+		X, Y, W, IDs,timevar,Z=[to_numpy(i) for i in 
+								(self.input.X, self.input.Y, self.input.W, self.input.IDs_num,self.input.timevar_num,self.input.Z)]
 		X,Y,Z=self.subtract_means(X,Y,Z)
 		NT,k=X.shape
 		self.total_obs=NT
@@ -205,7 +203,7 @@ class panel:
 			sel=(IDs.T==sel.reshape((N,1)))
 			T=np.sum(sel,1)
 			self.max_T=np.max(T)
-			self.idincl=T>self.lost_obs+self.settings.min_group_df.value
+			self.idincl=T>self.lost_obs+self.options.min_group_df.value
 			self.X=arrayize(X, N,self.max_T,T, self.idincl,sel)
 			self.Y=arrayize(Y, N,self.max_T,T, self.idincl,sel)
 			self.W=arrayize(W, N,self.max_T,T, self.idincl,sel)
@@ -221,12 +219,8 @@ class panel:
 			self.get_time_map(timevar, self.N,T, self.idincl,sel,included)
 			
 			if np.sum(self.idincl)<len(self.idincl):
-				idname=self.input.IDs_name[0]
-				if idname + NON_NUMERIC_TAG in self.dataframe:
-					id_orig=self.dataframe[idname + NON_NUMERIC_TAG]
-					idremoved=id_orig[ix,0][self.idincl==False]
-				else:
-					idremoved=(self.dataframe[idname])[ix,0][self.idincl==False]
+				idname=self.input.IDs.columns[0]
+				idremoved=np.array(self.input.IDs)[ix,0][self.idincl==False]
 				s=fu.formatarray(idremoved,90,', ')
 				print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
 			#remove in production. Checking sorting:
@@ -245,87 +239,9 @@ class panel:
 		self.ones.extend([ones.reshape(list(ones.shape)[:-1]+[1]*i) for i in range(5)])	
 		
 
-			
-	def pool(self):
-		if self.settings.pool.value==0:
-			return
-		elif self.settings.pool.value==1 and self.max_T==1:
-			raise RuntimeError("Can't pool a dataset on ID with only one date/no date variable")
-		elif self.settings.pool.value==2 and self.N==1:
-			raise RuntimeError("Can't pool a dataset on time with only one group/no ID variable")
-		
-		self.X=self.pool_data(self.X)
-		self.Y=self.pool_data(self.Y)
-		if not self.Z is None:
-			self.Z=self.pool_data(self.Z)
-		self.W=self.pool_data(self.W)
-		
-		if self.settings.pool.value==1:
-			self.pool_id()
-		elif self.settings.pool.value==2:
-			self.pool_time()
-			
-		
-	def pool_time(self):
-		self.idincl=np.array([True])
-		self.N=1
-		self.NT=len(self.date_map)
-		self.max_T=self.NT
-		self.map=self.map=np.arange(self.NT).reshape(1,self.NT)
-		self.T_arr=np.array([[self.NT]])
-		self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
-		included=np.array([self.date_counter>=self.lost_obs])
-		self.date_count_mtrx=None
-		self.date_count=None	
-		zeros=np.zeros((1,self.max_T,1))
-		ones=np.ones((1,self.max_T,1))			
-		for i in range(5):
-			self.included[i+2]=included.reshape([1,self.NT]+[1]*i)
-			self.zeros[i+2]=zeros.reshape([1,self.NT]+[1]*i)
-			self.ones[i+2]=ones.reshape([1,self.NT]+[1]*i)		
-		#masking:
-		self.a=self.ones
-
-		#"after lost observations" masks: 
-		self.T_i=np.array([[[self.NT]]])#number of observations for each i
-		self.N_t=np.sum(self.ones[3],0).reshape((1,self.max_T,1))#number of observations for each t
-		self.group_var_wght=None	
-	
-	def pool_id(self):
-		#Not finished or tested
-		self.idincl=np.array([True])
-		self.NT=self.N
-		self.map=self.map=np.arange(self.NT).reshape(self.NT,1)
-		self.T_arr=np.array([[1]*self.NT])
-		included=self.T_arr
-		self.date_count_mtrx=None
-		self.date_count=None	
-		zeros=np.zeros((self.N,1,1))
-		ones=np.ones((self.N,1,1))			
-		for i in range(5):
-			self.included[i+2]=included.reshape([1,self.NT]+[1]*i)
-			self.zeros[i+2]=zeros.reshape([1,self.NT]+[1]*i)
-			self.ones[i+2]=ones.reshape([1,self.NT]+[1]*i)		
-		#masking:
-		self.a=self.ones
-
-		#"after lost observations" masks: 
-		self.T_i=self.T_arr.reshape(self.N,1,1)#number of observations for each i
-		self.N_t=np.array([self.N]).reshape((1,1,1))#number of observations for each t
-		self.group_var_wght=None		
-		
-	def pool_data(self,X):
-		N,T,k=X.shape
-		if self.settings.pool.value==1:
-			X=np.mean(X,1).reshape((N,1,k))
-		elif self.settings.pool.value==2:
-			T=len(self.date_map)
-			X=np.array([np.mean(X[i],0) for i in self.date_map]).reshape((1,T,k))
-		return X	
-
 	def tobit(self):
 		"""Sets the tobit threshold"""
-		tobit_limits=self.settings.tobit_limits.value
+		tobit_limits=self.options.tobit_limits.value
 		if tobit_limits is None:
 			return
 		if len(tobit_limits)!=2:
@@ -349,7 +265,7 @@ class panel:
 				self.tobit_I[i]=I
 				if np.sum(I)>0 and np.sum(I)<self.NT and False:#avoiding singularity #Not sure why this is here, shuld be deleted?
 					self.X=np.concatenate((self.X,I),2)
-					self.input.x_names.append(desc[i])
+					self.input.X_names.append(desc[i])
 	
 	def get_time_map(self,timevar, N,T_count, idincl,sel,incl):
 		if timevar is None:
@@ -438,7 +354,7 @@ def h(e,z):
 
 	return h_val,h_e_val,h_2e_val,None,None,None
 		"""	
-		h_definition=self.settings.h_function.value
+		h_definition=self.options.h_function.value
 		if h_definition is None:
 			h_definition=h_def
 		d=dict()
@@ -531,4 +447,8 @@ def arrayize(X,N,max_T,T,idincl,sel,dtype=None):
 
 
 
-	
+def to_numpy(x):
+	x=np.array(x)
+	if len(x.shape)==2:
+		return x
+	return x.reshape((len(x),1))

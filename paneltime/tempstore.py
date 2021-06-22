@@ -90,15 +90,18 @@ def load_model(self):#for debugging
 		return (None,0,None,None)		
 
 def load_obj(fname):
-	try:
-		f=open(fname, "r+b")
-		u= pickle.Unpickler(f)
-		u=u.load()
-		f.close()
-		return u 
-	except Exception as e:
-		print(e)
-		return
+	for i in [0,1]:
+		try:
+			f=open(fname, "r+b")
+			u= pickle.Unpickler(f)
+			u=u.load()
+			f.close()
+			return u 
+		except Exception as e:
+			print(e)
+			recreate_from_zip()
+			if i==1:
+				return
 	
 def save_zip():
 	wdr=os.getcwd()
