@@ -8,6 +8,7 @@ import traceback
 import datetime
 import pickle
 import gc
+import numpy as np
 
 def main(t,initcommand,s_id,fpath):
 	fname=os.path.join(fpath,'slaves/%s.txt' %(s_id,))

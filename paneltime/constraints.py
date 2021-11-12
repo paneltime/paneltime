@@ -53,6 +53,7 @@ class constraints(dict):
 		self.its=its
 		self.pqdkm=direction.panel.pqdkm
 		self.m_zero=direction.panel.m_zero
+		self.ARMA_constraint=direction.panel.options.ARMA_constraint.value
 
 	def add(self,name,assco,cause,interval=None,replace=True,value=None,args=None):
 		#(self,index,assco,cause,interval=None,replace=True,value=None)
@@ -171,12 +172,12 @@ class constraints(dict):
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 		
-		self.add_custom_constraints(pargs.user_constraints)
 		if overflow_problem:
 			general_constraints=[('rho',-0.5,0.5),('lambda',-0.5,0.5),('gamma',-0.5,0.5),('psi',-0.5,0.5)]
 			self.add_custom_constraints(general_constraints)
 		else:
-			general_constraints=[('rho',-2,2),('lambda',-2,2),('gamma',-2,2),('psi',-2,2)]
+			c=self.ARMA_constraint
+			general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
 			self.add_custom_constraints(general_constraints)
 			
 		if self.its==0 and p>0:
@@ -190,6 +191,7 @@ class constraints(dict):
 		if sum(self.args.args_v[pargs.positions['psi']]**2)==0:
 			for i in pargs.positions['gamma']:
 				self.add(i,None,'GARCH term cannot be positive if ARCH terms are zero',value=0)
+		self.add_custom_constraints(pargs.user_constraints)
 	
 	def add_dynamic_constraints(self,direction):
 		ll=direction.ll

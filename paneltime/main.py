@@ -37,20 +37,17 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
 		if exe_tab.isrunning==False:return
-	channel=comm.get_channel(window,exe_tab)
 	datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,join_table,instruments)
 	if datainput.timevar is None:
 		print("No valid time variable defined. This is required")
 		return
-	if options.loadARIMA_GARCH.value:
-		options.pqdkm.value=datainput.args_archive.pqdkm
 	mp,close_mp=mp_check(datainput,window)
-	results_obj=pqdkm_iteration(datainput,options,mp,channel)
+	results_obj=pqdkm_iteration(datainput,options,mp,window,exe_tab)
 	if not mp is None and close_mp:
 		mp.quit()
 	return results_obj
 	
-def pqdkm_iteration(datainput,options,mp,channel):#allows for a list of different ARIMA options, for example by starting with a more restrictive model
+def pqdkm_iteration(datainput,options,mp,window,exe_tab):#allows for a list of different ARIMA options, for example by starting with a more restrictive model
 	pqdkm=options.pqdkm.value
 	try:
 		a=pqdkm[0][0]
@@ -58,10 +55,9 @@ def pqdkm_iteration(datainput,options,mp,channel):#allows for a list of differen
 		pqdkm=[pqdkm]
 	for i in pqdkm:
 		print(f'pqdkm={i}')
-		results_obj=results(datainput,options,mp,channel,i)
+		results_obj=results(datainput,options,mp,i,window,exe_tab)
 		if len(pqdkm)>1:
 			options.loadargs.value=2
-			options.loadARIMA_GARCH.value=True	
 	return results_obj
 	
 
@@ -83,9 +79,10 @@ class input_class:
 	
 	
 class results:
-	def __init__(self,datainput,options,mp,channel,pqdkm):
+	def __init__(self,datainput,options,mp,pqdkm,window,exe_tab):
 		print ("Creating panel")
 		pnl=panel.panel(datainput,options,pqdkm)
+		channel=comm.get_channel(window,exe_tab,pnl)
 		direction=drctn.direction(pnl,mp,channel)	
 		self.mp=mp
 		if not mp is None:

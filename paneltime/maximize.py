@@ -8,14 +8,24 @@ import output
 import sys
 from tkinter import _tkinter
 import time
+import loglikelihood as lgl
+import direction as drctn
 
 
 
 
 def lnsrch(ll, direction,mp,its,incr,po,prev_dx,dx,max_its=12,convex_action='reverse',single_core=False):
+	panel=direction.panel
+	a=False
+	if a:
+		dx[6]=0.00001
+		a=logl.LL(dx,panel).LL
+		dx[6]=-0.00001
+		a=logl.LL(dx,panel).LL
+	
 	args=ll.args.args_v
 	g = direction.g
-	panel=direction.panel
+	
 	LL0=ll.LL
 	constr=direction.constr
 	
@@ -60,7 +70,7 @@ def solve_square_func(f0,l0,f05,l05,f1,l1,default=None):
 	
 def lnsrch_master(args, dx,panel,constr,mp,LL0,ll,max_its,single_core):
 	start=0
-	end=10.0
+	end=2.0
 	msg=''
 	#single_core is for debug. It has been tested, and even with a relatively small sample, multicore is much faster.
 	for i in range(max_its):
@@ -82,7 +92,7 @@ def lnsrch_master(args, dx,panel,constr,mp,LL0,ll,max_its,single_core):
 	res=remove_nan(res)
 	if LL0>res[0,0]:
 		s='Best result in linesearch is poorer than the starting point. You may have discovered a bug, please notify espen.sirnes@uit.no'
-		print(s[3:])
+		print(s)
 		return ll,s,res[0,0]-LL0,False
 	try:
 		lmda=solve_square_func(res[0,0], res[0,2],res[1,0], res[1,2],res[2,0], res[2,2],res[0,2])
@@ -130,7 +140,7 @@ def likelihood_spawn(args, return_info,single_core,mp):
 			
 			, f'LL{i}'])
 		a=0
-	d,d_node=mp.remote_execute(expr,single_core)
+	d,d_node=mp.remote_execute(expr,single_core,d={'lgl':lgl})
 	res=[]
 	for i in range(n):
 		key=f'LL{i}'
@@ -157,9 +167,8 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 	reversed_direction=[]
 	ll=direction.init_ll(args)
 	po=printout(channel,panel,ll,direction,msg_main)
-	min_iter=panel.options.minimum_iterations.value
+	min_iter=2#panel.options.minimum_iterations.value
 	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po,0):return ll,direction,po
-	b=0
 	while 1:
 		prev_dx=direction.dx
 		direction.calculate(ll,its,msg,incr,lmbda,sum(reversed_direction)>0)
@@ -167,7 +176,7 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 		LL0=ll.LL
 		ll0=ll
 		#Convergence test:
-		conv=convergence_test(direction, its, args_archive, min_iter, b,ll,panel,lmbda,k,incr)
+		conv=convergence_test(direction, its, args_archive, min_iter,ll,panel,lmbda,k,incr)
 		if conv: 
 			printout_func(1.0,"Convergence on zero gradient; maximum identified",ll,its,direction,incr,po,3,'done')
 			return ll,direction,po
@@ -176,14 +185,29 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 		if not printout_func(1.0,"",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
 		
 		
-		ll,msg,lmbda,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,direction.dx,max_its=4)
+		ll,msg,lmbda,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,direction.dx,max_its=5)
 		
 		incr=ll.LL-LL0
 		#log.append([incr,ll.LL,msg]+list(ll.args.args_v)+list(direction.dx_norm)+list(direction.g)+list(np.diag(direction.H))+list(direction.H[0]))
 		if not printout_func(1.0,msg,ll,its,direction,incr,po,0):return ll,direction,po
 		its+=1
+
+		
+def fast_max(H,g_old,dx,panel,direction,ll_orig):
+	hessin=drctn.inv_hess(H)
+	args=ll_orig.args.args_v
+	ll_old=ll_orig.LL
+	while 1:
+		dx=-np.dot(hessin,g).flatten()
+		args=args+dx
+		ll=logl.LL(args,panel)
+		direction.calc_gradient(ll)
+		g_old=g
+		g=direction.g
+		hessin=drctn.nummerical_hessin(g,g_old,hessin,dx)
 		
 
+		
 
 def potential_gain(direction):
 	"""Returns the potential gain of including each variables, given that all other variables are included and that the 
@@ -200,14 +224,14 @@ def potential_gain(direction):
 	return dxLL	
 	
 	
-def convergence_test(direction,its,args_archive,min_iter,b,ll,panel,lmbda,k,incr):
+def convergence_test(direction,its,args_archive,min_iter,ll,panel,lmbda,k,incr):
 	pgain=potential_gain(direction)
-	print(pgain)
+	#print(pgain)
 	
 	if incr>0:
 		args_archive.save(ll.args,True)
 
-	conv=max(pgain)<panel.options.tolerance.value
+	conv=(max(pgain)<panel.options.tolerance.value) and (max(np.abs(direction.dx_norm))<0.0001)
 	conv*=(its>=min_iter)
 	sing_problems=(direction.H_correl_problem or direction.singularity_problems)
 	if sing_problems and conv and (lmbda>0):

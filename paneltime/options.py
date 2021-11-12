@@ -106,11 +106,18 @@ def regression_options():
 	self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
 																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
 
+	self.ARMA_constraint	        = options_item(2.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
+																	None,None,category='GARCH')	
+		
+	
 	self.arguments					= options_item("", 				"A string or dict with a dictionary in python syntax containing the initial arguments." 
 																	"An example can be obtained by printing ll.args.args_d"
 																	, [str,dict], 'Initial arguments')	
 
 	#self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
+	self.normal_GARCH	            = options_item(True,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
+																	[True,False],['Direct GARCH','Usual GARCH'],category='GARCH')	
+		
 	
 	self.do_not_constrain			= options_item(None, 			"The name of a variable of interest \nthat shall not be constrained due to \nmulticollinearity",
 													 				[str,type(None)],"Avoid constraint",
@@ -120,14 +127,11 @@ def regression_options():
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 	self.fixed_random_time_eff		= options_item(2,				'Fixed, random or no time effects', int, 'Time fixed random effect',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
-	self.fixed_random_variance_eff	= options_item(2,				'Fixed, random or no group effects for variance', int, 'Variance fixed random effects',[0,1,2], 
+	self.fixed_random_variance_eff	= options_item(0,				'Fixed, random or no group effects for variance', int, 'Variance fixed random effects',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 	
 	
-	self.fixed_random_pre_ARIMA	    = options_item(False,			'Fixed or random effects calculated before ARIMA', bool, 'Calculate fixed/random effects before ARIMA',
-																	[True,False],['Before ARIMA','After ARIMA'],category='Fixed-random effects')	
-	
-	self.fixed_random_in_GARCH      = options_item(False,			'GARCH process is calculated after FE/RE', bool, 'If True, GARCH is calcualted after FE/RE, an not ',
+	self.RE_in_GARCH      = options_item(False,			'GARCH process is calculated after FE/RE', bool, 'If True, GARCH is calcualted after FE/RE, an not ',
 																	[True,False],['GARCH calcualted after FE/RE','GARCH calcualted before FE/RE'],category='Fixed-random effects')	
 	
 	self.h_function					= options_item(					"def h(e,z):\n"
@@ -143,11 +147,11 @@ def regression_options():
 																	"h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
 																	, str,"GARCH function",category='Regression')
 
-	self.loadARIMA_GARCH			= options_item(False, 			"Determines whether the ARIMA_GARCH arguments from the previous run should be kept", 
-																	bool, 'Load ARIMA_GARCH', [False,True],
-																	['No loading',
-																	'Load arguments'
-																	])	
+	self.kurtosis_adj				= options_item(0,				'Amount of kurtosis adjustment', float, 'Amount of kurtosis adjustment',
+																	"%s>=0",category='GARCH')	
+	
+	self.GARCH_assist				= options_item(0,				'Amount of weight put on assisting GARCH variance to be close to squared residuals', float, 'GARCH assist',
+																	"%s>=0",category='GARCH')		
 		
 	self.loadargs					= options_item(1, 				"Determines whether the regression arguments from the previous run should be kept", 
 																	int, 'Load arguments', [0,1,2],

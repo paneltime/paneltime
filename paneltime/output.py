@@ -10,16 +10,17 @@ import tkinter as tk
 import stat_functions as stat
 import functions as fu
 import model_parser
+import time
 STANDARD_LENGTH=8
 		
 
 
 class output:
-	def __init__(self,ll,direction,main_msg):
+	def __init__(self,ll,panel,direction,main_msg):
 		self.ll=ll
 		self.main_msg=main_msg
 		self.direction=direction
-		self.panel=self.ll.panel
+		self.panel=panel
 		self.lags=self.panel.options.robustcov_lags_statistics.value[1]
 		self.n_variables=self.panel.args.n_args
 		self.incr=0
@@ -44,7 +45,7 @@ class output:
 		self.heading()
 		
 	def statistics(self):
-		return statistics(self.ll)
+		return statistics(self.ll,self.panel)
 
 	def reg_table(self):
 		return reg_table_obj(self)
@@ -93,7 +94,8 @@ class output:
 		s+=f"\tPanel: {self.panel.NT_before_loss} observations,{n} groups and {T} dates"
 		if len(instr):
 			s+=f"\t\tInstruments: {instr}"		
-		s+=f"\nMax condition index: {np.round(self.direction.CI)}\t ({n_CI} caseses where high CI was associated with more than one variable)\n"
+		s+=f"\nMax condition index: {np.round(self.direction.CI)}\t ({n_CI} caseses w/high CI for 1+ variables)"
+		s+=f"Time elapsed: {np.round(time.time()-self.direction.start_time)}\n"
 		self.heading_str=s		
 		
 	def constraints_printout(self):
@@ -130,7 +132,7 @@ class reg_table_obj(dict):
 	def __init__(self,output):
 		dict.__init__(self)
 		self.d=output.d
-		self.Y_names=output.ll.panel.input.Y_names
+		self.Y_names=output.panel.input.Y_names
 		self.args=output.ll.args.dict_string
 		self.n_variables=output.n_variables
 		self.heading=output.heading_str
@@ -352,13 +354,12 @@ def remove_illegal_signs(name):
 		
 	
 class statistics:
-	def __init__(self,ll):
-		ll.standardize()
-		panel=ll.panel
+	def __init__(self,ll,panel):
+		ll.standardize(panel)
 		self.df=panel.df
 		self.N,self.T,self.k=panel.X.shape
-		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True)	
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False)	
+		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True,panel)	
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False,panel)	
 		self.no_ac_prob,self.rhos,self.RSqAC=stat.breusch_godfrey_test(panel,ll,10)
 		self.DW=stat.DurbinWatson(panel,ll)
 		self.norm_prob=stat.JB_normality_test(ll.e_norm,panel)
@@ -370,7 +371,7 @@ class statistics:
 	def gen_df_str(self,panel):
 		summary=f"""
   SAMPLE SIZE SUMMARY:
-\tOriginal sample size\t\t:\t{orig_size}
+\tOriginal sample size\t\t:\t{panel.orig_size}
 \tSample size after filtering\t\t:\t{panel.NT_before_loss}
 \tDegrees of freedom\t\t:\t{panel.df}
 \tNumber of IDs\t\t:\t{self.N:,}
@@ -544,7 +545,7 @@ alphabet='abcdefghijklmnopqrstuvwxyz'
 class join_table(dict):
 	"""Creates a  joint table of several regressions with columns of the join_table_column class.
 	See join_table_column for data handling."""
-	def __init__(self,args,varnames=[]):
+	def __init__(self,args,panel,varnames=[]):
 		dict.__init__(self)
 		self.names_category_list=list([list(i) for i in args.names_category_list])#making a copy
 		k=0
@@ -556,14 +557,14 @@ class join_table(dict):
 				k+=1
 		self.names_v=[itm for s in self.names_category_list for itm in s]#flattening
 		
-	def update(self,ll,stats,desc):
+	def update(self,ll,stats,desc,panel):
 		if not desc in self:
 			for i in range(len(ll.args.names_category_list)):
 				for j in ll.args.names_category_list[i]:
 					if not j in self.names_category_list[i]:
 						self.names_category_list[i].append(j)
 			self.names_v=[itm for s in self.names_category_list for itm in s]#flattening
-		self[desc]=join_table_column(stats, ll)
+		self[desc]=join_table_column(stats, ll,panel)
 		
 		
 	def make_table(self, stacked, brackets,digits,caption):
@@ -642,13 +643,12 @@ class join_table(dict):
 
 
 class join_table_column:
-	def __init__(self,stats,ll):
-		panel=ll.panel
+	def __init__(self,stats,ll,panel):
 		self.stats=stats
 		self.LL=ll.LL
-		self.df=ll.panel.df
+		self.df=panel.df
 		self.args=ll.args
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True)
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True,panel)
 		self.instruments=panel.input.Z_names[1:]
 		self.pqdkm=panel.pqdkm		
 		self.Y_name=panel.input.Y_names

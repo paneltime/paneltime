@@ -1,206 +1,82 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-#simulalte a panel data GARCH model
-
+test_script="""
+import paneltime as pt
+import scipy
 import numpy as np
-import calculus_functions as cf
-import functions as fu
 
+#Defining sample
+N=100
+T=1000
+k=5
+I=np.diag(np.ones(T))
+zero=I*0
 
-class simulation:
-	"""Creates an object that can simulate ARIMA-GARCH-timeseries data"""
-	def __init__(self,N,T,beta,rho=[0.5],lmbda=[-0.5],psi=[0.5],gamma=[-0.5],omega=0.1,z=1,residual_sd=1,ID_sd=0,names=['x','const','Y','ID']):
+#Creating conversion matrices:
+def lag_matr(L,args):
+	import numpy as np
+	k=len(args)
+	L=1*L
+	r=np.arange(len(L))
+	for i in range(k):
+		d=(r[i+1:],r[:-i-1])
+		L[d]=args[i]
+	return L
 
-		self.args,self.p,self.q,self.m,self.k,self.beta_len=self.new_args(beta,rho,lmbda,psi,gamma,omega,z)
-		self.T=T
-		self.names=['x','const','Y','ID']
-		self.N=N
-		self.residual_sd=residual_sd
-		self.ID_sd=ID_sd
-		self.max_lags=np.max((self.p,self.q,self.m,self.k))
-		self.I=np.diag(np.ones(T))
-		self.zero=self.I*0		
-		self.AAR_1MA, self.GAR_1MA=matrices=self.set_garch_arch()
-		
-	def sim_many(self,n):
-		for i in range(n):
-			d=dict()
-			X,Y,IDs=self.sim()
-			save_dataset(X,Y,IDs,self.names,i)
-			
-	def de_sim(self,X,Y):
-		args=self.args
-		matrices=self.set_garch_arch_LL()
-		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices
+M_AR=-lag_matr(-I,[0.5,-0.5]) #AR means process
+M_MA=lag_matr(I,[0.5,-0.5]) #MA means process
+M_MA_1=np.linalg.inv(M_MA)
+M_MA_1AR=np.dot(M_MA_1,M_AR)
+M_AR_1MA=np.linalg.inv(M_MA_1AR)
 
-		u=Y-cf.dot(X,args['beta'])
-		e=cf.dot(AMA_1AR,u)
-		e=u#fix this bug
-		if self.m>0:
-			h=np.log(e**2+args['z'])
-			lnv_ARMA=cf.dot(GAR_1MA,h)
-		else:
-			lnv_ARMA=0
-		lnv=args['omega']+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
+V_AR=-lag_matr(-I,[0.5,-0.5]) #MA variance process
+V_MA=lag_matr(zero,[0.5,-0.5]) #AR variance process
+V_AR_1=np.linalg.inv(V_AR)
+V_AR_1MA=np.dot(V_AR_1,V_MA)
 
-		v=np.exp(lnv)
-		v_inv=np.exp(-lnv)
+#Creating random variables:
+def RE_Het_AC_ify(X):
+	"Returns X after RE, ARIMA and GARCH "
+	import numpy as np
+	X_RE_t=np.random.normal(size=(T,1,1))
+	X_RE_i=np.random.normal(size=(1,N,1))
+	X_RE=X+X_RE_t+X_RE_i
+	X_RE_Het=X_RE*sigma
+	X_RE_Het_AC=np.array([
+            np.dot(M_MA_1AR,X_RE_Het[:,i,:]) 
+            for i in range(N)
+            ])
+	X_RE_Het_AC=np.swapaxes(X_RE_Het_AC, 0,1)
+	return X_RE_Het_AC
 
-		LL=self.LL_const-0.5*np.sum((lnv+(e_REsq)*v_inv)*panel.included[3])	
-		
-		
-	def sim_new(self):
-		panel=self.panel
-		X=panel.XIV
-		matrices=set_garch_arch(panel,self.args.args_d)
-		if matrices is None:
-			return None		
-		
-		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
-		(N,T,k)=X.shape
-		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
-		u = panel.Y-cf.dot(X,self.args.args_d['beta'])
-		e = cf.dot(AMA_1AR,u)
-		e_RE = (e+self.re_obj_i.RE(e)+self.re_obj_t.RE(e))*panel.included[3]
-		e_REsq = e_RE**2
+#residuals after FE/RE:
+epsilon=np.random.normal(size=(T,N,1))
 
-		lnv_ARMA = self.garch(GAR_1MA, e)
-		W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
-		lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-		#self.lnv0=lnv*1#debug
-		grp = self.variance_RE(e_REsq)#experimental
-		lnv+=grp
-		self.dlnv_pos=(lnv<100)*(lnv>-100)
-		lnv = np.maximum(np.minimum(lnv,100),-100)
-		v = np.exp(lnv)*panel.a[3]
-		v_inv = np.exp(-lnv)*panel.a[3]
-		
-		e_RE=e*v_inv**0.5
-	
-	
-	def sim(self):
-		args=self.args
-		matrices=self.set_garch_arch_LL()
-		AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA=matrices		
-		if self.residual_sd==0:
-			raise RuntimeError("Zero residual error not allowed.")
-		e=np.random.normal(0,self.residual_sd,(self.N,self.T,1))
-		if self.ID_sd>0:
-			eRE=e+np.random.normal(0,self.ID_sd,(self.N,1,1))
-		else:
-			eRE=e
-	
-		self.eRE=cf.dot(self.AAR_1MA,eRE)#BUG u is currently not reused
-	
-	
-		if self.m>0:
-			h=np.log(self.eRE**2+args['z'])
-			ID_eff=np.random.normal(0,1,(self.N,1,1))*args['mu']
-			lnv=cf.dot(self.GAR_1MA,h)+ID_eff+args['omega']
-		else:
-			lnv=0	
-	
-		v=np.exp(lnv)
-		v_inv=np.exp(-lnv)
-	
-		self.eRE_GARCH=self.eRE*v		
+#GARCH volatility:
+e_var=np.random.normal(size=(T,N,1))**2
+ln_sigma2=np.array([
+            np.dot(M_MA_1AR,
+                   np.log(e_var[:,i,:]+1e-10)) 
+            for i in range(N)
+            ])
+ln_sigma2=np.swapaxes(ln_sigma2, 0,1)
+sigma=np.exp(ln_sigma2)**2
+X=RE_Het_AC_ify(np.random.normal(size=(T,N,k)))
+u=RE_Het_AC_ify(np.random.normal(size=(T,N,1)))
+#Assuming unit betas
+Y=np.sum(X,2).reshape((T,N,1))+u
+IDs=np.arange(N).reshape((1,N,1))*np.ones((T,1,1))
+dates=np.arange(T).reshape((T,1,1))*np.ones((1,N,1))
 
-		X=np.random.normal(0,1,(self.N,self.T,self.beta_len-1))
-		X=np.concatenate((np.ones((self.N,self.T,1)),X),2)
-		Y_pred=cf.dot(X,args['beta'])
-		Y=Y_pred+self.eRE_GARCH
-		
-		X=reshape(X,self.max_lags+1)
-		Y=reshape(Y,self.max_lags+1)
-		IDs=np.ones((self.N,self.T,1))*np.arange(self.N).reshape((self.N,1,1))
-		IDs=reshape(IDs,self.max_lags+1)
+Y=np.concatenate(Y,0).reshape((N*T,1))
+X=np.concatenate(X,0).reshape((N*T,k))
+IDs=np.concatenate(IDs,0).reshape((N*T,1))
+dates=np.concatenate(dates,0).reshape((N*T,1))
 
-		return X,Y,IDs
-
-	def new_args(self,beta,rho,lmbda,psi,gamma,omega,mu,z):
-		if rho is None:
-			rho=[]
-		if lmbda is None:
-			lmbda=[]
-		if psi is None:
-			psi=[]
-		if gamma is None:
-			gamma=[]
-
-		p=len(rho)
-		q=len(lmbda)
-		m=len(psi)
-		k=len(gamma)
-		beta_len=len(beta)		
-		args=dict()
-		args['beta']=np.array(beta).reshape((beta_len,1))
-		args['omega']=omega
-		args['rho']=np.array(rho)
-		args['lambda']=np.array(lmbda)
-		args['psi']=np.array(psi)
-		args['gamma']=np.array(gamma)
-		if m>0:
-			args['mu']=mu
-			args['z']=z
-		else:
-			args['mu']=0
-			args['z']=0
-
-		return args,p,q,m,k,beta_len
-
-	
-		
-		
-	def set_garch_arch(self):
-		args,p,q,m,k=self.args,self.p,self.q,self.m,self.k
-		AMA=cf.lag_matr(self.I,args['lambda'])
-		X=-cf.lag_matr(-self.I,args['rho'])
-		AAR_1=np.linalg.inv(X)
-		AAR_1MA=cf.dot(AAR_1,AMA)
-		X=-cf.lag_matr(self.I,args['gamma'])
-		GAR_1=np.linalg.inv(X)
-		GMA=cf.lag_matr(self.zero,args['psi'])	
-		GAR_1MA=cf.dot(GAR_1,GMA)
-		return AAR_1MA, GAR_1MA
-	
-	
-	def set_garch_arch_LL(self):
-		args,p,q,m,k=self.args,self.p,self.q,self.m,self.k
-		X=cf.lag_matr(self.I,args['lambda'])
-		try:
-			AMA_1=np.linalg.inv(X)
-		except:
-			return None
-		AAR=-cf.lag_matr(-self.I,args['rho'])
-		AMA_1AR=cf.dot(AMA_1,AAR)
-		X=-cf.lag_matr(-self.I,args['gamma'])
-		try:
-			GAR_1=np.linalg.inv(X)
-		except:
-			return None
-		GMA=cf.lag_matr(self.zero,args['psi'])	
-		GAR_1MA=cf.dot(GAR_1,GMA)
-		return AMA_1,AAR,AMA_1AR,GAR_1,GMA,GAR_1MA	
-	
-
-
-def reshape(X,n):
-	X=X[:,n:,:]
-	return np.concatenate(X,0)
-	
-
-
-
-def save_dataset(X,Y,IDs,names,i):
-	k=len(X[0])
-	h=[]
-	for j in range(len(X[0])):
-		h.append(names[0]+str(j))
-	h[0]=names[1]
-	h=np.array([h])
-	X=np.concatenate((h,X),0)
-	Y=np.concatenate(([[names[2]]],Y),0)
-	IDs=np.concatenate(([[names[3]]],IDs),0)
-	data=np.concatenate((X,Y,IDs),1)
-	fu.savevar(data,'/simulations/data_new'+str(i),'csv')	
+#running the estimation:
+#pt.options.loadargs.set(1)
+#pt.options.variance_RE_norm.set(0.000005)
+pt.options.fixed_random_variance_eff.set(0)
+df={'X0':X[:,0],'X1':X[:,1],'X2':X[:,2],'X3':X[:,3],'X4':X[:,4], 
+    'Y':Y.flatten(), 'IDs':IDs.flatten(), 'dates':dates.flatten()}
+df=pd.DataFrame(df)
+pt.execute("Y~X1+X2+X3+X4",df,T='dates',ID="IDs")
+"""

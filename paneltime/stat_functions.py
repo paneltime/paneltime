@@ -105,8 +105,7 @@ def adf_test(panel,ll,p):
 	res=np.append(adf_stat,critval)
 	return res
 
-def goodness_of_fit(ll,standarized):
-	panel=ll.panel
+def goodness_of_fit(ll,standarized,panel):
 	if standarized:
 		s_res=panel.var(ll.e_RE)
 		s_tot=panel.var(ll.Y_st)
@@ -116,7 +115,7 @@ def goodness_of_fit(ll,standarized):
 	r_unexpl=s_res/s_tot
 	Rsq=1-r_unexpl
 	Rsqadj=1-r_unexpl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
-	panel.args.create_null_ll()
+	panel.args.create_null_ll(panel)
 	LL_ratio_OLS=2*(ll.LL-panel.args.LL_OLS)
 	LL_ratio=2*(ll.LL-panel.args.LL_null)
 	return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS

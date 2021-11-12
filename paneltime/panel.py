@@ -45,6 +45,7 @@ class panel:
 		if np.all(np.var(self.input.Y,0)==0):
 			raise RuntimeError("No variation in Y")
 		p,q,d,k,m=self.pqdkm
+		self.orig_size=len(self.input.X)
 		self.max_lags=self.input.max_lags
 		self.lost_obs=max((p,q,self.max_lags))+max((m,k,self.max_lags))+d#+3
 		self.nW,self.nZ,self.n_beta=len(self.input.W.columns),len(self.input.Z.columns),len(self.input.X.columns)
@@ -57,8 +58,8 @@ class panel:
 		self.m_zero = False
 		if  m==0 and k>0:
 			self.m_zero = True
-			p,q,d,k,m=self.pqdkm
-			self.pqdkm=p,q,d,k,1
+			m=0
+		self.pqdkm=p,q,d,k,m
 			
 	def masking(self):
 		
@@ -92,6 +93,7 @@ class panel:
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_RE_coef_in_variance
 		self.set_instrumentals()
 		self.tobit()
+		self.arma_dot=cf.arma_dot_obj(self.X.shape[1],self.pqdkm)
 
 	def lag_variables(self):
 		T=self.max_T
@@ -135,8 +137,8 @@ class panel:
 			self.XIV=self.X=self.Z
 		return
 		ll=logl.LL(self.args.args_init,self)
-		ll.standardize()
-		Z_st,Z_st_long=ll.standardize_variable(self.Z)
+		ll.standardize(self)
+		Z_st,Z_st_long=ll.standardize_variable(panel,self.Z)
 		ZZ=cf.dot(Z_st,Z_st)
 		ZZInv=np.linalg.inv(ZZ)
 		ZX=cf.dot(Z_st,ll.X_st)

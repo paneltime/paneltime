@@ -24,10 +24,10 @@ def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=Fals
 		de2_zeta_xi=fu.dot(AMAL,de_zeta_u,False)#"T x N x s x m"
 		if transpose:#only happens if lags==k
 			de2_zeta_xi=de2_zeta_xi+np.swapaxes(de2_zeta_xi,2,3)#adds the transpose
-		de2_zeta_xi_RE=ll.re_obj.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi_RE=ll.re_obj.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2,panel)
 	else:
 		de2_zeta_xi=0
-		de2_zeta_xi_RE=ll.re_obj.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2)
+		de2_zeta_xi_RE=ll.re_obj.ddRE(None,de_xi,de_zeta,ll.e,vname1,vname2,panel)
 		if de2_zeta_xi_RE is None:
 			de2_zeta_xi_RE=None
 	if not de2_zeta_xi_RE is None:	
@@ -41,7 +41,7 @@ def dd_func_lags_mult(panel,ll,g,AMAL,de_xi,de_zeta,vname1,vname2,transpose=Fals
 
 		d2lnv_zeta_xi = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
-		if panel.N>1:
+		if panel.N>1 and not panel.args.mu_removed:
 			d_mu = ll.args.args_d['mu'] * panel.mean(d2lnv_zeta_xi,1)
 			d_mu = d_mu.reshape((N,1,m,k)) * panel.included[4]
 		else:
@@ -180,12 +180,6 @@ def dd_func_mult(d0,mult,d1):
 	return x
 
 
-def ARMA_product(m,k):
-	a=[]
-
-	for i in range(k):
-		a.append(roll(m,-i-1,1))
-	return np.array(a)
 
 
 def sandwich(H,G,lags=3,ret_hessin=False):

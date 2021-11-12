@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 import calculus
 import calculus_functions as cf
+import calculus_ll as cll
 import numpy as np
 import constraints
 import loglikelihood as logl
 from scipy import stats
 import sys
+import time
 
 
 class direction:
@@ -34,6 +36,7 @@ class direction:
 		self.Hess_correction=1
 		self.g_rec=[]
 		self.overflow_problem=False
+		self.start_time=time.time()
 
 
 	def calculate(self,ll,its,msg,increment,lmbda,rev):
@@ -80,25 +83,25 @@ class direction:
 		include[list(self.constr)]=False
 		return include	
 
-	def calc_gradient(self):
-		
-		ll=self.ll
-		DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included[3]
-		dLL_lnv=-0.5*(self.panel.included[3]-(ll.e_REsq*ll.v_inv)*self.panel.included[3])	
-		dLL_lnv*=ll.dlnv_pos
+	def calc_gradient(self,ll=None):
+		if ll is None:
+			ll=self.ll
+		dLL_lnv, DLL_e=cll.gradient(ll,self.panel)
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
+		self.g_old=self.g
 		self.g,self.G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
-		if len(self.g_rec):
-			if not np.all(self.g_rec[-1]==self.g):
+		if False:
+			if len(self.g_rec):
+				if not np.all(self.g_rec[-1]==self.g):
+					self.g_rec.append(self.g)
+			else:
 				self.g_rec.append(self.g)
-		else:
-			self.g_rec.append(self.g)
-			
-		max_history=3
-		start=2
-		max_history=min((max_history+start,len(self.g_rec)+start))
-		self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
-		#self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
+				
+			max_history=3
+			start=2
+			max_history=min((max_history+start,len(self.g_rec)+start))
+			self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
+			#self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
 		
 	
 	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
@@ -135,16 +138,22 @@ class direction:
 				d2LL_de2[I]=      -(g[i]*f_F[i]*e1s3[I] + f_F2*ll.v_inv[I])
 				d2LL_dln_de[I] =   0.5*(f_F2*e1s2[I]  +  g[i]*f_F[i]*(e2s3[I]-self.v_inv05[I]))
 				d2LL_dln2[I] =     0.25*(f_F2*e2s2[I]  +  g[i]*f_F[i]*(e1s1[I]-e3s3[I]))
+				
+				
+	def nummerical_hess(self):
+		hessin=inv_hess(self.H)
+		hessin=nummerical_hessin(self.g,self.g_old,hessin,self.dx)
+		return inv_hess(hessin)		
 
 	def calc_hessian(self):
-		ll=self.ll
-		d2LL_de2=-ll.v_inv*self.panel.included[3]
-		d2LL_dln_de=ll.e_RE*ll.v_inv*self.panel.included[3]
-		d2LL_dln_de*=ll.dlnv_pos
-		d2LL_dln2=-0.5*ll.e_REsq*ll.v_inv*self.panel.included[3]	
-		d2LL_dln2*=ll.dlnv_pos
-		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
-		self.H=self.hessian.get(ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+		d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(self.ll,self.panel)
+			
+		self.LL_hessian_tobit(self.ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
+		H=None#H=self.nummerical_hess()
+		if H is None or self.increment<1:#(self.its/2==int(self.its/2)):
+			self.H=self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+		else:
+			self.H=H
 		self.handle_overflow()
 		d=np.diag(self.H)
 		self.CI=constraints.decomposition(self.H)[0][-1]
@@ -217,7 +226,7 @@ class direction:
 		ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
 		if ll.LL is None:
 			if self.panel.options.loadargs.value:
-				print("Initial arguments failed, attempting default OLS-arguments ...")
+				print("WARNING: Initial arguments failed, attempting default OLS-arguments ...")
 				self.panel.args.set_init_args(self.panel,default=True)
 				ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
 				if ll.LL is None:
@@ -235,7 +244,7 @@ class direction:
 		dx_norm=(args_v<1e-2)*dx+(args_v>=1e-2)*dx_norm	
 		return dx_norm	
 
-def hessin(hessian):
+def inv_hess(hessian):
 	try:
 		h=-np.linalg.inv(hessian)
 	except:
@@ -243,8 +252,8 @@ def hessin(hessian):
 	return h
 
 def nummerical_hessin(g,g_old,hessin,dxi):
-	#Not currently in use
-	if dxi is None:
+	
+	if g is None or g_old is None or hessin is None or dxi is None:
 		return None
 	dg=g-g_old 				#Compute difference of gradients,
 	#and difference times current matrix:

@@ -119,7 +119,7 @@ class output_tab(tk.Frame):
 		btnlist=[
 			# Main button caption	Sub captions										command								click		sub 				Default
 			#																												type main	groups				enabled sub							
-			['REGRESSION',			['DIR','CNSTRNTS',['( )', '[ ]', 'disabled:( )'],
+			['REGRESSION',			['DIR','CONSTRNTS',['( )', '[ ]', 'disabled:( )'],
 										['FLAT', 'STACKED'],
 										['NORMAL', 'HTML', 'LATEX', 'RTF','INTERNAL'],
 										['JOINED', 'JOINED LONG', 'disabled:JOINED']],	self.print_regression,				'group',	[[2,3,4]],			[0,1,2,3,4]],
@@ -175,9 +175,9 @@ class output_tab(tk.Frame):
 			return True
 		return False
 
-	def set_output_obj(self,ll, direction,main_msg):
+	def set_output_obj(self,ll,panel, direction,main_msg):
 		"sets the outputobject in the output" 
-		self.output=output.output(ll, direction,main_msg)
+		self.output=output.output(ll,panel, direction,main_msg)
 		
 		
 	def get_digits(self):
@@ -204,7 +204,7 @@ class output_tab(tk.Frame):
 		self.reg_table=self.output.reg_table()
 		self.print()
 		
-	def update_after_linesearch(self,direction,ll,incr):
+	def update_after_linesearch(self,direction,ll,panel,incr):
 		self.output.update_after_linesearch(direction,ll,incr)
 		if self.menu_buttons['DIAGNOSTICS'].button_main['bg']==bg_selected:
 			self.statistics=self.output.statistics()
@@ -213,9 +213,9 @@ class output_tab(tk.Frame):
 		self.widget.stored_output_data.reg_table=self.reg_table		
 		
 		if self.menu_buttons['DISTRIBUTION CHARTS'].button_main["fg"]==fg_normal:
-			self.charts.plot(ll)
+			self.charts.plot(ll,panel)
 		self.widget.stored_output_data.chart_images=self.charts.get_images_for_storage()#for storing the editor
-		self.widget.stored_output_data.data=stored_data(ll,direction,self.reg_table)#for storing the editor		
+		self.widget.stored_output_data.data=stored_data(ll,panel,direction,self.reg_table)#for storing the editor		
 		self.print()
 		
 	#****END UPDATE CALLS********
@@ -403,7 +403,7 @@ class output_tab(tk.Frame):
 		"prints a single regression"
 		s,llength=self.reg_table.table(digits,bracket,fmt,stacked,
 							   self.menu_buttons['REGRESSION'].buttons_sub['DIR']['fg']==fg_normal,
-							   self.menu_buttons['REGRESSION'].buttons_sub['CNSTRNTS']['fg']==fg_normal)
+							   self.menu_buttons['REGRESSION'].buttons_sub['CONSTRNTS']['fg']==fg_normal)
 		formatting=None
 		if fmt=='NORMAL':
 			formatting={'single_line':[5,9+self.reg_table.n_variables*3],
@@ -414,7 +414,7 @@ class output_tab(tk.Frame):
 						}
 			if stacked:
 				formatting['10p']=[7+i*3 for i in range(self.reg_table.n_variables)]		
-				formatting['space_line']=[8+i*3 for i in range(self.reg_table.n_variables)]		
+				formatting['space_line']=[8+i*3 for i in range(self.reg_table.n_variables)]	
 		self.print_text(s,self.reg_table.X,formatting)
 		
 	def print_text(self,text,X=None,formatting=None,tab_stops="1c"):
@@ -706,13 +706,12 @@ class stored_output:#for storing the editor
 		
 
 class stored_data:
-	def __init__(self,ll,direction,reg_table):
-		N,T,k=ll.panel.X.shape
-		panel=ll.panel
+	def __init__(self,ll,panel,direction,reg_table):
+		N,T,k=panel.X.shape
 		self.X=panel.input.X
 		self.Y=panel.input.Y
 		if not hasattr(ll,'X_st'):
-			ll.standardize()
+			ll.standardize(panel)
 		self.X_st=ll.X_st[panel.included[2]]
 		self.Y_st=ll.Y_st[panel.included[2]]		
 		self.X_names=panel.input.X_names
@@ -733,7 +732,7 @@ class stored_data:
 			self.join_table=None
 			return
 		elif len(panel.input.join_table)==0:
-			panel.input.join_table.append(output.join_table(ll.args))
+			panel.input.join_table.append(output.join_table(ll.args,panel))
 		elif type(panel.input.join_table[0])==str:
 			if len(panel.input.join_table)>1:
 				varnames=list(panel.input.join_table)
@@ -742,9 +741,9 @@ class stored_data:
 				varnames=s.replace(',','+').split('+')
 			while len(panel.input.join_table):
 				panel.input.join_table.pop()#removes all elements
-			panel.input.join_table.append(output.join_table(ll.args,varnames))
+			panel.input.join_table.append(output.join_table(ll.args,panel,varnames))
 		self.join_table=panel.input.join_table[0]
-		self.join_table.update(ll,self.reg_stats,self.descr)
+		self.join_table.update(ll,self.reg_stats,self.descr,panel)
 		
 class bar(tk.Frame):
 	def __init__(self,master,exe_tab):

@@ -22,8 +22,8 @@ class statistics:
 		self.H=results.direction.H
 		self.ll=results.ll
 		self.panel=results.panel
-		self.ll.standardize()
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(self.ll,True)
+		self.ll.standardize(self.panel)
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(self.ll,True, panel)
 		self.LL_restricted=logl.LL(self.panel.args.args_restricted, self.panel).LL
 		self.LL_OLS=logl.LL(self.panel.args.args_OLS, self.panel).LL		
 		self.name=name

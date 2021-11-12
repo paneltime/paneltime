@@ -10,6 +10,7 @@ import datetime
 from queue import Queue
 from threading import Thread
 import time
+import loglikelihood as lgl
 
 
 
@@ -29,9 +30,10 @@ class master():
 		fpath=obtain_fname('./output/')
 		os.makedirs(fpath, exist_ok=True)
 		os.makedirs(fpath+'/slaves', exist_ok=True)
-		self.slaves=[slave(initcommand,i,fpath) for i in range(n)]
+		self.slaves=[slave() for i in range(n)]
 		pids=[]
 		for i in range(n):
+			self.slaves[i].confirm(i,initcommand,fpath) 
 			pid=str(self.slaves[i].p_id)
 			if int(i/5.0)==i/5.0:
 				pid='\n'+pid
@@ -66,6 +68,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		"""Sends a request for a particular variable at node, after remote_execute. 
 		Usefull when large objects shall be returned, and you only need a few/one of them"""
 		self.slaves[node].send('remote recieve',variable)
+		
 		return self.slaves[node].receive()
 
 	def send_holdbacks(self, key_arr):
@@ -85,6 +88,8 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		d_arr=[]
 		if timer:
 			t_arr=[-time.perf_counter()]*n
+		else:
+			t_arr=None
 		if not remote:
 			msg='expression evaluation'
 		else:
@@ -115,9 +120,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 				pb_func,pb_min,pb_max,text=progress_bar			
 				pb_func(pb_min+(pb_max-pb_min)*got/n,text)
 		d,d_node=get_slave_dicts(d_arr)
-		if timer:
-			return d,t_arr
-		return d,d_node
+		return d,d_node,t_arr
 	
 	def quit(self):
 		for i in self.slaves:
@@ -146,13 +149,15 @@ class slave():
 	command = [sys.executable, "-u", "-m", "multi_core_slave.py"]
 
 
-	def __init__(self,initcommand,slave_id,fpath):
+	def __init__(self):
 		"""Starts local worker"""
 		cwdr=os.getcwd()
 		os.chdir(os.path.dirname(__file__))
 		self.p = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		os.chdir(cwdr)
 		self.t=transact(self.p.stdout,self.p.stdin)
+		
+	def confirm(self,slave_id,initcommand,fpath):
 		self.p_id = self.receive()
 		self.slave_id=slave_id
 		self.send('init_transact',(initcommand,slave_id,fpath))
@@ -220,28 +225,25 @@ class multiprocess:
 	def execute(self,expr,timer=False,progress_bar=None):
 		"""For submitting multiple functions to be evalated. expr is an array of argument arrays where the first element in each 
 		argument array is the function to be evaluated"""
-		d,d_node=self.master.send_tasks(expr,timer=timer,progress_bar=progress_bar)
-		if timer:
-			d,t=d
+		d,d_node, t=self.master.send_tasks(expr,timer=timer,progress_bar=progress_bar)
 		for i in d:
 			self.d[i]=d[i]
 		if timer:
 			return self.d,t
 		return self.d
 	
-	def remote_execute(self,expr,dct=None,single_core=False):
-		"""The same as execute, but only a specified variable is return for each execution element.
+	def remote_execute(self,expr,single_core=False,d={}):
+		"""The same as execute, but only a specified variable is returned for each execution element.
 		Usefull when large objects shall be returned, and you only need a few/one of them. Used with remote_recieve"""
 		if not single_core:
-			d,d_node=self.master.send_tasks(expr,True)
+			d,d_node,t=self.master.send_tasks(expr,True)
 		else:
 			self.slave_single_core={}
-			d={}
 			d_node={}
 			for i in range(len(expr)):
 				e,ret_var=expr[i]
 				ret=dict()
-				exec(e,globals(),ret)
+				exec(e,d,ret)
 				self.slave_single_core[i]=ret
 				d[ret_var]=ret[ret_var]
 				d_node[ret_var]=i

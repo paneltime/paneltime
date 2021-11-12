@@ -13,7 +13,7 @@ static double* to_c_array(PyObject *pyobj,long* n_ref) {
 	
 	PyArrayObject *arr=  (PyArrayObject *) PyArray_FROM_OTF(pyobj, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
 	
-	long n=PyArray_DIM(arr, 0);
+	long n= PyArray_DIM(arr, 0);
 	double* a=new double[n];
 
 	for(long i=0;i<n;i++){
@@ -24,6 +24,7 @@ static double* to_c_array(PyObject *pyobj,long* n_ref) {
 	return a;
 
 }
+
 
 double min(double a, double b){
 	if(a>b){
@@ -36,7 +37,7 @@ double min(double a, double b){
 	}
 
 void inverse(PyObject *py_x_args,PyObject *py_b_args,long n, 
-				PyArrayObject** a_matr,PyArrayObject** ab_matr) {
+				PyArrayObject** a_matr,PyArrayObject** ab_matr,long vector) {
 	
 	long q,k,j,i;
 	
@@ -61,16 +62,21 @@ void inverse(PyObject *py_x_args,PyObject *py_b_args,long n,
 		}
 		for(long j=0;j<min(k,i+1);j++){
 			sum_ab+=b_args[j]*a[i-j];
-		ab[i]=sum_ab;
+			ab[i]=sum_ab;
 		}
-		for(j=0;j<n-i;j++){
-			*(double *) PyArray_GETPTR2(*a_matr, i+j, j)=a[i];
-			*(double *) PyArray_GETPTR2(*ab_matr, i+j, j)=ab[i];
-			}
-		
+		if (vector==0){
+			for(j=0;j<n-i;j++){
+				*(double *) PyArray_GETPTR2(*a_matr,  i+j, j)=a[i];
+				*(double *) PyArray_GETPTR2(*ab_matr, i+j, j)=ab[i];
+				}
+		}else{
+			*(double *) PyArray_GETPTR1(*a_matr,  i)=a[i];
+			*(double *) PyArray_GETPTR1(*ab_matr, i)=ab[i];
+		}
 	}
+		
+
 	delete a,ab,b_args,x_args;
-	
 	
 }
 
@@ -85,10 +91,10 @@ static PyObject *bandinverse(PyObject *self, PyObject *args) {
 	PyObject* GAR_1_in;
 	PyObject* GAR_1MA_in;
 
-	long n;
+	long n,vector;
 	
 	
-	if (!PyArg_ParseTuple(args, "OOOOlOOOO", &lambda,&rho,&gamma,&psi,&n,&AMA_1_in,&AMA_1AR_in,&GAR_1_in,&GAR_1MA_in)){
+	if (!PyArg_ParseTuple(args, "OOOOlOOOOl", &lambda,&rho,&gamma,&psi,&n,&AMA_1_in,&AMA_1AR_in,&GAR_1_in,&GAR_1MA_in,&vector)){
 		PyErr_SetString(PyExc_ValueError,"Error in parsing arguments");
 		return NULL;
 		};
@@ -97,8 +103,9 @@ static PyObject *bandinverse(PyObject *self, PyObject *args) {
 	PyArrayObject* AMA_1AR =  (PyArrayObject *) PyArray_FROM_OTF(AMA_1AR_in, 	NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
 	PyArrayObject* GAR_1 	=  (PyArrayObject *) PyArray_FROM_OTF(GAR_1_in, 	NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
 	PyArrayObject* GAR_1MA =  (PyArrayObject *) PyArray_FROM_OTF(GAR_1MA_in, 	NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
-	inverse(lambda,rho,n,&AMA_1,&AMA_1AR);
-	inverse(gamma,psi,n,&GAR_1,&GAR_1MA);	
+	
+	inverse(lambda,rho,n,&AMA_1,&AMA_1AR,vector);
+	inverse(gamma,psi,n,&GAR_1,&GAR_1MA, vector);	
 	
 	Py_DECREF(AMA_1);
 	Py_DECREF(AMA_1AR);
@@ -110,12 +117,64 @@ static PyObject *bandinverse(PyObject *self, PyObject *args) {
 	Py_DECREF(psi);
 	Py_DECREF(gamma);
 	
+	
 	return Py_BuildValue("i",1);
 		
 }
 
+
+
+static PyObject *banddot(PyObject *self, PyObject *args) {
+	
+
+	PyObject* band_in;
+	PyObject* M_in;
+	PyObject* X_in;
+
+	double sum;
+	long i,j,m;
+	
+	
+	if (!PyArg_ParseTuple(args, "OOO", &band_in,&M_in,&X_in)){
+		PyErr_SetString(PyExc_ValueError,"Error in parsing arguments");
+		return NULL;
+		};
+		
+	PyArrayObject* X =  (PyArrayObject *) PyArray_FROM_OTF(X_in, 	NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
+	PyArrayObject* band =  (PyArrayObject *) PyArray_FROM_OTF(band_in, 	NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
+	PyArrayObject* M =  (PyArrayObject *) PyArray_FROM_OTF(M_in, 	NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
+
+	long n= PyArray_DIM(M, 0);
+	long k= PyArray_DIM(M, 1);
+
+	
+	for(i=0;i<k;i++){
+		for(j=0;j<n;j++){
+			sum=0;
+			for(m=0;m<=j;m++){
+				sum+=(*(double *) PyArray_GETPTR1(band, j-m))*(*(double *) PyArray_GETPTR2(M, j, i));
+			}
+			*(double *) PyArray_GETPTR2(X, j, i)=sum;
+		}
+	}
+	
+
+
+	
+	Py_DECREF(band);
+	Py_DECREF(M);
+	Py_DECREF(X);
+
+	
+	return Py_BuildValue("i",1);
+		
+}
+
+
+
 static PyObject *dot(PyObject *self, PyObject *args) {
 	//less efficient than numpy, so not in use
+	//Must delete objects to use
 	PyObject* A_in;
 	PyObject* B_in;
 	PyObject* d_in;
@@ -167,6 +226,8 @@ static PyMethodDef cmethods[] = {
 	"Execute a shell command."},
 	{"dot",  dot, METH_VARARGS,
 	"Execute a shell command."},
+	{"bdot",  banddot, METH_VARARGS,
+	"Execute a shell command."},
 	{NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
@@ -188,5 +249,4 @@ PyMODINIT_FUNC PyInit_cfunctions(void)
 	
 
 }
-
 

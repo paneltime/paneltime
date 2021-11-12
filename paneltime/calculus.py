@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import calculus_functions as cf
+import calculus_ll as cll
 import numpy as np
 import time
 import debug
@@ -15,7 +16,7 @@ class gradient:
 		self.panel=panel
 		self.progress_bar=progress_bar
 		
-	def arima_grad(self,k,x,sign=1,pre=None):
+	def arima_grad(self,k,x,ll,sign=1,pre=None):
 		if k==0:
 			return None
 
@@ -27,7 +28,7 @@ class gradient:
 		#reshapes to  "N x T x k": 
 		x=np.moveaxis(x,0,3).reshape((N,T,k))
 		if not pre is None:
-			x=cf.dot(pre,x)
+			x=self.panel.arma_dot.dot(pre,x,ll)
 		if sign<0:
 			x=x*sign
 		extr_value=1e+100
@@ -44,42 +45,41 @@ class gradient:
 			d_eRE_sq=2*ll.e_RE*dRE
 			dmeane2=panel.mean(d_eRE_sq,(0,1))
 			d_input=(d_eRE_sq-dmeane2)*panel.a[3]
-			dvRE_dx=dmeane2*panel.a[3]-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname)
+			dvRE_dx=dmeane2*panel.a[3]-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname,panel)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname,panel)
 			groupeffect=ll.dlnvRE*dvRE_dx*panel.a[3]
 		
-		if (not panel.options.fixed_random_in_GARCH.value) and (not panel.options.fixed_random_pre_ARIMA.value):
+		if (not panel.options.RE_in_GARCH.value):
 			dRE=d
+		dlnv_sigma_G=None
 		if self.panel.pqdkm[4]>0 and not dRE is None: 			#eqs. 33-34
 			((N,T,k))=dRE.shape
 			x=cf.prod((ll.h_e_val,dRE))	
-			dlnv_sigma_G=cf.dot(ll.GAR_1MA,x)
-			dlnv_e=cf.add((dlnv_sigma_G,groupeffect),True)
-			return dlnv_e,dlnv_sigma_G,dvRE_dx,d_input
-		else:
-			return groupeffect,None,dvRE_dx,d_input
+			dlnv_sigma_G=self.panel.arma_dot.dot(ll.GAR_1MA,x,ll)
+		dlnv_e=cf.add((dlnv_sigma_G,groupeffect),True)
+		return dlnv_e,dlnv_sigma_G,dvRE_dx,d_input
+
 
 	def get(self,ll,DLL_e=None,dLL_lnv=None,return_G=False):
 		if not self.progress_bar(0.05,'',task='gradient'):return
 		(self.DLL_e, self.dLL_lnv)=(DLL_e, dLL_lnv)
 		panel=self.panel
+		incl=self.panel.included[3]
 		re_obj_i,re_obj_t=ll.re_obj_i,ll.re_obj_t
 		u,e,h_e_val,lnv_ARMA,h_val,v=ll.u,ll.e,ll.h_e_val,ll.lnv_ARMA,ll.h_val,ll.v
 		p,q,d,k,m=panel.pqdkm
 		nW=panel.nW
 		if DLL_e is None:
-			DLL_e=-(ll.e_RE*ll.v_inv)*self.panel.included[3]
-			dLL_lnv=-0.5*(self.panel.included[3]-(ll.e_REsq*ll.v_inv)*self.panel.included[3])	
-			dLL_lnv*=ll.dlnv_pos
+			dLL_lnv, DLL_e=cll.gradient(ll,self.panel)
 		#ARIMA:
-		de_rho=self.arima_grad(p,u,-1,ll.AMA_1)
-		de_lambda=self.arima_grad(q,e,-1,ll.AMA_1)
-		de_beta=-cf.dot(ll.AMA_1AR,panel.XIV)*panel.a[3]
+		de_rho=self.arima_grad(p,u,ll,-1,ll.AMA_1)
+		de_lambda=self.arima_grad(q,e,ll,-1,ll.AMA_1)
+		de_beta=-self.panel.arma_dot.dot(ll.AMA_1AR,panel.XIV,ll)*panel.a[3]
 		
 		(self.de_rho,self.de_lambda,self.de_beta)=(de_rho,de_lambda,de_beta)
 		
-		self.de_rho_RE       =    cf.add((de_rho,     re_obj_i.dRE(de_rho, ll.e,'rho'), 		re_obj_t.dRE(de_rho,ll.e,'rho')), True)
-		self.de_lambda_RE    =    cf.add((de_lambda,  re_obj_i.dRE(de_lambda, ll.e,'lambda'),	re_obj_t.dRE(de_lambda,ll.e,'lambda')), True)
-		self.de_beta_RE      =    cf.add((de_beta,    re_obj_i.dRE(de_beta, ll.e,'beta'), 		re_obj_t.dRE(de_beta,ll.e,'beta')), True)		
+		self.de_rho_RE       =    cf.add((de_rho,     re_obj_i.dRE(de_rho, ll.e,'rho',panel), 		re_obj_t.dRE(de_rho,ll.e,'rho',panel)), True)
+		self.de_lambda_RE    =    cf.add((de_lambda,  re_obj_i.dRE(de_lambda, ll.e,'lambda',panel),	re_obj_t.dRE(de_lambda,ll.e,'lambda',panel)), True)
+		self.de_beta_RE      =    cf.add((de_beta,    re_obj_i.dRE(de_beta, ll.e,'beta',panel), 		re_obj_t.dRE(de_beta,ll.e,'beta',panel)), True)		
 
 		dlnv_sigma_rho,		dlnv_sigma_rho_G,		dvRE_rho	, d_rho_input		=	self.garch_arima_grad(ll,	de_rho,		self.de_rho_RE,		'rho')
 		dlnv_sigma_lambda, 	dlnv_sigma_lambda_G,	dvRE_lambda	, d_lambda_input	=	self.garch_arima_grad(ll,	de_lambda,	self.de_lambda_RE,	'lambda')
@@ -93,13 +93,13 @@ class gradient:
 		#GARCH:
 		(dlnv_gamma, dlnv_psi, dlnv_mu, dlnv_z_G, dlnv_z)=(None,None,None,None,None)
 		if panel.N>1:
-			dlnv_mu=cf.prod((ll.dlnvRE_mu,panel.included[3]))
+			dlnv_mu=cf.prod((ll.dlnvRE_mu,incl))
 		else:
 			dlnv_mu=None	
 			
 		if m>0:
-			dlnv_gamma=self.arima_grad(k,lnv_ARMA,1,ll.GAR_1)
-			dlnv_psi=self.arima_grad(m,h_val,1,ll.GAR_1)
+			dlnv_gamma=self.arima_grad(k,lnv_ARMA,ll,1,ll.GAR_1)
+			dlnv_psi=self.arima_grad(m,h_val,ll,1,ll.GAR_1)
 			if not ll.h_z_val is None:
 				dlnv_z_G=cf.dot(ll.GAR_1MA,ll.h_z_val)
 				(N,T,k)=dlnv_z_G.shape
@@ -117,7 +117,8 @@ class gradient:
 		dLL_lambda=cf.add((cf.prod((dlnv_sigma_lambda,dLL_lnv)),cf.prod((self.de_lambda_RE,DLL_e))),True)
 		dLL_gamma=cf.prod((dlnv_gamma,dLL_lnv))
 		dLL_psi=cf.prod((dlnv_psi,dLL_lnv))
-		dLL_omega=cf.prod((panel.W_a,dLL_lnv))
+		self.dlnv_omega=panel.W_a
+		dLL_omega=cf.prod((self.dlnv_omega,dLL_lnv))
 		dLL_mu=cf.prod((self.dlnv_mu,dLL_lnv))
 		dLL_z=cf.prod((self.dlnv_z,dLL_lnv))
 
@@ -132,6 +133,7 @@ class gradient:
 		#a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
 		#dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
 		if not self.progress_bar(0.08,'','hessian'):return
+
 		if return_G:
 			return  g,G
 		else:	
@@ -142,22 +144,22 @@ class hessian:
 	def __init__(self,panel,g,progress_bar):
 		self.panel=panel
 		self.its=0
-		self.sec_deriv=self.set_mp_strings()
+		self.set_mp_strings()
 		self.g=g
 		self.progress_bar=progress_bar
 		
 	
 	def get(self,ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
-		n,k=ll.panel.input.X.shape
+		N,T,k=self.panel.X.shape
 		if False:#for testing performance of multi vs single core
-			print(f"N:{n*k/1e+5}")
+			print(f"T:{T/3000}")
 			t0=time.time()
 			a=self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 			t1=time.time()
 			print(f"single core: {t1-t0}")
 			a=self.hessian_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 			print(f"multi core: {time.time()-t1}")
-		if (mp is None) or (n*k<2e+5):#limit found with 8 variables
+		if (mp is None) or (T<5000):#this was found to be the threshold for when multicore is helpful (tested with 8 variables)
 			return self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 		else:
 			return self.hessian_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
@@ -167,8 +169,11 @@ class hessian:
 		tic=time.perf_counter()
 		g=self.g
 		p,q,d,k,m=panel.pqdkm
-		GARM=cf.ARMA_product(ll.GAR_1,m)
-		GARK=cf.ARMA_product(ll.GAR_1,k)
+		incl=self.panel.included[3]
+		
+		GARM=cf.ARMA_product(ll.GAR_1,m,panel,ll,'m')
+		
+		GARK=cf.ARMA_product(ll.GAR_1,k,panel,ll,'k')
 
 		d2lnv_gamma2		=   cf.prod((2, 
 		                        cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_gamma,						g.dLL_lnv,  transpose=True)))
@@ -184,14 +189,15 @@ class hessian:
 		d2lnv_psi_beta		=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_beta)),	g.dLL_lnv)
 		d2lnv_psi_z			=	cf.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,								g.dLL_lnv)
 
-		AMAq=-cf.ARMA_product(ll.AMA_1,q)
+		AMAq=-cf.ARMA_product(ll.AMA_1,q,panel,ll,'q')
 		d2lnv_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'lambda', transpose=True)
 		d2lnv_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'rho' )
 		d2lnv_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta')
 
-		AMAp=-cf.ARMA_product(ll.AMA_1,p)
+		AMAp=-cf.ARMA_product(ll.AMA_1,p,panel,ll,'p')
 		d2lnv_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 		if not self.progress_bar(0.4):return
+		
 		d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
 		if panel.N>1:
 			d2lnv_mu_rho			=	cf.sumNT(cf.prod((ll.ddlnvRE_mu_vRE, 	g.dvRE_rho,  	 	g.dLL_lnv)))
@@ -208,57 +214,64 @@ class hessian:
 		
 		d2lnv_rho2,	d2e_rho2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'rho',		'rho' )
 		d2lnv_beta2,d2e_beta2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'beta',		'beta')
+		
+
 
 		(de_rho_RE,de_lambda_RE,de_beta_RE)=(g.de_rho_RE,g.de_lambda_RE,g.de_beta_RE)
 		(dlnv_sigma_rho,dlnv_sigma_lambda,dlnv_sigma_beta)=(g.dlnv_sigma_rho,g.dlnv_sigma_lambda,g.dlnv_sigma_beta)
-		(dlnv_gamma,dlnv_psi)=(g.dlnv_gamma,g.dlnv_psi)
 		(dlnv_mu,dlnv_z)=(g.dlnv_mu, g.dlnv_z)		
+
+		d2lnv_beta_omega, d2lnv_rho_omega, d2lnv_lambda_omega=None, None, None
+			
 		if not self.progress_bar(0.6):return
 		#Final:
 		D2LL_beta2			=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta_RE,		dlnv_sigma_beta, 	dlnv_sigma_beta,	d2e_beta2, 					d2lnv_beta2)
 		D2LL_beta_rho		=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_rho_RE,		dlnv_sigma_beta, 	dlnv_sigma_rho,		T(d2e_rho_beta), 		T(d2lnv_rho_beta))
 		D2LL_beta_lambda	=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_lambda_RE,	dlnv_sigma_beta, 	dlnv_sigma_lambda,	T(d2e_lambda_beta), 	T(d2lnv_lambda_beta))
 		D2LL_beta_gamma		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	g.dlnv_gamma,		None, 					T(d2lnv_gamma_beta))
-		D2LL_beta_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	g.dlnv_psi,		None, 					T(d2lnv_psi_beta))
-		D2LL_beta_omega		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	panel.W_a,		None, 					None)
-		D2LL_beta_mu		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	dlnv_mu,		None, 					d2lnv_mu_beta)
-		D2LL_beta_z			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	dlnv_z,			None, 					T(d2lnv_z_beta))
+		D2LL_beta_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	g.dlnv_psi,			None, 					T(d2lnv_psi_beta))
+		D2LL_beta_omega		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	g.dlnv_omega,		None, 					d2lnv_beta_omega)
+		D2LL_beta_mu		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	dlnv_mu,			None, 					d2lnv_mu_beta)
+		D2LL_beta_z			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	dlnv_z,				None, 					T(d2lnv_z_beta))
 		
 		D2LL_rho2			=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_rho_RE,		dlnv_sigma_rho, 	dlnv_sigma_rho,		d2e_rho2, 					d2lnv_rho2)
 		D2LL_rho_lambda		=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_lambda_RE,	dlnv_sigma_rho, 	dlnv_sigma_lambda,	T(d2e_lambda_rho), 		T(d2lnv_lambda_rho))
 		D2LL_rho_gamma		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	g.dlnv_gamma,		None, 					T(d2lnv_gamma_rho))	
-		D2LL_rho_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	g.dlnv_psi,		None, 					T(d2lnv_psi_rho))
-		D2LL_rho_omega		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	panel.W_a,		None, 					None)
-		D2LL_rho_mu			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	dlnv_mu,		None, 					T(d2lnv_mu_rho))
-		D2LL_rho_z			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	dlnv_z,			None, 					T(d2lnv_z_rho))
+		D2LL_rho_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	g.dlnv_psi,			None, 					T(d2lnv_psi_rho))
+		D2LL_rho_omega		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	g.dlnv_omega,		None, 					d2lnv_rho_omega)
+		D2LL_rho_mu			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	dlnv_mu,			None, 					T(d2lnv_mu_rho))
+		D2LL_rho_z			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	dlnv_z,				None, 					T(d2lnv_z_rho))
 		
 		D2LL_lambda2		=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	de_lambda_RE,	dlnv_sigma_lambda, 	dlnv_sigma_lambda,	T(d2e_lambda2), 		T(d2lnv_lambda2))
 		D2LL_lambda_gamma	=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	g.dlnv_gamma,		None, 					T(d2lnv_gamma_lambda))
-		D2LL_lambda_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	g.dlnv_psi,		None, 					T(d2lnv_psi_lambda))
-		D2LL_lambda_omega	=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	panel.W_a,		None, 					None)
-		D2LL_lambda_mu		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	dlnv_mu,		None, 					T(d2lnv_mu_lambda))
-		D2LL_lambda_z		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	dlnv_z,			None, 					T(d2lnv_z_lambda))
+		D2LL_lambda_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	g.dlnv_psi,			None, 					T(d2lnv_psi_lambda))
+		D2LL_lambda_omega	=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	g.dlnv_omega,		None, 					d2lnv_lambda_omega)
+		D2LL_lambda_mu		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	dlnv_mu,			None, 					T(d2lnv_mu_lambda))
+		D2LL_lambda_z		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	dlnv_z,				None, 					T(d2lnv_z_lambda))
 		
-		D2LL_gamma2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 	g.dlnv_gamma,		None, 					T(d2lnv_gamma2))
-		D2LL_gamma_psi		=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dlnv_gamma, 	g.dlnv_psi,		None, 					d2lnv_gamma_psi)
-		D2LL_gamma_omega	=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 	panel.W_a,		None, 					None)
-		D2LL_gamma_mu		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 	dlnv_mu,		None, 					None)
-		D2LL_gamma_z		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 	dlnv_z,			None, 					d2lnv_gamma_z)
+		D2LL_gamma2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 		g.dlnv_gamma,		None, 					T(d2lnv_gamma2))
+		D2LL_gamma_psi		=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dlnv_gamma, 		g.dlnv_psi,			None, 					d2lnv_gamma_psi)
+		D2LL_gamma_omega	=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 		g.dlnv_omega,		None, 					None)
+		D2LL_gamma_mu		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 		dlnv_mu,			None, 					None)
+		D2LL_gamma_z		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 		dlnv_z,				None, 					d2lnv_gamma_z)
 		
-		D2LL_psi2			=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dlnv_psi, 		g.dlnv_psi,		None, 					None)
-		D2LL_psi_omega		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		panel.W_a,		None, 					None)
-		D2LL_psi_mu			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		dlnv_mu,		None, 					None)
-		D2LL_psi_z			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		dlnv_z,			None, 					d2lnv_psi_z)
+		D2LL_psi2			=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dlnv_psi, 		g.dlnv_psi,			None, 					None)
+		D2LL_psi_omega		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		g.dlnv_omega,		None, 					None)
+		D2LL_psi_mu			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		dlnv_mu,			None, 					None)
+		D2LL_psi_z			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		dlnv_z,				None, 					d2lnv_psi_z)
 		
-		D2LL_omega2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			panel.W_a, 		panel.W_a,		None, 					None)
-		D2LL_omega_mu		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			panel.W_a, 		dlnv_mu,		None, 					None)
-		D2LL_omega_z		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			panel.W_a, 		dlnv_z,			None, 					None)
+		D2LL_omega2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_omega, 		g.dlnv_omega,		None, 					None)
+		D2LL_omega_mu		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_omega, 		g.dlnv_mu,			None, 					None)
+		D2LL_omega_z		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_omega, 		g.dlnv_z,			None, 					None)
 		
-		D2LL_mu2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 		dlnv_mu,		None, 					None)
-		D2LL_mu_z			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 		dlnv_z,			None, 					d2lnv_mu_z)
+		D2LL_mu2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 			dlnv_mu,			None, 					None)
+		D2LL_mu_z			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 			dlnv_z,				None, 					d2lnv_mu_z)
 		
-		D2LL_z2				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_z, 		dlnv_z,			None, 					d2lnv_z2)
+		D2LL_z2				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_z, 			dlnv_z,				None, 					d2lnv_z2)
+		
 
+		
+		
 		H= [[D2LL_beta2,			D2LL_beta_rho,		D2LL_beta_lambda,		D2LL_beta_gamma,	D2LL_beta_psi,		D2LL_beta_omega,	D2LL_beta_mu,	D2LL_beta_z		],
 	        [T(D2LL_beta_rho),		D2LL_rho2,			D2LL_rho_lambda,		D2LL_rho_gamma,		D2LL_rho_psi,		D2LL_rho_omega,		D2LL_rho_mu,	D2LL_rho_z			],
 	        [T(D2LL_beta_lambda),	T(D2LL_rho_lambda),	D2LL_lambda2,			D2LL_lambda_gamma,	D2LL_lambda_psi,	D2LL_lambda_omega,	D2LL_lambda_mu,	D2LL_lambda_z		],
@@ -289,18 +302,14 @@ class hessian:
 		use_mp= (NT*(k**0.5)>200000 and os.cpu_count()>=2) 
 		d={'ll':ll_light(ll),'g':g_obj_light(g)}
 		#if use_mp:
-		mp.send_dict_by_file(d)	
+		
 		progress_bar=[self.progress_bar,0.1,0.9,'']
 		t_1=time.perf_counter()
+		
+		set_dict_vars(d,g, d2LL_de2, d2LL_dln_de, d2LL_dln2)
+		
+		mp.send_dict_by_file(d)	
 		d,t=mp.execute(self.evalstr,True,progress_bar=progress_bar)
-		d['d2LL_de2']=d2LL_de2
-		d['d2LL_dln_de']=d2LL_dln_de
-		d['d2LL_dln2']=d2LL_dln2
-		(d['de_rho_RE'],d['de_lambda_RE'],d['de_beta_RE'])=(g.de_rho_RE,g.de_lambda_RE,g.de_beta_RE)
-		(d['dlnv_sigma_rho'],d['dlnv_sigma_lambda'],d['dlnv_sigma_beta'])=(g.dlnv_sigma_rho,g.dlnv_sigma_lambda,g.dlnv_sigma_beta)
-		(d['dlnv_gamma'],d['dlnv_psi'])=(g.dlnv_gamma,g.dlnv_psi)
-
-		(d['dlnv_mu'], d['dlnv_z'])=(g.dlnv_mu, g.dlnv_z)		
 
 		return d
 	
@@ -311,8 +320,8 @@ class hessian:
 		#strings are evaluated for the code to be compatible with multi core proccessing
 		p,q,d,k,m=panel.pqdkm
 		evalstr.append(f"""	                        
-GARM=cf.ARMA_product(ll.GAR_1,{m})
-GARK=cf.ARMA_product(ll.GAR_1,{k})
+GARM=cf.ARMA_product(ll.GAR_1,{m},panel,ll,'m')
+GARK=cf.ARMA_product(ll.GAR_1,{k},panel,ll,'k')
 
 d2lnv_gamma2		=   cf.prod((2, 
 		                cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_gamma,						g.dLL_lnv,  transpose=True)))
@@ -330,21 +339,21 @@ d2lnv_psi_z			=	cf.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,								g.dLL_lnv)
 """)
 		#ARCH:
 		evalstr.append(f"""
-AMAq=-cf.ARMA_product(ll.AMA_1,{q})
+AMAq=-cf.ARMA_product(ll.AMA_1,{q},panel,ll,'q')
 d2lnv_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'lambda', transpose=True)
 """)
 		
 		evalstr.append(f"""
-AMAq=-cf.ARMA_product(ll.AMA_1,{q})
+AMAq=-cf.ARMA_product(ll.AMA_1,{q},panel,ll,'q')
 d2lnv_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'rho' )
 """)
 		
 		evalstr.append(f"""
-AMAq=-cf.ARMA_product(ll.AMA_1,{q})
+AMAq=-cf.ARMA_product(ll.AMA_1,{q},panel,ll,'q')
 d2lnv_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta') """)	
 		
 		evalstr.append(f"""		
-AMAp=-cf.ARMA_product(ll.AMA_1,{p})
+AMAp=-cf.ARMA_product(ll.AMA_1,{p},panel,ll,'p')
 d2lnv_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 
 d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
@@ -380,45 +389,46 @@ D2LL_beta2			=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta
 D2LL_beta_rho		=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_rho_RE,		dlnv_sigma_beta, 	dlnv_sigma_rho,		T(d2e_rho_beta), 		T(d2lnv_rho_beta))
 D2LL_beta_lambda	=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_lambda_RE,	dlnv_sigma_beta, 	dlnv_sigma_lambda,	T(d2e_lambda_beta), 	T(d2lnv_lambda_beta))
 D2LL_beta_gamma		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	g.dlnv_gamma,		None, 					T(d2lnv_gamma_beta))
-D2LL_beta_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	g.dlnv_psi,		None, 					T(d2lnv_psi_beta))
-D2LL_beta_omega		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	panel.W_a,		None, 					None)
-D2LL_beta_mu		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	dlnv_mu,		None, 					d2lnv_mu_beta)
-D2LL_beta_z			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	dlnv_z,			None, 					T(d2lnv_z_beta))
+D2LL_beta_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	g.dlnv_psi,			None, 					T(d2lnv_psi_beta))
+D2LL_beta_omega		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	g.dlnv_omega,		None, 					d2lnv_beta_omega)
+D2LL_beta_mu		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	dlnv_mu,			None, 					d2lnv_mu_beta)
+D2LL_beta_z			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dlnv_sigma_beta, 	dlnv_z,				None, 					T(d2lnv_z_beta))
 
 D2LL_rho2			=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_rho_RE,		dlnv_sigma_rho, 	dlnv_sigma_rho,		d2e_rho2, 					d2lnv_rho2)
 D2LL_rho_lambda		=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_lambda_RE,	dlnv_sigma_rho, 	dlnv_sigma_lambda,	T(d2e_lambda_rho), 		T(d2lnv_lambda_rho))
 D2LL_rho_gamma		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	g.dlnv_gamma,		None, 					T(d2lnv_gamma_rho))	
-D2LL_rho_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	g.dlnv_psi,		None, 					T(d2lnv_psi_rho))
-D2LL_rho_omega		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	panel.W_a,		None, 					None)
-D2LL_rho_mu			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	dlnv_mu,		None, 					T(d2lnv_mu_rho))
-D2LL_rho_z			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	dlnv_z,			None, 					T(d2lnv_z_rho))
+D2LL_rho_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	g.dlnv_psi,			None, 					T(d2lnv_psi_rho))
+D2LL_rho_omega		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	g.dlnv_omega,		None, 					d2lnv_rho_omega)
+D2LL_rho_mu			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	dlnv_mu,			None, 					T(d2lnv_mu_rho))
+D2LL_rho_z			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dlnv_sigma_rho, 	dlnv_z,				None, 					T(d2lnv_z_rho))
 
 D2LL_lambda2		=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	de_lambda_RE,	dlnv_sigma_lambda, 	dlnv_sigma_lambda,	T(d2e_lambda2), 		T(d2lnv_lambda2))
 D2LL_lambda_gamma	=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	g.dlnv_gamma,		None, 					T(d2lnv_gamma_lambda))
-D2LL_lambda_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	g.dlnv_psi,		None, 					T(d2lnv_psi_lambda))
-D2LL_lambda_omega	=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	panel.W_a,		None, 					None)
-D2LL_lambda_mu		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	dlnv_mu,		None, 					T(d2lnv_mu_lambda))
-D2LL_lambda_z		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	dlnv_z,			None, 					T(d2lnv_z_lambda))
+D2LL_lambda_psi		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	g.dlnv_psi,			None, 					T(d2lnv_psi_lambda))
+D2LL_lambda_omega	=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	g.dlnv_omega,		None, 					d2lnv_lambda_omega)
+D2LL_lambda_mu		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	dlnv_mu,			None, 					T(d2lnv_mu_lambda))
+D2LL_lambda_z		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dlnv_sigma_lambda, 	dlnv_z,				None, 					T(d2lnv_z_lambda))
 
-D2LL_gamma2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 	g.dlnv_gamma,		None, 					T(d2lnv_gamma2))
-D2LL_gamma_psi		=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dlnv_gamma, 	g.dlnv_psi,		None, 					d2lnv_gamma_psi)
-D2LL_gamma_omega	=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 	panel.W_a,		None, 					None)
-D2LL_gamma_mu		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 	dlnv_mu,		None, 					None)
-D2LL_gamma_z		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 	dlnv_z,			None, 					d2lnv_gamma_z)
+D2LL_gamma2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 		g.dlnv_gamma,		None, 					T(d2lnv_gamma2))
+D2LL_gamma_psi		=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dlnv_gamma, 		g.dlnv_psi,			None, 					d2lnv_gamma_psi)
+D2LL_gamma_omega	=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 		g.dlnv_omega,		None, 					None)
+D2LL_gamma_mu		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 		dlnv_mu,			None, 					None)
+D2LL_gamma_z		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_gamma, 		dlnv_z,				None, 					d2lnv_gamma_z)
 
-D2LL_psi2			=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dlnv_psi, 		g.dlnv_psi,		None, 					None)
-D2LL_psi_omega		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		panel.W_a,		None, 					None)
-D2LL_psi_mu			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		dlnv_mu,		None, 					None)
-D2LL_psi_z			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		dlnv_z,			None, 					d2lnv_psi_z)
+D2LL_psi2			=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dlnv_psi, 		g.dlnv_psi,			None, 					None)
+D2LL_psi_omega		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		g.dlnv_omega,		None, 					None)
+D2LL_psi_mu			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		dlnv_mu,			None, 					None)
+D2LL_psi_z			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_psi, 		dlnv_z,				None, 					d2lnv_psi_z)
 
-D2LL_omega2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			panel.W_a, 		panel.W_a,		None, 					None)
-D2LL_omega_mu		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			panel.W_a, 		dlnv_mu,		None, 					None)
-D2LL_omega_z		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			panel.W_a, 		dlnv_z,			None, 					None)
+D2LL_omega2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_omega, 		g.dlnv_omega,		None, 					None)
+D2LL_omega_mu		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_omega, 		g.dlnv_mu,			None, 					None)
+D2LL_omega_z		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dlnv_omega, 		g.dlnv_z,			None, 					None)
 
-D2LL_mu2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 		dlnv_mu,		None, 					None)
-D2LL_mu_z			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 		dlnv_z,			None, 					d2lnv_mu_z)
+D2LL_mu2			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 			dlnv_mu,			None, 					None)
+D2LL_mu_z			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_mu, 			dlnv_z,				None, 					d2lnv_mu_z)
 
-D2LL_z2				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_z, 		dlnv_z,			None, 					d2lnv_z2)
+D2LL_z2				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dlnv_z, 			dlnv_z,				None, 					d2lnv_z2)
+
 
 		"""
 		exec(evalstr,None,d)
@@ -482,6 +492,9 @@ class ll_light():
 		self.lnvRE			=	ll.lnvRE
 		self.dlnvRE_mu		=	ll.dlnvRE_mu
 		self.ddlnvRE_mu_vRE	=	ll.ddlnvRE_mu_vRE
+		self.AMA_dict		=	{'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}	
+		ll.AMA_dict			=	{'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}	
+		self.AMA_dict		=	self.AMA_dict
 		
 
 
@@ -511,10 +524,24 @@ class g_obj_light():
 		self.d_rho_input	=	g.d_rho_input
 		self.d_lambda_input	=	g.d_lambda_input
 		self.d_beta_input	=	g.d_beta_input
+		self.dlnv_omega		=	g.dlnv_omega
+		self.dlnv_mu		=	g.dlnv_mu
+		self.dlnv_z			=	g.dlnv_z
 
 
 
-		
+def set_dict_vars(d,g,d2LL_de2,d2LL_dln_de,d2LL_dln2,):
+	
+	d['d2LL_de2']=d2LL_de2
+	d['d2LL_dln_de']=d2LL_dln_de
+	d['d2LL_dln2']=d2LL_dln2
+	d['d2lnv_beta_omega'], d['d2lnv_rho_omega'], d['d2lnv_lambda_omega']=None, None, None
+	(d['de_rho_RE'],d['de_lambda_RE'],d['de_beta_RE'])=(g.de_rho_RE,g.de_lambda_RE,g.de_beta_RE)
+	(d['dlnv_sigma_rho'],d['dlnv_sigma_lambda'],d['dlnv_sigma_beta'])=(g.dlnv_sigma_rho,g.dlnv_sigma_lambda,g.dlnv_sigma_beta)
+	(d['dlnv_gamma'],d['dlnv_psi'])=(g.dlnv_gamma,g.dlnv_psi)
+	
+	(d['dlnv_mu'], d['dlnv_z'])=(g.dlnv_mu, g.dlnv_z)		
+	
 def T(x):
 	if x is None:
 		return None

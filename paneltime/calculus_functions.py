@@ -35,7 +35,7 @@ def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 		de2_zeta_xi=de2_zeta_xi*panel.included[4]
 	else:
 		de2_zeta_xi=None
-	de2_zeta_xi_RE=add(([de2_zeta_xi, ll.re_obj_i.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2), ll.re_obj_t.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2)]),True)
+	de2_zeta_xi_RE=add(([de2_zeta_xi, ll.re_obj_i.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2,panel), ll.re_obj_t.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2,panel)]),True)
 	
 	return de2_zeta_xi_RE,de2_zeta_xi
 
@@ -68,8 +68,8 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 		ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl
 		dd_input=(dd_e_RE_sq-ddmeane2)*incl
 
-		ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2),
-									  ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2)),True)
+		ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2,panel),
+									  ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2,panel)),True)
 	else:
 		ddvRE_d_xi_zeta=None
 		
@@ -81,6 +81,8 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient):
 	#GARCH: 
 	incl=panel.included[4]
+	if (g.__dict__['de_'+vname1] is None) or (g.__dict__['de_'+vname2] is None):
+		return None, None	
 	(N,T,m)=g.__dict__['de_'+vname1].shape
 	(N,T,k)=g.__dict__['de_'+vname2].shape
 	DLL_e=g.DLL_e.reshape(N,T,1,1)
@@ -91,19 +93,20 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 		d2LL_d2e_zeta_xi_RE = np.sum(np.sum(d2LL_d2e_zeta_xi_RE*incl,0),0)
 		
 	RE_suffix='_RE'
-	if (not panel.options.fixed_random_in_GARCH.value) and (not panel.options.fixed_random_pre_ARIMA.value):
+	if (not panel.options.RE_in_GARCH.value):
 		de2_zeta_xi_RE=de2_zeta_xi
 		RE_suffix=''
 	de_xi_RE=g.__dict__['de_'+vname1+RE_suffix]
 	de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]	
-	if de_xi_RE is None or de_zeta_RE is None:
-		return None, None
+
 	
 	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
 	if de2_zeta_xi_RE is None:
 		de2_zeta_xi_RE=0
 	d2lnv_zeta_xi=None
 	d2LL_d2lnv_zeta_xi=None
+	d_omega_e=None
+	d2lnv_zeta_xi_h=None
 	if panel.pqdkm[4]>0:
 		if u_gradient:
 			de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]
@@ -112,15 +115,11 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 
 		d2lnv_zeta_xi_h = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
-		d2lnv_zeta_xi_h = dot(ll.GAR_1MA, d2lnv_zeta_xi_h)
+		d2lnv_zeta_xi_h = panel.arma_dot.dot(ll.GAR_1MA, d2lnv_zeta_xi_h,ll)
 		
-		d2lnv_zeta_xi = add((d2lnv_zeta_xi_h,  dd_re_variance), True)
-		
-		d2LL_d2lnv_zeta_xi = np.sum(d2lnv_zeta_xi*dLL_lnv*incl,(0,1))
-	elif not dd_re_variance is None:
-		d2LL_d2lnv_zeta_xi=np.sum(dd_re_variance*dLL_lnv*incl,(0,1))
-		
-
+	d2lnv_zeta_xi = add((d2lnv_zeta_xi_h,  dd_re_variance,d_omega_e), True)
+	if not d2lnv_zeta_xi is None:
+		d2LL_d2lnv_zeta_xi = np.sum(prod((d2lnv_zeta_xi,dLL_lnv*incl),True),(0,1))
 	
 	return d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE
 
@@ -141,6 +140,13 @@ def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 		x=dot(L,d).reshape(N,T,1,m)
 	dLL=dLL.reshape((N,T,1,1))
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	
+
+def dd_omega_func(dlnv_omega_e,de_xi):
+	if de_xi is None:
+		return None
+	N,T,k=de_xi.shape
+	N,T,m=dlnv_omega_e.shape	
+	return np.sum(dlnv_omega_e*de_xi,(0,1)).reshape((k,m))
 
 def add(iterable,ignore=False):
 	"""Sums iterable. If ignore=True all elements except those that are None are added. If ignore=False, None is returned if any element is None. """
@@ -244,15 +250,12 @@ def dd_func_mult(d0,mult,d1):
 	return x
 
 
-def ARMA_product(m,k):
+def ARMA_product(m,k,panel,ll,letter):
+	return panel.arma_dot.roll_array(m,k,letter,ll)
 	a=[]
-
 	for i in range(k):
-		a.append(roll(m,-i-1,1))
+		a.append(roll(panel.arma_dot.conv(m,ll),-i-1,1))
 	return np.array(a)
-
-
-
 
 
 	
@@ -460,5 +463,48 @@ def dot(a,b,reduce_dims=True):
 		raise RuntimeError("this multiplication is not supported by dot")
 	
 	
+class arma_dot_obj:
+	def __init__(self,n,pqdkm):
+		a=np.arange(n)
+		A=np.tril(np.array([np.roll(a,i) for i in range(n)]).T)
+		self.nz=np.nonzero(A+np.diag(np.ones(n)))
+		self.az=A[self.nz]
+		self.mdict={}
+		for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:
+			self.mdict[i]=np.zeros((n,n))
+			
+		self.rdict={}
+		p,q,d,k,m=pqdkm
+		for name, i in [('AMA_1_p',p),('AMA_1_q',q),('GAR_1_k',k),('GAR_1_m',m)]:
+			self.rdict[name]=np.zeros((i,n,n))
+		
+		
+	def dot(self,ARMA,M,ll):
+		s=list(M.shape)
+		x=np.moveaxis(M,1,0)
+		x=x.reshape((s[1],s[0]*np.prod(s[2:])))
+		ARMA=self.conv(ARMA,ll)
+		x=np.dot(ARMA,x)
+		x.resize([s[1],s[0]]+s[2:])
+		x=np.moveaxis(x,0,1)
+		return x
+	
+	def conv(self,ARMA,ll):
+		#return ARMA
+		ARMA_array,name=ARMA
+		if ll.AMA_dict[name] is None:
+			self.mdict[name][self.nz]=ARMA_array[self.az]
+			ll.AMA_dict[name]=self.mdict[name]
+		return ll.AMA_dict[name]
+	
+	def roll_array(self,ARMA,k,letter,ll):
+		ARMA_array,name=ARMA
+		M=self.conv(ARMA,ll)
+		for i in range(k):
+			self.rdict[f"{name}_{letter}"][i]=roll(M,-i-1,1)
+		return self.rdict[f"{name}_{letter}"]
+
+	
+
 def test(a,b):
 	return a+b

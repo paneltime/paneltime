@@ -62,12 +62,13 @@ class process_charts(ttk.Frame):
 			guif.setbutton(frm, 'Save image', lambda: self.save(self.n_charts-i-1),bg='white').grid(row=1,column=0)
 			frm.grid(row=i+1)
 		
-	def save(self,i):
+	def save(self,i,f=None):
 		if not hasattr(self.charts[i],'graph_file') or not hasattr(self,'panel'):
 			print('No graphics displayed yet')
 			return
 		name=self.charts[i].name
-		f = tk.filedialog.asksaveasfile(mode='bw', defaultextension=".jpg",initialfile=f"{name}.jpg")		
+		if f is None:
+			f = tk.filedialog.asksaveasfile(mode='bw', defaultextension=".jpg",initialfile=f"{name}.jpg")		
 		if f is None:
 			return
 		flst=[
@@ -84,8 +85,8 @@ class process_charts(ttk.Frame):
 			self.add_content()
 			self.initialized=True		
 		
-	def plot(self,ll):
-		self.initialize(ll.panel)
+	def plot(self,ll,panel):
+		self.initialize(panel)
 		self.ll=ll
 		self.histogram(ll,self.subplot)
 		self.correlogram(ll,self.subplot)
@@ -93,7 +94,7 @@ class process_charts(ttk.Frame):
 		
 		
 	def histogram(self,ll,subplot,f=None):
-		N,T,k=ll.panel.X.shape
+		N,T,k=self.panel.X.shape
 		fgr,axs=subplot
 		n=ll.e_norm_centered.shape[2]
 		e=ll.e_norm_centered[self.panel.included[2]].flatten()
@@ -129,7 +130,7 @@ class process_charts(ttk.Frame):
 			guif.save(subplot,f)
 		
 	def correlogram_variance(self,ll,subplot,f=None):
-		N,T,k=ll.panel.X.shape
+		N,T,k=self.panel.X.shape
 		fgr,axs=subplot
 		lags=20
 		e2=ll.e_norm_centered**2

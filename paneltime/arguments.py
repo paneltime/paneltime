@@ -26,7 +26,7 @@ class arguments:
 		self.make_namevector(panel,p, q, k, m)
 		initargs=self.initargs(p, d, q, m, k, panel)
 		self.position_defs(initargs)
-		self.set_init_args(initargs,panel)
+		self.set_init_args(panel,initargs)
 		self.get_user_constraints(panel)
 		
 		
@@ -68,7 +68,7 @@ class arguments:
 		args['omega'][0][0]=0
 		args['mu']=np.array([])
 		args['z']=np.array([])			
-		if panel.m_zero and k>0:
+		if panel.m_zero and k>0 and m>0:
 			args['psi'][0]=1e-8
 		
 		if m>0 and panel.z_active:
@@ -80,9 +80,10 @@ class arguments:
 
 		return args
 
-	def set_init_args(self, initargs,panel,default=False):
+	def set_init_args(self,panel,initargs=None,default=False):
 		p, q, d, k, m=panel.pqdkm
-
+		if initargs is None:
+			initargs=self.initargs(p, d, q, m, k, panel)
 		#de2=np.roll(e**2,1)-e**2
 		#c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
 		
@@ -92,15 +93,15 @@ class arguments:
 		if not default:
 			#previous arguments
 			self.process_init_user_args(panel.input.args_archive.args,
-												initargs,'loaded')
+												initargs,'loaded',panel)
 			#user defined arguments:
 			self.process_init_user_args(panel.input.args,
-												initargs,'user defined')
+												initargs,'user defined',panel)
 		self.args_init=self.create_args(initargs,panel)
 		self.set_restricted_args(p, d, q, m, k,panel,omega,beta)
 		self.n_args=len(self.args_init.args_v)
 		
-	def process_init_user_args(self,old_args,initargs,errstr):
+	def process_init_user_args(self,old_args,initargs,errstr,panel):
 		if old_args is None:
 			return
 		oargs=old_args
@@ -110,6 +111,8 @@ class arguments:
 			oargs=eval(old_args)
 		if type(oargs)!=dict:
 			raise RuntimeError(f"The {errstr} arguments need to be a dictionary, not {type(oargs)}")
+		if type(oargs['beta'])!=dict:
+			oargs=eval(self.create_args(oargs,panel).dict_string)
 		for cat in oargs:
 			for name in oargs[cat]:
 				if name in self.names_d[cat]:
@@ -270,13 +273,22 @@ class arguments:
 def set_init_regression(initargs,panel):
 	p, q, d, k, m=panel.pqdkm
 	beta,rho,lmbda,corr,u=ARMA_regression(panel)
+	v=panel.var(u)
+	if panel.options.normal_GARCH.value:
+		omega=panel.var(u)
+	else:
+		omega=np.log(panel.var(u))
+	
+	initargs['omega'][0,0]=omega
 	initargs['beta']=beta
-	set_ARMA_GARCH(q,p,initargs,corr,rho,lmbda,'rho','lambda')
+
+
+	#set_ARMA_GARCH(q,p,initargs,corr,rho,lmbda,'rho','lambda')
 	#set_GARCH(panel, initargs, u, m) trying to figure out the GARCH coefficients does not seem to help
-	omega=np.log(panel.var(u))#-panel.mean(h)
+	#-panel.mean(h)
+	
 	if panel.options.fixed_random_variance_eff.value==0:
-		initargs['omega'][0]=omega
-		if np.exp(omega)<1e-20:
+		if v<1e-20:
 			print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
 	return beta,omega
 
@@ -326,8 +338,8 @@ def ARMA_regression(panel):
 	tfre=panel.options.fixed_random_time_eff.value
 	re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
 	re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
-	X=(panel.X+re_obj_i.RE(panel.X)+re_obj_t.RE(panel.X))*panel.included[3]
-	Y=(panel.Y+re_obj_i.RE(panel.Y)+re_obj_t.RE(panel.Y))*panel.included[3]
+	X=(panel.X+re_obj_i.RE(panel.X, panel)+re_obj_t.RE(panel.X, panel))*panel.included[3]
+	Y=(panel.Y+re_obj_i.RE(panel.Y, panel)+re_obj_t.RE(panel.Y, panel))*panel.included[3]
 	beta,u=stat.OLS(panel,X,Y,return_e=True)
 	rho,lmbda,corr=ARMA_process_calc(u,panel)
 	return beta,rho,lmbda,corr,u

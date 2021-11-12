@@ -19,7 +19,10 @@ def display(chart,name,i,subplot,action=None,path=None):
 	if path is None:
 		path=chart.path
 	f=open(path,'wb+')
-	fgr.savefig(f)
+	try:
+		fgr.savefig(f)
+	except:
+		fgr.savefig(f)
 	plot_to_chart(f,chart)
 	axs.clear()
 	f.close()

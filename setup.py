@@ -17,6 +17,9 @@ from os import path
 import subprocess
 import sys
 import time
+import shutil
+import os
+		
 
 try:
 	import numpy as np

@@ -9,49 +9,46 @@ class re_obj:
 	def __init__(self,panel,group,T_i,T_i_count,fixed_random_eff):
 		"""Following Greene(2012) p. 413-414"""
 		if fixed_random_eff==0:
-			self.panel=panel
 			self.FE_RE=0
 			return
-		self.panel=panel
 		self.sigma_u=0
 		self.group=group
 		self.avg_Tinv=np.mean(1/T_i_count) #T_i_count is the total number of observations for each group (N,1)
 		self.T_i=T_i*panel.included[3]#self.T_i is T_i_count at each observation (N,T,1)
 		self.FE_RE=fixed_random_eff
 	
-	def RE(self,x,recalc=True):
+	def RE(self,x,panel,recalc=True):
 		if self.FE_RE==0:
 			return np.zeros(x.shape)
-		panel=self.panel
 		if self.FE_RE==1:
-			self.xFE=self.FRE(x)
+			self.xFE=self.FRE(x,panel)
 			return self.xFE
 		if recalc:
 			N,T,k=x.shape
 			
-			self.xFE=(x+self.FRE(x))*panel.included[3]
-			self.e_var=self.panel.mean(self.xFE**2)/(1-self.avg_Tinv)
-			self.v_var=self.panel.mean((panel.included[3]*x)**2)-self.e_var
+			self.xFE=(x+self.FRE(x,panel))*panel.included[3]
+			self.e_var=panel.mean(self.xFE**2)/(1-self.avg_Tinv)
+			self.v_var=panel.mean((panel.included[3]*x)**2)-self.e_var
 			if self.v_var<0:
 				#print("Warning, negative group random effect variance. 0 is assumed")
 				self.v_var=0
 				self.theta=panel.zeros[3]
 				return panel.zeros[3]
-			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*self.T_i)))*self.panel.included[3]
+			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*self.T_i)))*panel.included[3]
 			self.theta*=(self.T_i>1)
 			if np.any(self.theta>1) or np.any(self.theta<0):
 				raise RuntimeError("WTF")
 		#x=panel.Y
-		eRE=self.FRE(x,self.theta)
+		eRE=self.FRE(x,panel,self.theta)
 		return eRE
 	
-	def dRE(self,dx,x,vname):
+	def dRE(self,dx,x,vname,panel):
 		"""Returns the first and second derivative of RE"""
 		if dx is None:
 			return None
 		if self.FE_RE==0:
 			return np.zeros(dx.shape)		
-		panel=self.panel
+		panel=panel
 		if not hasattr(self,'dxFE'):
 			self.dxFE=dict()
 			self.dFE_var=dict()
@@ -62,28 +59,27 @@ class re_obj:
 		if dx is None:
 			return None
 		elif self.FE_RE==1:
-			return self.FRE(dx)	
+			return self.FRE(dx,panel)	
 		if self.v_var==0:
 			return np.zeros(dx.shape)
 		(N,T,k)=dx.shape	
 
-		self.dxFE[vname]=(dx+self.FRE(dx))*panel.included[3]
-		self.de_var[vname]=2*np.sum(np.sum(self.xFE*self.dxFE[vname],0),0)/(self.panel.NT*(1-self.avg_Tinv))
-		self.dv_var[vname]=(2*np.sum(np.sum(x*dx*panel.included[3],0),0)/self.panel.NT)-self.de_var[vname]		
+		self.dxFE[vname]=(dx+self.FRE(dx,panel))*panel.included[3]
+		self.de_var[vname]=2*np.sum(np.sum(self.xFE*self.dxFE[vname],0),0)/(panel.NT*(1-self.avg_Tinv))
+		self.dv_var[vname]=(2*np.sum(np.sum(x*dx*panel.included[3],0),0)/panel.NT)-self.de_var[vname]		
 
 		self.dtheta_de_var=(-0.5*(1/self.e_var)*(1-self.theta)*self.theta*(2-self.theta))
 		self.dtheta_dv_var=(0.5*(self.T_i/self.e_var)*(1-self.theta)**3)
 		self.dtheta[vname]=(self.dtheta_de_var*self.de_var[vname]+self.dtheta_dv_var*self.dv_var[vname])
 		self.dtheta[vname]*=(self.T_i>1)
-		dRE0=self.FRE(dx,self.theta)
-		dRE1=self.FRE(x,self.dtheta[vname])
-		ret=(dRE0+dRE1)*self.panel.included[3]
+		dRE0=self.FRE(dx,panel,self.theta)
+		dRE1=self.FRE(x,panel,self.dtheta[vname])
+		ret=(dRE0+dRE1)*panel.included[3]
 		remove_extreemes(ret)
 		return ret
 	
-	def ddRE(self,ddx,dx1,dx2,x,vname1,vname2):
+	def ddRE(self,ddx,dx1,dx2,x,vname1,vname2,panel):
 		"""Returns the first and second derivative of RE"""
-		panel=self.panel
 		if self.FE_RE==0:
 			return 0*panel.included[4]		
 		if dx1 is None or dx2 is None:
@@ -93,7 +89,7 @@ class re_obj:
 		if self.sigma_u<0:
 			return 0*panel.included[4]
 		elif self.FE_RE==1:
-			return self.FRE(ddx)	
+			return self.FRE(ddx,panel)	
 		if self.v_var==0:
 			return panel.zeros[4]
 
@@ -102,7 +98,7 @@ class re_obj:
 			ddx=0
 			hasdd=False
 		else:
-			ddxFE=(ddx+self.FRE(ddx))*panel.included[4]
+			ddxFE=(ddx+self.FRE(ddx,panel))*panel.included[4]
 			hasdd=True
 			
 		dxFE1=self.dxFE[vname1].reshape(N,T,k,1)
@@ -120,7 +116,7 @@ class re_obj:
 		incl=panel.included[4]
 		
 		overflow=False
-		theta_args=dxFE1, dxFE2, ddxFE, dx1, dx2, x, ddx, dtheta_dv_var, theta, dtheta_de_var, de_var1, de_var2, dv_var1, dv_var2
+		theta_args=dxFE1, dxFE2, ddxFE, dx1, dx2, x, ddx, dtheta_dv_var, theta, dtheta_de_var, de_var1, de_var2, dv_var1, dv_var2,panel
 		try:
 			ddtheta=self.calc_theta(*theta_args)
 		except (RuntimeWarning,OverflowError) as e:
@@ -130,25 +126,25 @@ class re_obj:
 			overflow=True
 			
 		if hasdd:
-			dRE00=self.FRE(ddx,self.theta.reshape(N,T,1,1))
+			dRE00=self.FRE(ddx,panel,self.theta.reshape(N,T,1,1))
 		else:
 			dRE00=0
-		dRE01=self.FRE(dx1,self.dtheta[vname2].reshape(N,T,1,m),True)
-		dRE10=self.FRE(dx2,self.dtheta[vname1].reshape(N,T,k,1),True)
-		dRE11=self.FRE(x,ddtheta,True)
+		dRE01=self.FRE(dx1,panel,self.dtheta[vname2].reshape(N,T,1,m),True)
+		dRE10=self.FRE(dx2,panel,self.dtheta[vname1].reshape(N,T,k,1),True)
+		dRE11=self.FRE(x,panel,ddtheta,True)
 		ret=(dRE00+dRE01+dRE10+dRE11)*panel.included[4]
 		if overflow:
 			remove_extreemes([ret])
 		return (dRE00+dRE01+dRE10+dRE11)*panel.included[4]
 	
-	def calc_theta(self,dxFE1,dxFE2,ddxFE,dx1,dx2,x,ddx,dtheta_dv_var,theta,dtheta_de_var,de_var1,de_var2,dv_var1,dv_var2):
-		incl=self.panel.included[4]
+	def calc_theta(self,dxFE1,dxFE2,ddxFE,dx1,dx2,x,ddx,dtheta_dv_var,theta,dtheta_de_var,de_var1,de_var2,dv_var1,dv_var2,panel):
+		incl=panel.included[4]
 		(N,T,k,_)=dx1.shape
 		(N,T,_,m)=dx2.shape		
 		T_i=self.T_i.reshape(N,T,1,1)
 		
-		d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/(self.panel.NT*(1-self.avg_Tinv))
-		d2v_var=(2*np.sum(np.sum((dx1*dx2+x*ddx)*incl,0),0)/self.panel.NT)-d2e_var	
+		d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/(panel.NT*(1-self.avg_Tinv))
+		d2v_var=(2*np.sum(np.sum((dx1*dx2+x*ddx)*incl,0),0)/panel.NT)-d2e_var	
 		
 		d2theta_d_e_v_var=-0.5*dtheta_dv_var*(1/self.e_var)*(3*(theta-2)*theta+2)
 		d2theta_d_v_var =-0.75*(T_i/self.e_var)**2*(1-theta)**5
@@ -162,23 +158,23 @@ class re_obj:
 		
 		return ddtheta
 		
-	def FRE(self,x,w=1,d=False):
+	def FRE(self,x,panel,w=1,d=False):
 		if self.group:
-			return self.FRE_group(x,w,d)
+			return self.FRE_group(x,w,d,panel)
 		else:
-			return self.FRE_time(x,w,d)
+			return self.FRE_time(x,w,d,panel)
 	
-	def FRE_group(self,x,w,d):
+	def FRE_group(self,x,w,d,panel):
 		"""returns x after fixed effects, and set lost observations to zero"""
 		#assumes x is a "N x T x k" matrix
 		if x is None:
 			return None
-		T_i,s=get_subshapes(self.panel,x,True)
-		incl=self.panel.included[len(s)]
+		T_i,s=get_subshapes(panel,x,True)
+		incl=panel.included[len(s)]
 		
 		sum_x=np.sum(x*incl,1).reshape(s)
 		mean_x=sum_x/T_i
-		mean_x_all=np.sum(sum_x,0)/self.panel.NT
+		mean_x_all=np.sum(sum_x,0)/panel.NT
 		try:
 			dFE=w*(mean_x_all-mean_x)*incl#last product expands the T vector to a TxN matrix
 		except (RuntimeWarning,OverflowError) as e:
@@ -188,13 +184,13 @@ class re_obj:
 			remove_extreemes([dFE])
 		return dFE
 	
-	def FRE_time(self,x,w,d):
+	def FRE_time(self,x,w,d,panel):
 		#assumes x is a "N x T x k" matrix
 		
 		
 		if x is None:
 			return None
-		mean_x,mean_x_all,incl=mean_time(self.panel, x)
+		mean_x,mean_x_all,incl=mean_time(panel, x)
 		try:
 			dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix
 		except (RuntimeWarning,OverflowError) as e:
