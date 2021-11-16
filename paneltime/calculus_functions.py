@@ -6,6 +6,10 @@ import time
 import stat_functions as stat
 from scipy import sparse as sp
 import debug
+try:
+	import cfunctions as c
+except:
+	c=None
 
 
 def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=False):
@@ -27,9 +31,9 @@ def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 	#ARIMA:
 	if not AMAL is None:
 		if u_gradient:
-			de2_zeta_xi=-dot(AMAL,panel.XIV,False)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
+			de2_zeta_xi=-panel.arma_dot.dot(AMAL,panel.XIV,ll)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
 		else:
-			de2_zeta_xi=dot(AMAL,de_zeta,False)#"T x N x s x m
+			de2_zeta_xi=panel.arma_dot.dot(AMAL,de_zeta,ll)#"T x N x s x m
 		if transpose:#only happens if lags==k
 			de2_zeta_xi=de2_zeta_xi+np.swapaxes(de2_zeta_xi,2,3)#adds the transpose
 		de2_zeta_xi=de2_zeta_xi*panel.included[4]
@@ -134,8 +138,8 @@ def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 		x=0
 	elif len(L)==0:
 		return None
-	elif len(L.shape)==3:
-		x=dot(L,d,False)#"T x N x k x m"
+	elif type(L)==tuple:#elif len(L.shape)==3:
+		x=panel.arma_dot.dot(L,d,ll)#"T x N x k x m"
 	elif len(L.shape)==2:
 		x=dot(L,d).reshape(N,T,1,m)
 	dLL=dLL.reshape((N,T,1,1))
@@ -479,12 +483,34 @@ class arma_dot_obj:
 			self.rdict[name]=np.zeros((i,n,n))
 		
 		
-	def dot(self,ARMA,M,ll):
-		s=list(M.shape)
-		x=np.moveaxis(M,1,0)
+	def dotroll(self,aband,k,sign,b,ll):
+		
+		
+		ARMA_m=self.conv(aband,ll)
+		s=list(b.shape)
+		x=np.moveaxis(b,1,0)
+		s2=x.shape
+		x.resize((s[1],s[0]*np.prod(s[2:])))
+		x=sign*np.dot(ARMA_m,x)
+		x.resize(s2)
+		x=np.moveaxis(x,1,0)
+		w=[]
+		for i in range(k):
+			w.append(np.roll(np.array(x),i+1,1))
+			w[i][:,:i+1]=0
+		x=np.array(w)
+		x=np.moveaxis(x,0,2)	
+		return x
+			
+	def dot(self,a,b,ll):
+		if len(a)>2:
+			(M,aband,k,sgn)=a
+			return self.dotroll(aband, k, sgn, b, ll)
+		s=list(b.shape)
+		x=np.moveaxis(b,1,0)
 		x=x.reshape((s[1],s[0]*np.prod(s[2:])))
-		ARMA=self.conv(ARMA,ll)
-		x=np.dot(ARMA,x)
+		ARMA_m=self.conv(a,ll)
+		x=np.dot(ARMA_m,x)
 		x.resize([s[1],s[0]]+s[2:])
 		x=np.moveaxis(x,0,1)
 		return x
@@ -504,7 +530,7 @@ class arma_dot_obj:
 			self.rdict[f"{name}_{letter}"][i]=roll(M,-i-1,1)
 		return self.rdict[f"{name}_{letter}"]
 
-	
+
 
 def test(a,b):
 	return a+b

@@ -21,6 +21,7 @@ class master():
 		functions you are going to run are """
 		f=tempfile.TemporaryFile()
 		self.f=f.name
+		self.filesend_cpu_ids=[]
 		f.close()
 		if max_nodes is None:
 			self.cpu_count=os.cpu_count()#assignment to self allows for the possibility to manipulate the count
@@ -45,13 +46,15 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		print (pstr)
 
 	def send_dict(self, d,cpu_ids=None):
+		self.send_dict_by_file_receive()
 		if cpu_ids is None:
 			cpu_ids=range(self.cpu_count)
 		for i in cpu_ids:
 			self.slaves[i].send('dictionary',d)
 			res=self.slaves[i].receive()
 
-	def send_dict_by_file(self, d,cpu_ids=None):
+	def send_dict_by_file(self, d,cpu_ids,command):
+		self.send_dict_by_file_receive()
 		f=open(self.f,'wb')
 		pickle.dump(d,f)   
 		f.flush() 
@@ -59,12 +62,20 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		if cpu_ids is None:
 			cpu_ids=range(self.cpu_count)
 		for i in cpu_ids:
-			self.slaves[i].send('filetransfer',self.f)
-		for i in cpu_ids:
+			self.slaves[i].send('filetransfer',(self.f,command))
+		self.filesend_cpu_ids=cpu_ids
+		self.send_dict_by_file_receive()#comment out for asyncronous receive
+		a=0
+		
+	def send_dict_by_file_receive(self):
+		for i in self.filesend_cpu_ids:
 			res=self.slaves[i].receive()
+		self.filesend_cpu_ids=[]
+		
 			
 			
 	def remote_recieve(self, variable,node):
+		self.send_dict_by_file_receive()
 		"""Sends a request for a particular variable at node, after remote_execute. 
 		Usefull when large objects shall be returned, and you only need a few/one of them"""
 		self.slaves[node].send('remote recieve',variable)
@@ -72,6 +83,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		return self.slaves[node].receive()
 
 	def send_holdbacks(self, key_arr):
+		self.send_dict_by_file_receive()
 		"""Sends a list with keys to variables that are not to be returned by the slaves"""
 		if key_arr is None:
 			return
@@ -80,6 +92,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			res=s.receive()
 
 	def send_tasks(self,tasks,remote=False,timer=False,progress_bar=None):
+		self.send_dict_by_file_receive()
 		"""tasks is a list of string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves
 		if remote=True, the list must be a list of tuples, where the first item is the expression and the second is the variable that should be returned"""
 		tasks=list(tasks)
@@ -259,10 +272,10 @@ class multiprocess:
 		return ret
 		
 	
-	def send_dict_by_file(self,d,cpu_ids=None):
+	def send_dict_by_file(self,d,cpu_ids=None,command=''):
 		for i in d:
 			self.d[i]=d[i]		
-		self.master.send_dict_by_file(d,cpu_ids)
+		self.master.send_dict_by_file(d,cpu_ids,command)
 
 	def exe_from_arglist(self,function,args):
 		a=[]

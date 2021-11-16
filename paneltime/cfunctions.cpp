@@ -132,10 +132,10 @@ static PyObject *banddot(PyObject *self, PyObject *args) {
 	PyObject* X_in;
 
 	double sum;
-	long i,j,m;
+	long i,j,m,roll,p;
 	
 	
-	if (!PyArg_ParseTuple(args, "OOO", &band_in,&M_in,&X_in)){
+	if (!PyArg_ParseTuple(args, "OOOl", &band_in,&M_in,&X_in,&roll)){
 		PyErr_SetString(PyExc_ValueError,"Error in parsing arguments");
 		return NULL;
 		};
@@ -147,14 +147,27 @@ static PyObject *banddot(PyObject *self, PyObject *args) {
 	long n= PyArray_DIM(M, 0);
 	long k= PyArray_DIM(M, 1);
 
-	
-	for(i=0;i<k;i++){
-		for(j=0;j<n;j++){
-			sum=0;
-			for(m=0;m<=j;m++){
-				sum+=(*(double *) PyArray_GETPTR1(band, j-m))*(*(double *) PyArray_GETPTR2(M, j, i));
+	if(roll==0){
+		for(i=0;i<k;i++){
+			for(j=0;j<n;j++){
+				sum=0;
+				for(m=0;m<=j;m++){
+					sum+=(*(double *) PyArray_GETPTR1(band, j-m))*(*(double *) PyArray_GETPTR2(M, j, i));
+				}
+				*(double *) PyArray_GETPTR2(X, j, i)=sum;
 			}
-			*(double *) PyArray_GETPTR2(X, j, i)=sum;
+		}
+	}else{
+		for(p=0;p<roll;p++){
+			for(i=0;i<k;i++){
+				for(j=0;j<n;j++){
+					sum=0;
+					for(m=0;m<=j-p;m++){
+						sum+=(*(double *) PyArray_GETPTR1(band, j-p-m))*(*(double *) PyArray_GETPTR2(M, j, i));
+					}
+					*(double *) PyArray_GETPTR2(X, j, i,p)=sum;
+				}
+			}	
 		}
 	}
 	

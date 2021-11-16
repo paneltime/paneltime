@@ -93,6 +93,8 @@ class panel:
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_RE_coef_in_variance
 		self.set_instrumentals()
 		self.tobit()
+		
+	def ARMA_init(self):
 		self.arma_dot=cf.arma_dot_obj(self.X.shape[1],self.pqdkm)
 
 	def lag_variables(self):

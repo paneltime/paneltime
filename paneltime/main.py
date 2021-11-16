@@ -86,7 +86,8 @@ class results:
 		direction=drctn.direction(pnl,mp,channel)	
 		self.mp=mp
 		if not mp is None:
-			mp.send_dict_by_file({'panel':pnl})
+			mp.send_dict_by_file({'panel':pnl},command='panel.ARMA_init()')
+		pnl.ARMA_init()
 		log=[]
 		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,channel,log=log)
 		fu.savevar(log,'log_of_LL_process.csv')

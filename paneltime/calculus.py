@@ -16,7 +16,7 @@ class gradient:
 		self.panel=panel
 		self.progress_bar=progress_bar
 		
-	def arima_grad(self,k,x,ll,sign=1,pre=None):
+	def arima_grad(self,k,x,ll,sign,pre):
 		if k==0:
 			return None
 
@@ -27,8 +27,7 @@ class gradient:
 		x=np.array([cf.roll(x,i+1,1) for i in range(k)])
 		#reshapes to  "N x T x k": 
 		x=np.moveaxis(x,0,3).reshape((N,T,k))
-		if not pre is None:
-			x=self.panel.arma_dot.dot(pre,x,ll)
+		x=self.panel.arma_dot.dot(pre,x,ll)
 		if sign<0:
 			x=x*sign
 		extr_value=1e+100
@@ -159,7 +158,7 @@ class hessian:
 			print(f"single core: {t1-t0}")
 			a=self.hessian_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 			print(f"multi core: {time.time()-t1}")
-		if (mp is None) or (T<5000):#this was found to be the threshold for when multicore is helpful (tested with 8 variables)
+		if (mp is None) or (T<5001):#this was found to be the threshold for when multicore is helpful (tested with 8 variables)
 			return self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 		else:
 			return self.hessian_mp(ll,mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
@@ -171,9 +170,9 @@ class hessian:
 		p,q,d,k,m=panel.pqdkm
 		incl=self.panel.included[3]
 		
-		GARM=cf.ARMA_product(ll.GAR_1,m,panel,ll,'m')
+		GARM=(cf.ARMA_product(ll.GAR_1,m,panel,ll,'m'),ll.GAR_1,m,1)
 		
-		GARK=cf.ARMA_product(ll.GAR_1,k,panel,ll,'k')
+		GARK=(cf.ARMA_product(ll.GAR_1,k,panel,ll,'k'),ll.GAR_1,k,1)
 
 		d2lnv_gamma2		=   cf.prod((2, 
 		                        cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_gamma,						g.dLL_lnv,  transpose=True)))
@@ -189,12 +188,12 @@ class hessian:
 		d2lnv_psi_beta		=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_beta)),	g.dLL_lnv)
 		d2lnv_psi_z			=	cf.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,								g.dLL_lnv)
 
-		AMAq=-cf.ARMA_product(ll.AMA_1,q,panel,ll,'q')
+		AMAq=(-cf.ARMA_product(ll.AMA_1,q,panel,ll,'q'),ll.AMA_1,q,-1)
 		d2lnv_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'lambda', transpose=True)
 		d2lnv_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'rho' )
 		d2lnv_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta')
 
-		AMAp=-cf.ARMA_product(ll.AMA_1,p,panel,ll,'p')
+		AMAp=(-cf.ARMA_product(ll.AMA_1,p,panel,ll,'p'),ll.AMA_1,p,-1)
 		d2lnv_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 		if not self.progress_bar(0.4):return
 		

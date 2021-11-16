@@ -29,13 +29,15 @@ def main(t,initcommand,s_id,fpath):
 			d_list=list(d.keys())
 			response=True
 		elif msg=='filetransfer':
-			ftr=open(obj, "rb")
+			fobj,expr=obj
+			ftr=open(fobj, "rb")
 			u= pickle.Unpickler(ftr)
 			d_new=u.load()		
 			add_to_dict(d,d_new)
 			d_list=list(d.keys())
 			response=True
 			ftr.close()
+			exec(expr,globals(),d)
 		elif msg=='remote expression valuation':
 			expr,ret_var=obj
 			sys.stdout = f

@@ -16,12 +16,14 @@ import direction as drctn
 
 def lnsrch(ll, direction,mp,its,incr,po,prev_dx,dx,max_its=12,convex_action='reverse',single_core=False):
 	panel=direction.panel
-	a=False
-	if a:
-		dx[6]=0.00001
-		a=logl.LL(dx,panel).LL
-		dx[6]=-0.00001
-		a=logl.LL(dx,panel).LL
+	rev=False
+	
+	try:
+		ll_first=logl.LL(ll.args.args_v+dx,panel)
+		if ll_first.LL>ll.LL:
+			return ll_first,'Full newton step succeded',1,True,rev
+	except:
+		pass
 	
 	args=ll.args.args_v
 	g = direction.g
@@ -29,7 +31,7 @@ def lnsrch(ll, direction,mp,its,incr,po,prev_dx,dx,max_its=12,convex_action='rev
 	LL0=ll.LL
 	constr=direction.constr
 	
-	rev=False
+	
 	if np.sum(g*dx)<0:
 		if convex_action=='reverse':
 			dx=-dx
@@ -169,6 +171,7 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 	po=printout(channel,panel,ll,direction,msg_main)
 	min_iter=2#panel.options.minimum_iterations.value
 	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po,0):return ll,direction,po
+	#direction.start_time=time.time()
 	while 1:
 		prev_dx=direction.dx
 		direction.calculate(ll,its,msg,incr,lmbda,sum(reversed_direction)>0)
@@ -190,6 +193,9 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 		incr=ll.LL-LL0
 		#log.append([incr,ll.LL,msg]+list(ll.args.args_v)+list(direction.dx_norm)+list(direction.g)+list(np.diag(direction.H))+list(direction.H[0]))
 		if not printout_func(1.0,msg,ll,its,direction,incr,po,0):return ll,direction,po
+		if its==10:
+			t=time.time()-direction.start_time
+			a=0
 		its+=1
 
 		
