@@ -19,17 +19,9 @@ class gradient:
 	def arima_grad(self,k,x,ll,sign,pre):
 		if k==0:
 			return None
-
 		(N,T,m)=x.shape
-		#L is "T x T" 
-		#x is "N x T x 1"  
-		#creates a  "k x T x N x 1": 
-		x=np.array([cf.roll(x,i+1,1) for i in range(k)])
-		#reshapes to  "N x T x k": 
-		x=np.moveaxis(x,0,3).reshape((N,T,k))
-		x=self.panel.arma_dot.dot(pre,x,ll)
-		if sign<0:
-			x=x*sign
+		x=self.panel.arma_dot.dotroll(pre,k,sign,x,ll)
+		x.resize(N,T,k)
 		extr_value=1e+100
 		if np.max(np.abs(x))>extr_value:
 			x[np.abs(x)>extr_value]=np.sign(x[np.abs(x)>extr_value])*extr_value
@@ -125,7 +117,7 @@ class gradient:
 		g=np.sum(G,(0,1))
 		#For debugging:
 		#print (g)
-		#gn=debug.grad_debug(ll,panel,0.0000001)#debugging
+		#gn=debug.grad_debug(ll,panel,10)#debugging
 		#if np.sum((g-gn)**2)>10000000:
 		#	a=0
 		#print(gn)

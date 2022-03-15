@@ -44,8 +44,9 @@ def grad_debug(ll,panel,d):
 			dxi=dx[i]*(0.5**j)
 			f1=lgl.LL(x+dxi,panel)
 			if not f1 is None:
-				g[i]=(f1.LL-f0.LL)/dxi[i]
-				break
+				if not f1.LL is None:
+					g[i]=(f1.LL-f0.LL)/dxi[i]
+					break
 	return g
 
 

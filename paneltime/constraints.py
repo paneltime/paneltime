@@ -47,6 +47,7 @@ class constraints(dict):
 		self.intervals={}
 		self.associates={}
 		self.collinears={}
+		self.weak_mc_dict={}
 		self.args=args
 		self.panel_args=direction.panel.args
 		self.CI=None
@@ -54,6 +55,9 @@ class constraints(dict):
 		self.pqdkm=direction.panel.pqdkm
 		self.m_zero=direction.panel.m_zero
 		self.ARMA_constraint=direction.panel.options.ARMA_constraint.value
+		self.H_correl_problem=False
+		self.mc_problems=[]
+		
 
 	def add(self,name,assco,cause,interval=None,replace=True,value=None,args=None):
 		#(self,index,assco,cause,interval=None,replace=True,value=None)

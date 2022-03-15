@@ -518,7 +518,7 @@ class arma_dot_obj:
 	def conv(self,ARMA,ll):
 		#return ARMA
 		ARMA_array,name=ARMA
-		if ll.AMA_dict[name] is None:
+		if ll.AMA_dict[name] is None or True:
 			self.mdict[name][self.nz]=ARMA_array[self.az]
 			ll.AMA_dict[name]=self.mdict[name]
 		return ll.AMA_dict[name]

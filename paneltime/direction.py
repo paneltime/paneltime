@@ -52,10 +52,9 @@ class direction:
 		self.constr.add_static_constraints(self.overflow_problem)			
 		self.calc_gradient()
 		self.calc_hessian()
-		self.calc_HG_ratio()
-		
-		self.constr.add_dynamic_constraints(self)	
-		self.CI=self.constr.CI
+		if lmbda<0.05 or True:
+			self.constr.add_dynamic_constraints(self)	
+			self.CI=self.constr.CI
 		self.H_correl_problem=self.constr.H_correl_problem	
 		self.mc_problems=self.constr.mc_problems
 		self.weak_mc_dict=self.constr.weak_mc_dict
@@ -193,26 +192,6 @@ class direction:
 				self.H=np.diag(d)
 				self.H_det=np.linalg.det(self.H)				
 				return 
-
-	
-	def calc_HG_ratio(self):
-		self.H_g_approx=-cf.dot(self.G,self.G)
-		self.HG_ratio=-1
-		try:
-			detGG=np.linalg.det(self.H_g_approx)
-		except Exception as e:
-			return
-		try:
-			detH=np.linalg.det(self.H)
-		except Exception as e:
-			return		
-		try:
-			if detGG*detH>0:	
-				self.HG_ratio=np.log(detGG/detH)
-		except:
-			return
-
-
 	
 	def init_ll(self,args):
 		self.constr=constraints.constraints(self,args)
@@ -282,8 +261,9 @@ def solve(constr,H, g, x):
 	and index constrained indicating the constrained variables"""
 	if H is None:
 		raise RuntimeError('Hessian is None')
+	dx_init=-np.linalg.solve(H,g).flatten()	
 	if constr is None:
-		return -np.linalg.solve(H,g).flatten()	
+		return dx_init	
 	n=len(H)
 	k=len(constr)
 	H=np.concatenate((H,np.zeros((n,k))),1)
@@ -295,7 +275,8 @@ def solve(constr,H, g, x):
 	j=0
 	dx=np.zeros(len(g))
 	for i in constr.fixed:
-		kuhn_tucker(constr.fixed[i],i,j,n, H, g, x,dx, recalc=False)
+		#kuhn_tucker(constr.fixed[i],i,j,n, H, g, x,dx, recalc=False)
+		kuhn_tucker2(constr.fixed[i],i,j,n, H, g, x,dx, dx_init, recalc=False)
 		j+=1
 	dx=-np.linalg.solve(H,g).flatten()	
 	OK=False
@@ -402,3 +383,21 @@ def kuhn_tucker(c,i,j,n,H,g,x,dx,recalc=True):
 	return dx
 
 
+def kuhn_tucker2(c,i,j,n,H,g,x,dx,dx_init,recalc=True):
+	if c.assco_ix is None:
+		return kuhn_tucker(c,i,j,n,H,g,x,dx,recalc)
+	q=None
+	if not c.value is None:
+		q=-(c.value-x[i])
+	elif x[i]+dx[i]<c.min:
+		q=-(c.min-x[i])
+	elif x[i]+dx[i]>c.max:
+		q=-(c.max-x[i])
+	if q!=None:
+		H[i,n+j]=1
+		H[n+j,i]=1
+		H[n+j,n+j]=0
+		g[n+j]=q
+		if recalc:
+			dx=-np.linalg.solve(H,g).flatten()	
+	return dx

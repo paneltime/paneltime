@@ -83,7 +83,7 @@ class output:
 			s+=str(" ").ljust(19)
 		if not self.iterations is None:
 			s+=f"\tIteration:  {str(self.iterations).ljust(7)}"
-		if hasattr(self.direction,'HG_ratio'):
+		if self.direction.singularity_problems:
 			s+=f"\tSingularity problems:  {str(self.direction.singularity_problems).ljust(7)}"
 		instr=''
 		if not self.panel.input.Z_names is None:

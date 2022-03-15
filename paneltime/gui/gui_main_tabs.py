@@ -155,6 +155,8 @@ class tab:
 
 	def exec(self,source):
 		try:
+			a=0
+			return
 			exec(source,self.globals,self.locals)
 		except Exception as e:
 			print("""
