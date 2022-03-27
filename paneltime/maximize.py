@@ -10,6 +10,8 @@ from tkinter import _tkinter
 import time
 import loglikelihood as lgl
 import direction as drctn
+import maximize_num
+import maximize_num2
 
 
 
@@ -17,13 +19,6 @@ import direction as drctn
 def lnsrch(ll, direction,mp,its,incr,po,prev_dx,dx,max_its=12,convex_action='reverse',single_core=False):
 	panel=direction.panel
 	rev=False
-	
-	try:
-		ll_first=logl.LL(ll.args.args_v+dx,panel)
-		if ll_first.LL>ll.LL:
-			return ll_first,'Full newton step succeded',1,True,rev
-	except:
-		pass
 	
 	args=ll.args.args_v
 	g = direction.g
@@ -39,20 +34,28 @@ def lnsrch(ll, direction,mp,its,incr,po,prev_dx,dx,max_its=12,convex_action='rev
 			rev=True
 		elif convex_action=='abort':
 			return ll,'Convex function: aborted linesearch',0,False,False
-	ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,LL0,ll,max_its,single_core)
+
+	dx_len=sum(dx**2)**0.5
+	for i in range(3):
+		LL0=ll.LL
+		ll,msg,lmbda,ok, res=lnsrch_master(ll.args.args_v, dx,panel,constr,mp,LL0,ll,max_its,single_core)
+		break
+		if i>0:
+			print(f"#{i} LL: {ll.LL}  DLL: {ll.LL-LL0}   lmda: {lmbda}")
+		if lmbda<0.1 and False:
+			break
+		if i<2:
+			direction.calc_gradient(ll)
+			g=direction.g
+			dx = g*dx_len/sum(g**2)**0.5	
+		
+
 	if  ll.LL/panel.NT<-1e+15:
 		msg='The maximization agorithm has gone mad. Resetting the argument to initial values'
 		ll=logl.LL(panel.args.args_restricted,panel)
 		return ll,msg,0,False
-	if not ok and False:
-		if not direction.progress_bar(0.95,msg):return ll,msg,lmbda,ok	
-		i=np.argsort(np.abs(dx))[-1]
-		dx=-ll.args.args_v*(np.arange(len(g))==i)
-		ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,LL0,max_its,single_core)
-		if not ok:
-			dx=ll.args.args_v*(np.arange(len(g))==i)
-			ll,msg,lmbda,ok=lnsrch_master(args, dx,panel,constr,mp,LL0,max_its,single_core)			
-	return ll,msg,lmbda,ok,rev
+	
+	return ll,msg,lmbda,ok,rev 
 		
 		
 def solve_square_func(f0,l0,f05,l05,f1,l1,default=None):
@@ -76,8 +79,8 @@ def lnsrch_master(args, dx,panel,constr,mp,LL0,ll,max_its,single_core):
 	msg=''
 	#single_core is for debug. It has been tested, and even with a relatively small sample, multicore is much faster.
 	for i in range(max_its):
-		delta=(end-start)/(mp.master.cpu_count-1)
-		res=get_likelihoods(args, dx, panel, mp,delta,start,single_core)
+		delta=(end-start)/(mp.master.cpu_count-1-(i==0))
+		res=get_likelihoods(args, dx, panel, mp,delta,start,single_core, constr)
 		if i==0:
 			res0=res[0]		
 		if (res[0,1]==0 and i==0) or (res[0,0]<=res0[0] and i>0) or np.isnan(res[0,0]):#best was no change
@@ -95,7 +98,7 @@ def lnsrch_master(args, dx,panel,constr,mp,LL0,ll,max_its,single_core):
 	if LL0>res[0,0]:
 		s='Best result in linesearch is poorer than the starting point. You may have discovered a bug, please notify espen.sirnes@uit.no'
 		print(s)
-		return ll,s,res[0,0]-LL0,False
+		return ll,s,res[0,0]-LL0,False, res
 	try:
 		lmda=solve_square_func(res[0,0], res[0,2],res[1,0], res[1,2],res[2,0], res[2,2],res[0,2])
 		1/lmda#Throws an exception
@@ -105,9 +108,9 @@ def lnsrch_master(args, dx,panel,constr,mp,LL0,ll,max_its,single_core):
 	except:
 		ll2, lmda = mp.remote_recieve(f'f{res[0,1]}',res[0,1],single_core), res[0,2]
 	if ll2.LL is None or lmda==0:
-		return ll,'No increase in linesearch',0,False
+		return ll,'No increase in linesearch',0,False, res
 	msg=f"Linesearch success ({round(lmda,6)} of Newton step). "
-	return ll2,msg,lmda,True
+	return ll2,msg,lmda,True, res
 
 def remove_nan(res):
 	r=[]
@@ -117,18 +120,18 @@ def remove_nan(res):
 	return np.array(r)	
 	
 				
-def get_likelihoods(args, dx,panel,mp,delta,start,single_core):
+def get_likelihoods(args, dx,panel,mp,delta,start,single_core, constr):
 	lamdas=[]
 	a=[]
 	for i in range(mp.master.cpu_count):
 		lmda=start+i*delta
 		a.append(list(args+lmda*dx))
 		lamdas.append(lmda)
-	res=likelihood_spawn(a,lamdas,single_core,mp)
+	res=likelihood_spawn(a,lamdas,single_core,mp,{'lgl':lgl, 'panel':panel, 'constr':constr})
 	return res
 
 	
-def likelihood_spawn(args, return_info,single_core,mp):
+def likelihood_spawn(args, return_info,single_core,mp,d):
 	"Returns a list of a list with the LL of the args and return_info, sorted on LL"
 	expr=[]	
 	n=len(args)
@@ -142,7 +145,7 @@ def likelihood_spawn(args, return_info,single_core,mp):
 			
 			, f'LL{i}'])
 		a=0
-	d,d_node=mp.remote_execute(expr,single_core,d={'lgl':lgl})
+	d,d_node=mp.remote_execute(expr,single_core,d=d)
 	res=[]
 	for i in range(n):
 		key=f'LL{i}'
@@ -161,13 +164,15 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 	"""Maxmizes logl.LL"""
 
 	its, k, m, dx_norm,incr		=0,  [1,0,-1,0],     0,    None, 0
-	H,  digits_precision    = None, 12
+	H    = None
 	msg,lmbda,lmbda0_count,rev='',	1,0,False
 	direction.hessin_num, ll= None, None
 	args_archive			= panel.input.args_archive
-	diff_log=[]
 	reversed_direction=[]
+	maximize_num2.maximize_test(panel,args.args_v)
+	maximize_num.maximize_test(panel,args.args_v)
 	ll=direction.init_ll(args)
+	stpmax=100*max((abs(sum(ll.args.args_v**2)))**0.5,float(len(ll.args.args_v))) 
 	po=printout(channel,panel,ll,direction,msg_main)
 	min_iter=2#panel.options.minimum_iterations.value
 	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po,0):return ll,direction,po
@@ -177,7 +182,6 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 		direction.calculate(ll,its,msg,incr,lmbda,sum(reversed_direction)>0)
 		direction.set(mp,ll.args)
 		LL0=ll.LL
-		ll0=ll
 		#Convergence test:
 		conv=convergence_test(direction, its, args_archive, min_iter,ll,panel,lmbda,k,incr)
 		if conv: 
@@ -185,14 +189,21 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 			return ll,direction,po
 		if lmbda==0:
 			printout_func(1.0,"No increase in linesearch without convergence. This should not happen. Contact Espen.Sirnes@uit.no",ll,its,direction,incr,po,1,"err")
-		if not printout_func(1.0,"",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
+		#if not printout_func(1.0,"",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
 		
 		
-		ll,msg,lmbda,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,direction.dx,max_its=5)
+		#ll,msg,lmbda,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,direction.dx,max_its=5)
+		fret,x,check, _ , lmbda=maximize_num.lnsrch(ll.args.args_v,-ll.LL,-direction.g,direction.dx,stpmax,direction.function.LL) 
+		ll=direction.function.ll
+		msg=''
+		ok=True
+		rev=False
+		
 		
 		incr=ll.LL-LL0
 		#log.append([incr,ll.LL,msg]+list(ll.args.args_v)+list(direction.dx_norm)+list(direction.g)+list(np.diag(direction.H))+list(direction.H[0]))
-		if not printout_func(1.0,msg,ll,its,direction,incr,po,0):return ll,direction,po
+		#if not printout_func(1.0,msg,ll,its,direction,incr,po,0):return ll,direction,po
+		print(f"{ll.LL}:{its}")
 		if its==10:
 			t=time.time()-direction.start_time
 			a=0

@@ -144,20 +144,35 @@ class output_tab(tk.Frame):
 		self.charts.grid(column=1,row=0,sticky=tk.NS)
 		self.get_stored()
 		self.menu_buttons['REGRESSION'].click()
+		self.store_options()
 	
 	
 	def get_stored(self):
 		"Obtains stored states of the buttons"
-		if len(self.window.data['menu_selections']['DIGITS'])==0:
-			return
-		d=self.window.data['menu_selections']['DIGITS']
-		b=self.menu_buttons['DIGITS']
-		b.select_sub(d[str(b.sub_group['0'])])#key str(b.sub_group['0']) is the same for all items in 'DIGITS', so using '0'
-		d=self.window.data['menu_selections']['REGRESSION']
-		for caption in d:
-			if not caption in ["['JOINED', 'JOINED LONG', 'disabled:JOINED']",
-							   "['NORMAL', 'HTML', 'LATEX', 'RTF', 'INTERNAL']"]:
-				self.menu_buttons['REGRESSION'].click_sub(caption,d[caption],False)
+		d=self.window.data['menu_selections']
+		for i in self.menu_buttons:
+			self.menu_buttons[i].button_main['text']  =   d[i].button_main['text']
+			self.menu_buttons[i].button_main['bg']    =   d[i].button_main['bg']
+			self.menu_buttons[i].button_main['fg']    =   d[i].button_main['fg']
+			if i in ['DIGITS', 'REGRESSION']:
+				for j in self.menu_buttons[i].buttons_sub:
+					if not j in ["['JOINED', 'JOINED LONG', 'disabled:JOINED']",
+											   "['NORMAL', 'HTML', 'LATEX', 'RTF', 'INTERNAL']"]:				
+						self.menu_buttons[i].buttons_sub[j]['text'] = d[i].buttons_sub[j]['text']
+						self.menu_buttons[i].buttons_sub[j]['fg']   = d[i].buttons_sub[j]['fg']
+						self.menu_buttons[i].buttons_sub[j]['bg']   = d[i].buttons_sub[j]['bg']
+
+					
+	def store_options(self):
+		d=dict()
+		self.window.data['menu_selections']=d
+		for i in self.menu_buttons:
+			d[i]=sub_botton_store(self.menu_buttons[i])
+			for j in self.menu_buttons[i].buttons_sub:
+				d[i].buttons_sub[j]=dict()
+				d[i].buttons_sub[j]['text'] = self.menu_buttons[i].buttons_sub[j]['text']
+				d[i].buttons_sub[j]['bg']   = self.menu_buttons[i].buttons_sub[j]['bg']
+				d[i].buttons_sub[j]['fg']   = self.menu_buttons[i].buttons_sub[j]['fg']
 			
 	def save(self):
 		"Saves the table part of the screen"
@@ -165,6 +180,11 @@ class output_tab(tk.Frame):
 		t=self.tab.widget.text_box
 		img=ImageGrab.grab((t.winfo_rootx(),t.winfo_rooty(),t.winfo_width(),t.winfo_height()))
 		img.save(os.path.join(self.window.data['current path'],'screen.png'))
+		
+
+				
+			
+			
 		
 	def data_doesnt_exist(self):
 		"tests if data exists"
@@ -486,6 +506,15 @@ class output_tab(tk.Frame):
 		#******END PRINTING METHODS*************
 		
 		
+		
+class sub_botton_store(dict):
+	def __init__(self,btn_main):
+		self.button_main=dict()
+		self.button_main['text']=btn_main.button_main['text']
+		self.button_main['bg']=btn_main.button_main['bg']
+		self.button_main['fg']=btn_main.button_main['fg']
+		self.buttons_sub=dict()
+	
 class menu_button:
 	"Class for the top level menu buttons"
 	def __init__(self,output_tab,loc,caption_main,command,captions_sub,click_type,group_type_sub,sub_enabled):
@@ -570,6 +599,7 @@ class menu_button:
 			self.button_box.withdraw()
 		
 	def click_sub(self,caption,i,execute=True):
+		self.tab.store_options
 		if type(self.captions_sub[i])==list:
 			self.toggle_list(self.captions_sub[i],i)
 			self.selections[str(caption)]=i

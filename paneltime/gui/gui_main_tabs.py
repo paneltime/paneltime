@@ -147,7 +147,12 @@ class tab:
 	def run(self):
 		win=self.notebook.win
 		win.data.save()
-		self.pool = pool.ThreadPool(processes=1)
+		try:
+			self.pool = pool.ThreadPool(processes=1)
+		except Exception as e:
+			print(e)
+			self.pool.close()
+			self.pool = pool.ThreadPool(processes=1)
 		text=self.widget.get_all()
 		self.globals['exe_tab']=self
 		self.isrunning=True
@@ -155,9 +160,8 @@ class tab:
 
 	def exec(self,source):
 		try:
-			a=0
-			return
 			exec(source,self.globals,self.locals)
+			self.pool.close()	
 		except Exception as e:
 			print("""
 The following error occured in you script:

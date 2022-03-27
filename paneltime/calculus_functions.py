@@ -140,6 +140,8 @@ def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 		return None
 	elif type(L)==tuple:#elif len(L.shape)==3:
 		x=panel.arma_dot.dot(L,d,ll)#"T x N x k x m"
+		if x is None:
+			return None
 	elif len(L.shape)==2:
 		x=dot(L,d).reshape(N,T,1,m)
 	dLL=dLL.reshape((N,T,1,1))
@@ -505,6 +507,8 @@ class arma_dot_obj:
 	def dot(self,a,b,ll):
 		if len(a)>2:
 			(M,aband,k,sgn)=a
+			if len(M)==0:
+				return None
 			return self.dotroll(aband, k, sgn, b, ll)
 		s=list(b.shape)
 		x=np.moveaxis(b,1,0)

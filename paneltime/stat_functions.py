@@ -212,7 +212,7 @@ def JB_normality_test(e,panel):
 	return p
 
 
-def correl(X,panel=None):
+def correl(X,panel=None, covar=False):
 	"""Returns the correlation of X. Assumes three dimensional matrices. """
 	if not panel is None:
 		X=X*panel.included[3]
@@ -225,6 +225,10 @@ def correl(X,panel=None):
 	cov=cf.dot(X,X)/N
 	
 	cov=cov-(mean.T*mean)
+	
+	if covar:
+		return cov
+	
 	stdx=(np.diag(cov)**0.5).reshape((1,k))
 	stdx=(stdx.T*stdx)
 	stdx[np.isnan(stdx)]=0

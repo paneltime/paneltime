@@ -37,7 +37,7 @@ class options_item:
 			print(e)
 			return False
 		if i is None:
-			if self.value!=value:
+			if str(self.value)!=str(value):
 				self.value=value
 		else:
 			if self.value[i]!=value:

@@ -32,7 +32,7 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,exe_tab,join_table,instruments):
+def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,exe_tab,join_table,instruments, console_output, multi_threading):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
@@ -41,13 +41,13 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 	if datainput.timevar is None:
 		print("No valid time variable defined. This is required")
 		return
-	mp,close_mp=mp_check(datainput,window)
-	results_obj=pqdkm_iteration(datainput,options,mp,window,exe_tab)
+	mp,close_mp=mp_check(datainput,window,multi_threading)
+	results_obj=pqdkm_iteration(datainput,options,mp,window,exe_tab, console_output)
 	if not mp is None and close_mp:
 		mp.quit()
 	return results_obj
 	
-def pqdkm_iteration(datainput,options,mp,window,exe_tab):#allows for a list of different ARIMA options, for example by starting with a more restrictive model
+def pqdkm_iteration(datainput,options,mp,window,exe_tab, console_output):#allows for a list of different ARIMA options, for example by starting with a more restrictive model
 	pqdkm=options.pqdkm.value
 	try:
 		a=pqdkm[0][0]
@@ -55,7 +55,7 @@ def pqdkm_iteration(datainput,options,mp,window,exe_tab):#allows for a list of d
 		pqdkm=[pqdkm]
 	for i in pqdkm:
 		print(f'pqdkm={i}')
-		results_obj=results(datainput,options,mp,i,window,exe_tab)
+		results_obj=results(datainput,options,mp,i,window,exe_tab, console_output)
 		if len(pqdkm)>1:
 			options.loadargs.value=2
 	return results_obj
@@ -79,10 +79,10 @@ class input_class:
 	
 	
 class results:
-	def __init__(self,datainput,options,mp,pqdkm,window,exe_tab):
+	def __init__(self,datainput,options,mp,pqdkm,window,exe_tab, console_output):
 		print ("Creating panel")
 		pnl=panel.panel(datainput,options,pqdkm)
-		channel=comm.get_channel(window,exe_tab,pnl)
+		channel=comm.get_channel(window,exe_tab,pnl, console_output)
 		direction=drctn.direction(pnl,mp,channel)	
 		self.mp=mp
 		if not mp is None:
@@ -94,7 +94,9 @@ class results:
 		self.panel=direction.panel
 
 
-def mp_check(datainput,window):
+def mp_check(datainput,window,multi_threading):
+	if not multi_threading:
+		return None, False
 	modules="""
 global cf
 global lgl

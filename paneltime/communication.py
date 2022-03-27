@@ -14,7 +14,9 @@ TMP_PAGE='tmphtml'
 pic_num=[1]
 
 
-def get_channel(window,exe_tab,panel):
+def get_channel(window,exe_tab,panel, console_output):
+	if console_output:
+		return console(panel)
 	if not window is None:#tkinter gui
 		return tk_widget(window,exe_tab,panel)
 	try:
@@ -31,10 +33,10 @@ def get_channel(window,exe_tab,panel):
 		
 class web_output:
 	def __init__(self,Jupyter,panel):
-		self.panel=panel
-		self.f = open(TMP_PAGE, "w")	
+		self.panel=panel	
 		self.Jupyter=Jupyter
 		if not Jupyter:
+			self.f = open(TMP_PAGE, "w")
 			self.save_html(get_web_page('None', 'None', 'None', '', True))
 			webbrowser.open(WEB_PAGE, new = 2)
 		self.charts=charts.process_charts(panel)
@@ -105,10 +107,10 @@ class console:
 		self.panel=panel
 		
 	def set_progress(self,percent=None,text="",task=''):
-		pass
+		return True
 		
 	def set_output_obj(self,ll, direction,msg_main):
-		self.output=output.output(ll,panel, direction,main_msg)
+		self.output=output.output(ll,self.panel, direction,msg_main)
 		
 	def update_after_direction(self,direction,its):
 		pass

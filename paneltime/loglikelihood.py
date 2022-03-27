@@ -87,7 +87,7 @@ class LL:
 		LL_full,v,v_inv,self.dlnv_pos=cll.LL(panel,lnv,e_REsq, e_RE)
 		self.tobit(panel,LL_full)
 		LL=np.sum(LL_full*panel.included[3])
-				
+		self.LL_all=np.sum(LL_full)
 		self.add_variables(panel,matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,e_REsq,v_inv,LL_full)
 		if abs(LL)>1e+100: 
 			return None				

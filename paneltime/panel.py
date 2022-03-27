@@ -58,7 +58,8 @@ class panel:
 		self.m_zero = False
 		if  m==0 and k>0:
 			self.m_zero = True
-			m=0
+			k=0
+			print("Warning: GARCH term removed since ARCH terms was set to 0")
 		self.pqdkm=p,q,d,k,m
 			
 	def masking(self):

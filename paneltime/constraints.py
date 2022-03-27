@@ -10,6 +10,8 @@ MAX_COLLINEARITY=1e+7
 EXTREEME_COLLINEARITY=1E+20
 SMALL_COLLINEARITY=30
 
+MAX_COLLINEARITY=EXTREEME_COLLINEARITY
+SMALL_COLLINEARITY=EXTREEME_COLLINEARITY
 
 
 class constraint:
@@ -172,24 +174,17 @@ class constraints(dict):
 					return False
 		return True
 	
-	def add_static_constraints(self,overflow_problem):
+	def add_static_constraints(self):
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 		
-		if overflow_problem:
-			general_constraints=[('rho',-0.5,0.5),('lambda',-0.5,0.5),('gamma',-0.5,0.5),('psi',-0.5,0.5)]
-			self.add_custom_constraints(general_constraints)
-		else:
-			c=self.ARMA_constraint
-			general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
-			self.add_custom_constraints(general_constraints)
+		c=self.ARMA_constraint
+		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
+		self.add_custom_constraints(general_constraints)
 			
 		if self.its==0 and p>0:
 			if pargs.args_init.args_d['rho'][0]==0:
 				self.add(pargs.positions['rho'][0],None,'Initial MA constr',value=0.0)
-		if self.m_zero:
-			self.add(pargs.positions['psi'][0],None,'GARCH input constr',value=0.05)
-			
 		if k*m==0:
 			return
 		if sum(self.args.args_v[pargs.positions['psi']]**2)==0:
@@ -441,13 +436,16 @@ def constraint_correl_cluster(direction,include):
 	
 
 def select_arma(constr,ll):
+	delete=[]
 	for i in constr.collinears:
 		if constr[i].category in ['rho','lambda', 'gamma','psi']:
 			assc=constr.collinears[i]
 			if not assc in constr.fixed:
 				if abs(ll.args.args_v[assc])<abs(ll.args.args_v[i]):
-					constr.delete(i)
-					constr.add(assc,i,'collinear')
+					delete.append([i,assc])
+	for i, assc in delete:			
+		constr.delete(i)
+		constr.add(assc,i,'collinear')
 	
 	
 			

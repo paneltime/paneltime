@@ -68,8 +68,7 @@ class arguments:
 		args['omega'][0][0]=0
 		args['mu']=np.array([])
 		args['z']=np.array([])			
-		if panel.m_zero and k>0 and m>0:
-			args['psi'][0]=1e-8
+
 		
 		if m>0 and panel.z_active:
 			args['z']=np.array([1e-09])	

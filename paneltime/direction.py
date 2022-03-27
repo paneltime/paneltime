@@ -9,6 +9,7 @@ import loglikelihood as logl
 from scipy import stats
 import sys
 import time
+import maximize_num
 
 
 class direction:
@@ -35,29 +36,33 @@ class direction:
 		self.record=[]
 		self.Hess_correction=1
 		self.g_rec=[]
-		self.overflow_problem=False
 		self.start_time=time.time()
 
 
 	def calculate(self,ll,its,msg,increment,lmbda,rev):
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
+		x_old=self.ll.args.args_v
 		self.ll=ll
+		self.xi=ll.args.args_v-x_old
 		self.its=its
 		self.lmbda=lmbda
 		self.has_reversed_directions=rev
 		self.increment=increment
 		self.constr_old=self.constr
-		self.constr=constraints.constraints(self,ll.args,its)
-		self.constr.add_static_constraints(self.overflow_problem)			
+		#self.constr=constraints.constraints(self,ll.args,its)
+		#self.constr.add_static_constraints()			
 		self.calc_gradient()
 		self.calc_hessian()
-		if lmbda<0.05 or True:
+		if lmbda<0.05 and False:
 			self.constr.add_dynamic_constraints(self)	
 			self.CI=self.constr.CI
-		self.H_correl_problem=self.constr.H_correl_problem	
-		self.mc_problems=self.constr.mc_problems
-		self.weak_mc_dict=self.constr.weak_mc_dict
+		if self.constr is None:
+			self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
+		else:
+			self.H_correl_problem=self.constr.H_correl_problem	
+			self.mc_problems=self.constr.mc_problems
+			self.weak_mc_dict=self.constr.weak_mc_dict
 		
 		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
 		
@@ -66,14 +71,14 @@ class direction:
 			self.constr.add_custom_constraints(constraints,
 										 cause='pedantic constraint',
 										 clear=True,args=args)
-		mp.send_dict_by_file({'constr':self.constr})
-		self.dx=solve(self.constr,self.H, self.g, args.args_v)
+		if not mp is None:
+			mp.send_dict_by_file({'constr':self.constr})
+		self.constr=None
+		self.dx=solve(self.H, self.g, args.args_v, self.constr)
 		#self.dx=solve_delete(self.constr,self.H, self.g, args.args_v)	
 		self.dx_norm=self.normalize(self.dx)
-		try:
-			self.dx_unconstr=self.normalize(solve(None,self.H, self.g, args.args_v))
-		except:
-			self.dx_unconstr=self.dx_norm
+
+			
 	
 	def include(self,all=False):
 		include=np.array(self.panel.args.n_args*[True])
@@ -89,19 +94,6 @@ class direction:
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
 		self.g_old=self.g
 		self.g,self.G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
-		if False:
-			if len(self.g_rec):
-				if not np.all(self.g_rec[-1]==self.g):
-					self.g_rec.append(self.g)
-			else:
-				self.g_rec.append(self.g)
-				
-			max_history=3
-			start=2
-			max_history=min((max_history+start,len(self.g_rec)+start))
-			self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
-			#self.g_w=[np.mean(self.g_rec[-i:],0) for i in range(start,max_history)]
-		
 	
 	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
 		g=[1,-1]
@@ -148,19 +140,27 @@ class direction:
 		d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(self.ll,self.panel)
 			
 		self.LL_hessian_tobit(self.ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
-		H=None#H=self.nummerical_hess()
-		if H is None or self.increment<1:#(self.its/2==int(self.its/2)):
-			self.H=self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+		if self.H is None:
+			self.H = -np.identity(len(self.ll.args.args_v))
 		else:
-			self.H=H
-		self.handle_overflow()
+			hessin=np.linalg.inv(self.H)
+			hessin = -maximize_num.hessin_num(hessin, -self.g, -self.g_old, self.xi)
+			self.H = np.linalg.inv(hessin)
+			#self.H = self.nummerical_hess()
+		return
+		if False:
+			if not self.H is None:
+				H=self.nummerical_hess()
+			if H is None:# or self.increment<1:#(self.its/2==int(self.its/2)):
+				self.H=self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+			else:
+				self.H=H
 		d=np.diag(self.H)
 		self.CI=constraints.decomposition(self.H)[0][-1]
 		det=np.linalg.det(self.H)
 		self.record.append([self.ll.LL,self.increment,self.CI,det]+list(d))
 
-		if (self.overflow_problem 
-			or np.any(d==0) 
+		if (np.any(d==0) 
 			#or (np.any(d>=0) and det>0) 
 			or (self.CI>1e+18 and self.increment<1)
 			or self.increment<1e-3
@@ -168,41 +168,21 @@ class direction:
 			self.H=0.5*(self.H+np.diag(d))
 			self.progress_bar(text='Hessian diagonal doubled because it had positive or zero elements')
 
-	def handle_overflow(self):
-		self.overflow_problem=False
-		try:
-			self.H_det=np.linalg.det(self.H)
-			return
-		except (RuntimeWarning,OverflowError) as e:
-			self.overflow_problem=True
-			self.H=np.diag(np.ones(len(self.H)))
-			self.g[np.abs(self.g)>1e+30]=0
-			self.H_det=np.linalg.det(self.H)	
-			return
-		d=np.array(np.diag(self.H))	
-		log_d=np.log(np.abs(d))
-		if np.sum(log_d)<max_ln_sum:
-			self.H=np.diag(d)
-			self.H_det=np.linalg.det(self.H)
-			return
-		d_srtd=np.sort(np.abs(d))[::-1]
-		for i in range(len(d_srtd)-1):
-			d[np.abs(d)>=d_srtd[i]]=d_srtd[i+1]
-			if np.sum(np.log(np.abs(d)))<max_ln_sum:
-				self.H=np.diag(d)
-				self.H_det=np.linalg.det(self.H)				
-				return 
 	
 	def init_ll(self,args):
 		self.constr=constraints.constraints(self,args)
-		self.constr.add_static_constraints(False)			
+		self.constr.add_static_constraints()			
 		try:
 			args=args.args_v
 		except:
 			pass#args must be a vector
 		for i in self.constr.fixed:
 			args[i]=self.constr.fixed[i].value
-		ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
+		#ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
+		#testing:
+		self.function=maximize_num.Function(args, self.panel, self.constr)
+		ll=self.function.ll
+		#-----
 		if ll.LL is None:
 			if self.panel.options.loadargs.value:
 				print("WARNING: Initial arguments failed, attempting default OLS-arguments ...")
@@ -214,7 +194,7 @@ class direction:
 					print("default OLS-arguments worked")
 			else:
 				raise RuntimeError("OLS-arguments failed, you should check the data")
-				
+		self.ll=ll
 		return ll
 	
 	def normalize(self,dx):
@@ -222,6 +202,7 @@ class direction:
 		dx_norm=(args_v!=0)*dx/(np.abs(args_v)+(args_v==0))
 		dx_norm=(args_v<1e-2)*dx+(args_v>=1e-2)*dx_norm	
 		return dx_norm	
+	
 
 def inv_hess(hessian):
 	try:
@@ -255,7 +236,7 @@ def nummerical_hessin(g,g_old,hessin,dxi):
 	return hessin
 
 
-def solve(constr,H, g, x):
+def solve(H, g, x, constr):
 	"""Solves a second degree taylor expansion for the dc for df/dc=0 if f is quadratic, given gradient
 	g, hessian H, inequalty constraints c and equalitiy constraints c_eq and returns the solution and 
 	and index constrained indicating the constrained variables"""
