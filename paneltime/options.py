@@ -106,7 +106,7 @@ def regression_options():
 	self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
 																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
 
-	self.ARMA_constraint	        = options_item(2.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
+	self.ARMA_constraint	        = options_item(1.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
 																	None,None,category='GARCH')	
 		
 	

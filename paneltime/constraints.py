@@ -10,8 +10,6 @@ MAX_COLLINEARITY=1e+7
 EXTREEME_COLLINEARITY=1E+20
 SMALL_COLLINEARITY=30
 
-MAX_COLLINEARITY=EXTREEME_COLLINEARITY
-SMALL_COLLINEARITY=EXTREEME_COLLINEARITY
 
 
 class constraint:
@@ -181,7 +179,7 @@ class constraints(dict):
 		c=self.ARMA_constraint
 		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
 		self.add_custom_constraints(general_constraints)
-			
+		return
 		if self.its==0 and p>0:
 			if pargs.args_init.args_d['rho'][0]==0:
 				self.add(pargs.positions['rho'][0],None,'Initial MA constr',value=0.0)

@@ -37,9 +37,10 @@ class direction:
 		self.Hess_correction=1
 		self.g_rec=[]
 		self.start_time=time.time()
+		self.minincr=0.1
 
 
-	def calculate(self,ll,its,msg,increment,lmbda,rev):
+	def calculate(self,ll,its,msg,increment,lmbda,rev, use_anal):
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
 		x_old=self.ll.args.args_v
@@ -53,7 +54,7 @@ class direction:
 		#self.constr=constraints.constraints(self,ll.args,its)
 		#self.constr.add_static_constraints()			
 		self.calc_gradient()
-		self.calc_hessian()
+		self.calc_hessian(use_anal)
 		if lmbda<0.05 and False:
 			self.constr.add_dynamic_constraints(self)	
 			self.CI=self.constr.CI
@@ -66,14 +67,9 @@ class direction:
 		
 		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
 		
-	def set(self,mp,args,constraints=None):
-		if not constraints is None:
-			self.constr.add_custom_constraints(constraints,
-										 cause='pedantic constraint',
-										 clear=True,args=args)
+	def set(self,mp,args):
 		if not mp is None:
 			mp.send_dict_by_file({'constr':self.constr})
-		self.constr=None
 		self.dx=solve(self.H, self.g, args.args_v, self.constr)
 		#self.dx=solve_delete(self.constr,self.H, self.g, args.args_v)	
 		self.dx_norm=self.normalize(self.dx)
@@ -136,30 +132,39 @@ class direction:
 		hessin=nummerical_hessin(self.g,self.g_old,hessin,self.dx)
 		return inv_hess(hessin)		
 
-	def calc_hessian(self):
+	def calc_hessian(self, use_anal):
 		d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(self.ll,self.panel)
 			
 		self.LL_hessian_tobit(self.ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		if self.H is None:
-			self.H = -np.identity(len(self.ll.args.args_v))
+			
+			if True:
+				self.H = self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+			else:
+				xi, p, fp, g, hessin = maximize_num.calc_init_dir(self.g, self.function.jac,  self.function.LL, self.ll.args.args_v)
+				self.H = np.linalg.inv(hessin)
 		else:
-			hessin=np.linalg.inv(self.H)
-			hessin = -maximize_num.hessin_num(hessin, -self.g, -self.g_old, self.xi)
-			self.H = np.linalg.inv(hessin)
+			if self.increment<self.minincr or constraints.decomposition(self.H)[0][-1]>1e+18 or False:
+				self.minincr=self.increment
+				self.H = self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+			else:
+				hessin=np.linalg.inv(self.H)
+				hessin = maximize_num.hessin_num(hessin, self.g, self.g_old, self.xi)
+				self.H = np.linalg.inv(hessin)				
+				
 			#self.H = self.nummerical_hess()
-		return
 		if False:
 			if not self.H is None:
 				H=self.nummerical_hess()
 			if H is None:# or self.increment<1:#(self.its/2==int(self.its/2)):
-				self.H=self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+				self.H = self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
 			else:
 				self.H=H
 		d=np.diag(self.H)
 		self.CI=constraints.decomposition(self.H)[0][-1]
-		det=np.linalg.det(self.H)
+		det=det_managed(self.H)
 		self.record.append([self.ll.LL,self.increment,self.CI,det]+list(d))
-
+		#print(f"ci: {self.CI}  det: {det}  increment: {self.increment}")
 		if (np.any(d==0) 
 			#or (np.any(d>=0) and det>0) 
 			or (self.CI>1e+18 and self.increment<1)
@@ -203,7 +208,12 @@ class direction:
 		dx_norm=(args_v<1e-2)*dx+(args_v>=1e-2)*dx_norm	
 		return dx_norm	
 	
-
+def det_managed(H):
+	try:
+		return np.linalg.det(H)
+	except:
+		return 1e+100
+	
 def inv_hess(hessian):
 	try:
 		h=-np.linalg.inv(hessian)

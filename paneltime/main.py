@@ -25,6 +25,7 @@ import direction as drctn
 from gui import gui
 import communication as comm
 import functions as fu
+import time
 
 
 warnings.filterwarnings('error')
@@ -89,7 +90,9 @@ class results:
 			mp.send_dict_by_file({'panel':pnl},command='panel.ARMA_init()')
 		pnl.ARMA_init()
 		log=[]
+		t0 = time.time()
 		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,channel,log=log)
+		print(f"LL: {self.ll.LL}, time: {time.time()-t0}")
 		fu.savevar(log,'log_of_LL_process.csv')
 		self.panel=direction.panel
 

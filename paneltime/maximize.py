@@ -11,12 +11,19 @@ import time
 import loglikelihood as lgl
 import direction as drctn
 import maximize_num
-import maximize_num2
+import maximize_num_min
 
 
 
 
 def lnsrch(ll, direction,mp,its,incr,po,prev_dx,dx,max_its=12,convex_action='reverse',single_core=False):
+	
+	if mp is None:
+		stpmax=100*max((abs(sum(ll.args.args_v**2)))**0.5,float(len(ll.args.args_v))) 
+		fret,x,check, _ , lmbda = maximize_num.lnsrch(ll.args.args_v,ll.LL,direction.g,direction.dx,stpmax,direction.function.LL) 
+		ll=direction.function.ll
+		return ll,'numerical hessian used',lmbda,True,False
+	
 	panel=direction.panel
 	rev=False
 	
@@ -35,20 +42,9 @@ def lnsrch(ll, direction,mp,its,incr,po,prev_dx,dx,max_its=12,convex_action='rev
 		elif convex_action=='abort':
 			return ll,'Convex function: aborted linesearch',0,False,False
 
-	dx_len=sum(dx**2)**0.5
-	for i in range(3):
-		LL0=ll.LL
-		ll,msg,lmbda,ok, res=lnsrch_master(ll.args.args_v, dx,panel,constr,mp,LL0,ll,max_its,single_core)
-		break
-		if i>0:
-			print(f"#{i} LL: {ll.LL}  DLL: {ll.LL-LL0}   lmda: {lmbda}")
-		if lmbda<0.1 and False:
-			break
-		if i<2:
-			direction.calc_gradient(ll)
-			g=direction.g
-			dx = g*dx_len/sum(g**2)**0.5	
-		
+
+	LL0=ll.LL
+	ll,msg,lmbda,ok, res=lnsrch_master(ll.args.args_v, dx,panel,constr,mp,LL0,ll,max_its,single_core)
 
 	if  ll.LL/panel.NT<-1e+15:
 		msg='The maximization agorithm has gone mad. Resetting the argument to initial values'
@@ -75,7 +71,7 @@ def solve_square_func(f0,l0,f05,l05,f1,l1,default=None):
 	
 def lnsrch_master(args, dx,panel,constr,mp,LL0,ll,max_its,single_core):
 	start=0
-	end=2.0
+	end=4.0
 	msg=''
 	#single_core is for debug. It has been tested, and even with a relatively small sample, multicore is much faster.
 	for i in range(max_its):
@@ -169,17 +165,16 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 	direction.hessin_num, ll= None, None
 	args_archive			= panel.input.args_archive
 	reversed_direction=[]
-	maximize_num2.maximize_test(panel,args.args_v)
-	maximize_num.maximize_test(panel,args.args_v)
+	#maximize_num.maximize_test(panel,args.args_v)
 	ll=direction.init_ll(args)
-	stpmax=100*max((abs(sum(ll.args.args_v**2)))**0.5,float(len(ll.args.args_v))) 
 	po=printout(channel,panel,ll,direction,msg_main)
 	min_iter=2#panel.options.minimum_iterations.value
 	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po,0):return ll,direction,po
 	#direction.start_time=time.time()
+	use_anal=False
 	while 1:
 		prev_dx=direction.dx
-		direction.calculate(ll,its,msg,incr,lmbda,sum(reversed_direction)>0)
+		direction.calculate(ll,its,msg,incr,lmbda,sum(reversed_direction)>0, use_anal=use_anal)
 		direction.set(mp,ll.args)
 		LL0=ll.LL
 		#Convergence test:
@@ -192,9 +187,8 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 		#if not printout_func(1.0,"",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
 		
 		
-		#ll,msg,lmbda,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,direction.dx,max_its=5)
-		fret,x,check, _ , lmbda=maximize_num.lnsrch(ll.args.args_v,-ll.LL,-direction.g,direction.dx,stpmax,direction.function.LL) 
-		ll=direction.function.ll
+		ll,msg,lmbda,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,direction.dx,max_its=5)
+		
 		msg=''
 		ok=True
 		rev=False

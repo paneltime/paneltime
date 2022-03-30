@@ -30,9 +30,10 @@ def lnsrch(xold, fold, g, p, stpmax, func):
 	if summ > stpmax:
 		p=p*stpmax/summ 
 	slope=np.sum(g*p)					#Scale if attempted step is too big.
-	if slope >= 0.0:
+	if slope <= 0.0:
 		print( "Warning: Roundoff problem in lnsrch")
-		return 	fold,xold,check,0,0
+		p=-p
+		slope=np.sum(g*p)
 	test=0.0 															#Compute lambda min.
 	for i in range(0,n): 
 		temp=abs(p[i])/max(abs(xold[i]),1.0) 
@@ -56,7 +57,7 @@ def lnsrch(xold, fold, g, p, stpmax, func):
 			x=xold*1 
 			check=1 
 			return fold,x,check,k,alam
-		elif (f <= fold+ALF*alam*slope): 
+		elif (f >= fold+ALF*alam*slope): 
 			return f ,x,check,k	, alam							#Sufficient function decrease
 		else:  															#Backtrack.
 			if (alam == alamstart):#***********CUSTOMIZATION  alam == 1.0
@@ -72,10 +73,10 @@ def lnsrch(xold, fold, g, p, stpmax, func):
 					disc=b*b-3.0*a*slope 
 					if (disc < 0.0):
 						tmplam=0.5*alam  
-					elif (b <= 0.0):
-						tmplam=(-b+(disc)**0.5)/(3.0*a)  
+					elif (b >= 0.0):
+						tmplam=-(b+(disc)**0.5)/(3.0*a) 
 					else:
-						tmplam=-slope/(b+(disc)**0.5)   
+						tmplam=slope/(-b+(disc)**0.5)
 				if (tmplam > 0.5*alam): 
 					tmplam=0.5*alam   								#  lambda<=0.5*lambda1
 		alam2=alam 
@@ -106,10 +107,10 @@ def dfpmin(p, func, dfunc, hessin=None,ddfunc=None,gtol=0,Print=False,bounds=Non
 	if ddfunc!=None:
 		hessin=ddfunc(p)
 	elif hessin==None:
-		hessin=np.diag(np.ones(n))
+		hessin=-np.diag(np.ones(n))
 	stpmax=1000 
-	xi=-g
-	#xi, p, fp, g, hessin = calc_init_dir(g, dfunc, func, p)
+	xi=g
+	xi, p, fp, g, hessin = calc_init_dir(g, dfunc, func, p)
 	summ=np.sum(p**2)											#Initial line direction.
 	stpmax=STPMX*max((abs(summ))**0.5,float(n)) 
 	k=1
@@ -140,7 +141,7 @@ def dfpmin(p, func, dfunc, hessin=None,ddfunc=None,gtol=0,Print=False,bounds=Non
 		hessin=hessin_num(hessin, g, dg, xi)
 		#Now calculate the next direction to go,
 		xi=-(np.dot(hessin,g.reshape(n,1))).flatten()
-		pass												#and go back for another iteration.
+		a=0												#and go back for another iteration.
 	print( "No convergence within %s iterations" %(ITMAX,))
 	Convergence=2
 	return fret,xsol,hessin,its,Convergence									#too many iterations in dfpmin				
@@ -156,7 +157,7 @@ def hessin_num(hessin, g, dg, xi):
 	fae = np.sum(dg*hdg)
 	sumdg = np.sum(dg*dg) 
 	sumxi = np.sum(xi*xi) 
-	if (fac > (EPS*sumdg*sumxi)**0.5):  					#Skip update if fac not sufficiently positive.
+	if (fac < (EPS*sumdg*sumxi)**0.5):  					#Skip update if fac not sufficiently positive.
 		fac=1.0/fac 
 		fad=1.0/fae 
 														#The vector that makes BFGS different from DFP:
@@ -187,14 +188,14 @@ class Function:
 	def LL(self,x, fargs=()):
 		self.ll = logl.LL(x, self.panel)
 		if self.ll is None:
-			return -self.init_LL
+			return self.init_LL
 		elif self.ll.LL is None:
-			return -self.init_LL
-		return -self.ll.LL
+			return self.init_LL
+		return self.ll.LL
 	
 	def jac(self, x, fargs=()):
 		dLL_lnv, DLL_e = cll.gradient(self.ll , self.panel)
-		return -self.gradient.get(self.ll,DLL_e,dLL_lnv)
+		return self.gradient.get(self.ll,DLL_e,dLL_lnv)
 	
 def maximize_test(panel,args):
 	fun=Function(args, panel, None)
@@ -223,22 +224,22 @@ def calc_init_dir(g0,dfunc,func,p0):
 		g = dfunc(p0+e)
 		dg = (g-g0)/d
 		if dg[i]!=0:
-			xi[i] = -g0[i]/dg[i]
-			dgi[i]=dg[i]
+			xi[i]  = -g0[i]/dg[i]
+			dgi[i] = dg[i]
 		fps[i]=fp
 		ps.append(p0+e)
 		gs.append(g)
 		dgs.append(dg)
 		xis.append(e)
 		#print(f"dg: {dg[i]} g:{g[i]}")
-	i = np.argsort(fps)[0]
+	i = np.argsort(fps)[-1]
 	p = ps[i]
 	fp = fps[i]
 	fp=func(p)
 	g = gs[i]
-	hessin = 1/(dgi+(dgi==0))
+	hessin = 1/(dgi-(dgi==0))
 	hessin = np.diag(hessin)
-	hessin = hessin*0.75 + np.identity(n)*0.25
+	hessin = hessin*0.75 - np.identity(n)*0.25
 	xi=-np.dot(g,hessin)
 	return xi,p, fp,g, hessin
 
