@@ -163,55 +163,43 @@ def l(x):
 	return x
 
 
-class tempfile_manager:
-	def __init__(self):
+class TempfileManager:
+	def __init__(self, fname=fname_temprec, files_in_use=[]):
 		#at initialization, all temporary files from previous sessions are deleted
-		self.rec=load_obj(fname_temprec)
+		self.fname = fname
+		self.rec = load_obj(fname)
 		if self.rec is None:
-			self.rec=[]
+			self.rec = []
+		self.files_in_use=files_in_use
+		self.cleanup()
+			
+	def cleanup(self):
 		for f in self.rec:
-			try:
-				os.remove(f)
-			except:
-				pass
-		save_obj(fname_temprec,[])
-		
-	def TemporaryFile(self):
-		f=tempfile.NamedTemporaryFile()
-		self.rec.append(f.name)
-		save_obj(fname_temprec,self.rec)
-		return f
-	
-	
-class temp_image_manager:
-	def __init__(self,used_imgs):
-		if used_imgs is None:
-			used_imgs=[]
-		#at initialization, all temporary images from previous sessions that are not referenced are deleted
-		self.rec=load_obj(fname_image_temprec)	
-		if self.rec is None:
-			self.rec=[]
-		for f in self.rec:
-			if not f in used_imgs:
+			if not f in self.files_in_use:
 				try:
 					os.remove(f)
 				except:
 					pass
-		save_obj(fname_image_temprec,[])		
-		self.assigned_files=used_imgs
-			
-	def TemporaryFile(self):
-		for i in range(10000):
-			f=os.path.join(tdr,f'paneltime {i}.jpg')
-			if (not os.path.isfile(f)) and (not f in self.assigned_files):
-				self.assigned_files.append(f)
-				self.rec.append(f)
-				save_obj(fname_image_temprec,self.rec)				
-				return f
-		a=0
-		raise RuntimeError("""You have over 10000 temporary image files. 
-		There must be some problems with deleting them from your temporary folder""")
-	
+		save_obj(self.fname,[])
+		
+	def tempfile(self, mode='w+b', delete=True, numbered=False):
+		if not numbered:
+			f=tempfile.NamedTemporaryFile(mode, delete=delete)
+			self.rec.append(f.name)
+			save_obj(self.fname,self.rec)
+			return f
+		else:
+			for i in range(10000):
+				f=os.path.join(tdr,f'paneltime {i}.jpg')
+				if (not os.path.isfile(f)) and (not f in self.files_in_use):
+					self.files_in_use.append(f)
+					self.rec.append(f)
+					save_obj(self.fname,self.rec)				
+					return f
+			a=0
+			raise RuntimeError("""You have over 10000 temporary files. 
+			There must be some problems with deleting them from your temporary folder""")			
+
 
 				
 			

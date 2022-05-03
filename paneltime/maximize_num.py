@@ -3,6 +3,7 @@ import time
 import calculus
 import calculus_ll as cll
 import loglikelihood as logl
+import pickle
 
 
 
@@ -19,12 +20,13 @@ TOLX=(4*EPS)
 STPMX=100.0 
 
 
-def lnsrch(xold, fold, g, p, stpmax, func):
+def lnsrch(xold, fold, g, p, stpmax, func, step=1):
 
 	ALF=1.0e-3     #Ensures sufficient decrease in function value.
 	TOLX=1.0e-14  #Convergence criterion on fx.
 	check=0 
 	n=len(xold)
+	rev=False
 
 	summ=np.sum(p**2)**0.5
 	if summ > stpmax:
@@ -34,6 +36,7 @@ def lnsrch(xold, fold, g, p, stpmax, func):
 		print( "Warning: Roundoff problem in lnsrch")
 		p=-p
 		slope=np.sum(g*p)
+		rev=True
 	test=0.0 															#Compute lambda min.
 	for i in range(0,n): 
 		temp=abs(p[i])/max(abs(xold[i]),1.0) 
@@ -41,7 +44,7 @@ def lnsrch(xold, fold, g, p, stpmax, func):
 	alamin=TOLX/test 
 	#*******CUSTOMIZATION
 	for i in range(1000):#Setting alam so that the largest step is valid. Set func to return None when input is invalid
-		alam=0.5**i #Always try full Newton step first.
+		alam=0.5**i*step #Always try full Newton step first.
 		x=xold+alam*p
 		ret=func(x) 
 		if ret!=None: break
@@ -56,9 +59,9 @@ def lnsrch(xold, fold, g, p, stpmax, func):
 		if (alam < alamin):   #Convergence on delta p. For zero finding,the calling program should verify the convergence.
 			x=xold*1 
 			check=1 
-			return fold,x,check,k,alam
+			return fold,x,check,k,alam, rev
 		elif (f >= fold+ALF*alam*slope): 
-			return f ,x,check,k	, alam							#Sufficient function decrease
+			return f ,x,check,k	, alam, rev							#Sufficient function decrease
 		else:  															#Backtrack.
 			if (alam == alamstart):#***********CUSTOMIZATION  alam == 1.0
 				tmplam = -slope/(2.0*(f-fold-slope))  	#First time.
@@ -84,13 +87,13 @@ def lnsrch(xold, fold, g, p, stpmax, func):
 		alam=max(tmplam,0.1*alam)								#lambda>=0.1*lambda1
 		if alamstart<1.0:#*************CUSTOMIZATION
 			alam=min((alam,alamstart*0.9**k))
-	return f,x,check,k, alam
+	return f,x,check,k, alam, rev
 
 
 
 
 
-def dfpmin(p, func, dfunc, hessin=None,ddfunc=None,gtol=0,Print=False,bounds=None):
+def dfpmin(p, func, dfunc, callback=None, hessin=None,ddfunc=None,gtol=0,Print=False, step=1):
 	"""Given a starting point p[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
 	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
 	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -115,8 +118,9 @@ def dfpmin(p, func, dfunc, hessin=None,ddfunc=None,gtol=0,Print=False,bounds=Non
 	stpmax=STPMX*max((abs(summ))**0.5,float(n)) 
 	k=1
 	for its in range(0,ITMAX):  						#Main loop over the iterations.
-		fret,x,check, k, alam=lnsrch(p,fp,g,xi,stpmax,func) 
-		
+		fret,x,check, k, alam, rev=lnsrch(p,fp,g,xi,stpmax,func, step) 
+		msg, x, fret = callback(fret, x, hessin)
+		if msg=='abort': break
 		if Print: print( fret)
 		pnew=x*1							#The new function evaluation occurs in lnsrch  save the function value in fp for the
 		xsol=x*1							#next line search. It is usually safe to ignore the value of check.
@@ -127,6 +131,7 @@ def dfpmin(p, func, dfunc, hessin=None,ddfunc=None,gtol=0,Print=False,bounds=Non
 		if (test < TOLX):  
 			print( "Warning: Convergence on delta p; the gradient is incorrect or the tolerance is set too low")
 			Convergence=0
+			callback(fret, x, hessin,'finished')
 			return fret,xsol,hessin,its, Convergence #FREEALL
 		dg=g*1   					#Save the old gradient,
 		g=dfunc(p) 										#and get the new gradient.
@@ -137,6 +142,7 @@ def dfpmin(p, func, dfunc, hessin=None,ddfunc=None,gtol=0,Print=False,bounds=Non
 		if (test < gtol):  
 			print( "Convergence on zero gradient; local or global minimum identified")
 			Convergence=1
+			callback(fret, x, hessin,'finished')
 			return fret,xsol,hessin,its,Convergence #FREEALL
 		hessin=hessin_num(hessin, g, dg, xi)
 		#Now calculate the next direction to go,
@@ -144,6 +150,7 @@ def dfpmin(p, func, dfunc, hessin=None,ddfunc=None,gtol=0,Print=False,bounds=Non
 		a=0												#and go back for another iteration.
 	print( "No convergence within %s iterations" %(ITMAX,))
 	Convergence=2
+	callback(fret, x, hessin,'finished')
 	return fret,xsol,hessin,its,Convergence									#too many iterations in dfpmin				
 															#FREEALL
 
@@ -171,18 +178,43 @@ def hessin_num(hessin, g, dg, xi):
 
 
 class Function:
-	def __init__(self,args, panel, constraints):
+	def __init__(self,args, panel, f_write, f_read, id):
+		self.f_read = f_read
+		self.f_write = f_write
+		if (not f_read is None) and (args is None):
+			command, LL, args, H = self.read()
+		if args is None:
+			raise RuntimeError('Either f_read or args, or both, must be supplied')
 		self.panel = panel
-		self.constraints=constraints
 		self.LL(args)
-		self.init_LL=self.ll.LL
-		c=1.0
-		self.bounds=[(None,None)]*len(args)
-		for b,l,u in [('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]:
-			r = panel.args.positions[b]
-			for i in r:
-				self.bounds[i] = (l,u)
+		self.args_init = args
+		self.init_LL=self.ll.LL		
 		self.gradient = calculus.gradient(panel,set_progress)
+		self.t = time.time()
+		self.i = id
+		
+	def read(self):
+		
+		for i in range(30):
+			try:
+				f=open(self.f_read, 'rb')
+				command, LL, args, H = pickle.load(f)
+				break
+			except EOFError:
+				pass
+			f.close()
+		f.close()
+		print(i)
+		return command, LL, args, H 
+		
+	def write(self, response, fret, x, hessin):
+		if time.time() - self.t < 1:
+			return
+		f=open(self.f_write, 'wb')
+		pickle.dump((response, fret, x, hessin), f)
+		f.flush()
+		f.close()
+		self.t = time.time()
 		
 		
 	def LL(self,x, fargs=()):
@@ -197,13 +229,31 @@ class Function:
 		dLL_lnv, DLL_e = cll.gradient(self.ll , self.panel)
 		return self.gradient.get(self.ll,DLL_e,dLL_lnv)
 	
-def maximize_test(panel,args):
-	fun=Function(args, panel, None)
+	def callback(self, fret, x, hessin, msg=''):
+		if self.f_read is None:
+			return '', fret, x
+		command, fret_master, x_master, H_master = self.read()
+		if command=='abort':
+			self.f_read.close()
+			self.f_write.close()
+			return 'abort', fret, x
+
+		if fret_master>fret:
+			x=x_master
+			fret=fret_master
+
+		self.write((msg, self.id), fret, x, hessin)
+		return '', x, fret
+		
+		
+	
+def maximize(panel, args=None, step=1, gtol=0.001, f_write=None, f_read=None, id=0):
+	fun=Function(args, panel, f_write, f_read, id)
 	t0=time.time()
-	fret,xsol,hessin,its,Convergence=dfpmin(args,fun.LL, fun.jac, bounds=fun.bounds, gtol=0.005)
+	fret,xsol,hessin,its,Convergence=dfpmin(fun.args_init,fun.LL, fun.jac, fun.callback, gtol=gtol, step=step)
 	print(f"LL={fret}  success={Convergence}  t={time.time()-t0}")
 	print(xsol)
-	a=0
+	return fret,xsol,hessin,its,Convergence
 	
 	
 def calc_init_dir(g0,dfunc,func,p0):

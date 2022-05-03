@@ -50,7 +50,7 @@ def main(t,initcommand,s_id,fpath):
 			sys.stdout = f
 			exec(obj,globals(),d)
 			sys.stdout = sys.__stdout__
-			response=release_dict(d,d_list,holdbacks)	
+			response=release_dict(d,d_list,holdbacks)
 		elif msg=='holdbacks':
 			holdbacks.extend(obj)		
 		t.send(response)		

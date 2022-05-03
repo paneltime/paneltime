@@ -19,7 +19,8 @@ class master():
 	def __init__(self,initcommand,max_nodes, holdbacks,tempfile):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
-		f=tempfile.TemporaryFile()
+		self.tempfile=tempfile
+		f=tempfile.tempfile()
 		self.f=f.name
 		self.filesend_cpu_ids=[]
 		f.close()
@@ -45,15 +46,7 @@ Master PID: %s \n
 Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		print (pstr)
 
-	def send_dict(self, d,cpu_ids=None):
-		self.send_dict_by_file_receive()
-		if cpu_ids is None:
-			cpu_ids=range(self.cpu_count)
-		for i in cpu_ids:
-			self.slaves[i].send('dictionary',d)
-			res=self.slaves[i].receive()
-
-	def send_dict_by_file(self, d,cpu_ids,command):
+	def send_dict(self, d,cpu_ids,command):
 		self.send_dict_by_file_receive()
 		f=open(self.f,'wb')
 		pickle.dump(d,f)   
@@ -91,49 +84,60 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			s.send('holdbacks',key_arr)
 			res=s.receive()
 
-	def send_tasks(self,tasks,remote=False,timer=False,progress_bar=None):
-		self.send_dict_by_file_receive()
+	def send_tasks(self,tasks,remote=False, progress_bar=None, wait_and_collect=True):
 		"""tasks is a list of string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves
-		if remote=True, the list must be a list of tuples, where the first item is the expression and the second is the variable that should be returned"""
-		tasks=list(tasks)
-		n=len(tasks)
-		m=min((self.cpu_count,n))
-		d_arr=[]
-		if timer:
-			t_arr=[-time.perf_counter()]*n
-		else:
-			t_arr=None
-		if not remote:
-			msg='expression evaluation'
-		else:
-			msg='remote expression valuation'
+		if remote=True, the list must be a list of tuples, where the first item is the expression and the second is the variable that should be returned\n
+		If wait_and_collect=True, wait_and_collect MUST be called at a later stage for each node. If not the nodes will be lost"""
+		self.send_dict_by_file_receive()
+		
+		self.tasks = list(tasks)
+		self.n=len(tasks)
+		self.m=min((self.cpu_count, self.n))
+		m=min((self.cpu_count, self.n))
+		self.d_arr=[]
+
+
 		for i in range(m):
-			self.slaves[i].send(msg,tasks.pop(0))#initiating the self.cpus first evaluations
+			self.slaves[i].send('expression evaluation',tasks.pop(0))#initiating the self.cpus first evaluations
 		q=Queue()
 		for i in range(m):
-			t=Thread(target=self.slaves[i].receive,args=(q,),daemon=True)
+			t=Thread(target=self.slaves[i].receive,args=(q,), daemon=True)
 			t.start()
-		got=0
-		sent=m
+
+		self.q = q
+		
+		if wait_and_collect:
+			d,d_node = self.wait_and_collect(progress_bar)
+			return d,d_node
+		return None, None
+		
+
+	def wait_and_collect(self, progress_bar):
+		"""Waiting and collecting the sent tasks. """
+		
+		got = 0
+		if len(self.tasks) == 0:
+			return		
+		sent = self.n - len(self.tasks)
+
 		while 1:
-			if got<n:
-				d,s=q.get()
+			if got < self.n:
+				d,s = self.q.get()
 				got+=1
-				d_arr.append([d,s])
-				if timer:
-					t_arr[s]+=time.perf_counter()
-			if sent<n:
-				self.slaves[s].send(msg,tasks.pop(0))#supplying additional tasks for returned cpus
-				t=Thread(target=self.slaves[s].receive,args=(q,),daemon=True)
+				self.d_arr.append([d,s])
+
+			if sent<self.n:
+				self.slaves[s].send(self.msg,self.tasks.pop(0))#supplying additional tasks for returned cpus
+				t=Thread(target=self.slaves[s].receive,args = (self.q,),daemon=True)
 				t.start()		
 				sent+=1
-			if sent>=n and got>=n:
+			if sent>=self.n and got>=self.n:
 				break
 			if not progress_bar is None:
 				pb_func,pb_min,pb_max,text=progress_bar			
-				pb_func(pb_min+(pb_max-pb_min)*got/n,text)
-		d,d_node=get_slave_dicts(d_arr)
-		return d,d_node,t_arr
+				pb_func(pb_min+(pb_max-pb_min)*got/self.n,text)
+		d,d_node=get_slave_dicts(self.d_arr)
+		return d,d_node
 	
 	def quit(self):
 		for i in self.slaves:
@@ -235,62 +239,27 @@ class multiprocess:
 		self.d=dict()
 		self.master=master(initcommand,max_nodes,holdbacks,tempfile)#for paralell computing
 
-	def execute(self,expr,timer=False,progress_bar=None):
+	def execute(self,expr,timer=False,progress_bar=None, wait_and_collect=True):
 		"""For submitting multiple functions to be evalated. expr is an array of argument arrays where the first element in each 
 		argument array is the function to be evaluated"""
-		d,d_node, t=self.master.send_tasks(expr,timer=timer,progress_bar=progress_bar)
+		
+		self.progress_bar = progress_bar
+		d,d_node = self.master.send_tasks(expr,timer=timer,progress_bar=progress_bar, wait_and_collect=wait_and_collect)
+		if not wait_and_collect:
+			return
 		for i in d:
 			self.d[i]=d[i]
 		if timer:
-			return self.d,t
+			return self.d
 		return self.d
 	
-	def remote_execute(self,expr,single_core=False,d={}):
-		"""The same as execute, but only a specified variable is returned for each execution element.
-		Usefull when large objects shall be returned, and you only need a few/one of them. Used with remote_recieve"""
-		if not single_core:
-			d,d_node,t=self.master.send_tasks(expr,True)
-		else:
-			self.slave_single_core={}
-			d_node={}
-			for i in range(len(expr)):
-				e,ret_var=expr[i]
-				ret=dict()
-				exec(e,d,ret)
-				self.slave_single_core[i]=ret
-				d[ret_var]=ret[ret_var]
-				d_node[ret_var]=i
-		return d,d_node
-
-	def remote_recieve(self,variable,node,single_core=False):
-		"""Sends a request for a particular variable at node, after remote_execute. 
-		Usefull when large objects shall be returned, and you only need a few/one of them. Used with remote_execute"""
-		if not single_core:
-			ret=self.master.remote_recieve(variable,node)
-		else:
-			ret=self.slave_single_core[node]	
-		return ret
-		
+	def wait_and_collect(self):
+		self.master.wait_and_collect(self.progress_bar)
 	
-	def send_dict_by_file(self,d,cpu_ids=None,command=''):
+	def send_dict(self,d,cpu_ids=None,command=''):
 		for i in d:
 			self.d[i]=d[i]		
-		self.master.send_dict_by_file(d,cpu_ids,command)
-
-	def exe_from_arglist(self,function,args):
-		a=[]
-		n=len(args)
-		for i in range(n):
-			f_expr='res%s=' + function
-			a.append(f_expr %(i,args[i]))
-		self.execute(a)
-		return self.d
-
-	def send_dict(self,d,cpu_ids=None):
-		for i in d:
-			self.d[i]=d[i]
-		if 'multi_core.master' in str(type(self.master)):
-			self.master.send_dict(d,cpu_ids)
+		self.master.send_dict(d,cpu_ids,command)
 			
 	def quit(self):
 		self.master.quit()

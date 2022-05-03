@@ -58,7 +58,7 @@ class process_charts(ttk.Frame):
 			self.charts.append(tk.Label(frm,background='white'))
 			self.charts[i].grid(row=0,column=0)	
 			chart_path=os.path.join(os.getcwd(),'img',f'chart{i}.png')
-			self.charts[i].path=fu.obtain_fname(chart_path)# self.img_tmp.TemporaryFile()
+			self.charts[i].path=fu.obtain_fname(chart_path)# self.img_tmp.tempfile()
 			guif.setbutton(frm, 'Save image', lambda: self.save(self.n_charts-i-1),bg='white').grid(row=1,column=0)
 			frm.grid(row=i+1)
 		

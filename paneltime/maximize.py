@@ -2,223 +2,154 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import stat_functions as stat
-import loglikelihood as logl
-import output
-import sys
-from tkinter import _tkinter
 import time
-import loglikelihood as lgl
-import direction as drctn
 import maximize_num
-import maximize_num_min
+import loglikelihood as lgl
+import pickle
 
 
-
-
-def lnsrch(ll, direction,mp,its,incr,po,prev_dx,dx,max_its=12,convex_action='reverse',single_core=False):
+class LLClass:
+	def __init__(self, panel, constr):
+		self.panel = panel
+		self.constr = constr
+		self.ll = None
 	
-	if mp is None:
-		stpmax=100*max((abs(sum(ll.args.args_v**2)))**0.5,float(len(ll.args.args_v))) 
-		fret,x,check, _ , lmbda = maximize_num.lnsrch(ll.args.args_v,ll.LL,direction.g,direction.dx,stpmax,direction.function.LL) 
-		ll=direction.function.ll
-		return ll,'numerical hessian used',lmbda,True,False
+	def LL(self,x):
+		self.ll = lgl.LL(x, self.panel, self.constr)
+		return self.ll.LL
+
+
+def lnsrch(ll, direction, panel):
 	
-	panel=direction.panel
-	rev=False
-	
-	args=ll.args.args_v
+	p = direction.dx
 	g = direction.g
-	
-	LL0=ll.LL
-	constr=direction.constr
-	
-	
-	if np.sum(g*dx)<0:
-		if convex_action=='reverse':
-			dx=-dx
-			direction.progress_bar(text="Convex function at evaluation point, direction reversed")
-			rev=True
-		elif convex_action=='abort':
-			return ll,'Convex function: aborted linesearch',0,False,False
-
-
-	LL0=ll.LL
-	ll,msg,lmbda,ok, res=lnsrch_master(ll.args.args_v, dx,panel,constr,mp,LL0,ll,max_its,single_core)
-
-	if  ll.LL/panel.NT<-1e+15:
-		msg='The maximization agorithm has gone mad. Resetting the argument to initial values'
-		ll=logl.LL(panel.args.args_restricted,panel)
-		return ll,msg,0,False
-	
-	return ll,msg,lmbda,ok,rev 
-		
-		
-def solve_square_func(f0,l0,f05,l05,f1,l1,default=None):
-	try:
-		b=-f0*(l05+l1)/((l0-l05)*(l0-l1))
-		b-=f05*(l0+l1)/((l05-l0)*(l05-l1))
-		b-=f1*(l05+l0)/((l1-l05)*(l1-l0))
-		c=((f0-f1)/(l0-l1)) + ((f05-f1)/(l1-l05))
-		c=c/(l0-l05)
-		if c<0 and b>0:#concave increasing function
-			return -b/(2*c)
-		else:
-			return default
-	except:
-		return default
-	
-	
-def lnsrch_master(args, dx,panel,constr,mp,LL0,ll,max_its,single_core):
-	start=0
-	end=4.0
+	stpmax=100*max((abs(sum(ll.args.args_v**2)))**0.5,float(len(ll.args.args_v))) 
+	ll_class = LLClass(panel, direction.constr)
+	fret,x,check, _ , lmbda, rev = maximize_num.lnsrch(ll.args.args_v ,ll.LL ,g ,p ,stpmax ,ll_class.LL ) 
+	ll=ll_class.ll
 	msg=''
-	#single_core is for debug. It has been tested, and even with a relatively small sample, multicore is much faster.
-	for i in range(max_its):
-		delta=(end-start)/(mp.master.cpu_count-1-(i==0))
-		res=get_likelihoods(args, dx, panel, mp,delta,start,single_core, constr)
-		if i==0:
-			res0=res[0]		
-		if (res[0,1]==0 and i==0) or (res[0,0]<=res0[0] and i>0) or np.isnan(res[0,0]):#best was no change
-			start=delta/mp.master.cpu_count
-			end=delta
-		else:
-			break
-	if i>0:
-		if np.max(res[:,0])==res0[0]:
-			return ll,'No increase in linesearch',0,False
-		res=np.append([res0],res,0)#ensuring the original is in the LL set
-		srt=np.argsort(res[:,0])[::-1]
-		res=res[srt]
-	res=remove_nan(res)
-	if LL0>res[0,0]:
-		s='Best result in linesearch is poorer than the starting point. You may have discovered a bug, please notify espen.sirnes@uit.no'
-		print(s)
-		return ll,s,res[0,0]-LL0,False, res
-	try:
-		lmda=solve_square_func(res[0,0], res[0,2],res[1,0], res[1,2],res[2,0], res[2,2],res[0,2])
-		1/lmda#Throws an exception
-		ll2=logl.LL(args+lmda*dx,panel,constr)
-		if ll2.LL<res[0,0]:
-			raise RuntimeError('Something wrong with ll. You may have discovered a bug, please notify espen.sirnes@uit.no')
-	except:
-		ll2, lmda = mp.remote_recieve(f'f{res[0,1]}',res[0,1],single_core), res[0,2]
-	if ll2.LL is None or lmda==0:
-		return ll,'No increase in linesearch',0,False, res
-	msg=f"Linesearch success ({round(lmda,6)} of Newton step). "
-	return ll2,msg,lmda,True, res
-
-def remove_nan(res):
-	r=[]
-	for i in res:
-		if not np.isnan(i[0]):
-			r.append(i)
-	return np.array(r)	
-	
-				
-def get_likelihoods(args, dx,panel,mp,delta,start,single_core, constr):
-	lamdas=[]
-	a=[]
-	for i in range(mp.master.cpu_count):
-		lmda=start+i*delta
-		a.append(list(args+lmda*dx))
-		lamdas.append(lmda)
-	res=likelihood_spawn(a,lamdas,single_core,mp,{'lgl':lgl, 'panel':panel, 'constr':constr})
-	return res
-
-	
-def likelihood_spawn(args, return_info,single_core,mp,d):
-	"Returns a list of a list with the LL of the args and return_info, sorted on LL"
-	expr=[]	
-	n=len(args)
-	for i in range(n):
-		expr.append([
-			"try:\n"
-			f"	f{i}=lgl.LL({list(args[i])}, panel,constr)\n"
-			f"	LL{i}=f{i}.LL\n"
-			"except:\n"
-			f"	LL{i}=None\n"
-			
-			, f'LL{i}'])
-		a=0
-	d,d_node=mp.remote_execute(expr,single_core,d=d)
-	res=[]
-	for i in range(n):
-		key=f'LL{i}'
-		if not d[key] is None:
-			res.append([d[key],d_node[key],return_info[i]])
-	if len(res)==0:
-		return np.array([[np.nan, np.nan, np.nan]])
-	res=np.array(res,dtype='object')
-	srt=np.argsort(res[:,0])[::-1]
-	res=res[srt]
-	return res
-
-	
+	if rev:
+		msg='direction reversed'
+	return ll,msg,lmbda,True,rev	
 	
 def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 	"""Maxmizes logl.LL"""
 
-	its, k, m, dx_norm,incr		=0,  [1,0,-1,0],     0,    None, 0
-	H    = None
-	msg,lmbda,lmbda0_count,rev='',	1,0,False
-	direction.hessin_num, ll= None, None
-	args_archive			= panel.input.args_archive
-	reversed_direction=[]
-	#maximize_num.maximize_test(panel,args.args_v)
+	its,incr, msg,lmbda,rev =0, 0, '',1,False
 	ll=direction.init_ll(args)
+	
+	if mp is None:
+		fret,args,hessin,its,Convergence = maximize_num.maximize(panel,args.args_v,2,0.001)
+	else:
+		comm = Comm(mp, panel, args, ll, direction)
+
+	
+	#maximize_num.maximize_test(panel,args.args_v, 8,0)
+	
 	po=printout(channel,panel,ll,direction,msg_main)
-	min_iter=2#panel.options.minimum_iterations.value
 	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po,0):return ll,direction,po
 	#direction.start_time=time.time()
-	use_anal=False
 	while 1:
-		prev_dx=direction.dx
-		direction.calculate(ll,its,msg,incr,lmbda,sum(reversed_direction)>0, use_anal=use_anal)
-		direction.set(mp,ll.args)
+		direction.calculate(ll,its,msg,incr,lmbda,rev)
+		direction.set(ll.args)
 		LL0=ll.LL
 		#Convergence test:
-		conv=convergence_test(direction, its, args_archive, min_iter,ll,panel,lmbda,k,incr)
+		conv=convergence_test(direction, its, ll,panel,incr)
 		if conv: 
 			printout_func(1.0,"Convergence on zero gradient; maximum identified",ll,its,direction,incr,po,3,'done')
+			comm.terminate()
 			return ll,direction,po
 		if lmbda==0:
 			printout_func(1.0,"No increase in linesearch without convergence. This should not happen. Contact Espen.Sirnes@uit.no",ll,its,direction,incr,po,1,"err")
 		#if not printout_func(1.0,"",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
 		
-		
-		ll,msg,lmbda,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,direction.dx,max_its=5)
-		
-		msg=''
-		ok=True
-		rev=False
-		
-		
+		ll,msg,lmbda,ok,rev=lnsrch(ll,direction, panel)
 		incr=ll.LL-LL0
-		#log.append([incr,ll.LL,msg]+list(ll.args.args_v)+list(direction.dx_norm)+list(direction.g)+list(np.diag(direction.H))+list(direction.H[0]))
+		ll, H = comm.communicate(ll, direction.H)
+		
 		#if not printout_func(1.0,msg,ll,its,direction,incr,po,0):return ll,direction,po
 		print(f"{ll.LL}:{its}")
-		if its==10:
-			t=time.time()-direction.start_time
-			a=0
+
 		its+=1
 
+class Comm:
+	def __init__(self, mp, panel, args, ll, direction):
+		self.mp = mp
+		self.panel = panel
+		self.direction = direction
+		f = panel.input.tempfile.tempfile(delete=False)
+		self.f_write = f.name.replace('\\','/')
+		f.close()
+		self.write('', ll.LL, args.args_v, direction.H)
+		self.spawn()
+		self.t = time.time()
 		
-def fast_max(H,g_old,dx,panel,direction,ll_orig):
-	hessin=drctn.inv_hess(H)
-	args=ll_orig.args.args_v
-	ll_old=ll_orig.LL
-	while 1:
-		dx=-np.dot(hessin,g).flatten()
-		args=args+dx
-		ll=logl.LL(args,panel)
-		direction.calc_gradient(ll)
-		g_old=g
-		g=direction.g
-		hessin=drctn.nummerical_hessin(g,g_old,hessin,dx)
+	def write(self, command, LL=None, args=None, H=None):
+		f = open(self.f_write, 'wb')
+		pickle.dump((command, LL, args, H), f)
+		f.flush()
+		f.close()
 		
+	def read(self, fname):
+		try:
+			f = open(fname, 'rb')
+			response, LL, args, hessin = pickle.load(f)
+		except EOFError:
+			f.close()
+			return False, None, None, None, None
+		f.close()
+		return True, response, LL, args, hessin
+		
+		
+	def spawn(self):
+		tasks=[]
+		lamdas=[1,4,8]
+		self.f_read_files=[]
+		for i in range(len(lamdas)):
+			f = self.panel.input.tempfile.tempfile(delete=False)
+			fname=f.name.replace('\\','/')
+			f.close()
+			self.f_read_files.append(fname)
+			tasks.append(f"maximize_num.maximize(panel, f_write='{fname}',f_read='{self.f_write}', id)")
+		self.mp.execute(tasks, wait_and_collect=False)
+		
+	def terminate(self):
+		if self.mp is None:
+			return
+		self.write('abort')
+		self.mp.wait_and_collect()
 
-		
+	def communicate(self, ll, H):
+		if time.time() - self.t<1 or self.mp is None:		
+			return ll, H
+		LLs = [ll.LL]
+		xs = [ll.args.args_v]
+		h = []
+		rf=list(self.f_read_files)
+		while len(rf):
+			f = rf.pop(0)
+			OK, response, fret, x, hessin = self.read(f)
+			if OK:
+				LLs.append(fret)
+				xs.append(x) 
+				h.append(hessinv(hessin, H))				
+			else:
+				rf.append(f)
+		i=np.argmax(LLs)
+		if LLs[i]>ll.LL:
+			ll=lgl.LL(xs[i], self.panel, self.direction.constr)
+		self.write('', ll.LL, ll.args.args_v, self.direction.H)
+		self.t = time.time()
+		return ll, H
+	
+	def respawn()
+	
+def hessinv(hessin, H):
+	try:
+		hess = np.inv(hessin)
+	except:
+		return H
+	return hess
 
 def potential_gain(direction):
 	"""Returns the potential gain of including each variables, given that all other variables are included and that the 
@@ -235,23 +166,16 @@ def potential_gain(direction):
 	return dxLL	
 	
 	
-def convergence_test(direction,its,args_archive,min_iter,ll,panel,lmbda,k,incr):
+def convergence_test(direction,its,ll, panel, incr, min_iter=4):
 	pgain=potential_gain(direction)
 	#print(pgain)
 	
 	if incr>0:
+		args_archive = panel.input.args_archive
 		args_archive.save(ll.args,True)
 
 	conv=(max(pgain)<panel.options.tolerance.value) and (max(np.abs(direction.dx_norm))<0.0001)
 	conv*=(its>=min_iter)
-	sing_problems=(direction.H_correl_problem or direction.singularity_problems)
-	if sing_problems and conv and (lmbda>0):
-		k[3]+=1
-		if k[3]>3:
-			return True
-		else:
-			return False
-	k[3]=0	
 	return conv
 
 		
@@ -259,9 +183,6 @@ def printout_func(percent,msg,ll,its,direction,incr,po,update_type, task=""):
 	po.printout(ll,its+1,direction,incr,update_type)	
 	return direction.progress_bar(percent,msg,task=task)
 		
-
-
-	
 class printout:
 	def __init__(self,channel,panel,ll,direction,msg_main,_print=True,):
 		self._print=_print
@@ -283,6 +204,3 @@ class printout:
 		elif update_type==0 or update_type==2:
 			self.channel.update_after_linesearch(direction,ll,incr)
 
-		
-
-			

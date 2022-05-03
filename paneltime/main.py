@@ -66,7 +66,7 @@ class input_class:
 	def __init__(self,dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,join_table,instruments):
 		
 		tempstore.test_and_repair()
-		self.tempfile=tempstore.tempfile_manager()
+		self.tempfile=tempstore.TempfileManager()
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,heteroscedasticity_factors,instruments,options)
 		self.descr=model_string
 		self.args_archive=tempstore.args_archive(self.descr, options.loadargs.value)
@@ -84,7 +84,7 @@ class results:
 		print ("Creating panel")
 		pnl=panel.panel(datainput,options,pqdkm)
 		channel=comm.get_channel(window,exe_tab,pnl, console_output)
-		direction=drctn.direction(pnl,mp,channel)	
+		direction=drctn.direction(pnl,channel)	
 		self.mp=mp
 		if not mp is None:
 			mp.send_dict_by_file({'panel':pnl},command='panel.ARMA_init()')
@@ -105,12 +105,14 @@ global cf
 global lgl
 import calculus_functions as cf
 import loglikelihood as lgl
+import maximize_num
+import tempfile
 """	
 	if window is None:
-		mp=mc.multiprocess(datainput.tempfile,16,modules,['GARM','GARK','AMAq','AMAp'])
+		mp=mc.multiprocess(datainput.tempfile,3,modules,['GARM','GARK','AMAq','AMAp'])
 		return mp, True
 	if window.mc is None:
-		window.mc=mc.multiprocess(datainput.tempfile,16,modules,['GARM','GARK','AMAq','AMAp'])
+		window.mc=mc.multiprocess(datainput.tempfile,3,modules,['GARM','GARK','AMAq','AMAp'])
 	return window.mc,False
 	
 

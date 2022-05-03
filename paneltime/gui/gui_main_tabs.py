@@ -249,7 +249,7 @@ class tabs(dict):
 	def load_all_from_temp(self):
 		editor_data=self.notebook.win.data.get('editor_data')
 		used_imgs=self.get_image_refs(editor_data)
-		self.img_tmp=tempstore.temp_image_manager(used_imgs)	
+		self.img_tmp=tempstore.TempfileManager(files_in_use = used_imgs)	
 		if editor_data is None:
 			return
 		n=0

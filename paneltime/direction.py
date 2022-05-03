@@ -13,7 +13,7 @@ import maximize_num
 
 
 class direction:
-	def __init__(self,panel,mp,channel):
+	def __init__(self,panel,channel):
 		self.progress_bar=channel.set_progress
 		self.gradient=calculus.gradient(panel,self.progress_bar)
 		self.hessian=calculus.hessian(panel,self.gradient,self.progress_bar)
@@ -23,7 +23,6 @@ class direction:
 		self.do_shocks=True
 		self.input_old=None
 		self.CI=0
-		self.mp=mp
 		self.dx_norm=None
 		self.dx=None
 		self.H=None
@@ -33,14 +32,13 @@ class direction:
 		self.mc_problems=[]
 		self.H_correl_problem=False
 		self.singularity_problems=False
-		self.record=[]
 		self.Hess_correction=1
 		self.g_rec=[]
 		self.start_time=time.time()
 		self.minincr=0.1
 
 
-	def calculate(self,ll,its,msg,increment,lmbda,rev, use_anal):
+	def calculate(self,ll,its,msg,increment,lmbda,rev):
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
 		x_old=self.ll.args.args_v
@@ -51,10 +49,10 @@ class direction:
 		self.has_reversed_directions=rev
 		self.increment=increment
 		self.constr_old=self.constr
-		#self.constr=constraints.constraints(self,ll.args,its)
-		#self.constr.add_static_constraints()			
+		self.constr=constraints.constraints(self,ll.args,its)
+		self.constr.add_static_constraints()			
 		self.calc_gradient()
-		self.calc_hessian(use_anal)
+		self.calc_hessian()
 		if lmbda<0.05 and False:
 			self.constr.add_dynamic_constraints(self)	
 			self.CI=self.constr.CI
@@ -67,10 +65,8 @@ class direction:
 		
 		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
 		
-	def set(self,mp,args):
-		if not mp is None:
-			mp.send_dict_by_file({'constr':self.constr})
-		self.dx=solve(self.H, self.g, args.args_v, self.constr)
+	def set(self,args):
+		self.dx=2*solve(self.H, self.g, args.args_v, self.constr)
 		#self.dx=solve_delete(self.constr,self.H, self.g, args.args_v)	
 		self.dx_norm=self.normalize(self.dx)
 
@@ -127,43 +123,14 @@ class direction:
 				d2LL_dln2[I] =     0.25*(f_F2*e2s2[I]  +  g[i]*f_F[i]*(e1s1[I]-e3s3[I]))
 				
 				
-	def nummerical_hess(self):
-		hessin=inv_hess(self.H)
-		hessin=nummerical_hessin(self.g,self.g_old,hessin,self.dx)
-		return inv_hess(hessin)		
+	
 
-	def calc_hessian(self, use_anal):
+	def calc_hessian(self):
 		d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(self.ll,self.panel)
-			
 		self.LL_hessian_tobit(self.ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
-		if self.H is None:
-			
-			if True:
-				self.H = self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
-			else:
-				xi, p, fp, g, hessin = maximize_num.calc_init_dir(self.g, self.function.jac,  self.function.LL, self.ll.args.args_v)
-				self.H = np.linalg.inv(hessin)
-		else:
-			if self.increment<self.minincr or constraints.decomposition(self.H)[0][-1]>1e+18 or False:
-				self.minincr=self.increment
-				self.H = self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
-			else:
-				hessin=np.linalg.inv(self.H)
-				hessin = maximize_num.hessin_num(hessin, self.g, self.g_old, self.xi)
-				self.H = np.linalg.inv(hessin)				
-				
-			#self.H = self.nummerical_hess()
-		if False:
-			if not self.H is None:
-				H=self.nummerical_hess()
-			if H is None:# or self.increment<1:#(self.its/2==int(self.its/2)):
-				self.H = self.hessian.get(self.ll,self.mp,d2LL_de2,d2LL_dln_de,d2LL_dln2)
-			else:
-				self.H=H
+		self.H = self.hessian.get(self.ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)	
 		d=np.diag(self.H)
 		self.CI=constraints.decomposition(self.H)[0][-1]
-		det=det_managed(self.H)
-		self.record.append([self.ll.LL,self.increment,self.CI,det]+list(d))
 		#print(f"ci: {self.CI}  det: {det}  increment: {self.increment}")
 		if (np.any(d==0) 
 			#or (np.any(d>=0) and det>0) 
@@ -183,11 +150,7 @@ class direction:
 			pass#args must be a vector
 		for i in self.constr.fixed:
 			args[i]=self.constr.fixed[i].value
-		#ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
-		#testing:
-		self.function=maximize_num.Function(args, self.panel, self.constr)
-		ll=self.function.ll
-		#-----
+		ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
 		if ll.LL is None:
 			if self.panel.options.loadargs.value:
 				print("WARNING: Initial arguments failed, attempting default OLS-arguments ...")
@@ -220,30 +183,6 @@ def inv_hess(hessian):
 	except:
 		return None	
 	return h
-
-def nummerical_hessin(g,g_old,hessin,dxi):
-	
-	if g is None or g_old is None or hessin is None or dxi is None:
-		return None
-	dg=g-g_old 				#Compute difference of gradients,
-	#and difference times current matrix:
-	n=len(g)
-	hdg=(np.dot(hessin,dg.reshape(n,1))).flatten()
-	fac=fae=sumdg=sumxi=0.0 							#Calculate dot products for the denominators. 
-	fac = np.sum(dg*dxi) 
-	fae = np.sum(dg*hdg)
-	sumdg = np.sum(dg*dg) 
-	sumxi = np.sum(dxi*dxi) 
-	if (fac > (3.0e-16*sumdg*sumxi)**0.5):#Skip update if fac not sufficiently positive.
-		fac=1.0/fac
-		fad=1.0/fae 
-								#The vector that makes BFGS different from DFP:
-		dg=fac*dxi-fad*hdg   
-		#The BFGS updating formula:
-		hessin+=fac*dxi.reshape(n,1)*dxi.reshape(1,n)
-		hessin-=fad*hdg.reshape(n,1)*hdg.reshape(1,n)
-		hessin+=fae*dg.reshape(n,1)*dg.reshape(1,n)	
-	return hessin
 
 
 def solve(H, g, x, constr):
