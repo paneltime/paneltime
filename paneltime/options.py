@@ -48,7 +48,13 @@ class options_item:
 	
 	def valid(self,value,i=None):
 		if self.permissible_values is None:
-			return (type(value)==self.dtype) or (type(value) in self.dtype)		
+			try:
+				if self.dtype(value)==value:
+					return True
+			except:
+				pass
+			if type(value) in self.dtype:
+				return True
 		if i is None:
 			return self.valid_test(value, self.permissible_values)
 		else:
@@ -109,6 +115,8 @@ def regression_options():
 	self.ARMA_constraint	        = options_item(1.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
 																	None,None,category='GARCH')	
 		
+	self.multicoll_threshold	    = options_item(30,				'Threashold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
+																	None,None)			
 	
 	self.arguments					= options_item("", 				"A string or dict with a dictionary in python syntax containing the initial arguments." 
 																	"An example can be obtained by printing ll.args.args_d"

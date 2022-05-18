@@ -35,13 +35,13 @@ def lnsrch(ll, direction, panel):
 def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 	"""Maxmizes logl.LL"""
 
-	its,incr, msg,lmbda,rev =0, 0, '',1,False
+	its,incr, msg,lmbda,rev, run_num =0, 0, '',1,False, mp is None
 	ll=direction.init_ll(args)
 	
 	if mp is None:
-		fret,args,hessin,its,Convergence = maximize_num.maximize(panel,args.args_v,2,0.001)
+		comm = Comm()
 	else:
-		comm = Comm(mp, panel, args, ll, direction)
+		comm = Comm(mp, panel, ll, direction)
 
 	
 	#maximize_num.maximize_test(panel,args.args_v, 8,0)
@@ -50,7 +50,8 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 	if not printout_func(0.0,'Determining direction',ll,its,direction,incr,po,0):return ll,direction,po
 	#direction.start_time=time.time()
 	while 1:
-		direction.calculate(ll,its,msg,incr,lmbda,rev)
+																				
+		direction.calculate(ll,its,msg,incr,lmbda,rev, run_num==False)
 		direction.set(ll.args)
 		LL0=ll.LL
 		#Convergence test:
@@ -61,88 +62,78 @@ def maximize(panel,direction,mp,args,channel,msg_main="",log=[]):
 			return ll,direction,po
 		if lmbda==0:
 			printout_func(1.0,"No increase in linesearch without convergence. This should not happen. Contact Espen.Sirnes@uit.no",ll,its,direction,incr,po,1,"err")
-		#if not printout_func(1.0,"",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
+		if not printout_func(1.0,"",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
 		
-		ll,msg,lmbda,ok,rev=lnsrch(ll,direction, panel)
+		if run_num:
+			if incr<1 and its>0:
+				run_num = False
+			else:
+				hessin = hessinv(direction.H, None)
+				fret,args,hessin,its,Convergence, ll = maximize_num.maximize(panel, args=ll.args.args_v, step=1, 
+														 print_=True, constr=direction.constr, 
+														hessin=hessin, max_iter=10, gtol=0.01, tolx=0.1)	
+		else:
+			ll,msg,lmbda,ok,rev=lnsrch(ll,direction, panel)
 		incr=ll.LL-LL0
-		ll, H = comm.communicate(ll, direction.H)
+		ll , H = comm.communicate(ll, direction.H)
 		
-		#if not printout_func(1.0,msg,ll,its,direction,incr,po,0):return ll,direction,po
+		if not printout_func(1.0,msg,ll,its,direction,incr,po,0):return ll,direction,po
 		print(f"{ll.LL}:{its}")
 
 		its+=1
 
 class Comm:
-	def __init__(self, mp, panel, args, ll, direction):
+	def __init__(self, mp = None, panel = None, ll = None, direction = None):
 		self.mp = mp
 		self.panel = panel
 		self.direction = direction
-		f = panel.input.tempfile.tempfile(delete=False)
-		self.f_write = f.name.replace('\\','/')
-		f.close()
-		self.write('', ll.LL, args.args_v, direction.H)
-		self.spawn()
-		self.t = time.time()
+		if not mp is None:
+			self.spawn(ll)
 		
-	def write(self, command, LL=None, args=None, H=None):
-		f = open(self.f_write, 'wb')
-		pickle.dump((command, LL, args, H), f)
-		f.flush()
-		f.close()
-		
-	def read(self, fname):
-		try:
-			f = open(fname, 'rb')
-			response, LL, args, hessin = pickle.load(f)
-		except EOFError:
-			f.close()
-			return False, None, None, None, None
-		f.close()
-		return True, response, LL, args, hessin
-		
-		
-	def spawn(self):
+	def spawn(self, ll):
 		tasks=[]
-		lamdas=[1,4,8]
-		self.f_read_files=[]
-		for i in range(len(lamdas)):
-			f = self.panel.input.tempfile.tempfile(delete=False)
-			fname=f.name.replace('\\','/')
-			f.close()
-			self.f_read_files.append(fname)
-			tasks.append(f"maximize_num.maximize(panel, f_write='{fname}',f_read='{self.f_write}', id)")
-		self.mp.execute(tasks, wait_and_collect=False)
+		self.lamdas=[0.25, 0.5,1, 2]
+		for i in range(len(self.lamdas)):
+			tasks.append(f"v{i} = maximize_num.maximize(panel, callback, step={self.lamdas[i]}, id={i})")
+		self.listen = self.mp.listen(tasks, {'fret':ll.LL, 'args':ll.args.args_v, 'hessin':None, 'reset': -1})
 		
 	def terminate(self):
 		if self.mp is None:
 			return
-		self.write('abort')
-		self.mp.wait_and_collect()
+		self.listen.quit()
 
 	def communicate(self, ll, H):
-		if time.time() - self.t<1 or self.mp is None:		
+		if self.mp is None:
 			return ll, H
-		LLs = [ll.LL]
-		xs = [ll.args.args_v]
-		h = []
-		rf=list(self.f_read_files)
-		while len(rf):
-			f = rf.pop(0)
-			OK, response, fret, x, hessin = self.read(f)
-			if OK:
-				LLs.append(fret)
-				xs.append(x) 
-				h.append(hessinv(hessin, H))				
-			else:
-				rf.append(f)
-		i=np.argmax(LLs)
-		if LLs[i]>ll.LL:
-			ll=lgl.LL(xs[i], self.panel, self.direction.constr)
-		self.write('', ll.LL, ll.args.args_v, self.direction.H)
-		self.t = time.time()
+		if self.listen.received == {}:
+			return
+		recieved = {'original': (ll.LL, ll.args, H)}
+		for i in range(self.listen.n):
+			d = self.listen.received[i]
+			if d == {}:return ll, H
+			fret, x, hessin = d['fret'], d['args'], d['hessin']
+			if not fret is None:
+				recieved[i] = fret, x, hessin
+		if len(recieved)==1:
+			return ll, H
+
+		i=sorted(recieved, key=lambda k: recieved[k][0])[-1]
+		self.listen.outbox['reset'] = -1
+		if recieved[i][0]>ll.LL:
+
+			fret, x, hessin = recieved[i]
+			ll_new=lgl.LL(x, self.panel, self.direction.constr)
+			if not ll_new.LL is None:
+				if ll_new.LL>=ll.LL:
+					ll = ll_new
+				else:
+					self.listen.outbox['reset'] = i
+		hessin = hessinv(H,None)
+		self.listen.update_outbox(
+			{'fret':ll.LL, 'args':ll.args.args_v,'hessin': hessin})		
 		return ll, H
-	
-	def respawn()
+
+
 	
 def hessinv(hessin, H):
 	try:
@@ -181,7 +172,7 @@ def convergence_test(direction,its,ll, panel, incr, min_iter=4):
 		
 def printout_func(percent,msg,ll,its,direction,incr,po,update_type, task=""):
 	po.printout(ll,its+1,direction,incr,update_type)	
-	return direction.progress_bar(percent,msg,task=task)
+	return po.channel.set_progress(percent,msg,task=task)
 		
 class printout:
 	def __init__(self,channel,panel,ll,direction,msg_main,_print=True,):

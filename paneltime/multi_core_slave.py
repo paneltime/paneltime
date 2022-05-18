@@ -8,6 +8,7 @@ import traceback
 import datetime
 import pickle
 import gc
+import inspect
 import numpy as np
 
 def main(t,initcommand,s_id,fpath):
@@ -17,6 +18,7 @@ def main(t,initcommand,s_id,fpath):
 	exec(initcommand,globals(),d)
 	d_list=list(d.keys())
 	holdbacks=[]
+	callback_class = CallBack(t, f)
 	while 1:
 		(msg,obj) = t.receive()
 		response=None
@@ -38,28 +40,52 @@ def main(t,initcommand,s_id,fpath):
 			response=True
 			ftr.close()
 			exec(expr,globals(),d)
-		elif msg=='remote expression valuation':
-			expr,ret_var=obj
-			sys.stdout = f
-			exec(expr,globals(),d)
-			sys.stdout = sys.__stdout__	
-			response={ret_var:d[ret_var]}
 		elif msg=='remote recieve':
 			response=d[obj]
-		elif msg=='expression evaluation':	
+		elif msg=='expression evaluation':				
 			sys.stdout = f
 			exec(obj,globals(),d)
 			sys.stdout = sys.__stdout__
 			response=release_dict(d,d_list,holdbacks)
+		elif msg=='listen':			
+			sys.stdout = f
+			d['callback'] = callback_class.callback
+			try:
+				exec(obj,globals(),d)
+			except Exception as e:
+				if str(e)!='Quit from callback':
+					raise RuntimeError(e)
+				else:
+					write(f, 'quit after callback')
+			sys.stdout = sys.__stdout__
+			t.send((callback_class.d, True))
 		elif msg=='holdbacks':
-			holdbacks.extend(obj)		
-		t.send(response)		
+			holdbacks.extend(obj)
+		if not msg in ['listen']:
+			t.send(response)		
 		if  msg=='expression evaluation':#remove response dict after sending
 			for i in response:
 				d.pop(i)
 		gc.collect()
 		
 
+class CallBack:
+	def __init__(self, t, f):
+		self.t = t
+		self.f = f
+		
+	def write(self, s):
+		write(self.f, s)
+	
+	def callback(self, d={}):
+		t.send((d,False))
+		msg, (self.d, quit) = t.receive()
+		if quit:
+			raise RuntimeError('Quit from callback')
+		return self.d
+	
+	
+	
 def add_to_dict(to_dict,from_dict):
 	for i in from_dict:
 		to_dict[i]=from_dict[i]
@@ -72,7 +98,7 @@ def release_dict(d,d_list,holdbacks):
 	"""Ensures that only new variables are returned"""
 	response=dict()
 	for i in d:
-		if (not i in d_list) and (not i in holdbacks):
+		if (not i in d_list) and (not i in holdbacks) and (not inspect.ismodule(d[i])):
 			response[i]=d[i]	
 	return response
 

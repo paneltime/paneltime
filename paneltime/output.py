@@ -74,7 +74,10 @@ class output:
 		d['sign_codes']=get_sign_codes(d['tsign'])
 	
 	def heading(self):
-		CI=self.direction.CI
+		if self.direction.CI is None:
+			CI ='None'
+		else:
+			CI = np.round(self.direction.CI)
 		n_CI=len(self.direction.mc_problems)
 		s=("LL:\t"+str(self.ll.LL)+'  ').ljust(23)
 		if not self.incr is None:
@@ -94,7 +97,7 @@ class output:
 		s+=f"\tPanel: {self.panel.NT_before_loss} observations,{n} groups and {T} dates"
 		if len(instr):
 			s+=f"\t\tInstruments: {instr}"		
-		s+=f"\nMax condition index: {np.round(self.direction.CI)}\t ({n_CI} caseses w/high CI for 1+ variables)"
+		s+=f"\nMax condition index: {CI}\t ({n_CI} caseses w/high CI for 1+ variables)"
 		s+=f"Time elapsed: {np.round(time.time()-self.direction.start_time)}\n"
 		self.heading_str=s		
 		

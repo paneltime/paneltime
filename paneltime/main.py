@@ -27,7 +27,7 @@ import communication as comm
 import functions as fu
 import time
 
-
+N_NODES = 4
 warnings.filterwarnings('error')
 np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
@@ -87,7 +87,8 @@ class results:
 		direction=drctn.direction(pnl,channel)	
 		self.mp=mp
 		if not mp is None:
-			mp.send_dict_by_file({'panel':pnl},command='panel.ARMA_init()')
+			mp.send_dict({'panel':pnl},
+						 command=("panel.ARMA_init()\n"))
 		pnl.ARMA_init()
 		log=[]
 		t0 = time.time()
@@ -101,18 +102,14 @@ def mp_check(datainput,window,multi_threading):
 	if not multi_threading:
 		return None, False
 	modules="""
-global cf
-global lgl
-import calculus_functions as cf
-import loglikelihood as lgl
+import direction as drctn
 import maximize_num
-import tempfile
 """	
 	if window is None:
-		mp=mc.multiprocess(datainput.tempfile,3,modules,['GARM','GARK','AMAq','AMAp'])
+		mp=mc.multiprocess(datainput.tempfile,N_NODES,modules)
 		return mp, True
 	if window.mc is None:
-		window.mc=mc.multiprocess(datainput.tempfile,3,modules,['GARM','GARK','AMAq','AMAp'])
+		window.mc=mc.multiprocess(datainput.tempfile,N_NODES,modules)
 	return window.mc,False
 	
 

@@ -28,6 +28,8 @@ class process_charts(ttk.Frame):
 		
 	def get_images_for_storage(self):
 		charts=[]
+		if not hasattr(self, 'charts'):
+			return
 		for i in self.charts:
 			charts.append((i.path,i.name))
 		return charts

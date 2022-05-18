@@ -4,6 +4,7 @@ import calculus
 import calculus_ll as cll
 import loglikelihood as logl
 import pickle
+import constraints
 
 
 
@@ -27,6 +28,8 @@ def lnsrch(xold, fold, g, p, stpmax, func, step=1):
 	check=0 
 	n=len(xold)
 	rev=False
+	if fold is None:
+		raise RuntimeError('fold cannot be None')
 
 	summ=np.sum(p**2)**0.5
 	if summ > stpmax:
@@ -56,6 +59,9 @@ def lnsrch(xold, fold, g, p, stpmax, func, step=1):
 	for k in range (0,1000):			#Start of iteration loop.
 		x=xold+alam*p
 		if k>0: f=func(x) 
+		if f is None:
+			print('The function returned None')
+			return fold
 		if (alam < alamin):   #Convergence on delta p. For zero finding,the calling program should verify the convergence.
 			x=xold*1 
 			check=1 
@@ -93,7 +99,7 @@ def lnsrch(xold, fold, g, p, stpmax, func, step=1):
 
 
 
-def dfpmin(p, func, dfunc, callback=None, hessin=None,ddfunc=None,gtol=0,Print=False, step=1):
+def dfpmin(p, func, dfunc, callback=None, hessin=None,ddfunc=None,gtol=0,print_=False, step=1, tolx=TOLX, max_iter=1e+300):
 	"""Given a starting point p[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
 	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
 	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -118,40 +124,43 @@ def dfpmin(p, func, dfunc, callback=None, hessin=None,ddfunc=None,gtol=0,Print=F
 	stpmax=STPMX*max((abs(summ))**0.5,float(n)) 
 	k=1
 	for its in range(0,ITMAX):  						#Main loop over the iterations.
+		#constr=constraints.constraints(panel,p,its)
+		#constr.add_static_constraints()		
+		
 		fret,x,check, k, alam, rev=lnsrch(p,fp,g,xi,stpmax,func, step) 
-		msg, x, fret = callback(fret, x, hessin)
-		if msg=='abort': break
-		if Print: print( fret)
-		pnew=x*1							#The new function evaluation occurs in lnsrch  save the function value in fp for the
-		xsol=x*1							#next line search. It is usually safe to ignore the value of check.
-		fp = fret 
-		xi=pnew-p 							#Update the line direction,
-		p=pnew*1 								#and the current point.
+		x, fret, hessin = callback(fret, x, hessin, g)	
+		if print_: print( fret)				#The new function evaluation occurs in lnsrch  save the function value in fp for the
+		fp = fret							#next line search. It is usually safe to ignore the value of check.
+		xi=x-p 							#Update the line direction,
+		p=x*1 								#and the current point.
 		test=np.max(np.abs(xi)/np.maximum(np.abs(ptmp),1.0)) 
 		if (test < TOLX):  
 			print( "Warning: Convergence on delta p; the gradient is incorrect or the tolerance is set too low")
 			Convergence=0
-			callback(fret, x, hessin,'finished')
-			return fret,xsol,hessin,its, Convergence #FREEALL
+			x, fret, hessin = callback(fret, x, hessin, g, True)	
+			return fret,x,hessin,its, Convergence #FREEALL
+		if its>=max_iter:
+			print( f"Maximum iterations of {its} reached")
+			Convergence=0
+			x, fret, hessin = callback(fret, x, hessin, g, True)	
+			return fret,x,hessin,its, Convergence #FREEALL			
 		dg=g*1   					#Save the old gradient,
 		g=dfunc(p) 										#and get the new gradient.
 		test=0.0 											#Test for convergence on zero gradient.
 		den=abs(fret)+1e-12
 		test=np.max(np.abs(g)*np.abs(p)/den )
-		print(f"alam:{alam} k:{k} f: {fret}")
 		if (test < gtol):  
 			print( "Convergence on zero gradient; local or global minimum identified")
 			Convergence=1
-			callback(fret, x, hessin,'finished')
-			return fret,xsol,hessin,its,Convergence #FREEALL
+			x, fret, hessin = callback(fret, x, hessin, g, True)	
+			return fret,x,hessin,its,Convergence #FREEALL
 		hessin=hessin_num(hessin, g, dg, xi)
 		#Now calculate the next direction to go,
 		xi=-(np.dot(hessin,g.reshape(n,1))).flatten()
 		a=0												#and go back for another iteration.
 	print( "No convergence within %s iterations" %(ITMAX,))
 	Convergence=2
-	callback(fret, x, hessin,'finished')
-	return fret,xsol,hessin,its,Convergence									#too many iterations in dfpmin				
+	return fret,x,hessin,its,Convergence									#too many iterations in dfpmin				
 															#FREEALL
 
 def hessin_num(hessin, g, dg, xi):
@@ -178,82 +187,71 @@ def hessin_num(hessin, g, dg, xi):
 
 
 class Function:
-	def __init__(self,args, panel, f_write, f_read, id):
-		self.f_read = f_read
-		self.f_write = f_write
-		if (not f_read is None) and (args is None):
-			command, LL, args, H = self.read()
-		if args is None:
-			raise RuntimeError('Either f_read or args, or both, must be supplied')
+	def __init__(self,panel, main_tread_callback, args, id, constr):
+		if main_tread_callback is None and args is None:
+			raise RuntimeError("main_tread_callback and args can't both be None")
+		self.main_tread_callback = main_tread_callback
+		if not main_tread_callback is None:
+			d_main = main_tread_callback()
+			args = d_main['args']
 		self.panel = panel
+		self.constr = constr
 		self.LL(args)
 		self.args_init = args
 		self.init_LL=self.ll.LL		
 		self.gradient = calculus.gradient(panel,set_progress)
 		self.t = time.time()
-		self.i = id
+		self.id = id
 		
-	def read(self):
+
 		
-		for i in range(30):
-			try:
-				f=open(self.f_read, 'rb')
-				command, LL, args, H = pickle.load(f)
-				break
-			except EOFError:
-				pass
-			f.close()
-		f.close()
-		print(i)
-		return command, LL, args, H 
-		
-	def write(self, response, fret, x, hessin):
-		if time.time() - self.t < 1:
-			return
-		f=open(self.f_write, 'wb')
-		pickle.dump((response, fret, x, hessin), f)
-		f.flush()
-		f.close()
-		self.t = time.time()
-		
-		
-	def LL(self,x, fargs=()):
-		self.ll = logl.LL(x, self.panel)
+	def LL(self,x):
+		self.ll = logl.LL(x, self.panel, self.constr)
 		if self.ll is None:
 			return self.init_LL
 		elif self.ll.LL is None:
 			return self.init_LL
 		return self.ll.LL
 	
-	def jac(self, x, fargs=()):
+	def jac(self, x):
 		dLL_lnv, DLL_e = cll.gradient(self.ll , self.panel)
 		return self.gradient.get(self.ll,DLL_e,dLL_lnv)
 	
-	def callback(self, fret, x, hessin, msg=''):
-		if self.f_read is None:
-			return '', fret, x
-		command, fret_master, x_master, H_master = self.read()
-		if command=='abort':
-			self.f_read.close()
-			self.f_write.close()
-			return 'abort', fret, x
-
-		if fret_master>fret:
-			x=x_master
-			fret=fret_master
-
-		self.write((msg, self.id), fret, x, hessin)
-		return '', x, fret
+	def callback(self, fret, x, hessin, g, force_update=False):
+		if self.main_tread_callback is None:
+			return x, fret, hessin
+		if time.time()-self.t < -0.1 and force_update==False:
+			return x, fret, hessin
+		self.t = time.time()
+		d = self.main_tread_callback(
+			{'args':x, 'hessin':hessin, 'fret':fret})
+		if d['fret']>fret or (d['reset']==self.id):
+			print(f"improved by {d['fret']-fret} to {d['fret']}")
+			x, fret = d['args'], d['fret']
+		if not d['hessin'] is None:
+			hessin = d['hessin']
+		return x, fret, hessin
 		
 		
+def maximize(panel, main_tread_callback=None, args=None, step=1, gtol=0, id=0, print_=False, constr=None, tolx=TOLX, hessin=None, max_iter=1e+300):
 	
-def maximize(panel, args=None, step=1, gtol=0.001, f_write=None, f_read=None, id=0):
-	fun=Function(args, panel, f_write, f_read, id)
+	
+	fun=Function(panel, main_tread_callback, args, id, constr)
+
 	t0=time.time()
-	fret,xsol,hessin,its,Convergence=dfpmin(fun.args_init,fun.LL, fun.jac, fun.callback, gtol=gtol, step=step)
+	fret,xsol,hessin,its,Convergence=dfpmin(fun.args_init,fun.LL, fun.jac, fun.callback, gtol=gtol, step=step, print_=print_, tolx=tolx, hessin=hessin, max_iter=max_iter)
 	print(f"LL={fret}  success={Convergence}  t={time.time()-t0}")
 	print(xsol)
-	return fret,xsol,hessin,its,Convergence
+	return fret,xsol,hessin,its,Convergence, fun.ll
+	
+def test(i, callback, msg):
+	d_master=None
+	for i in range(5):
+		time.sleep(np.random.rand()*5)
+		d ={'message':msg, 'node':i, 'rand':np.random.rand(), 'master':d_master}
+		d_master  = callback(d)
+	
+	
 	
 	
 def calc_init_dir(g0,dfunc,func,p0):

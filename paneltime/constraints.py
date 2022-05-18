@@ -6,8 +6,7 @@ import stat_functions as stat
 import functions as fu
 import calculus_functions as cf
 
-MAX_COLLINEARITY=1e+7
-EXTREEME_COLLINEARITY=1E+20
+EXTREEME_COLLINEARITY=1e+10
 SMALL_COLLINEARITY=30
 
 
@@ -40,7 +39,7 @@ class constraint:
 class constraints(dict):
 
 	"""Stores the constraints of the LL maximization"""	
-	def __init__(self,direction,args,its=0):
+	def __init__(self,panel,args,its=0):
 		dict.__init__(self)
 		self.categories={}
 		self.fixed={}
@@ -49,12 +48,12 @@ class constraints(dict):
 		self.collinears={}
 		self.weak_mc_dict={}
 		self.args=args
-		self.panel_args=direction.panel.args
+		self.panel_args=panel.args
 		self.CI=None
 		self.its=its
-		self.pqdkm=direction.panel.pqdkm
-		self.m_zero=direction.panel.m_zero
-		self.ARMA_constraint=direction.panel.options.ARMA_constraint.value
+		self.pqdkm=panel.pqdkm
+		self.m_zero=panel.m_zero
+		self.ARMA_constraint=panel.options.ARMA_constraint.value
 		self.H_correl_problem=False
 		self.mc_problems=[]
 		
@@ -157,7 +156,7 @@ class constraints(dict):
 			x[i]=self.fixed[i].value
 		
 	def within(self,x,fix=False):
-		"""Chekcs if x is within interval constraints. If fix=True, then elements of
+		"""Checks if x is within interval constraints. If fix=True, then elements of
 		x outside constraints are set to the nearest constraint. if fix=False, the function 
 		returns False if x is within constraints and True otherwise"""
 		for i in self.intervals:
@@ -172,37 +171,28 @@ class constraints(dict):
 					return False
 		return True
 	
-	def add_static_constraints(self):
+	def add_static_constraints(self, ll=None):
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 		
 		c=self.ARMA_constraint
 		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
-		self.add_custom_constraints(general_constraints)
-		return
-		if self.its==0 and p>0:
-			if pargs.args_init.args_d['rho'][0]==0:
-				self.add(pargs.positions['rho'][0],None,'Initial MA constr',value=0.0)
-		if k*m==0:
-			return
-		if sum(self.args.args_v[pargs.positions['psi']]**2)==0:
-			for i in pargs.positions['gamma']:
-				self.add(i,None,'GARCH term cannot be positive if ARCH terms are zero',value=0)
-		self.add_custom_constraints(pargs.user_constraints)
-	
+		self.add_custom_constraints(general_constraints, ll)
+		self.add_custom_constraints(pargs.user_constraints, ll)
+
 	def add_dynamic_constraints(self,direction):
 		ll=direction.ll
 		k,k=direction.H.shape
 		self.weak_mc_dict=dict()
 		include=np.array(k*[True])
 		include[list(direction.constr.fixed)]=False
-		self.H_correl_problem=constraint_correl_cluster(direction,include)
+		#self.H_correl_problem=constraint_correl_cluster(direction,include)
 		self.mc_problems=[]#list of [index,associate,condition index]
 		self.CI=constraint_multicoll(k, direction, include, self.mc_problems)
 		add_mc_constraint(direction,self.mc_problems,self.weak_mc_dict)
 		select_arma(direction.constr, ll)
 	
-	def add_custom_constraints(self,constraints,replace=True,cause='user constraint',clear=False,args=None):
+	def add_custom_constraints(self,constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
 		"""Adds custom range constraints\n\n
 			constraints shall be on the format [(name, minimum, maximum), ...]
 			or
@@ -216,14 +206,14 @@ class constraints(dict):
 			self.clear(cause)
 		if type(constraints)==list or type(constraints)==tuple:
 			for c in constraints:
-				self.add_custom_constraints_list(c,replace,cause,args)
+				self.add_custom_constraints_list(c,replace,cause,args, ll)
 		elif type(constraints)==dict:
 			self.add_custom_constraints_dict(constraints,replace,cause,args)
 		else:
 			raise TypeError("The constraints must be a list, tuple or dict.")
 	
 	
-	def add_custom_constraints_list(self,constraint,replace,cause,args):
+	def add_custom_constraints_list(self,constraint,replace,cause,args, ll):
 		"""Adds a custom range constraint\n\n
 			constraint shall be on the format (name, minimum, maximum)"""
 		if type(constraint)==str or isinstance(constraint,int):
@@ -242,7 +232,7 @@ class constraints(dict):
 		for i in range(2):
 			if type(m[i])==str:
 				try:
-					m[i]=eval(m[i],globals(),self.direction.ll.__dict__)
+					m[i]=eval(m[i],globals(),ll.__dict__)
 				except:
 					print(f"Custom constraint {name} ({m[i]}) failed")
 					return
@@ -374,14 +364,15 @@ def add_mc_constraint(direction,mc_problems,weak_mc_dict):
 	if no_check in a:
 		mc=mc_problems[a.index(no_check)]
 		mc[0],mc[1]=mc[1],mc[0]
-	mc_limit=MAX_COLLINEARITY
+	mc_limit = direction.panel.options.multicoll_threshold.value
 	if direction.increment==0:
 		mc_limit=SMALL_COLLINEARITY
 	for index,assc,cond_index in mc_problems:
 		if (not index in weak_mc_dict) and (cond_index>SMALL_COLLINEARITY) and (cond_index<=mc_limit) and (not index==no_check):
 			weak_mc_dict[index]=[assc,cond_index]#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix.	
 		if not ((index in constr.associates) or (index in constr.collinears)) and cond_index>mc_limit and (not index==no_check):
-			constr.add(index,assc,'collinear')
+			constr.add(assc,index,'collinear')
+			
 		
 def get_no_check(direction):
 	no_check=direction.panel.options.do_not_constrain.value
@@ -390,11 +381,7 @@ def get_no_check(direction):
 		if no_check in X_names:
 			return X_names.index(no_check)
 		print("A variable was set for the 'Do not constraint' option (do_not_constrain), but it is not among the x-variables")
-			
 	
-		
-
-
 def constraint_multicoll(k,direction,include,mc_problems):
 	CI_max=0
 	for i in range(k-1):

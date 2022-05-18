@@ -7,6 +7,7 @@ import output
 import os
 import charts
 import shutil
+import numpy as np
 
 
 WEB_PAGE='paneltime.html'
@@ -107,6 +108,10 @@ class console:
 		self.panel=panel
 		
 	def set_progress(self,percent=None,text="",task=''):
+		if task=='done':
+			print(text)
+		#perc = f'{int(percent*100)}%'.ljust(5)
+		#print(f"{perc} - {task}: {text}")
 		return True
 		
 	def set_output_obj(self,ll, direction,msg_main):

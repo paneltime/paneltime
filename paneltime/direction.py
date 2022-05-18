@@ -14,9 +14,8 @@ import maximize_num
 
 class direction:
 	def __init__(self,panel,channel):
-		self.progress_bar=channel.set_progress
-		self.gradient=calculus.gradient(panel,self.progress_bar)
-		self.hessian=calculus.hessian(panel,self.gradient,self.progress_bar)
+		self.gradient=calculus.gradient(panel,channel.set_progress)
+		self.hessian=calculus.hessian(panel,self.gradient,channel.set_progress)
 		self.panel=panel
 		self.constr=None
 		self.hessian_num=None
@@ -38,7 +37,7 @@ class direction:
 		self.minincr=0.1
 
 
-	def calculate(self,ll,its,msg,increment,lmbda,rev):
+	def calculate(self,ll,its,msg,increment,lmbda,rev, add_dyn_constr):
 		if ll.LL is None:
 			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
 		x_old=self.ll.args.args_v
@@ -49,13 +48,14 @@ class direction:
 		self.has_reversed_directions=rev
 		self.increment=increment
 		self.constr_old=self.constr
-		self.constr=constraints.constraints(self,ll.args,its)
-		self.constr.add_static_constraints()			
+		self.constr=constraints.constraints(self.panel,ll.args,its)
+		self.constr.add_static_constraints(ll)			
 		self.calc_gradient()
 		self.calc_hessian()
-		if lmbda<0.05 and False:
+		if add_dyn_constr:
 			self.constr.add_dynamic_constraints(self)	
-			self.CI=self.constr.CI
+			
+		self.CI=self.constr.CI
 		if self.constr is None:
 			self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
 		else:
@@ -66,7 +66,7 @@ class direction:
 		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
 		
 	def set(self,args):
-		self.dx=2*solve(self.H, self.g, args.args_v, self.constr)
+		self.dx=solve(self.H, self.g, args.args_v, self.constr)
 		#self.dx=solve_delete(self.constr,self.H, self.g, args.args_v)	
 		self.dx_norm=self.normalize(self.dx)
 
@@ -129,20 +129,11 @@ class direction:
 		d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(self.ll,self.panel)
 		self.LL_hessian_tobit(self.ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		self.H = self.hessian.get(self.ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)	
-		d=np.diag(self.H)
-		self.CI=constraints.decomposition(self.H)[0][-1]
-		#print(f"ci: {self.CI}  det: {det}  increment: {self.increment}")
-		if (np.any(d==0) 
-			#or (np.any(d>=0) and det>0) 
-			or (self.CI>1e+18 and self.increment<1)
-			or self.increment<1e-3
-			):
-			self.H=0.5*(self.H+np.diag(d))
-			self.progress_bar(text='Hessian diagonal doubled because it had positive or zero elements')
+
 
 	
 	def init_ll(self,args):
-		self.constr=constraints.constraints(self,args)
+		self.constr=constraints.constraints(self.panel, args)
 		self.constr.add_static_constraints()			
 		try:
 			args=args.args_v
