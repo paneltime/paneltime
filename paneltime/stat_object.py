@@ -18,8 +18,8 @@ class statistics:
 	def __init__(self,results,correl_vars=None,descriptives_vars=None,simple_statistics=False,name=None):
 		"""This class calculates, stores and prints statistics and statistics"""		
 
-		self.G=results.direction.G
-		self.H=results.direction.H
+		self.G=results.computation.G
+		self.H=results.computation.H
 		self.ll=results.ll
 		self.panel=results.panel
 		self.ll.standardize(self.panel)

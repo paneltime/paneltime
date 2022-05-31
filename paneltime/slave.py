@@ -38,7 +38,7 @@ def main(f):
 			add_to_dict(d,d_init)
 			d_list=list(d.keys())
 			response=True
-		elif msg=='expression evaluation':	
+		elif msg=='exec':	
 			sys.stdout = f_node
 			exec(obj,globals(),d)
 			sys.stdout = sys.__stdout__

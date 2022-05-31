@@ -16,10 +16,10 @@ STANDARD_LENGTH=8
 
 
 class output:
-	def __init__(self,ll,panel,direction,main_msg):
+	def __init__(self,ll,panel,computation,main_msg):
 		self.ll=ll
 		self.main_msg=main_msg
-		self.direction=direction
+		self.computation=computation
 		self.panel=panel
 		self.lags=self.panel.options.robustcov_lags_statistics.value[1]
 		self.n_variables=self.panel.args.n_args
@@ -27,18 +27,18 @@ class output:
 		self.d={'names':np.array(self.panel.args.names_v),
 				'count':range(self.n_variables),
 				'args':self.ll.args.args_v}
-		self.update_after_direction(direction,0)
+		self.update_after_direction(computation,0)
 		self.heading()
 		
-	def update_after_direction(self,direction,its):
-		self.direction=direction		
+	def update_after_direction(self,computation,its):
+		self.computation=computation		
 		self.iterations=its
 		self.constraints_printout()
 		self.t_stats()
 		self.heading()
 		
-	def update_after_linesearch(self,direction,ll,incr):
-		self.direction=direction
+	def update_after_linesearch(self,computation,ll,incr):
+		self.computation=computation
 		self.ll=ll
 		self.incr=incr
 		self.d['args']=ll.args.args_v
@@ -52,18 +52,18 @@ class output:
 	
 	def t_stats(self):
 		d=self.d
-		direction=self.direction
+		computation=self.computation
 		panel=self.panel
 		
 		T=len(d['names'])
-		if direction.H is None:
+		if computation.H is None:
 			return
-		d['se_robust'],d['se_st']=sandwich(direction,self.lags)
-		d['se_robust_oposite'],d['se_st_oposite']=sandwich(direction,self.lags,oposite=True)
+		d['se_robust'],d['se_st']=sandwich(computation,self.lags)
+		d['se_robust_oposite'],d['se_st_oposite']=sandwich(computation,self.lags,oposite=True)
 		if not (d['se_st_oposite'] is None):
 			d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
 			d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
-		#d['se_robust_fullsize'],d['se_st_fullsize']=sandwich(direction,self.lags,resize=False)
+		#d['se_robust_fullsize'],d['se_st_fullsize']=sandwich(computation,self.lags,resize=False)
 		no_nan=np.isnan(d['se_robust'])==False
 		valid=no_nan
 		valid[no_nan]=(d['se_robust'][no_nan]>0)
@@ -74,11 +74,11 @@ class output:
 		d['sign_codes']=get_sign_codes(d['tsign'])
 	
 	def heading(self):
-		if self.direction.CI is None:
+		if self.computation.CI is None:
 			CI ='None'
 		else:
-			CI = np.round(self.direction.CI)
-		n_CI=len(self.direction.mc_problems)
+			CI = np.round(self.computation.CI)
+		n_CI=len(self.computation.mc_problems)
 		s=("LL:\t"+str(self.ll.LL)+'  ').ljust(23)
 		if not self.incr is None:
 			s+=("\tIncrement:  "+ str(self.incr)).ljust(17)+"  "
@@ -86,8 +86,8 @@ class output:
 			s+=str(" ").ljust(19)
 		if not self.iterations is None:
 			s+=f"\tIteration:  {str(self.iterations).ljust(7)}"
-		if self.direction.singularity_problems:
-			s+=f"\tSingularity problems:  {str(self.direction.singularity_problems).ljust(7)}"
+		if self.computation.singularity_problems:
+			s+=f"\tSingularity problems:  {str(self.computation.singularity_problems).ljust(7)}"
 		instr=''
 		if not self.panel.input.Z_names is None:
 			instr=', '.join(self.panel.input.Z_names[1:])
@@ -98,17 +98,17 @@ class output:
 		if len(instr):
 			s+=f"\t\tInstruments: {instr}"		
 		s+=f"\nMax condition index: {CI}\t ({n_CI} caseses w/high CI for 1+ variables)"
-		s+=f"Time elapsed: {np.round(time.time()-self.direction.start_time)}\n"
+		s+=f"Time elapsed: {np.round(time.time()-self.computation.start_time)}\n"
 		self.heading_str=s		
 		
 	def constraints_printout(self):
 		panel=self.panel
-		direction=self.direction
-		constr=direction.constr
-		weak_mc_dict=direction.weak_mc_dict
+		computation=self.computation
+		constr=computation.constr
+		weak_mc_dict=computation.weak_mc_dict
 		d=self.d
-		if not direction.dx_norm is None:
-			d['dx_norm']=direction.dx_norm
+		if not computation.dx_norm is None:
+			d['dx_norm']=computation.dx_norm
 		T=len(d['names'])
 		d['set_to'],d['assco'],d['cause'],d['multicoll']=['']*T,['']*T,['']*T,['']*T
 		if constr is None:
@@ -267,9 +267,9 @@ def get_preferences(output_gui):
 	except:
 		return
 	
-def sandwich(direction,lags,oposite=False,resize=True):
-	panel=direction.panel
-	H,G,idx=reduce_size(direction,oposite,resize)
+def sandwich(computation,lags,oposite=False,resize=True):
+	panel=computation.panel
+	H,G,idx=reduce_size(computation,oposite,resize)
 	lags=lags+panel.lost_obs
 	try:
 		hessin=np.linalg.inv(-H)
@@ -280,22 +280,22 @@ def sandwich(direction,lags,oposite=False,resize=True):
 	se_robust,se,V=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True)
 	return se_robust,se
 
-def reduce_size(direction,oposite,resize):
-	H=direction.H
-	G=direction.G
+def reduce_size(computation,oposite,resize):
+	H=computation.H
+	G=computation.G
 	if (G is None) or (H is None):
 		return
 	m=len(H)
 	if not resize:
 		return H,G,np.ones(m,dtype=bool)
-	weak_mc_dict=direction.weak_mc_dict.keys()
-	constr=list(direction.constr.fixed.keys())	
+	weak_mc_dict=computation.weak_mc_dict.keys()
+	constr=list(computation.constr.fixed.keys())	
 	if oposite:
-		weak_mc_dict=[direction.weak_mc_dict[i][0] for i in direction.weak_mc_dict]
+		weak_mc_dict=[computation.weak_mc_dict[i][0] for i in computation.weak_mc_dict]
 		constr=[]
-		for i in direction.constr.fixed:
-			if not direction.constr.fixed[i].assco_ix is None:
-				constr.append(direction.constr.fixed[i].assco_ix)
+		for i in computation.constr.fixed:
+			if not computation.constr.fixed[i].assco_ix is None:
+				constr.append(computation.constr.fixed[i].assco_ix)
 	for i in weak_mc_dict:
 		if not i in constr:
 			constr.append(i)
@@ -477,7 +477,7 @@ pr=[
 		['args',		None,		False,		'Coef:',				True,			'right', 		2, 					-1],
 		['se_robust',	None,		False,		'rob.SE',		True,			'right', 		3, 					-1],
 		['sign_codes',	5,			True,		'',					False,			'left', 		2, 					-1],
-		['dx_norm',		None,		False,		'direction:',		True,			'right', 		2, 					None],
+		['dx_norm',		None,		False,		'computation:',		True,			'right', 		2, 					None],
 		['tstat',		2,			False,		't-stat.:',			True,			'right', 		2, 					2],
 		['tsign',		None,		False,		'p-value:',			False,			'right', 		2, 					3],
 		['multicoll',	1,			True,		'',					False,			'left', 		2, 					None],

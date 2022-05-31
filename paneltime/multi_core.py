@@ -65,16 +65,6 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			res=self.slaves[i].receive()
 		self.filesend_cpu_ids=[]
 		
-			
-			
-	def remote_recieve(self, variable,node):
-		self.send_dict_by_file_receive()
-		"""Sends a request for a particular variable at node, after remote_execute. 
-		Usefull when large objects shall be returned, and you only need a few/one of them"""
-		self.slaves[node].send('remote recieve',variable)
-		
-		return self.slaves[node].receive()
-
 	def send_holdbacks(self, key_arr):
 		self.send_dict_by_file_receive()
 		"""Sends a list with keys to variables that are not to be returned by the slaves"""
@@ -104,7 +94,7 @@ class Tasks:
 		self.tasks = tasks
 		self.sent=min((mp.cpu_count, self.n))
 		self.d_arr=[]
-		self.msg = 'expression evaluation'
+		self.msg = 'exec'
 		self.progress_bar = progress_bar
 		self.q = Queue()
 
@@ -297,8 +287,8 @@ class multiprocess:
 		self.master=master(initcommand,max_nodes,holdbacks,tempfile)#for paralell computing
 
 	def execute(self,expr,progress_bar=None, collect=True):
-		"""For submitting multiple functions to be evalated. expr is an array of argument arrays where the first element in each 
-		argument array is the function to be evaluated"""
+		"""For submitting multiple functions to be evalated. expr is an array of strings to be evaluated"""
+		"""If collect == True, collect results immediately, else results are collected later with collect()"""
 		
 		self.progress_bar = progress_bar
 		self.tasks = Tasks(self.master, expr,progress_bar=progress_bar)

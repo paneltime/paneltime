@@ -180,17 +180,17 @@ class constraints(dict):
 		self.add_custom_constraints(general_constraints, ll)
 		self.add_custom_constraints(pargs.user_constraints, ll)
 
-	def add_dynamic_constraints(self,direction):
-		ll=direction.ll
-		k,k=direction.H.shape
+	def add_dynamic_constraints(self,computation):
+		ll=computation.ll
+		k,k=computation.H.shape
 		self.weak_mc_dict=dict()
 		include=np.array(k*[True])
-		include[list(direction.constr.fixed)]=False
-		#self.H_correl_problem=constraint_correl_cluster(direction,include)
+		include[list(computation.constr.fixed)]=False
+		#self.H_correl_problem=constraint_correl_cluster(computation,include)
 		self.mc_problems=[]#list of [index,associate,condition index]
-		self.CI=constraint_multicoll(k, direction, include, self.mc_problems)
-		add_mc_constraint(direction,self.mc_problems,self.weak_mc_dict)
-		select_arma(direction.constr, ll)
+		self.CI=constraint_multicoll(k, computation, include, self.mc_problems)
+		add_mc_constraint(computation,self.mc_problems,self.weak_mc_dict)
+		select_arma(computation.constr, ll)
 	
 	def add_custom_constraints(self,constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
 		"""Adds custom range constraints\n\n
@@ -319,7 +319,7 @@ def decomposition(H,include=None):
 	return c_index, var_prop,includemap
 	
 	
-def multicoll_problems(direction,H,include,mc_problems):
+def multicoll_problems(computation,H,include,mc_problems):
 	c_index, var_prop, includemap = decomposition(H, include)
 	if c_index is None:
 		return False,False
@@ -333,14 +333,14 @@ def multicoll_problems(direction,H,include,mc_problems):
 			var_prop_val=var_prop[-cix][var_prop_ix]
 			j=var_prop_ix[0]
 			j=includemap[j]
-			done=var_prop_check(direction,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix],mc_list)
+			done=var_prop_check(computation,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix],mc_list)
 			if done:
 				break
 	if len(mc_list)==0:
 		return  c_index[-1],mc_list
 	return c_index[-1],mc_list
 
-def var_prop_check(direction,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
+def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
 	if cond_index>EXTREEME_COLLINEARITY:
 		lim=0.3
 	else:
@@ -354,18 +354,18 @@ def var_prop_check(direction,var_prop_ix,var_prop_val,includemap,assc,mc_problem
 		mc_list.append(index)
 		return False
 		
-def add_mc_constraint(direction,mc_problems,weak_mc_dict):
+def add_mc_constraint(computation,mc_problems,weak_mc_dict):
 	"""Adds constraints for severe MC problems"""
-	constr=direction.constr
+	constr=computation.constr
 	if len(mc_problems)==0:
 		return
-	no_check=get_no_check(direction)
+	no_check=get_no_check(computation)
 	a=[i[0] for i in mc_problems]
 	if no_check in a:
 		mc=mc_problems[a.index(no_check)]
 		mc[0],mc[1]=mc[1],mc[0]
-	mc_limit = direction.panel.options.multicoll_threshold.value
-	if direction.increment==0:
+	mc_limit = computation.panel.options.multicoll_threshold.value
+	if computation.increment==0:
 		mc_limit=SMALL_COLLINEARITY
 	for index,assc,cond_index in mc_problems:
 		if (not index in weak_mc_dict) and (cond_index>SMALL_COLLINEARITY) and (cond_index<=mc_limit) and (not index==no_check):
@@ -374,28 +374,28 @@ def add_mc_constraint(direction,mc_problems,weak_mc_dict):
 			constr.add(assc,index,'collinear')
 			
 		
-def get_no_check(direction):
-	no_check=direction.panel.options.do_not_constrain.value
-	X_names=direction.panel.input.X_names
+def get_no_check(computation):
+	no_check=computation.panel.options.do_not_constrain.value
+	X_names=computation.panel.input.X_names
 	if not no_check is None:
 		if no_check in X_names:
 			return X_names.index(no_check)
 		print("A variable was set for the 'Do not constraint' option (do_not_constrain), but it is not among the x-variables")
 	
-def constraint_multicoll(k,direction,include,mc_problems):
+def constraint_multicoll(k,computation,include,mc_problems):
 	CI_max=0
 	for i in range(k-1):
-		CI,mc_list=multicoll_problems(direction,direction.H,include,mc_problems)
+		CI,mc_list=multicoll_problems(computation,computation.H,include,mc_problems)
 		CI_max=max((CI_max,CI))
 		if len(mc_list)==0:
 			break
 		include[mc_list]=False
 	return CI_max
 		
-def constraint_correl_cluster(direction,include):
-	if int(direction.its/2)==direction.its/2 and direction.its>0:
+def constraint_correl_cluster(computation,include):
+	if int(computation.its/2)==computation.its/2 and computation.its>0:
 		return False		
-	H=direction.H
+	H=computation.H
 	dH=np.diag(H).reshape((len(H),1))
 	corr=np.abs(H/(np.abs(dH*dH.T)+1e-100)**0.5)
 	np.fill_diagonal(corr,0)
@@ -413,8 +413,8 @@ def constraint_correl_cluster(direction,include):
 	allix.pop(not_problem)	
 	for i in allix:
 		include[i]=False
-		if not i in direction.constr.fixed:
-			direction.constr.add(i,None,'Perfect correlation in hessian')
+		if not i in computation.constr.fixed:
+			computation.constr.add(i,None,'Perfect correlation in hessian')
 	return True
 		
 

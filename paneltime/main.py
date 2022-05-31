@@ -21,7 +21,6 @@ import model_parser
 import maximize
 import tempstore
 import os
-import direction as drctn
 from gui import gui
 import communication as comm
 import functions as fu
@@ -69,6 +68,7 @@ class input_class:
 		self.tempfile=tempstore.TempfileManager()
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,heteroscedasticity_factors,instruments,options)
 		self.descr=model_string
+		self.n_nodes = N_NODES
 		self.args_archive=tempstore.args_archive(self.descr, options.loadargs.value)
 		self.args=None
 		if options.arguments.value!="":
@@ -84,7 +84,6 @@ class results:
 		print ("Creating panel")
 		pnl=panel.panel(datainput,options,pqdkm)
 		channel=comm.get_channel(window,exe_tab,pnl, console_output)
-		direction=drctn.direction(pnl,channel)	
 		self.mp=mp
 		if not mp is None:
 			mp.send_dict({'panel':pnl},
@@ -92,21 +91,20 @@ class results:
 		pnl.ARMA_init()
 		log=[]
 		t0 = time.time()
-		self.ll,self.direction,self.printout_obj = maximize.maximize(pnl,direction,mp,pnl.args.args_init,channel,log=log)
+		self.ll,self.computation,self.printout_obj = maximize.maximize(pnl,mp,pnl.args.args_init.args_v,channel,log=log)
 		print(f"LL: {self.ll.LL}, time: {time.time()-t0}")
 		fu.savevar(log,'log_of_LL_process.csv')
-		self.panel=direction.panel
+		self.panel=pnl
 
 
 def mp_check(datainput,window,multi_threading):
 	if not multi_threading:
 		return None, False
 	modules="""
-import direction as drctn
 import maximize_num
 """	
 	if window is None:
-		mp=mc.multiprocess(datainput.tempfile,N_NODES,modules)
+		mp=mc.multiprocess(datainput.tempfile,N_NODES,modules, 'computation')
 		return mp, True
 	if window.mc is None:
 		window.mc=mc.multiprocess(datainput.tempfile,N_NODES,modules)

@@ -44,25 +44,25 @@ class web_output:
 			
 			
 		
-	def set_progress(self,percent=None,text="",task=''):
+	def set_progress(self,percent, text, task):
 		return True
 		
-	def set_output_obj(self,ll, direction,main_msg):
+	def set_output_obj(self,ll, comput,main_msg):
 		"sets the outputobject in the output" 
-		self.output=output.output(ll,self.panel, direction,main_msg)
+		self.output=output.output(ll,self.panel, comput,main_msg)
 		
-	def update_after_direction(self,direction,its):
-		if not hasattr(direction,'ll'):
+	def update_after_direction(self,comput,its):
+		if not hasattr(comput,'ll'):
 			return	
 		self.its=its
-		self.output.update_after_direction(direction,its)
+		self.output.update_after_direction(comput,its)
 		self.reg_table=self.output.reg_table()
 		tbl,llength=self.reg_table.table(4,'(','HTML',True,
 							   show_direction=True,
 							   show_constraints=True)		
-		web_page=get_web_page(direction.ll.LL, 
-							  direction.ll.args.args_v, 
-							  direction.dx_norm,
+		web_page=get_web_page(comput.ll.LL, 
+							  comput.ll.args.args_v, 
+							  comput.dx_norm,
 							  tbl,
 							  self.Jupyter==False)
 		if self.Jupyter:
@@ -71,17 +71,17 @@ class web_output:
 		else:
 			self.save_html(web_page)
 		
-	def update_after_linesearch(self,direction,ll,incr):
-		if not hasattr(direction,'ll'):
+	def update_after_linesearch(self,comput,ll,incr):
+		if not hasattr(comput,'ll'):
 			return			
-		self.output.update_after_linesearch(direction,ll,incr)
+		self.output.update_after_linesearch(comput,ll,incr)
 		self.reg_table=self.output.reg_table()
 		tbl,llength=self.reg_table.table(4,'(','HTML',True,
 							   show_direction=True,
 							   show_constraints=True)		
 		web_page=get_web_page(ll.LL, 
 							  ll.args.args_v, 
-							  direction.dx_norm,
+							  comput.dx_norm,
 							  tbl,
 							  self.Jupyter==False)
 		if self.Jupyter:
@@ -107,20 +107,20 @@ class console:
 	def __init__(self,panel):
 		self.panel=panel
 		
-	def set_progress(self,percent=None,text="",task=''):
+	def set_progress(self,percent,text, task):
 		if task=='done':
 			print(text)
 		#perc = f'{int(percent*100)}%'.ljust(5)
 		#print(f"{perc} - {task}: {text}")
 		return True
 		
-	def set_output_obj(self,ll, direction,msg_main):
-		self.output=output.output(ll,self.panel, direction,msg_main)
+	def set_output_obj(self,ll, comput,msg_main):
+		self.output=output.output(ll,self.panel, comput,msg_main)
 		
-	def update_after_direction(self,direction,its):
+	def update_after_direction(self,comput,its):
 		pass
 		
-	def update_after_linesearch(self,direction,ll,incr):
+	def update_after_linesearch(self,comput,ll,incr):
 		pass
 				
 class tk_widget:
@@ -130,18 +130,18 @@ class tk_widget:
 		self.set_progress=self.tab.progress_bar.set_progress
 
 		
-	def set_output_obj(self,ll, direction,msg_main):
-		self.tab.set_output_obj(ll,self.panel, direction,msg_main)
+	def set_output_obj(self,ll, comput,msg_main):
+		self.tab.set_output_obj(ll,self.panel, comput,msg_main)
 		
-	def update_after_direction(self,direction,its):
-		self.tab.update_after_direction(direction,its)
+	def update_after_direction(self,comput,its):
+		self.tab.update_after_direction(comput,its)
 		
-	def update_after_linesearch(self,direction,ll,incr):
-		self.tab.update_after_linesearch(direction,ll,self.panel,incr)
+	def update_after_linesearch(self,comput,ll,incr):
+		self.tab.update_after_linesearch(comput,ll,self.panel,incr)
 		
 
 
-def get_web_page(LL, args, direction,tbl,auto_update):
+def get_web_page(LL, args, comput,tbl,auto_update):
 	au_str=''
 	if auto_update:
 		au_str="""<meta http-equiv="refresh" content="1" >"""

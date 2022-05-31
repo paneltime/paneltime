@@ -129,15 +129,15 @@ def LL_calc(self,panel):
 
 	
 	
-def pedantic(ll,msg,lmbda,ok,rev,direction,mp,its,incr,po,prev_dx,LL0,diff_log,ll0,dxLL,panel):
+def pedantic(ll,msg,lmbda,ok,rev,computation,mp,its,incr,po,prev_dx,LL0,diff_log,ll0,dxLL,panel):
 	"""Used in maximize.maximize() when the LL maximization does not converge. It is usually 
 	easier to identify errors in gradient or hessian close to the maximum."""
-	ll,msg2,lmbda2,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,direction.dx,max_its=6)
-	dx=direction.dx
+	ll,msg2,lmbda2,ok,rev=lnsrch(ll,computation,mp,its,incr,po,prev_dx,computation.dx,max_its=6)
+	dx=computation.dx
 	n=len(dx)
-	dx_norm=direction.dx_norm
-	h=np.diag(direction.H)
-	g=direction.g
+	dx_norm=computation.dx_norm
+	h=np.diag(computation.H)
+	g=computation.g
 	
 	if panel.options.pedantic.value==1:
 		return ll,msg,lmbda,ok,rev
@@ -155,9 +155,9 @@ def pedantic(ll,msg,lmbda,ok,rev,direction,mp,its,incr,po,prev_dx,LL0,diff_log,l
 				]:
 				dxi=sgn*np.array(d)
 				dxi[sel]=0
-				ll2,msg,lmbda2,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,dxi,max_its=6,convex_action='ignore')
+				ll2,msg,lmbda2,ok,rev=lnsrch(ll,computation,mp,its,incr,po,prev_dx,dxi,max_its=6,convex_action='ignore')
 				if ll2.LL>ll.LL:
-					if not printout_func(1.0,f"Improved {ll2.LL-ll.LL} after fixing {s}",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
+					if not printout_func(1.0,f"Improved {ll2.LL-ll.LL} after fixing {s}",ll,its,computation,incr,po,1,task='linesearch'):return ll,computation,po
 					lmbda+=lmbda2
 					ll=ll2
 					break
@@ -165,14 +165,14 @@ def pedantic(ll,msg,lmbda,ok,rev,direction,mp,its,incr,po,prev_dx,LL0,diff_log,l
 	if ll.LL-LL0<1e-6*len(dx):
 		if len(diff_log)>2:
 			avg_dir=np.mean(np.array(diff_log)[-8:],0)
-			ll2,msg,lmbda2,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,avg_dir,max_its=6,convex_action='ignore')
+			ll2,msg,lmbda2,ok,rev=lnsrch(ll,computation,mp,its,incr,po,prev_dx,avg_dir,max_its=6,convex_action='ignore')
 			if ll2.LL>ll.LL:
-				if not printout_func(1.0,f"Improved {ll2.LL-ll.LL} after following the average past directions",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
+				if not printout_func(1.0,f"Improved {ll2.LL-ll.LL} after following the average past directions",ll,its,computation,incr,po,1,task='linesearch'):return ll,computation,po
 				ll=ll2
 				lmbda+=lmbda2
 	if ll.LL-LL0==0 and panel.options.pedantic.value==3:
-		if not printout_func(1.0,f"Doing brute force",ll,its,direction,incr,po,1,task='linesearch'):return ll,direction,po
-		ll,msg,lmbda2,ok,rev=brute_force(ll, mp, direction, its, incr, po, prev_dx, msg, lmbda, ok, 4)		
+		if not printout_func(1.0,f"Doing brute force",ll,its,computation,incr,po,1,task='linesearch'):return ll,computation,po
+		ll,msg,lmbda2,ok,rev=brute_force(ll, mp, computation, its, incr, po, prev_dx, msg, lmbda, ok, 4)		
 		lmbda+=lmbda2		
 	diff_log.append(ll.args.args_v-ll0.args.args_v)
 	
@@ -182,14 +182,14 @@ def pedantic(ll,msg,lmbda,ok,rev,direction,mp,its,incr,po,prev_dx,LL0,diff_log,l
 		
 
 
-def brute_force(ll,mp,direction,its,incr,po,prev_dx,msg,lmbda,ok,max_its):
+def brute_force(ll,mp,computation,its,incr,po,prev_dx,msg,lmbda,ok,max_its):
 	"""Brute force maximization for pedantic(), when everything else fails."""
-	dx=direction.dx
+	dx=computation.dx
 	rng=np.arange(len(dx))
 	for i in rng:
 		for sign in [-1,1]:
-			if not (i in direction.constr.fixed):
-				ll2,msg,lmbda,ok,rev=lnsrch(ll,direction,mp,its,incr,po,prev_dx,sign*dx*(rng==i),max_its,convex_action='ignore')
+			if not (i in computation.constr.fixed):
+				ll2,msg,lmbda,ok,rev=lnsrch(ll,computation,mp,its,incr,po,prev_dx,sign*dx*(rng==i),max_its,convex_action='ignore')
 				if ll2.LL>ll.LL:
 					ll=ll2
 					break

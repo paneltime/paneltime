@@ -10,9 +10,9 @@ import os
 
 class gradient:
 	
-	def __init__(self,panel,progress_bar):
+	def __init__(self,panel,callback):
 		self.panel=panel
-		self.progress_bar=progress_bar
+		self.callback=callback
 		
 	def arima_grad(self,k,x,ll,sign,pre):
 		if k==0:
@@ -49,7 +49,7 @@ class gradient:
 
 
 	def get(self,ll,DLL_e=None,dLL_lnv=None,return_G=False):
-		if not self.progress_bar(0.05,'',task='gradient'):return
+		if not self.callback(0.05,'',task='gradient'):return None, g
 		(self.DLL_e, self.dLL_lnv)=(DLL_e, dLL_lnv)
 		panel=self.panel
 		incl=self.panel.included[3]
@@ -121,7 +121,7 @@ class gradient:
 		#print(gn)
 		#a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
 		#dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
-		if not self.progress_bar(0.08,'','hessian'):return
+		if not self.callback(0.08,'','hessian'):return
 
 		if return_G:
 			return  g,G
@@ -130,11 +130,11 @@ class gradient:
 
 
 class hessian:
-	def __init__(self,panel,g,progress_bar):
+	def __init__(self,panel,g,callback):
 		self.panel=panel
 		self.its=0
 		self.g=g
-		self.progress_bar=progress_bar
+		self.callback=callback
 		
 	
 	def get(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
@@ -161,7 +161,7 @@ class hessian:
 		d2lnv_gamma_lambda	=	cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_sigma_lambda_G,					g.dLL_lnv)
 		d2lnv_gamma_beta	=	cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_sigma_beta_G,					g.dLL_lnv)
 		d2lnv_gamma_z		=	cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_z_G,							g.dLL_lnv)
-		if not self.progress_bar(0.2):return
+		if not self.callback(0.2,'',''):return
 		d2lnv_psi_rho		=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_rho)),		g.dLL_lnv)
 		d2lnv_psi_lambda	=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_lambda)),	g.dLL_lnv)
 		d2lnv_psi_beta		=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_beta)),	g.dLL_lnv)
@@ -174,7 +174,7 @@ class hessian:
 
 		AMAp=(-cf.ARMA_product(ll.AMA_1,p,panel,ll,'p'),ll.AMA_1,p,-1)
 		d2lnv_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
-		if not self.progress_bar(0.4):return
+		if not self.callback(0.4,'',''):return
 		
 		d2lnv_mu_rho,d2lnv_mu_lambda,d2lnv_mu_beta,d2lnv_mu_z,mu=None,None,None,None,None
 		if panel.N>1:
@@ -184,7 +184,7 @@ class hessian:
 			d2lnv_mu_z=None
 			d2lnv_mu2=0
 
-		if not self.progress_bar(0.3):return
+		if not self.callback(0.3,'',''):return
 		d2lnv_z2				=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, ll.h_2z_val,						g.dLL_lnv) 
 		d2lnv_z_rho				=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_rho)),	g.dLL_lnv) 
 		d2lnv_z_lambda			=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_lambda)),g.dLL_lnv) 
@@ -201,7 +201,7 @@ class hessian:
 
 		d2lnv_beta_omega, d2lnv_rho_omega, d2lnv_lambda_omega=None, None, None
 			
-		if not self.progress_bar(0.6):return
+		if not self.callback(0.6,'',''):return
 		#Final:
 		D2LL_beta2			=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta_RE,		dlnv_sigma_beta, 	dlnv_sigma_beta,	d2e_beta2, 					d2lnv_beta2)
 		D2LL_beta_rho		=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_rho_RE,		dlnv_sigma_beta, 	dlnv_sigma_rho,		T(d2e_rho_beta), 		T(d2lnv_rho_beta))
@@ -258,7 +258,7 @@ class hessian:
 	        [T(D2LL_beta_omega),	T(D2LL_rho_omega),	T(D2LL_lambda_omega),	T(D2LL_gamma_omega),T(D2LL_psi_omega),	D2LL_omega2, 		D2LL_omega_mu,	D2LL_omega_z		], 
 	        [T(D2LL_beta_mu),		T(D2LL_rho_mu),		T(D2LL_lambda_mu),		T(D2LL_gamma_mu),	T(D2LL_psi_mu),		T(D2LL_omega_mu), 	D2LL_mu2,		D2LL_mu_z			],
 	        [T(D2LL_beta_z),		T(D2LL_rho_z),		T(D2LL_lambda_z),		T(D2LL_gamma_z),	T(D2LL_psi_z),		T(D2LL_omega_z), 	D2LL_mu_z,		D2LL_z2				]]
-		if not self.progress_bar(0.8):return
+		if not self.callback(0.8,'',''):return
 		H=cf.concat_matrix(H)
 		#for debugging:
 		#Hn=debug.hess_debug(ll,panel,g,0.00000001)#debugging

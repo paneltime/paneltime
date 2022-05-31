@@ -195,9 +195,9 @@ class output_tab(tk.Frame):
 			return True
 		return False
 
-	def set_output_obj(self,ll,panel, direction,main_msg):
+	def set_output_obj(self,ll,panel, computation,main_msg):
 		"sets the outputobject in the output" 
-		self.output=output.output(ll,panel, direction,main_msg)
+		self.output=output.output(ll,panel, computation,main_msg)
 		
 		
 	def get_digits(self):
@@ -219,13 +219,13 @@ class output_tab(tk.Frame):
 		
 	#****UPDATE CALLS********
 		
-	def update_after_direction(self,direction,its):
-		self.output.update_after_direction(direction,its)
+	def update_after_direction(self,computation,its):
+		self.output.update_after_direction(computation,its)
 		self.reg_table=self.output.reg_table()
 		self.print()
 		
-	def update_after_linesearch(self,direction,ll,panel,incr):
-		self.output.update_after_linesearch(direction,ll,incr)
+	def update_after_linesearch(self,computation,ll,panel,incr):
+		self.output.update_after_linesearch(computation,ll,incr)
 		if self.menu_buttons['DIAGNOSTICS'].button_main['bg']==bg_selected:
 			self.statistics=self.output.statistics()
 			self.widget.stored_output_data.statistics=self.statistics
@@ -235,7 +235,7 @@ class output_tab(tk.Frame):
 		if self.menu_buttons['DISTRIBUTION CHARTS'].button_main["fg"]==fg_normal:
 			self.charts.plot(ll,panel)
 		self.widget.stored_output_data.chart_images=self.charts.get_images_for_storage()#for storing the editor
-		self.widget.stored_output_data.data=stored_data(ll,panel,direction,self.reg_table)#for storing the editor		
+		self.widget.stored_output_data.data=stored_data(ll,panel,computation,self.reg_table)#for storing the editor		
 		self.print()
 		
 	#****END UPDATE CALLS********
@@ -736,7 +736,7 @@ class stored_output:#for storing the editor
 		
 
 class stored_data:
-	def __init__(self,ll,panel,direction,reg_table):
+	def __init__(self,ll,panel,computation,reg_table):
 		N,T,k=panel.X.shape
 		self.X=panel.input.X
 		self.Y=panel.input.Y
@@ -751,8 +751,8 @@ class stored_data:
 		self.args=ll.args
 		self.LL=ll.LL
 		self.changed_since_last_scatter=True
-		self.hessian=direction.H
-		self.gradient=direction.g
+		self.hessian=computation.H
+		self.gradient=computation.g
 		self.descr=panel.input.descr
 		self.reg_stats=reg_table.d
 		self.add_join_table(panel,ll)

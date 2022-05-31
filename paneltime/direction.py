@@ -1,179 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import calculus
-import calculus_functions as cf
-import calculus_ll as cll
 import numpy as np
-import constraints
-import loglikelihood as logl
-from scipy import stats
-import sys
-import time
-import maximize_num
 
 
-class direction:
-	def __init__(self,panel,channel):
-		self.gradient=calculus.gradient(panel,channel.set_progress)
-		self.hessian=calculus.hessian(panel,self.gradient,channel.set_progress)
-		self.panel=panel
-		self.constr=None
-		self.hessian_num=None
-		self.do_shocks=True
-		self.input_old=None
-		self.CI=0
-		self.dx_norm=None
-		self.dx=None
-		self.H=None
-		self.G=None
-		self.g=None
-		self.weak_mc_dict=[]
-		self.mc_problems=[]
-		self.H_correl_problem=False
-		self.singularity_problems=False
-		self.Hess_correction=1
-		self.g_rec=[]
-		self.start_time=time.time()
-		self.minincr=0.1
-
-
-	def calculate(self,ll,its,msg,increment,lmbda,rev, add_dyn_constr):
-		if ll.LL is None:
-			raise RuntimeError("Error in LL calculation: %s" %(ll.err_msg,))
-		x_old=self.ll.args.args_v
-		self.ll=ll
-		self.xi=ll.args.args_v-x_old
-		self.its=its
-		self.lmbda=lmbda
-		self.has_reversed_directions=rev
-		self.increment=increment
-		self.constr_old=self.constr
-		self.constr=constraints.constraints(self.panel,ll.args,its)
-		self.constr.add_static_constraints(ll)			
-		self.calc_gradient()
-		self.calc_hessian()
-		if add_dyn_constr:
-			self.constr.add_dynamic_constraints(self)	
-			
-		self.CI=self.constr.CI
-		if self.constr is None:
-			self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
-		else:
-			self.H_correl_problem=self.constr.H_correl_problem	
-			self.mc_problems=self.constr.mc_problems
-			self.weak_mc_dict=self.constr.weak_mc_dict
-		
-		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
-		
-	def set(self,args):
-		self.dx=solve(self.H, self.g, args.args_v, self.constr)
-		#self.dx=solve_delete(self.constr,self.H, self.g, args.args_v)	
-		self.dx_norm=self.normalize(self.dx)
-
-			
+def get(g, x, H, constr, hessin, simple=True):
+	n = len(x)
+	if simple:
+		dx = -(np.dot(hessin,g.reshape(n,1))).flatten()
+	else:
+		#self.dx=solve(self.H, self.g, args.args_v, self.constr)
+		dx = solve_delete(constr, H, g, x)	
+	dx_norm = normalize(dx, x)
 	
-	def include(self,all=False):
-		include=np.array(self.panel.args.n_args*[True])
-		if all:
-			return include
-		include[list(self.constr)]=False
-		return include	
-
-	def calc_gradient(self,ll=None):
-		if ll is None:
-			ll=self.ll
-		dLL_lnv, DLL_e=cll.gradient(ll,self.panel)
-		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
-		self.g_old=self.g
-		self.g,self.G=self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
+	return dx, dx_norm
 	
-	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
-		g=[1,-1]
-		self.f=[None,None]
-		self.f_F=[None,None]
-		for i in [0,1]:
-			if self.panel.tobit_active[i]:
-				I=self.panel.tobit_I[i]
-				self.f[i]=stats.norm.pdf(g[i]*ll.e_norm[I])
-				self.f_F[i]=(ll.F[i]!=0)*self.f[i]/(ll.F[i]+(ll.F[i]==0))
-				self.v_inv05=ll.v_inv**0.5
-				DLL_e[I]=g[i]*self.f_F[i]*self.v_inv05[I]
-				dLL_lnv[I]=-0.5*DLL_e[I]*ll.e_RE[I]
-				a=0
-				
-
-	def LL_hessian_tobit(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):
-		g=[1,-1]
-		if sum(self.panel.tobit_active)==0:
-			return
-		self.f=[None,None]
-		e1s1=ll.e_norm
-		e2s2=ll.e_REsq*ll.v_inv
-		e3s3=e2s2*e1s1
-		e1s2=e1s1*self.v_inv05
-		e1s3=e1s1*ll.v_inv
-		e2s3=e2s2*self.v_inv05
-		f_F=self.f_F
-		for i in [0,1]:
-			if self.panel.tobit_active[i]:
-				I=self.panel.tobit_I[i]
-				f_F2=self.f_F[i]**2
-				d2LL_de2[I]=      -(g[i]*f_F[i]*e1s3[I] + f_F2*ll.v_inv[I])
-				d2LL_dln_de[I] =   0.5*(f_F2*e1s2[I]  +  g[i]*f_F[i]*(e2s3[I]-self.v_inv05[I]))
-				d2LL_dln2[I] =     0.25*(f_F2*e2s2[I]  +  g[i]*f_F[i]*(e1s1[I]-e3s3[I]))
-				
-				
-	
-
-	def calc_hessian(self):
-		d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(self.ll,self.panel)
-		self.LL_hessian_tobit(self.ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
-		self.H = self.hessian.get(self.ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)	
-
-
-	
-	def init_ll(self,args):
-		self.constr=constraints.constraints(self.panel, args)
-		self.constr.add_static_constraints()			
-		try:
-			args=args.args_v
-		except:
-			pass#args must be a vector
-		for i in self.constr.fixed:
-			args[i]=self.constr.fixed[i].value
-		ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
-		if ll.LL is None:
-			if self.panel.options.loadargs.value:
-				print("WARNING: Initial arguments failed, attempting default OLS-arguments ...")
-				self.panel.args.set_init_args(self.panel,default=True)
-				ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
-				if ll.LL is None:
-					raise RuntimeError("OLS-arguments failed too, you should check the data")
-				else:
-					print("default OLS-arguments worked")
-			else:
-				raise RuntimeError("OLS-arguments failed, you should check the data")
-		self.ll=ll
-		return ll
-	
-	def normalize(self,dx):
-		args_v=self.ll.args.args_v
-		dx_norm=(args_v!=0)*dx/(np.abs(args_v)+(args_v==0))
-		dx_norm=(args_v<1e-2)*dx+(args_v>=1e-2)*dx_norm	
-		return dx_norm	
-	
-def det_managed(H):
-	try:
-		return np.linalg.det(H)
-	except:
-		return 1e+100
-	
-def inv_hess(hessian):
-	try:
-		h=-np.linalg.inv(hessian)
-	except:
-		return None	
-	return h
 
 
 def solve(H, g, x, constr):
@@ -212,7 +52,7 @@ def solve(H, g, x, constr):
 		if OK: 
 			break
 		if r==k+3:
-			#print('Unable to set constraints in direction calculation')
+			#print('Unable to set constraints in computation calculation')
 			break
 
 	return dx[:n]
@@ -260,7 +100,7 @@ def solve_delete(constr,H, g, x):
 		if OK: 
 			break
 		if r==k+3:
-			#print('Unable to set constraints in direction calculation')
+			#print('Unable to set constraints in computation calculation')
 			break
 	xi_full=np.zeros(m)
 	xi_full[idx]=dx[:n]
@@ -322,3 +162,10 @@ def kuhn_tucker2(c,i,j,n,H,g,x,dx,dx_init,recalc=True):
 		if recalc:
 			dx=-np.linalg.solve(H,g).flatten()	
 	return dx
+
+
+
+def normalize(dx, x):
+	dx_norm=(x!=0)*dx/(np.abs(x)+(x==0))
+	dx_norm=(x<1e-2)*dx+(x>=1e-2)*dx_norm	
+	return dx_norm	

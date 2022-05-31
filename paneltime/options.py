@@ -151,7 +151,7 @@ def regression_options():
 													
 																	"You can supply your own heteroskedasticity function. It must be a function of\n"
 																	"residuals e and a shift parameter z that is determined by the maximization procedure\n"
-																	"the function must return the value and its derivatives in the following order:\n"
+																	"the function must return the value and its computation in the following order:\n"
 																	"h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
 																	, str,"GARCH function",category='Regression')
 
@@ -174,7 +174,7 @@ def regression_options():
 													  				int,"Minimum iterations", "%s>-1")		
 	
 	#self.pedantic					= options_item(0, 				"Determines how pedantic the maximization shuould be\n"
-	#																"If slightly pedantic, the linesearch is allways run twice after the direction is calcualted\n"
+	#																"If slightly pedantic, the linesearch is allways run twice after the computation is calcualted\n"
 	#																"If pedantic, the maximization also tries to fix supected variables\n"
 	#																"If very pedantic the maximization also uses brute force as a last resort",  
 	#																int,'Pedantic',[0,1,2,3],['Not pedantic', 'Slightly pedantic','Pedantic','Very pedantic'])

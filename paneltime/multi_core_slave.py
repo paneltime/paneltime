@@ -10,6 +10,7 @@ import pickle
 import gc
 import inspect
 import numpy as np
+from threading import Thread
 
 def main(t,initcommand,s_id,fpath):
 	fname=os.path.join(fpath,'slaves/%s.txt' %(s_id,))
@@ -40,9 +41,7 @@ def main(t,initcommand,s_id,fpath):
 			response=True
 			ftr.close()
 			exec(expr,globals(),d)
-		elif msg=='remote recieve':
-			response=d[obj]
-		elif msg=='expression evaluation':				
+		elif msg=='exec':				
 			sys.stdout = f
 			exec(obj,globals(),d)
 			sys.stdout = sys.__stdout__
@@ -63,7 +62,7 @@ def main(t,initcommand,s_id,fpath):
 			holdbacks.extend(obj)
 		if not msg in ['listen']:
 			t.send(response)		
-		if  msg=='expression evaluation':#remove response dict after sending
+		if  msg=='exec':#remove response dict after sending
 			for i in response:
 				d.pop(i)
 		gc.collect()
