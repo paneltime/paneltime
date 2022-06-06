@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import ttk
-from gui import gui_scrolltext
-from gui import gui_output_tab
+from paneltimegui import gui_scrolltext
+from paneltimegui import gui_output_tab
 import functions as fu
 import os
 from tkinter import filedialog

@@ -5,15 +5,15 @@ import tkinter as tk
 from tkinter import ttk
 from multiprocessing import pool
 import sys
-from gui import gui_charts
-from gui import gui_functions as guif
+from paneltimegui import gui_charts
+from paneltimegui import gui_functions as guif
 import functions as fu
 import os
-from gui import gui_buttons
+from paneltimegui import gui_buttons
 import functions as fu
-from gui import gui_right_tabs
-from gui import gui_scrolltext
-from gui import gui_main_tabs
+from paneltimegui import gui_right_tabs
+from paneltimegui import gui_scrolltext
+from paneltimegui import gui_main_tabs
 import tempstore
 import numpy as np
 import traceback

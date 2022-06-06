@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import ttk
-from gui import gui_charts
-from gui import gui_data_objects
-from gui import gui_options
+from paneltimegui import gui_charts
+from paneltimegui import gui_data_objects
+from paneltimegui import gui_options
 
 	
 class right_tab_widget:

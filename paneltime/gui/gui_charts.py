@@ -8,7 +8,7 @@ from multiprocessing import pool
 import numpy as np
 import stat_functions as stat
 from scipy import stats as scstats
-from gui import gui_functions as guif
+from paneltimegui import gui_functions as guif
 import os
 import functions as fu
 

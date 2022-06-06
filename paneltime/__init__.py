@@ -8,7 +8,7 @@ sys.path.append(__file__.replace("__init__.py",''))
 import main
 import sim_module
 import functions as fu
-from gui import gui
+from paneltimegui import gui
 import options as opt_module
 import inspect
 import numpy as np
@@ -16,6 +16,7 @@ import loaddata
 import tempstore
 from pandas.api.types import is_numeric_dtype
 import pandas as pd
+import paneltimegui
 
 #Todo: check that if works for no id and date variable
 #add argument for null model (default: Y~Intercept)

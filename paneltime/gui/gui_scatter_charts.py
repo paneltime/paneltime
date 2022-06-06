@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import tkinter as tk
-from gui import gui_functions as guif
+from paneltimegui import gui_functions as guif
 import functions as fu
 from shutil import copyfile
 

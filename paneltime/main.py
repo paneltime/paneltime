@@ -21,7 +21,7 @@ import model_parser
 import maximize
 import tempstore
 import os
-from gui import gui
+from paneltimegui import gui
 import communication as comm
 import functions as fu
 import time

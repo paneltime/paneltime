@@ -5,10 +5,10 @@ import tkinter as tk
 from multiprocessing import pool
 
 import numpy as np
-from gui import gui_scrolltext
+from paneltimegui import gui_scrolltext
 import paneltime
 import functions as fu
-from gui import gui_script_handling
+from paneltimegui import gui_script_handling
 
 
 

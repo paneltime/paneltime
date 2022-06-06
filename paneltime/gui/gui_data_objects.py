@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 import tkinter as tk
 from tkinter import ttk
-from gui import gui_charts
+from paneltimegui import gui_charts
 import functions as fu
 import time
-from gui import gui_scrolltext
-from gui import gui_script_handling
-from gui import gui_tooltip
-from gui import gui_sql
+from paneltimegui import gui_scrolltext
+from paneltimegui import gui_script_handling
+from paneltimegui import gui_tooltip
+from paneltimegui import gui_sql
 import options as options_module
 from tkinter import filedialog
 import json

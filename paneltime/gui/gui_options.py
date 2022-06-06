@@ -3,8 +3,8 @@
 import tkinter as tk
 from tkinter import ttk
 import time
-from gui import gui_scrolltext
-from gui import gui_script_handling
+from paneltimegui import gui_scrolltext
+from paneltimegui import gui_script_handling
 import options as options_module
 import numpy as np
 font='Arial 9 '

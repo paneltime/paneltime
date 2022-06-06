@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import tkinter as tk
-from gui import gui_charts
-from gui import gui_scrolltext
-from gui import gui_scatter_charts
+from paneltimegui import gui_charts
+from paneltimegui import gui_scrolltext
+from paneltimegui import gui_scatter_charts
 from tkinter import ttk
 from tkinter import font
 import functions as fu

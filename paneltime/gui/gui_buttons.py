@@ -5,7 +5,7 @@ from tkinter import filedialog
 import os
 import traceback
 from multiprocessing import pool
-from gui import gui_sql
+from paneltimegui import gui_sql
 
 class buttons:
 	def __init__(self,win):
