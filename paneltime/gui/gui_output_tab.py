@@ -16,11 +16,11 @@ from PIL import ImageGrab
 import communication
 
 #color map:
-bg_normal='white'
-bg_selected='dark blue'
-fg_normal='black'
-fg_disabled='grey'
-bg_sub_menu="#fafafa"
+BG_NORMAL='white'
+BG_SELECTED='dark blue'
+FG_NORMAL='black'
+FG_DISABLED='grey'
+BG_SUB_MENU="#fafafa"
 			
 class output_tab(tk.Frame):
 	def __init__(self,window,exe_tab,name,tabs,main_tabs,output_data):
@@ -118,22 +118,22 @@ class output_tab(tk.Frame):
 		
 		btnlist=[
 			# Main button caption	Sub captions										command								click		sub 				Default
-			#																												type main	groups				enabled sub							
+			#																												type     	groups										
 			['REGRESSION',			['DIR','CONSTRNTS',['( )', '[ ]', 'disabled:( )'],
 										['FLAT', 'STACKED'],
 										['NORMAL', 'HTML', 'LATEX', 'RTF','INTERNAL'],
-										['JOINED', 'JOINED LONG', 'disabled:JOINED']],	self.print_regression,				'group',	[[2,3,4]],			[0,1,2,3,4]],
-			['SCATTER PLOTS',		['NORMALIZED'],										self.show_scatter,					'group', 	None,				[1]],
+										['JOINED', 'JOINED LONG', 'disabled:JOINED']],	self.print_regression,				'multi',	[[2,3,4]],			[0,1,2,3,4]],
+			['SCATTER PLOTS',		['NORMALIZED'],										self.show_scatter,					'multi', 	None,				[1]],
 			[' CORREL ',			['NORMALIZED',[' CORREL ',' COVAR '],
-										['VARIABLES','ESTIMATES','RAW MOMENTS']],		self.print_correl,					'group', 	[[1],[2]],			[1,2]],
-			['DIAGNOSTICS',			['SAMP.SIZE','TESTS'],								self.print_stats,					'group',	[None],				[None]],
-			['DESCRIPTIVES',		['EXP','LN','ORIGINAL'],							self.print_descriptive_statistics,	'group', 	[[0,1,2]],			[2]],
-			['DIGITS',				list(range(10))+[16]+['SCI'],						self.print,							None,		[range(12)],		[5]],
-			['DISTRIBUTION CHARTS',	None,												self.show_dist_charts,				'toggle',	None,				[None]]
+										['VARIABLES','ESTIMATES','RAW MOMENTS']],		self.print_correl,					'multi', 	[[1],[2]],			[1,2]],
+			['DIAGNOSTICS',			['SAMP.SIZE','TESTS'],								self.print_stats,					'multi',	[None],				[None]],
+			['DESCRIPTIVES',		['EXP','LN','ORIGINAL'],							self.print_descriptive_statistics,	'multi', 	[[0,1,2]],			[2]],
+			['DIGITS',				list(range(10))+[16]+['SCI'],						self.print,							'single',		[range(12)],		[5]],
+			['DISTRIBUTION CHARTS',	None,												self.show_dist_charts,				'toggle',	None,				0]
 		]
 		#"disabled:" must come last in the sublist
-		for caption, captions_sub,cmd,click_type,group_type_sub,def_sub in btnlist:
-			self.menu_buttons[caption]=menu_button(self, i, caption, cmd,captions_sub,click_type,group_type_sub,def_sub)	
+		for caption, captions_sub,cmd,click_type,group_type_sub, default in btnlist:
+			self.menu_buttons[caption]=menu_button(self, i, caption, cmd,captions_sub,click_type,group_type_sub,default)	
 			i+=1
 
 		self.no_print_menus=['DIGITS','FORMAT']
@@ -150,6 +150,8 @@ class output_tab(tk.Frame):
 	def get_stored(self):
 		"Obtains stored states of the buttons"
 		d=self.window.data['menu_selections']
+		if not self.widget.stored_output_data.options is None:
+			d = self.widget.stored_output_data.options
 		for i in self.menu_buttons:
 			self.menu_buttons[i].button_main['text']  =   d[i].button_main['text']
 			self.menu_buttons[i].button_main['bg']    =   d[i].button_main['bg']
@@ -166,6 +168,7 @@ class output_tab(tk.Frame):
 	def store_options(self):
 		d=dict()
 		self.window.data['menu_selections']=d
+		self.widget.stored_output_data.options = d
 		for i in self.menu_buttons:
 			d[i]=sub_botton_store(self.menu_buttons[i])
 			for j in self.menu_buttons[i].buttons_sub:
@@ -195,16 +198,16 @@ class output_tab(tk.Frame):
 			return True
 		return False
 
-	def set_output_obj(self,ll,panel, computation,main_msg):
+	def set_output_obj(self,ll,panel, computation,main_msg, dx_norm):
 		"sets the outputobject in the output" 
-		self.output=output.output(ll,panel, computation,main_msg)
+		self.output=output.output(ll,panel, computation,main_msg, dx_norm)
 		
 		
 	def get_digits(self):
 		"returns the selected number of digits"
 		b=self.menu_buttons['DIGITS']
 		for i in b.buttons_sub:
-			if b.buttons_sub[i]['fg']==fg_normal:
+			if b.buttons_sub[i]['fg']==FG_NORMAL:
 				try:
 					return int(i)
 				except:
@@ -214,25 +217,25 @@ class output_tab(tk.Frame):
 		"returns the active menu button"
 		for i in self.menu_buttons:
 			b=self.menu_buttons[i]
-			if b.button_main['bg']==bg_selected:
+			if b.button_main['bg']==BG_SELECTED:
 				return i	
 		
 	#****UPDATE CALLS********
 		
-	def update_after_direction(self,computation,its):
-		self.output.update_after_direction(computation,its)
+	def update_after_direction(self,computation,its, dx_norm):
+		self.output.update_after_direction(computation,its, dx_norm)
 		self.reg_table=self.output.reg_table()
 		self.print()
 		
-	def update_after_linesearch(self,computation,ll,panel,incr):
-		self.output.update_after_linesearch(computation,ll,incr)
-		if self.menu_buttons['DIAGNOSTICS'].button_main['bg']==bg_selected:
+	def update_after_linesearch(self,computation,ll,panel,incr, dx_norm):
+		self.output.update_after_linesearch(computation,ll,incr, dx_norm)
+		if self.menu_buttons['DIAGNOSTICS'].button_main['bg']==BG_SELECTED:
 			self.statistics=self.output.statistics()
 			self.widget.stored_output_data.statistics=self.statistics
 		self.reg_table=self.output.reg_table()
 		self.widget.stored_output_data.reg_table=self.reg_table		
 		
-		if self.menu_buttons['DISTRIBUTION CHARTS'].button_main["fg"]==fg_normal:
+		if self.menu_buttons['DISTRIBUTION CHARTS'].button_main["fg"]==FG_NORMAL:
 			self.charts.plot(ll,panel)
 		self.widget.stored_output_data.chart_images=self.charts.get_images_for_storage()#for storing the editor
 		self.widget.stored_output_data.data=stored_data(ll,panel,computation,self.reg_table)#for storing the editor		
@@ -251,7 +254,7 @@ class output_tab(tk.Frame):
 		#for storing the editor
 		n=self.get_digits()
 		stacked=self.menu_buttons['REGRESSION'].buttons_sub["['FLAT', 'STACKED']"]['text']!='STACKED'
-		if self.menu_buttons['REGRESSION'].buttons_sub[ "['( )', '[ ]', 'disabled:( )']"]['fg']==fg_disabled:
+		if self.menu_buttons['REGRESSION'].buttons_sub[ "['( )', '[ ]', 'disabled:( )']"]['fg']==FG_DISABLED:
 			bracket=''
 		elif self.menu_buttons['REGRESSION'].buttons_sub[ "['( )', '[ ]', 'disabled:( )']"]['text']=='[ ]':
 			bracket='['
@@ -259,7 +262,7 @@ class output_tab(tk.Frame):
 			bracket='('
 		fmt=self.menu_buttons['REGRESSION'].buttons_sub["['NORMAL', 'HTML', 'LATEX', 'RTF', 'INTERNAL']"]['text']
 		joined=self.menu_buttons['REGRESSION'].buttons_sub["['JOINED', 'JOINED LONG', 'disabled:JOINED']"]
-		if joined['fg']!=fg_normal:
+		if joined['fg']!=FG_NORMAL:
 			self.print_regression_single(n,stacked, bracket, fmt)
 		else:
 			self.join_tables(n, stacked,bracket, fmt,joined['text'])
@@ -268,7 +271,7 @@ class output_tab(tk.Frame):
 		if self.data_doesnt_exist():return
 		d=self.widget.stored_output_data.data	
 		#gui_scatter_charts.scatter_window(self,d.X_names,d.Y_name,d.X_st,d.Y_st,self.window.iconpath,self.tabs,700,1000)	
-		if self.menu_buttons['SCATTER PLOTS'].buttons_sub['NORMALIZED']['fg']!=fg_disabled:
+		if self.menu_buttons['SCATTER PLOTS'].buttons_sub['NORMALIZED']['fg']!=FG_DISABLED:
 			if d.changed_since_last_scatter:
 				self.scatter_norm.plot(d.X_names,d.Y_name,d.X_st,d.Y_st)
 				d.changed_since_last_scatter=False
@@ -286,7 +289,7 @@ class output_tab(tk.Frame):
 		d=self.widget.stored_output_data.data
 		is_covar=self.menu_buttons[' CORREL '].buttons_sub["[' CORREL ', ' COVAR ']"]['text']==' COVAR '
 		X,Y=d.X,d.Y
-		if self.menu_buttons[' CORREL '].buttons_sub["NORMALIZED"]['fg']==fg_normal:
+		if self.menu_buttons[' CORREL '].buttons_sub["NORMALIZED"]['fg']==FG_NORMAL:
 			X,Y=d.X_st,d.Y_st		
 		if self.menu_buttons[' CORREL '].buttons_sub["['VARIABLES', 'ESTIMATES', 'RAW MOMENTS']"]['text']=='ESTIMATES':
 			if d.hessian is None: return
@@ -329,10 +332,10 @@ class output_tab(tk.Frame):
 		#self.tab.widget.text_box.config(tabs=tab_stops)	
 		formatting={'bold_underline':[1]}
 		tab_stops=('30',tk.LEFT,'60',tk.LEFT,'290',tk.RIGHT,'450',tk.NUMERIC)
-		if self.menu_buttons['DIAGNOSTICS'].buttons_sub['SAMP.SIZE']['fg']==fg_normal:
+		if self.menu_buttons['DIAGNOSTICS'].buttons_sub['SAMP.SIZE']['fg']==FG_NORMAL:
 			s="SAMPLE SIZE:\n\n"
 			self.print_text(s+self.statistics.df_str,formatting=formatting,tab_stops=tab_stops)	
-		elif self.menu_buttons['DIAGNOSTICS'].buttons_sub['TESTS']['fg']==fg_normal:
+		elif self.menu_buttons['DIAGNOSTICS'].buttons_sub['TESTS']['fg']==FG_NORMAL:
 			s="DIAGNOSTICS:\n\n"
 			s+=self.statistics.gen_mod_fit(n)
 			s+=self.statistics.adf_str(n)
@@ -349,9 +352,9 @@ class output_tab(tk.Frame):
 		if self.data_doesnt_exist():return
 		d=self.widget.stored_output_data.data
 		data=np.concatenate((d.Y,d.X),1)
-		if self.menu_buttons['DESCRIPTIVES'].buttons_sub['EXP']['fg']!=fg_disabled:
+		if self.menu_buttons['DESCRIPTIVES'].buttons_sub['EXP']['fg']!=FG_DISABLED:
 			data=np.exp(data)
-		elif self.menu_buttons['DESCRIPTIVES'].buttons_sub['LN']['fg']!=fg_disabled:
+		elif self.menu_buttons['DESCRIPTIVES'].buttons_sub['LN']['fg']!=FG_DISABLED:
 			data=np.log(data)
 		n,k=data.shape
 		stat=[['']+d.all_names]
@@ -380,14 +383,14 @@ class output_tab(tk.Frame):
 		for c in self.menu_buttons:
 			if not (c in self.no_print_menus):
 				b=self.menu_buttons[c]
-				if b.button_main['bg']==bg_selected:
+				if b.button_main['bg']==BG_SELECTED:
 					b.command()
 					return
 				
 			
 	def show_dist_charts(self):
 		b=self.menu_buttons['DISTRIBUTION CHARTS']
-		if b.button_main['fg']==fg_disabled:
+		if b.button_main['fg']==FG_DISABLED:
 			self.charts.grid_forget()
 		else:
 			self.charts.grid(column=1,row=0,sticky=tk.NS)
@@ -422,8 +425,8 @@ class output_tab(tk.Frame):
 	def print_regression_single(self,digits,stacked,bracket,fmt):
 		"prints a single regression"
 		s,llength=self.reg_table.table(digits,bracket,fmt,stacked,
-							   self.menu_buttons['REGRESSION'].buttons_sub['DIR']['fg']==fg_normal,
-							   self.menu_buttons['REGRESSION'].buttons_sub['CONSTRNTS']['fg']==fg_normal)
+							   self.menu_buttons['REGRESSION'].buttons_sub['DIR']['fg']==FG_NORMAL,
+							   self.menu_buttons['REGRESSION'].buttons_sub['CONSTRNTS']['fg']==FG_NORMAL)
 		formatting=None
 		if fmt=='NORMAL':
 			formatting={'single_line':[5,9+self.reg_table.n_variables*3],
@@ -517,27 +520,26 @@ class sub_botton_store(dict):
 	
 class menu_button:
 	"Class for the top level menu buttons"
-	def __init__(self,output_tab,loc,caption_main,command,captions_sub,click_type,group_type_sub,sub_enabled):
+	def __init__(self,output_tab,loc,caption_main,command,captions_sub,click_type,group_type_sub, default):
 		self.tab=output_tab	
 		self.loc=loc
 		self.button_frame=tk.Frame(self.tab.selection_frame,bg="white")
-		if click_type is None:
-			self.button_main=tk.Label(self.button_frame,text=caption_main, 
-											   highlightthickness=0,bd=0, anchor=tk.E,bg=bg_normal,fg=fg_normal,font=self.tab.font)
-		else:
-			self.button_main=tk.Button(self.button_frame,text=caption_main,command=self.click, 
-									   highlightthickness=0,bd=0, anchor=tk.E,bg=bg_normal,fg=fg_normal,font=self.tab.font)
+		fg = FG_NORMAL
+		if click_type == 'toggle':
+			fg = [FG_DISABLED, FG_NORMAL][default]
+		self.button_main=tk.Button(self.button_frame,text=caption_main,command=self.click, 
+								   highlightthickness=0,bd=0, anchor=tk.E,bg=BG_NORMAL,fg=fg ,font=self.tab.font)
 		self.button_main.bind("<Motion>", self.mouseover)
 		self.button_main.bind("<Leave>", self.button_hide_sub)
 		self.button_main.grid(row=0,column=0)
-		tk.Label(self.button_frame,text="|",bg=bg_normal,font=self.tab.font).grid(row=0,column=1)
+		tk.Label(self.button_frame,text="|",bg=BG_NORMAL,font=self.tab.font).grid(row=0,column=1)
 		self.button_frame.grid(sticky='w',row=0,column=loc)	
 		self.command=command
 		self.captions_sub=captions_sub
 		self.click_type=click_type
 		self.group_type_sub=group_type_sub
 		self.caption=caption_main
-		self.sub_enabled=sub_enabled
+		self.default=default
 		self.add_sub_menu()
 		if not caption_main in self.tab.window.data['menu_selections']:
 			self.tab.window.data['menu_selections'][caption_main]=dict()
@@ -545,25 +547,26 @@ class menu_button:
 		
 	def select(self,withdraw=True):
 		for i in self.tab.menu_buttons:
-			if not i==self.caption and self.click_type=='group':
-				self.tab.menu_buttons[i].alter_state(bg_normal,fg_normal)#reset all menus to unselected
+			if not i==self.caption and self.click_type=='multi':
+				self.tab.menu_buttons[i].alter_state(BG_NORMAL,FG_NORMAL)#reset all menus to unselected
 			if withdraw:#If withdraw, then all button_frames are hidden
 				self.tab.menu_buttons[i].button_box.withdraw()
-		self.alter_state(bg_selected,bg_normal)	#set current menu to selected
+		self.alter_state(BG_SELECTED,BG_NORMAL)	#set current menu to selected
 
 		
 	def toggle(self):
-		if self.button_main['fg']==fg_normal:
-			self.button_main.configure(fg=fg_disabled)
+		if self.button_main['fg']==FG_NORMAL:
+			self.button_main.configure(fg=FG_DISABLED)
 		else:
-			self.button_main.configure(fg=fg_normal)			
+			self.button_main.configure(fg=FG_NORMAL)			
 		
 	def click(self,runcommand=True):
-		if self.click_type=='group':
+		if self.click_type=='multi':
 			self.select()
 		elif self.click_type=='toggle':
 			self.toggle()
-		if (self.command is None) or (self.click_type is None):
+		self.tab.store_options()
+		if (self.command is None) or (self.click_type == 'single'):
 			return
 		try:
 			self.command()
@@ -575,6 +578,8 @@ class menu_button:
 			self.show_sub()			
 		
 	def alter_state(self,bg,fg):
+		if self.click_type == 'toggle':
+			return
 		self.button_main.configure(fg=fg)
 		self.button_main.configure(bg=bg)
 		
@@ -599,7 +604,6 @@ class menu_button:
 			self.button_box.withdraw()
 		
 	def click_sub(self,caption,i,execute=True):
-		self.tab.store_options
 		if type(self.captions_sub[i])==list:
 			self.toggle_list(self.captions_sub[i],i)
 			self.selections[str(caption)]=i
@@ -614,7 +618,7 @@ class menu_button:
 			self.selections[str(self.sub_group[caption])]=caption
 		if not execute:
 			return
-		if self.click_type=='group':
+		if self.click_type=='multi':
 			self.select(False)
 		if self.command is None:
 			return
@@ -624,30 +628,30 @@ class menu_button:
 			traceback.print_exc()
 			
 	def select_sub(self,caption):
-		if self.buttons_sub[caption]['fg']==fg_disabled:
+		if self.buttons_sub[caption]['fg']==FG_DISABLED:
 			for i in self.sub_group[caption]:
-				self.buttons_sub[i].configure(fg=fg_disabled)
-			self.buttons_sub[caption].configure(fg=fg_normal)
+				self.buttons_sub[i].configure(fg=FG_DISABLED)
+			self.buttons_sub[caption].configure(fg=FG_NORMAL)
 			
 	def toggle_sub_select(self,caption):
 		r=self.toggle_sub(caption)
-		if self.buttons_sub[caption]['fg']==fg_normal:
+		if self.buttons_sub[caption]['fg']==FG_NORMAL:
 			for i in self.buttons_sub:
 				if not i==caption:
-					self.buttons_sub[i].configure(fg=fg_disabled)
+					self.buttons_sub[i].configure(fg=FG_DISABLED)
 		return r
 			
 	def toggle_sub(self,caption):
-		if self.buttons_sub[caption]['fg']==fg_disabled:
-			self.buttons_sub[caption].configure(fg=fg_normal)
+		if self.buttons_sub[caption]['fg']==FG_DISABLED:
+			self.buttons_sub[caption].configure(fg=FG_NORMAL)
 			return True
 		else:
-			self.buttons_sub[caption].configure(fg=fg_disabled)		
+			self.buttons_sub[caption].configure(fg=FG_DISABLED)		
 			return False
 			
 	def toggle_list(self,lst,i):
 		caption=str(lst)
-		if self.buttons_sub[caption]['fg']==fg_disabled:
+		if self.buttons_sub[caption]['fg']==FG_DISABLED:
 			k=0
 		else:
 			current=self.buttons_sub[caption]['text']
@@ -656,19 +660,19 @@ class menu_button:
 				k=0
 		if 'disabled:' in lst[k]:
 			self.buttons_sub[caption].configure(text=lst[k].split(':')[1])
-			self.buttons_sub[caption].configure(fg=fg_disabled)
+			self.buttons_sub[caption].configure(fg=FG_DISABLED)
 		else:
 			self.buttons_sub[caption].configure(text=lst[k])
-			self.buttons_sub[caption].configure(fg=fg_normal)
+			self.buttons_sub[caption].configure(fg=FG_NORMAL)
 	
 	def add_sub_menu(self):
 		# creates a toplevel window
-		self.button_box = tk.Toplevel(self.button_main,bg=bg_sub_menu)
+		self.button_box = tk.Toplevel(self.button_main,bg=BG_SUB_MENU)
 		self.button_box.withdraw()
 		self.button_box.bind("<Leave>", self.hide_sub)
 		# Leaves only the label and removes the app window
 		self.button_box.wm_overrideredirect(True)
-		frm = tk.Frame(self.button_box, background=bg_sub_menu, relief='flat')
+		frm = tk.Frame(self.button_box, background=BG_SUB_MENU, relief='flat')
 		if self.captions_sub is None:
 			self.n_sub=0
 		else:
@@ -676,9 +680,9 @@ class menu_button:
 			
 		self.buttons_sub={}
 		self.captions_sub_str=[]
-		fg=fg_disabled
-		if self.sub_enabled=='all':
-			fg=fg_normal
+		fg=FG_DISABLED
+		if self.default == 'all':
+			fg=FG_NORMAL
 		for i in range(self.n_sub):
 			c=str(self.captions_sub[i])
 			self.captions_sub_str.append(c)
@@ -689,9 +693,9 @@ class menu_button:
 				cmd=eval(f"lambda: self.click_sub('{c}',{i})",{'self':self})
 				text=c
 			self.buttons_sub[c]=tk.Button(frm, text = text,command=cmd,
-														font=self.tab.font, highlightthickness=0,bd=0,bg=bg_sub_menu,fg=fg,anchor="w")
-			if (not self.sub_enabled is None) and i in self.sub_enabled:
-				self.buttons_sub[c].configure(fg=fg_normal)
+														font=self.tab.font, highlightthickness=0,bd=0,bg=BG_SUB_MENU,fg=fg,anchor="w")
+			if (not self.default is None) and i in self.default:
+				self.buttons_sub[c].configure(fg=FG_NORMAL)
 			else:
 				if 'disabled:'==c[:9]:
 					self.buttons_sub[c].configure(text=c[9:])
@@ -732,6 +736,7 @@ class stored_output:#for storing the editor
 		self.data=None
 		self.reg_table=None
 		self.statistics=None
+		self.options = None
 		
 		
 
@@ -778,15 +783,15 @@ class stored_data:
 class bar(tk.Frame):
 	def __init__(self,master,exe_tab):
 
-		tk.Frame.__init__(self,master,background=bg_normal,height=75)
+		tk.Frame.__init__(self,master,background=BG_NORMAL,height=75)
 		self.tab=master
 		self.exe_tab=exe_tab
-		self.text_frame=tk.Frame(self,bg=bg_normal)
-		self.text_frame_L=tk.Frame(self.text_frame,bg=bg_normal)
-		self.text_frame_R=tk.Frame(self.text_frame,bg=bg_normal)
+		self.text_frame=tk.Frame(self,bg=BG_NORMAL)
+		self.text_frame_L=tk.Frame(self.text_frame,bg=BG_NORMAL)
+		self.text_frame_R=tk.Frame(self.text_frame,bg=BG_NORMAL)
 		self.text_frame_R.grid(row=0,column=1,sticky=tk.E)
 		self.task_text=tk.StringVar(self)
-		self.task_lbl=tk.Label(self.text_frame_R,textvariable=self.task_text,background=bg_normal,anchor='e', justify=tk.RIGHT,width=15)
+		self.task_lbl=tk.Label(self.text_frame_R,textvariable=self.task_text,background=BG_NORMAL,anchor='e', justify=tk.RIGHT,width=15)
 		self.info_txt=tk.Text(self.text_frame_L,height=3,width=120,borderwidth = 0, highlightthickness = 0)
 		self.info_txt.grid(row=0,column=0,sticky=tk.EW)
 		self.info_txt.tag_configure('bold', font="Courier 10 bold")
@@ -811,6 +816,7 @@ class bar(tk.Frame):
 			self.progress.grid()
 		if len(task):
 			self.set_task(task)
+		text = str(text)
 		if len(text):
 			self.print(text)
 		if not self.exe_tab is None:
@@ -862,7 +868,7 @@ class bar(tk.Frame):
 		
 class selection_frame(tk.Frame):
 	def __init__(self, master,):
-		tk.Frame.__init__(self,master,background=bg_normal)
+		tk.Frame.__init__(self,master,background=BG_NORMAL)
 		
 	def grid(self,column,row):
 		super().grid(column=column,row=row,sticky=tk.EW)

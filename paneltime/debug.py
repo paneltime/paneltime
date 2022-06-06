@@ -3,7 +3,6 @@
 
 #used for debugging
 import numpy as np
-import stat_functions as stat
 import calculus_functions as cf
 import time
 import functions as fu
@@ -125,72 +124,3 @@ def LL_calc(self,panel):
 		return None				
 	return LL
 
-
-
-	
-	
-def pedantic(ll,msg,lmbda,ok,rev,computation,mp,its,incr,po,prev_dx,LL0,diff_log,ll0,dxLL,panel):
-	"""Used in maximize.maximize() when the LL maximization does not converge. It is usually 
-	easier to identify errors in gradient or hessian close to the maximum."""
-	ll,msg2,lmbda2,ok,rev=lnsrch(ll,computation,mp,its,incr,po,prev_dx,computation.dx,max_its=6)
-	dx=computation.dx
-	n=len(dx)
-	dx_norm=computation.dx_norm
-	h=np.diag(computation.H)
-	g=computation.g
-	
-	if panel.options.pedantic.value==1:
-		return ll,msg,lmbda,ok,rev
-	reversed_direction=g*dx<0
-
-	for sgn in [1,-1]:
-		if ll.LL-LL0<1e-6*len(dx) and sum(reversed_direction)>0:
-
-			max_arg=((dxLL)==max((dxLL[reversed_direction])))
-			for sel,d,s in [
-				(max_arg==False,			  dx, 'directions other than the maxiumum'),
-				(max_arg==True,				  dx, 'the maxiumum'),				
-				(reversed_direction,	      dx, 'reversed directions'),
-				(reversed_direction==False,	  dx, 'directions other than the reversed and reversing the reversed directions')
-				]:
-				dxi=sgn*np.array(d)
-				dxi[sel]=0
-				ll2,msg,lmbda2,ok,rev=lnsrch(ll,computation,mp,its,incr,po,prev_dx,dxi,max_its=6,convex_action='ignore')
-				if ll2.LL>ll.LL:
-					if not printout_func(1.0,f"Improved {ll2.LL-ll.LL} after fixing {s}",ll,its,computation,incr,po,1,task='linesearch'):return ll,computation,po
-					lmbda+=lmbda2
-					ll=ll2
-					break
-
-	if ll.LL-LL0<1e-6*len(dx):
-		if len(diff_log)>2:
-			avg_dir=np.mean(np.array(diff_log)[-8:],0)
-			ll2,msg,lmbda2,ok,rev=lnsrch(ll,computation,mp,its,incr,po,prev_dx,avg_dir,max_its=6,convex_action='ignore')
-			if ll2.LL>ll.LL:
-				if not printout_func(1.0,f"Improved {ll2.LL-ll.LL} after following the average past directions",ll,its,computation,incr,po,1,task='linesearch'):return ll,computation,po
-				ll=ll2
-				lmbda+=lmbda2
-	if ll.LL-LL0==0 and panel.options.pedantic.value==3:
-		if not printout_func(1.0,f"Doing brute force",ll,its,computation,incr,po,1,task='linesearch'):return ll,computation,po
-		ll,msg,lmbda2,ok,rev=brute_force(ll, mp, computation, its, incr, po, prev_dx, msg, lmbda, ok, 4)		
-		lmbda+=lmbda2		
-	diff_log.append(ll.args.args_v-ll0.args.args_v)
-	
-	return ll,msg,lmbda,ok,rev
-
-
-		
-
-
-def brute_force(ll,mp,computation,its,incr,po,prev_dx,msg,lmbda,ok,max_its):
-	"""Brute force maximization for pedantic(), when everything else fails."""
-	dx=computation.dx
-	rng=np.arange(len(dx))
-	for i in rng:
-		for sign in [-1,1]:
-			if not (i in computation.constr.fixed):
-				ll2,msg,lmbda,ok,rev=lnsrch(ll,computation,mp,its,incr,po,prev_dx,sign*dx*(rng==i),max_its,convex_action='ignore')
-				if ll2.LL>ll.LL:
-					ll=ll2
-					break
-	return ll,msg,lmbda,ok,rev

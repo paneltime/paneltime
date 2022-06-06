@@ -48,12 +48,12 @@ def start():
 	window=gui.window()
 	window.mainloop() 
 
-def execute(model_string,dataframe, ID=None,T=None,HF=None,join_table=None,instruments=None, console_output=False, multi_threading=True):
+def execute(model_string,dataframe, ID=None,T=None,HF=None,join_table=None,instruments=None, console_output=False):
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab')
-	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table,instruments, console_output,multi_threading)
+	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table,instruments, console_output)
 	return r
 
 def statistics(results,correl_vars=None,descriptives_vars=None,name=None):

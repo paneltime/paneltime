@@ -5,7 +5,7 @@ import numpy as np
 
 def get(g, x, H, constr, hessin, simple=True):
 	n = len(x)
-	if simple:
+	if simple or (H is None):
 		dx = -(np.dot(hessin,g.reshape(n,1))).flatten()
 	else:
 		#self.dx=solve(self.H, self.g, args.args_v, self.constr)
@@ -63,7 +63,7 @@ def solve_delete(constr,H, g, x):
 	g, hessian H, inequalty constraints c and equalitiy constraints c_eq and returns the solution and 
 	and index constrained indicating the constrained variables"""
 	if H is None:
-		return None,g*0
+		raise RuntimeError('Cant solve with no coefficient matrix')
 	try:
 		list(constr.keys())[0]
 	except:
@@ -165,6 +165,7 @@ def kuhn_tucker2(c,i,j,n,H,g,x,dx,dx_init,recalc=True):
 
 
 
+	
 def normalize(dx, x):
 	dx_norm=(x!=0)*dx/(np.abs(x)+(x==0))
 	dx_norm=(x<1e-2)*dx+(x>=1e-2)*dx_norm	

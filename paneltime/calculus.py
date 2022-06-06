@@ -115,7 +115,7 @@ class gradient:
 		g=np.sum(G,(0,1))
 		#For debugging:
 		#print (g)
-		#gn=debug.grad_debug(ll,panel,10)#debugging
+		#gn=debug.grad_debug(ll,panel,0.00001)#debugging
 		#if np.sum((g-gn)**2)>10000000:
 		#	a=0
 		#print(gn)

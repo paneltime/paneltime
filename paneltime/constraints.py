@@ -6,9 +6,6 @@ import stat_functions as stat
 import functions as fu
 import calculus_functions as cf
 
-EXTREEME_COLLINEARITY=1e+10
-SMALL_COLLINEARITY=30
-
 
 
 class constraint:
@@ -180,17 +177,15 @@ class constraints(dict):
 		self.add_custom_constraints(general_constraints, ll)
 		self.add_custom_constraints(pargs.user_constraints, ll)
 
-	def add_dynamic_constraints(self,computation):
+	def add_dynamic_constraints(self,computation, H):
 		ll=computation.ll
-		k,k=computation.H.shape
+		k,k=H.shape
 		self.weak_mc_dict=dict()
 		include=np.array(k*[True])
 		include[list(computation.constr.fixed)]=False
-		#self.H_correl_problem=constraint_correl_cluster(computation,include)
 		self.mc_problems=[]#list of [index,associate,condition index]
-		self.CI=constraint_multicoll(k, computation, include, self.mc_problems)
+		self.CI=constraint_multicoll(k, computation, include, self.mc_problems, H)
 		add_mc_constraint(computation,self.mc_problems,self.weak_mc_dict)
-		select_arma(computation.constr, ll)
 	
 	def add_custom_constraints(self,constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
 		"""Adds custom range constraints\n\n
@@ -325,8 +320,9 @@ def multicoll_problems(computation,H,include,mc_problems):
 		return False,False
 	mc_list=[]
 	largest_ci=None
+	limit = computation.panel.options.multicoll_threshold.value
 	for cix in range(1,len(c_index)):
-		if ((np.sum(var_prop[-cix]>0.5)>1) or ((np.sum(var_prop[-cix]>0.3)>1) and (np.sum(var_prop[-cix]>0.99)>0))) and (c_index[-cix]>SMALL_COLLINEARITY):
+		if (np.sum(var_prop[-cix]>0.5)>1) and (c_index[-cix]>limit):
 			if largest_ci is None:
 				largest_ci=c_index[-cix]
 			var_prop_ix=np.argsort(var_prop[-cix])[::-1]
@@ -336,17 +332,11 @@ def multicoll_problems(computation,H,include,mc_problems):
 			done=var_prop_check(computation,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix],mc_list)
 			if done:
 				break
-	if len(mc_list)==0:
-		return  c_index[-1],mc_list
 	return c_index[-1],mc_list
 
 def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
-	if cond_index>EXTREEME_COLLINEARITY:
-		lim=0.3
-	else:
-		lim=0.5
 	for i in range(1,len(var_prop_ix)):
-		if var_prop_val[i]<lim:
+		if var_prop_val[i]<0.5:
 			return True
 		index=var_prop_ix[i]
 		index=includemap[index]
@@ -365,12 +355,12 @@ def add_mc_constraint(computation,mc_problems,weak_mc_dict):
 		mc=mc_problems[a.index(no_check)]
 		mc[0],mc[1]=mc[1],mc[0]
 	mc_limit = computation.panel.options.multicoll_threshold.value
-	if computation.increment==0:
-		mc_limit=SMALL_COLLINEARITY
 	for index,assc,cond_index in mc_problems:
-		if (not index in weak_mc_dict) and (cond_index>SMALL_COLLINEARITY) and (cond_index<=mc_limit) and (not index==no_check):
-			weak_mc_dict[index]=[assc,cond_index]#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix.	
-		if not ((index in constr.associates) or (index in constr.collinears)) and cond_index>mc_limit and (not index==no_check):
+		cond = not ((index in constr.associates) or (index in constr.collinears)) and cond_index>mc_limit and (not index==no_check)
+		# same condition, but possible have a laxer condition for weak_mc_dict. 
+		if cond:#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix:	
+			weak_mc_dict[index]=[assc,cond_index]
+		if cond:#adding restrictions:
 			constr.add(assc,index,'collinear')
 			
 		
@@ -382,58 +372,16 @@ def get_no_check(computation):
 			return X_names.index(no_check)
 		print("A variable was set for the 'Do not constraint' option (do_not_constrain), but it is not among the x-variables")
 	
-def constraint_multicoll(k,computation,include,mc_problems):
+def constraint_multicoll(k,computation,include,mc_problems, H):
 	CI_max=0
 	for i in range(k-1):
-		CI,mc_list=multicoll_problems(computation,computation.H,include,mc_problems)
+		CI,mc_list=multicoll_problems(computation, H,include,mc_problems)
 		CI_max=max((CI_max,CI))
 		if len(mc_list)==0:
 			break
 		include[mc_list]=False
 	return CI_max
 		
-def constraint_correl_cluster(computation,include):
-	if int(computation.its/2)==computation.its/2 and computation.its>0:
-		return False		
-	H=computation.H
-	dH=np.diag(H).reshape((len(H),1))
-	corr=np.abs(H/(np.abs(dH*dH.T)+1e-100)**0.5)
-	np.fill_diagonal(corr,0)
-	problems=list(np.unique(np.nonzero((corr>1-1e-12)*(corr<1))[0]))
-	if len(problems)==0:
-		return False
-	#not_problem=np.argsort(dH[problems].flatten())[0]
-	#problems.pop(not_problem)
-	allix=list(range(len(H)))
-	for i in problems:
-		allix.pop(allix.index(i))
-	if len(allix)==0:
-		return	False
-	not_problem=np.argsort(dH[allix].flatten())[-1]
-	allix.pop(not_problem)	
-	for i in allix:
-		include[i]=False
-		if not i in computation.constr.fixed:
-			computation.constr.add(i,None,'Perfect correlation in hessian')
-	return True
-		
 
-	
-
-def select_arma(constr,ll):
-	delete=[]
-	for i in constr.collinears:
-		if constr[i].category in ['rho','lambda', 'gamma','psi']:
-			assc=constr.collinears[i]
-			if not assc in constr.fixed:
-				if abs(ll.args.args_v[assc])<abs(ll.args.args_v[i]):
-					delete.append([i,assc])
-	for i, assc in delete:			
-		constr.delete(i)
-		constr.add(assc,i,'collinear')
-	
-	
-			
-		
 
 

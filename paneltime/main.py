@@ -32,7 +32,7 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,exe_tab,join_table,instruments, console_output, multi_threading):
+def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,exe_tab,join_table,instruments, console_output):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
@@ -41,10 +41,8 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 	if datainput.timevar is None:
 		print("No valid time variable defined. This is required")
 		return
-	mp,close_mp=mp_check(datainput,window,multi_threading)
+	mp = mp_check(datainput,window)
 	results_obj=pqdkm_iteration(datainput,options,mp,window,exe_tab, console_output)
-	if not mp is None and close_mp:
-		mp.quit()
 	return results_obj
 	
 def pqdkm_iteration(datainput,options,mp,window,exe_tab, console_output):#allows for a list of different ARIMA options, for example by starting with a more restrictive model
@@ -83,32 +81,29 @@ class results:
 	def __init__(self,datainput,options,mp,pqdkm,window,exe_tab, console_output):
 		print ("Creating panel")
 		pnl=panel.panel(datainput,options,pqdkm)
-		channel=comm.get_channel(window,exe_tab,pnl, console_output)
+		callback = comm.callback(window,exe_tab,pnl, console_output)
 		self.mp=mp
 		if not mp is None:
 			mp.send_dict({'panel':pnl},
 						 command=("panel.ARMA_init()\n"))
 		pnl.ARMA_init()
-		log=[]
 		t0 = time.time()
-		self.ll,self.computation,self.printout_obj = maximize.maximize(pnl,mp,pnl.args.args_init.args_v,channel,log=log)
+		self.ll, self.comput, self.conv = maximize.maximize(pnl, pnl.args.args_init.args_v, callback)
 		print(f"LL: {self.ll.LL}, time: {time.time()-t0}")
-		fu.savevar(log,'log_of_LL_process.csv')
 		self.panel=pnl
 
 
-def mp_check(datainput,window,multi_threading):
-	if not multi_threading:
-		return None, False
+def mp_check(datainput,window):
+	return None#Multithreading disabled. Found it did not raise performance, much compared with the disadvantage of the randomness it adds to the results
 	modules="""
 import maximize_num
 """	
 	if window is None:
 		mp=mc.multiprocess(datainput.tempfile,N_NODES,modules, 'computation')
-		return mp, True
+		return mp
 	if window.mc is None:
 		window.mc=mc.multiprocess(datainput.tempfile,N_NODES,modules)
-	return window.mc,False
+	return window.mc
 	
 
 

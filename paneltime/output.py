@@ -16,7 +16,7 @@ STANDARD_LENGTH=8
 
 
 class output:
-	def __init__(self,ll,panel,computation,main_msg):
+	def __init__(self,ll,panel,computation,main_msg, dx_norm):
 		self.ll=ll
 		self.main_msg=main_msg
 		self.computation=computation
@@ -24,22 +24,25 @@ class output:
 		self.lags=self.panel.options.robustcov_lags_statistics.value[1]
 		self.n_variables=self.panel.args.n_args
 		self.incr=0
+		self.dx_norm = dx_norm
 		self.d={'names':np.array(self.panel.args.names_v),
 				'count':range(self.n_variables),
 				'args':self.ll.args.args_v}
-		self.update_after_direction(computation,0)
+		self.update_after_direction(computation,0, dx_norm)
 		self.heading()
 		
-	def update_after_direction(self,computation,its):
+	def update_after_direction(self,computation,its, dx_norm):
 		self.computation=computation		
 		self.iterations=its
+		self.dx_norm = dx_norm
 		self.constraints_printout()
 		self.t_stats()
 		self.heading()
 		
-	def update_after_linesearch(self,computation,ll,incr):
+	def update_after_linesearch(self,computation,ll,incr, dx_norm):
 		self.computation=computation
 		self.ll=ll
+		self.dx_norm = dx_norm
 		self.incr=incr
 		self.d['args']=ll.args.args_v
 		self.heading()
@@ -98,7 +101,7 @@ class output:
 		if len(instr):
 			s+=f"\t\tInstruments: {instr}"		
 		s+=f"\nMax condition index: {CI}\t ({n_CI} caseses w/high CI for 1+ variables)"
-		s+=f"Time elapsed: {np.round(time.time()-self.computation.start_time)}\n"
+		s+=f"\tTime elapsed: {np.round(time.time()-self.computation.start_time)}\n"
 		self.heading_str=s		
 		
 	def constraints_printout(self):
@@ -107,8 +110,8 @@ class output:
 		constr=computation.constr
 		weak_mc_dict=computation.weak_mc_dict
 		d=self.d
-		if not computation.dx_norm is None:
-			d['dx_norm']=computation.dx_norm
+		if not self.dx_norm is None:
+			d['dx_norm']=self.dx_norm
 		T=len(d['names'])
 		d['set_to'],d['assco'],d['cause'],d['multicoll']=['']*T,['']*T,['']*T,['']*T
 		if constr is None:
@@ -474,10 +477,10 @@ l=STANDARD_LENGTH
 pr=[
 		['count',		2,			False,		'',					False,			'right', 		2,					None],
 		['names',		None,		True,		'Variable names:',	False,			'right', 		2, 					None],
-		['args',		None,		False,		'Coef:',				True,			'right', 		2, 					-1],
-		['se_robust',	None,		False,		'rob.SE',		True,			'right', 		3, 					-1],
+		['args',		None,		False,		'Coef:',			True,			'right', 		2, 					-1],
+		['se_robust',	None,		False,		'rob.SE',			True,			'right', 		3, 					-1],
 		['sign_codes',	5,			True,		'',					False,			'left', 		2, 					-1],
-		['dx_norm',		None,		False,		'computation:',		True,			'right', 		2, 					None],
+		['dx_norm',		None,		False,		'direction:',		True,			'right', 		2, 					None],
 		['tstat',		2,			False,		't-stat.:',			True,			'right', 		2, 					2],
 		['tsign',		None,		False,		'p-value:',			False,			'right', 		2, 					3],
 		['multicoll',	1,			True,		'',					False,			'left', 		2, 					None],

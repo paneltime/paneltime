@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+#This module handle interfacing for various output paltforms
+
 import IPython
 import webbrowser
 import output
@@ -8,11 +10,40 @@ import os
 import charts
 import shutil
 import numpy as np
+import time
 
 
 WEB_PAGE='paneltime.html'
 TMP_PAGE='tmphtml'
 pic_num=[1]
+
+
+class callback:
+	def __init__(self,window, exe_tab, panel, console_output):
+		self.channel = get_channel(window, exe_tab, panel, console_output)
+		self.panel = panel
+		self.set_progress = self.channel.set_progress
+		
+	def set_computation(self, computation, msg_main, _print=True):
+		self.computation = computation
+		self.msg_main = msg_main
+		self._print = _print
+
+	def print(self, msg, its, incr, ll, percent , update_type, task, dx_norm):
+		if not self._print:
+			return
+		if not self.channel.output_set:
+			self.channel.set_output_obj(ll, self.computation, self.msg_main, dx_norm)
+		ok = self.channel.set_progress(percent ,msg ,task=task)
+		if update_type>0:
+			self.channel.update_after_direction(self.computation,its, dx_norm)
+		elif update_type==0 or update_type==2:
+			self.channel.update_after_linesearch(self.computation,ll,incr, dx_norm)
+		return ok
+	
+	def print_final(self, msg, fret, conv, t0, xsol):
+		self.channel.print_final(msg, fret, conv, t0, xsol)
+	
 
 
 def get_channel(window,exe_tab,panel, console_output):
@@ -41,28 +72,30 @@ class web_output:
 			self.save_html(get_web_page('None', 'None', 'None', '', True))
 			webbrowser.open(WEB_PAGE, new = 2)
 		self.charts=charts.process_charts(panel)
+		self.output_set = False
 			
 			
 		
 	def set_progress(self,percent, text, task):
 		return True
 		
-	def set_output_obj(self,ll, comput,main_msg):
+	def set_output_obj(self,ll, comput,main_msg, dx_norm):
 		"sets the outputobject in the output" 
 		self.output=output.output(ll,self.panel, comput,main_msg)
+		self.output_set = True
 		
-	def update_after_direction(self,comput,its):
+	def update_after_direction(self,comput,its, dx_norm):
 		if not hasattr(comput,'ll'):
 			return	
 		self.its=its
-		self.output.update_after_direction(comput,its)
+		self.output.update_after_direction(comput,its, dx_norm)
 		self.reg_table=self.output.reg_table()
 		tbl,llength=self.reg_table.table(4,'(','HTML',True,
 							   show_direction=True,
 							   show_constraints=True)		
 		web_page=get_web_page(comput.ll.LL, 
 							  comput.ll.args.args_v, 
-							  comput.dx_norm,
+							  dx_norm,
 							  tbl,
 							  self.Jupyter==False)
 		if self.Jupyter:
@@ -71,17 +104,17 @@ class web_output:
 		else:
 			self.save_html(web_page)
 		
-	def update_after_linesearch(self,comput,ll,incr):
+	def update_after_linesearch(self,comput,ll,incr, dx_norm):
 		if not hasattr(comput,'ll'):
 			return			
-		self.output.update_after_linesearch(comput,ll,incr)
+		self.output.update_after_linesearch(comput,ll,incr, dx_norm)
 		self.reg_table=self.output.reg_table()
 		tbl,llength=self.reg_table.table(4,'(','HTML',True,
 							   show_direction=True,
 							   show_constraints=True)		
 		web_page=get_web_page(ll.LL, 
 							  ll.args.args_v, 
-							  comput.dx_norm,
+							  dx_norm,
 							  tbl,
 							  self.Jupyter==False)
 		if self.Jupyter:
@@ -99,6 +132,11 @@ class web_output:
 		shutil.copy(fpath+TMP_PAGE, fpath+WEB_PAGE)
 
 		
+	def print_final(self, msg, fret, conv, t0, xsol):
+		print(msg)
+		print(f"LL={fret}  success={conv}  t={time.time()-t0}")
+		print(xsol)	
+		
 		
 	
 
@@ -106,6 +144,7 @@ class web_output:
 class console:
 	def __init__(self,panel):
 		self.panel=panel
+		self.output_set = False
 		
 	def set_progress(self,percent,text, task):
 		if task=='done':
@@ -114,31 +153,43 @@ class console:
 		#print(f"{perc} - {task}: {text}")
 		return True
 		
-	def set_output_obj(self,ll, comput,msg_main):
-		self.output=output.output(ll,self.panel, comput,msg_main)
+	def set_output_obj(self,ll, comput,msg_main, dx_norm):
+		self.output=output.output(ll,self.panel, comput,msg_main, dx_norm)
+		self.output_set = True
 		
-	def update_after_direction(self,comput,its):
+	def update_after_direction(self,comput,its, dx_norm):
 		pass
 		
-	def update_after_linesearch(self,comput,ll,incr):
-		pass
+	def update_after_linesearch(self,comput,ll,incr, dx_norm):
+		print(ll.LL)
+		
+	def print_final(self, msg, fret, conv, t0, xsol):
+		print(msg)
+		print(f"LL={fret}  success={conv}  t={time.time()-t0}")
+		print(xsol)		
 				
 class tk_widget:
 	def __init__(self,window,exe_tab,panel):
 		self.panel=panel
 		self.tab=window.main_tabs._tabs.add_output(exe_tab)
 		self.set_progress=self.tab.progress_bar.set_progress
+		self.output_set = False
 
 		
-	def set_output_obj(self,ll, comput,msg_main):
-		self.tab.set_output_obj(ll,self.panel, comput,msg_main)
+	def set_output_obj(self,ll, comput,msg_main, dx_norm):
+		self.tab.set_output_obj(ll,self.panel, comput,msg_main, dx_norm)
+		self.output_set = True
 		
-	def update_after_direction(self,comput,its):
-		self.tab.update_after_direction(comput,its)
+	def update_after_direction(self,comput,its, dx_norm):
+		self.tab.update_after_direction(comput,its, dx_norm)
 		
-	def update_after_linesearch(self,comput,ll,incr):
-		self.tab.update_after_linesearch(comput,ll,self.panel,incr)
+	def update_after_linesearch(self,comput,ll,incr, dx_norm):
+		self.tab.update_after_linesearch(comput,ll,self.panel,incr, dx_norm)
 		
+	def print_final(self, msg, fret, conv, t0, xsol):
+		print(msg)
+		print(f"LL={fret}  success={conv}  t={time.time()-t0}")
+		print(xsol)	
 
 
 def get_web_page(LL, args, comput,tbl,auto_update):

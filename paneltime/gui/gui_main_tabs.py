@@ -80,6 +80,7 @@ class tab:
 		self.notebook.add(self.frame,text=name)
 		self.widget = widget	
 		self.locals=dict()
+		self.pool = None
 		if not widget is None:
 			widget.grid(row=1, column=0,sticky=tk.NSEW)
 
@@ -147,12 +148,10 @@ class tab:
 	def run(self):
 		win=self.notebook.win
 		win.data.save()
-		try:
-			self.pool = pool.ThreadPool(processes=1)
-		except Exception as e:
-			print(e)
-			self.pool.close()
-			self.pool = pool.ThreadPool(processes=1)
+		if not self.pool is None:
+			if self.pool._state==pool.RUN:
+				self.pool.close()
+		self.pool = pool.ThreadPool(processes=1)
 		text=self.widget.get_all()
 		self.globals['exe_tab']=self
 		self.isrunning=True
