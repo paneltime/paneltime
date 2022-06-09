@@ -3,7 +3,6 @@
 
 import numpy as np
 import stat_functions as stat
-import functions as fu
 import calculus_functions as cf
 
 

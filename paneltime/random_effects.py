@@ -3,7 +3,6 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import functions as fu
 
 class re_obj:
 	def __init__(self,panel,group,T_i,T_i_count,fixed_random_eff):

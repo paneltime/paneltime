@@ -8,7 +8,6 @@ import numpy as np
 import time
 import threading
 import debug
-import functions as fu
 import calculus_functions as cf
 import model_parser
 import calculus
@@ -226,7 +225,7 @@ class panel:
 			if np.sum(self.idincl)<len(self.idincl):
 				idname=self.input.IDs.columns[0]
 				idremoved=np.array(self.input.IDs)[ix,0][self.idincl==False]
-				s=fu.formatarray(idremoved,90,', ')
+				s = formatarray(idremoved,90,', ')
 				print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
 			#remove in production. Checking sorting:
 			tvar=arrayize(timevar, N,self.max_T,T, self.idincl,sel)
@@ -457,3 +456,8 @@ def to_numpy(x):
 	if len(x.shape)==2:
 		return x
 	return x.reshape((len(x),1))
+
+def formatarray(array,linelen,sep):
+	s=sep.join([str(i) for i in array])
+	s='\n'.join(s[n:n + linelen] for n in range(0, len(s), linelen))	
+	return s

@@ -5,7 +5,6 @@
 import numpy as np
 import calculus_functions as cf
 import time
-import functions as fu
 import os
 import loglikelihood as lgl
 
@@ -51,7 +50,7 @@ def grad_debug(ll,panel,d):
 
 	
 def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
-	args1=fu.copy_array_dict(f0.args.args_d)
+	args1=lgl.copy_array_dict(f0.args.args_d)
 	args1[varname1][pos1]+=d
 	
 	f0=lgl.LL(f0.args.args_d, panel)
@@ -66,9 +65,9 @@ def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
 
 	
 def hess_debug_detail(f0,panel,d,llname,varname1,varname2,pos1=0,pos2=0):
-	args1=fu.copy_array_dict(f0.args.args_d)
-	args2=fu.copy_array_dict(f0.args.args_d)
-	args3=fu.copy_array_dict(f0.args.args_d)
+	args1=lgl.copy_array_dict(f0.args.args_d)
+	args2=lgl.copy_array_dict(f0.args.args_d)
+	args3=lgl.copy_array_dict(f0.args.args_d)
 	args1[varname1][pos1]+=d
 	args2[varname2][pos2]+=d	
 	args3[varname1][pos1]+=d

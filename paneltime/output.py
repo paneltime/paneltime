@@ -8,7 +8,6 @@ from scipy import stats as scstats
 from tkinter import font as tkfont
 import tkinter as tk
 import stat_functions as stat
-import functions as fu
 import model_parser
 import time
 STANDARD_LENGTH=8
@@ -262,14 +261,6 @@ class column:
 			else:
 				return np.array([str(i).ljust(self.length)[:self.length] for i in self.input])
 
-			
-def get_preferences(output_gui):
-	try:
-		pref=output_gui.window.right_tabs.preferences.options
-		return pref
-	except:
-		return
-	
 def sandwich(computation,lags,oposite=False,resize=True):
 	panel=computation.panel
 	H,G,idx=reduce_size(computation,oposite,resize)
@@ -635,14 +626,14 @@ class join_table(dict):
 			for i in range(m):
 				X[3*ix[i]+1][col+2]=args[i]
 				X[3*ix[i]+2][col+2]=se_sgn[i]
-			X[1+3*n][col+2]=fu.round_sign_digits(self[key].LL,5,1)
+			X[1+3*n][col+2]=round_sign_digits(self[key].LL,5,1)
 			X[2+3*n][col+2]=self[key].df	
 			X[3+3*n][col+2]=f"{round(self[key].Rsqadj*100,1)}%"
 		else:
 			for i in range(m):
 				X[ix[i]+1][col*2+2]=args[i]
 				X[ix[i]+1][col*2+3]=se_sgn[i]		
-			X[1+n][col*2+3]=fu.round_sign_digits(self[key].LL,5,1)
+			X[1+n][col*2+3]=round_sign_digits(self[key].LL,5,1)
 			X[2+n][col*2+3]=self[key].df
 			X[3+n][col*2+3]=f"{round(self[key].Rsqadj*100,1)}%"
 	
@@ -659,3 +650,10 @@ class join_table_column:
 		self.pqdkm=panel.pqdkm		
 		self.Y_name=panel.input.Y_names
 		
+		
+		
+		
+		
+def round_sign_digits(x,digits,min_digits=0):
+	d=int(np.log10(abs(x)))
+	return np.round(x,max((digits-1,d+min_digits))-d)

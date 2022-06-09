@@ -11,7 +11,6 @@ except ImportError as e:
 	c=None
 import numpy as np
 import calculus_ll as cll
-import functions as fu
 import calculus_functions as cf
 import stat_functions as stat
 import random_effects as re
@@ -244,7 +243,7 @@ class LL:
 		
 
 	def copy_args_d(self):
-		return fu.copy_array_dict(self.args.args_d)
+		return copy_array_dict(self.args.args_d)
 
 	
 	def h(self,panel,e,z):
@@ -384,3 +383,11 @@ def lag_matr(L,args):
 		L[d]=args[i]
 
 	return L
+
+
+
+def copy_array_dict(d):
+	r=dict()
+	for i in d:
+		r[i]=np.array(d[i])
+	return r

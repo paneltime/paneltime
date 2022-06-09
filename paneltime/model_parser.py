@@ -8,7 +8,6 @@ CONST_NAME='one'
 NUMERIC_TAG="_numeric"
 
 import numpy as np
-import functions as fu
 import loaddata
 import numpy.lib.recfunctions as rfn
 import pandas as pd

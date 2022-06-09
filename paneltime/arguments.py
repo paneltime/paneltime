@@ -5,7 +5,6 @@
 
 import stat_functions as stat
 import numpy as np
-import functions as fu
 import loglikelihood as logl
 import random_effects as re
 import calculus_functions as cf

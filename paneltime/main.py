@@ -12,7 +12,6 @@
 
 import numpy as np
 import output
-import stat_object
 import panel
 import warnings
 import multi_core as mc
@@ -21,12 +20,10 @@ import model_parser
 import maximize
 import tempstore
 import os
-from paneltimegui import gui
 import communication as comm
-import functions as fu
 import time
 
-N_NODES = 4
+N_NODES = 1
 warnings.filterwarnings('error')
 np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
@@ -94,12 +91,12 @@ class results:
 
 
 def mp_check(datainput,window):
-	return None#Multithreading disabled. Found it did not raise performance, much compared with the disadvantage of the randomness it adds to the results
+
 	modules="""
-import maximize_num
+import maximize
 """	
 	if window is None:
-		mp=mc.multiprocess(datainput.tempfile,N_NODES,modules, 'computation')
+		mp=mc.multiprocess(datainput.tempfile,N_NODES,modules)
 		return mp
 	if window.mc is None:
 		window.mc=mc.multiprocess(datainput.tempfile,N_NODES,modules)

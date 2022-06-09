@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 
 #This module handle interfacing for various output paltforms
+try:
+	import IPython
+except:
+	IPython = None
 
-import IPython
 import webbrowser
 import output
 import os
-import charts
 import shutil
 import numpy as np
 import time
@@ -51,12 +53,10 @@ def get_channel(window,exe_tab,panel, console_output):
 		return console(panel)
 	if not window is None:#tkinter gui
 		return tk_widget(window,exe_tab,panel)
-	try:
+	if not IPython is None:
 		n=IPython.get_ipython().__class__.__name__
 		if n=='ZMQInteractiveShell':
 			return web_output(True,panel)
-	except:
-		pass
 	try:
 		return web_output(False,panel)
 	except:
@@ -71,7 +71,6 @@ class web_output:
 			self.f = open(TMP_PAGE, "w")
 			self.save_html(get_web_page('None', 'None', 'None', '', True))
 			webbrowser.open(WEB_PAGE, new = 2)
-		self.charts=charts.process_charts(panel)
 		self.output_set = False
 			
 			
@@ -122,7 +121,7 @@ class web_output:
 			display(IPython.display.HTML(web_page))
 		else:
 			self.save_html(web_page)
-		#self.charts.save_all(ll)
+
 		
 	def save_html(self,htm_str):
 		self.f.truncate(0)

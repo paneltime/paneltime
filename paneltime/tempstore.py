@@ -11,11 +11,9 @@ fname_args=os.path.join(tdr,'paneltime.args')
 fname_data=os.path.join(tdr,'paneltime.data')
 fname_key=os.path.join(tdr,'paneltime.key')
 fname_temprec=os.path.join(tdr,'paneltime.temprec')
-fname_image_temprec=os.path.join(tdr,'paneltime.tempimagerec')
-fname_window=os.path.join(tdr,'paneltime.win')
-fname_datasets=os.path.join(tdr,'paneltime.datasets')
+
 max_sessions=20
-file_name_list=[fname_args,fname_data,fname_key,fname_image_temprec,fname_window,fname_datasets]
+file_name_list=[fname_args,fname_data,fname_key]
 
 class args_archive:
 

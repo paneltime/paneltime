@@ -14,6 +14,49 @@ import loglikelihood as lgl
 
 
 
+class multiprocess:
+	def __init__(self,tempfile,max_nodes=None,initcommand='',holdbacks=None):
+		self.d=dict()
+		self.master=master(initcommand,max_nodes,holdbacks,tempfile)#for paralell computing
+
+	def execute(self,expr,progress_bar=None, collect=True):
+		"""For submitting multiple functions to be evalated. expr is an array of strings to be evaluated"""
+		"""If collect == True, collect results immediately, else results are collected later with collect()"""
+
+		self.progress_bar = progress_bar
+		self.tasks = Tasks(self.master, expr,progress_bar=progress_bar)
+		if not collect:
+			return
+		d,d_node = self.tasks.collect()
+		self.tasks = None
+		for i in d:
+			self.d[i]=d[i]
+		return self.d
+
+	def collect(self):
+		if self.tasks==None:
+			raise RuntimeError('Tasks has all ready been collected')
+		d,d_node = self.tasks.collect()
+		self.tasks = None
+		for i in d:
+			self.d[i]=d[i]		
+		return self.d
+
+	def send_dict(self,d,cpu_ids=None,command=''):
+		for i in d:
+			self.d[i]=d[i]		
+		self.master.send_dict(d,cpu_ids,command)
+
+	def quit(self):
+		self.master.quit()
+
+	def listen(self, tasks, outbox):
+		self.listen_task = Listen(self.master, tasks, outbox)
+		return self.listen_task
+	
+	
+	
+
 class master():
 	"""creates the slaves"""
 	def __init__(self,initcommand,max_nodes, holdbacks,tempfile):
@@ -281,45 +324,7 @@ def write(f,txt):
 	f.flush()
 
 
-class multiprocess:
-	def __init__(self,tempfile,max_nodes=None,initcommand='',holdbacks=None):
-		self.d=dict()
-		self.master=master(initcommand,max_nodes,holdbacks,tempfile)#for paralell computing
 
-	def execute(self,expr,progress_bar=None, collect=True):
-		"""For submitting multiple functions to be evalated. expr is an array of strings to be evaluated"""
-		"""If collect == True, collect results immediately, else results are collected later with collect()"""
-		
-		self.progress_bar = progress_bar
-		self.tasks = Tasks(self.master, expr,progress_bar=progress_bar)
-		if not collect:
-			return
-		d,d_node = self.tasks.collect()
-		self.tasks = None
-		for i in d:
-			self.d[i]=d[i]
-		return self.d
-	
-	def collect(self):
-		if self.tasks==None:
-			raise RuntimeError('Tasks has all ready been collected')
-		d,d_node = self.tasks.collect()
-		self.tasks = None
-		for i in d:
-			self.d[i]=d[i]		
-		return self.d
-	
-	def send_dict(self,d,cpu_ids=None,command=''):
-		for i in d:
-			self.d[i]=d[i]		
-		self.master.send_dict(d,cpu_ids,command)
-			
-	def quit(self):
-		self.master.quit()
-		
-	def listen(self, tasks, outbox):
-		self.listen_task = Listen(self.master, tasks, outbox)
-		return self.listen_task
 
 
 def obtain_fname(name):

@@ -165,6 +165,7 @@ def maximize(panel, args,callback = None, msg_main = ""):
 	
 	t0=time.time()
 	fret,xsol,hessin,its, conv, ls, msg=dfpmin(args,comput, callback.print)
+	panel.input.args_archive.save(ls.ll.args,True)
 	callback.print_final(msg, fret, conv, t0, xsol)
 	return ls.ll, comput, conv
 

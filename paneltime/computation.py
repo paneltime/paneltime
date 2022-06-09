@@ -7,6 +7,7 @@ from scipy import stats
 import constraints
 import loglikelihood as logl
 import time
+import pickle
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
@@ -247,3 +248,75 @@ def potential_gain(dx, g, H):
 		dxLL[i]=dxLL_full-(sum(g*dxi)+0.5*np.dot(dxi.reshape((1,n)),np.dot(H,dxi.reshape((n,1)))))[0,0]
 		
 	return dxLL, dxLL_full
+
+
+
+class Comm:
+	def __init__(self, mp, panel, args, ll, direction):
+		self.mp = mp
+		self.panel = panel
+		self.direction = direction
+		f = panel.input.tempfile.tempfile(delete=False)
+		self.f_write = f.name.replace('\\','/')
+		f.close()
+		self.write('', ll.LL, args.args_v, direction.H)
+		self.spawn()
+		self.t = time.time()
+
+	def write(self, command, LL=None, args=None, H=None):
+		f = open(self.f_write, 'wb')
+		pickle.dump((command, LL, args, H), f)
+		f.flush()
+		f.close()
+
+	def read(self, fname):
+		try:
+			f = open(fname, 'rb')
+			response, LL, args, hessin = pickle.load(f)
+		except EOFError:
+			f.close()
+			return False, None, None, None, None
+		f.close()
+		return True, response, LL, args, hessin
+
+
+	def spawn(self):
+		tasks=[]
+		lamdas=[1,4,8]
+		self.f_read_files=[]
+		for i in range(len(lamdas)):
+			f = self.panel.input.tempfile.tempfile(delete=False)
+			fname=f.name.replace('\\','/')
+			f.close()
+			self.f_read_files.append(fname)
+			tasks.append(f"maximize_num.maximize(panel, f_write='{fname}',f_read='{self.f_write}', id)")
+		self.mp.execute(tasks, wait_and_collect=False)
+
+	def terminate(self):
+		if self.mp is None:
+			return
+		self.write('abort')
+		self.mp.wait_and_collect()
+
+	def communicate(self, ll, H):
+		if time.time() - self.t<1 or self.mp is None:		
+			return ll, H
+		LLs = [ll.LL]
+		xs = [ll.args.args_v]
+		h = []
+		rf=list(self.f_read_files)
+		while len(rf):
+			f = rf.pop(0)
+			OK, response, fret, x, hessin = self.read(f)
+			if OK:
+				LLs.append(fret)
+				xs.append(x) 
+				h.append(hessinv(hessin, H))				
+			else:
+				rf.append(f)
+		i=np.argmax(LLs)
+		if LLs[i]>ll.LL:
+			ll=lgl.LL(xs[i], self.panel, self.direction.constr)
+		self.write('', ll.LL, ll.args.args_v, self.direction.H)
+		self.t = time.time()
+		return ll, H
