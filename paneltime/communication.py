@@ -25,25 +25,27 @@ class callback:
 		self.channel = get_channel(window, exe_tab, panel, console_output)
 		self.panel = panel
 		self.set_progress = self.channel.set_progress
+		self.kw = {}
 		
-	def set_computation(self, computation, msg_main, _print=True):
+	def set_computation(self, computation, _print=True):
 		self.computation = computation
-		self.msg_main = msg_main
 		self._print = _print
+		
+	def generic(self, **keywordargs):
+		if 'f' in keywordargs:
+			print(keywordargs['f'])
+		
 
-	def print(self, msg, its, incr, ll, percent , update_type, task, dx_norm):
+	def print(self, msg, its, incr, ll, perc , task, dx_norm):
 		if not self._print:
 			return
 		if not self.channel.output_set:
-			self.channel.set_output_obj(ll, self.computation, self.msg_main, dx_norm)
-		ok = self.channel.set_progress(percent ,msg ,task=task)
-		if update_type>0:
-			self.channel.update_after_direction(self.computation,its, dx_norm)
-		elif update_type==0 or update_type==2:
-			self.channel.update_after_linesearch(self.computation,ll,incr, dx_norm)
-		return ok
+			self.channel.set_output_obj(ll, self.computation, dx_norm)
+		self.channel.set_progress(perc ,msg ,task=task)
+		self.channel.update(self.computation,its,ll,incr, dx_norm)
 	
-	def print_final(self, msg, fret, conv, t0, xsol):
+	def print_final(self, msg, its, incr, fret, perc, task, conv, dx_norm, t0, xsol, ll):
+		self.print(msg, its, incr, ll, perc, task, dx_norm)
 		self.channel.print_final(msg, fret, conv, t0, xsol)
 	
 
@@ -73,46 +75,24 @@ class web_output:
 			webbrowser.open(WEB_PAGE, new = 2)
 		self.output_set = False
 			
-			
-		
-	def set_progress(self,percent, text, task):
+	def set_progress(self,perc, text, task):
 		return True
 		
-	def set_output_obj(self,ll, comput,main_msg, dx_norm):
+	def set_output_obj(self,ll, comput, dx_norm):
 		"sets the outputobject in the output" 
-		self.output=output.output(ll,self.panel, comput,main_msg)
+		self.output=output.output(ll,self.panel, comput)
 		self.output_set = True
 		
-	def update_after_direction(self,comput,its, dx_norm):
-		if not hasattr(comput,'ll'):
-			return	
+		
+	def update(self,comput, its, ll, incr, dx_norm):
+		self.output.update(comput,its, ll, incr, dx_norm)
 		self.its=its
-		self.output.update_after_direction(comput,its, dx_norm)
 		self.reg_table=self.output.reg_table()
 		tbl,llength=self.reg_table.table(4,'(','HTML',True,
 							   show_direction=True,
 							   show_constraints=True)		
 		web_page=get_web_page(comput.ll.LL, 
 							  comput.ll.args.args_v, 
-							  dx_norm,
-							  tbl,
-							  self.Jupyter==False)
-		if self.Jupyter:
-			IPython.display.clear_output(wait=True)
-			display(IPython.display.HTML(web_page))
-		else:
-			self.save_html(web_page)
-		
-	def update_after_linesearch(self,comput,ll,incr, dx_norm):
-		if not hasattr(comput,'ll'):
-			return			
-		self.output.update_after_linesearch(comput,ll,incr, dx_norm)
-		self.reg_table=self.output.reg_table()
-		tbl,llength=self.reg_table.table(4,'(','HTML',True,
-							   show_direction=True,
-							   show_constraints=True)		
-		web_page=get_web_page(ll.LL, 
-							  ll.args.args_v, 
 							  dx_norm,
 							  tbl,
 							  self.Jupyter==False)
@@ -136,30 +116,23 @@ class web_output:
 		print(f"LL={fret}  success={conv}  t={time.time()-t0}")
 		print(xsol)	
 		
-		
-	
-
-		
 class console:
 	def __init__(self,panel):
 		self.panel=panel
 		self.output_set = False
 		
-	def set_progress(self,percent,text, task):
+	def set_progress(self,perc,text, task):
 		if task=='done':
 			print(text)
-		#perc = f'{int(percent*100)}%'.ljust(5)
+		#perc = f'{int(perc*100)}%'.ljust(5)
 		#print(f"{perc} - {task}: {text}")
 		return True
 		
-	def set_output_obj(self,ll, comput,msg_main, dx_norm):
-		self.output=output.output(ll,self.panel, comput,msg_main, dx_norm)
+	def set_output_obj(self,ll, comput, dx_norm):
+		self.output=output.output(ll,self.panel, comput, dx_norm)
 		self.output_set = True
-		
-	def update_after_direction(self,comput,its, dx_norm):
-		pass
-		
-	def update_after_linesearch(self,comput,ll,incr, dx_norm):
+
+	def update(self,comput, its,ll,incr, dx_norm):
 		print(ll.LL)
 		
 	def print_final(self, msg, fret, conv, t0, xsol):
@@ -175,15 +148,12 @@ class tk_widget:
 		self.output_set = False
 
 		
-	def set_output_obj(self,ll, comput,msg_main, dx_norm):
-		self.tab.set_output_obj(ll,self.panel, comput,msg_main, dx_norm)
+	def set_output_obj(self,ll, comput, dx_norm):
+		self.tab.set_output_obj(ll,self.panel, comput, dx_norm)
 		self.output_set = True
 		
-	def update_after_direction(self,comput,its, dx_norm):
-		self.tab.update_after_direction(comput,its, dx_norm)
-		
-	def update_after_linesearch(self,comput,ll,incr, dx_norm):
-		self.tab.update_after_linesearch(comput,ll,self.panel,incr, dx_norm)
+	def update(self,comput, its, ll, incr, dx_norm):
+		self.tab.update(self.panel, comput,its, ll, incr, dx_norm)
 		
 	def print_final(self, msg, fret, conv, t0, xsol):
 		print(msg)

@@ -16,8 +16,9 @@ STPMX=100.0
 
 
 class Computation:
-	def __init__(self,panel, callback, gtol = 0, tolx = TOLX):
-		"""callback is a function taking arguments (percent:float, text:str, task:str)"""
+	def __init__(self,panel, callback = lambda **kw: None, 
+				 gtol = 0, tolx = TOLX):
+		"""callback is a function taking any named arguments """
 		self.callback = callback
 		self.gradient=calculus.gradient(panel, self.callback)
 		self.gtol = gtol
@@ -31,23 +32,21 @@ class Computation:
 		self.H_correl_problem=False
 		self.singularity_problems=False
 		self.start_time=time.time()
-		self.ll = None
 		self.num_hess_count = 0
 		self.H, self.g, self.G = None, None, None
 
 
-	def set(self, its,increment,lmbda,rev, add_dyn_constr, H):
-		#Assumes self.LL has been invoked
+	def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll):
 		self.its=its
 		self.lmbda=lmbda
 		self.has_reversed_directions=rev
 		self.increment=increment
 		self.constr_old=self.constr
-		self.constr=constraints.constraints(self.panel,self.ll.args,its)
-		self.constr.add_static_constraints(self.ll)		
+		self.constr=constraints.constraints(self.panel,ll.args,its)
+		self.constr.add_static_constraints(ll)		
 		
 		if add_dyn_constr:
-			self.constr.add_dynamic_constraints(self, H)	
+			self.constr.add_dynamic_constraints(self, H, ll)	
 			
 		self.CI=self.constr.CI
 		if self.constr is None:
@@ -58,47 +57,50 @@ class Computation:
 			self.weak_mc_dict=self.constr.weak_mc_dict
 		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
 
-	def exec(self, dx, hessin, H, its, ls, increment, force):
-		self.callback(None, ls.f, 'LL')
-		g, G = self.calc_gradient()
+	def exec(self, dx, dx_norm, hessin, H, f, x, g_old, incr, rev, alam, its, ll, calc = True):
+		
+		g, G = self.calc_gradient(ll)
 		
 		pgain, totpgain = potential_gain(dx, g, H)
 		max_pgain = max(pgain)
-		g_norm =np.max(np.abs(g)*np.abs(ls.x)/(abs(ls.f)+1e-12) )
+		g_norm =np.max(np.abs(g)*np.abs(x)/(abs(f)+1e-12) )
 		
 		if max_pgain <= self.gtol:
-			return ls.x, ls.f, hessin, H, g, True		
-
-		test = (((increment/(totpgain+1e-100)) < 0.2) and self.num_hess_count>3) or self.num_hess_count>10
-		#print((increment/(totpgain+1e-100)))
-		if test:
-			H = self.calc_hessian()
-			hessin = hess_inv(H, None)
-			self.num_hess_count = 0
-		else:
-			self.num_hess_count+=1
-			hessin=self.hessin_num(hessin, g-ls.g, dx)
-			H = hess_inv(hessin, None)
 			
-		self.set( its, increment,ls.alam,ls.rev, True, H)
-		
+			return x, f, hessin, H, g, True		
+
+		test = (((incr/(totpgain+1e-100)) < 0.2) and self.num_hess_count>3) or self.num_hess_count>10
+		#print((incr/(totpgain+1e-100)))
+		if calc:
+			if test:
+				H = self.calc_hessian(ll)
+				hessin = hess_inv(H, None)
+				self.num_hess_count = 0
+			else:
+				self.num_hess_count+=1
+				hessin=self.hessin_num(hessin, g-g_old, dx)
+				H = hess_inv(hessin, None)
+		else:
+			self.H = H
+	
 		self.H, self.g, self.G = H, g, G
-		return ls.x, ls.f, hessin, H, g, False
+		
+		self.set(its, incr, alam, rev, True, H, ll)
+		
+		return x, f, hessin, H, g, False
 
 
-	def calc_gradient(self,ll=None):
-		if ll is None:
-			ll=self.ll
+	def calc_gradient(self,ll):
 		dLL_lnv, DLL_e=cll.gradient(ll,self.panel)
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
 		g, G = self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
 		return g, G
 	
 
-	def calc_hessian(self):
-		d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(self.ll,self.panel)
-		self.LL_hessian_tobit(self.ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
-		H = self.hessian.get(self.ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)	
+	def calc_hessian(self, ll):
+		d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(ll,self.panel)
+		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
+		H = self.hessian.get(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)	
 		return H
 	
 	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
@@ -183,32 +185,26 @@ class Computation:
 					print("default OLS-arguments worked")
 			else:
 				raise RuntimeError("OLS-arguments failed, you should check the data")
-		self.ll=ll
 		return ll
 	
 	def calc_init_dir(self, p0):
 		"""Calculates the initial computation"""
-		n=len(p0)
-		self.LL(p0)
-		g, G = self.calc_gradient()
-		H = self.calc_hessian()
+		ll = self.init_ll(p0)
+		g, G = self.calc_gradient(ll)
+		H = self.calc_hessian(ll)
 		h = np.diag(H)
 		h = h - (h == 0)
 		h = 0.75/h - 0.25	
 		hessin = np.diag(h)	
 		H = np.diag(1/h)
-		return p0, self.ll.LL , g, hessin, H
+		return p0, ll, ll.LL , g, hessin, H
 
 	def LL(self,x):
-		if self.ll is None:
-			self.init_ll(x)
-			return self.ll.LL, self.ll
 		ll = logl.LL(x, self.panel, self.constr)
 		if ll is None:
 			return None, None
 		elif ll.LL is None:
 			return None, None
-		self.ll = ll
 		return ll.LL, ll
 	
 def det_managed(H):

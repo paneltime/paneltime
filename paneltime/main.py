@@ -39,22 +39,10 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 		print("No valid time variable defined. This is required")
 		return
 	mp = mp_check(datainput,window)
-	results_obj=pqdkm_iteration(datainput,options,mp,window,exe_tab, console_output)
+	results_obj = results(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
+	if window is None and not mp is None:
+		mp.quit()
 	return results_obj
-	
-def pqdkm_iteration(datainput,options,mp,window,exe_tab, console_output):#allows for a list of different ARIMA options, for example by starting with a more restrictive model
-	pqdkm=options.pqdkm.value
-	try:
-		a=pqdkm[0][0]
-	except:
-		pqdkm=[pqdkm]
-	for i in pqdkm:
-		print(f'pqdkm={i}')
-		results_obj=results(datainput,options,mp,i,window,exe_tab, console_output)
-		if len(pqdkm)>1:
-			options.loadargs.value=2
-	return results_obj
-	
 
 class input_class:
 	def __init__(self,dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,join_table,instruments):
@@ -70,10 +58,6 @@ class input_class:
 			self.args=options.arguments.value
 		self.join_table=join_table
 			
-		
-
-	
-	
 class results:
 	def __init__(self,datainput,options,mp,pqdkm,window,exe_tab, console_output):
 		print ("Creating panel")
@@ -85,7 +69,7 @@ class results:
 						 command=("panel.ARMA_init()\n"))
 		pnl.ARMA_init()
 		t0 = time.time()
-		self.ll, self.comput, self.conv = maximize.maximize(pnl, pnl.args.args_init.args_v, callback)
+		self.ll, self.conv, self.H, self.g, self.G = maximize.run(pnl, pnl.args.args_init.args_v, callback, mp)
 		print(f"LL: {self.ll.LL}, time: {time.time()-t0}")
 		self.panel=pnl
 

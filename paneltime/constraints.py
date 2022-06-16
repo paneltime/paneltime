@@ -176,8 +176,7 @@ class constraints(dict):
 		self.add_custom_constraints(general_constraints, ll)
 		self.add_custom_constraints(pargs.user_constraints, ll)
 
-	def add_dynamic_constraints(self,computation, H):
-		ll=computation.ll
+	def add_dynamic_constraints(self,computation, H, ll):
 		k,k=H.shape
 		self.weak_mc_dict=dict()
 		include=np.array(k*[True])

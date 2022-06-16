@@ -50,7 +50,7 @@ class multiprocess:
 	def quit(self):
 		self.master.quit()
 
-	def listen(self, tasks, outbox):
+	def listen(self, tasks, outbox = {}):
 		self.listen_task = Listen(self.master, tasks, outbox)
 		return self.listen_task
 	
@@ -185,7 +185,7 @@ class Listen:
 		if self.n>mp.cpu_count:
 			raise RuntimeError(f'Can only listen to at most one task per node. You have chosen {self.n} tasks, but there are only {mp.cpu_count} nodes')		
 		
-		self.received = [{} for i in range(self.n)]
+		self.inbox = [{} for i in range(self.n)]
 		self.outbox = outbox
 		self.thread = []
 		self.done = [False]*self.n
@@ -199,28 +199,33 @@ class Listen:
 		try:
 			self.listen_unhandled(s)
 		except ValueError as e:
+			print(e)
 			if str(e) in ['peek of closed file',
 						  'write to closed file']:#happens when accessing after master process has ended
-				return		
+				return	
+		except Exception as e:
+			print(e)
+				
 								  
 		
 	def listen_unhandled(self, s):
 		quit = self.q	
+		self.mp.slaves[s].send(self.msg, self.tasks[s])
 		while True:
-			if quit: break
-			self.mp.slaves[s].send(self.msg, self.tasks[s])
-			while True:
-				quit = self.q
-				d, done = self.mp.slaves[s].receive()
-				if done: 
-					break	
-				self.mp.slaves[s].send(self.msg, (self.outbox, quit))				
-				if quit:
-					break
-				for i in d:
-					self.received[s][i]=d[i]
-		obj = self.mp.slaves[s].receive()
-		d, done = obj
+			quit = self.q
+			d, done = self.mp.slaves[s].receive()
+			if done: 
+				break	
+			self.mp.slaves[s].send(self.msg, (self.outbox, quit))				
+			if quit or done:
+				break
+			for i in d:
+				self.inbox[s][i] = d[i]
+		if not done:
+			obj = self.mp.slaves[s].receive()
+			d, done = obj
+		for i in d:
+			self.inbox[s][i] = d[i]		
 		if not done:
 			raise RuntimeError(f'Subprocess {s} did not end properly')
 		self.done[s]=True

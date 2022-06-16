@@ -8,6 +8,7 @@ import direction
 
 
 
+
 #This module finds the array of arguments that minimizes some function. The derivative 
 #of the function also needs to be supplied. 
 #This is an adaption of the Broyden-Fletcher-Goldfarb-Shanno variant of Davidon-Fletcher-Powell algorithm by 
@@ -111,7 +112,7 @@ class LineSearch:
 
 
 
-def dfpmin(x, comput, print_func):
+def dfpmin(x, comput, callback):
 	"""Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
 	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
 	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -121,7 +122,7 @@ def dfpmin(x, comput, print_func):
 	fargs are fixed arguments that ar not subject to optimization. ("Nummerical Recipes for C") """
 
 	comput.LL(x)
-	x, f, g, hessin, H = comput.calc_init_dir(x)
+	x, ll, f, g, hessin, H = comput.calc_init_dir(x)
 
 	its = 0
 	max_iter = 1000
@@ -132,43 +133,112 @@ def dfpmin(x, comput, print_func):
 		
 		dx = ls.x - x
 		incr = ls.f - f
+
+
+		x, f, hessin, H, g, conv = comput.exec(dx, dx_norm,  hessin, H, ls.f, ls.x, ls.g, incr, ls.rev, ls.alam, its, ls.ll)
 		
-		print_func(ls.msg, its, incr, ls.ll, 1.0 , 0, 'Line search', dx_norm)
 		
-		x, f, hessin, H, g, conv = comput.exec(dx, hessin, H, its, ls ,incr , False)
+		callback(msg = ls.msg, dx_norm = dx_norm, f = f, x = x, H = H, g = g, 
+				hessin = hessin, dx = dx, incr = incr, rev = ls.rev, alam = ls.alam, 
+				its = its, constr = comput.constr, perc = 1.0, task = 'Line search')			
 		
-		print_func("Done", its, dx, ls.ll, 1.0 , 1, 'Derivatives', dx_norm)
-	
 		test=np.max(np.abs(dx)) 
 		if (test < TOLX):  
 			msg = "Warning: Convergence on delta x; the gradient is incorrect or the tolerance is set too low"
-			return f,x,hessin,its, 0, ls, msg #FREEALL
-
+			return f,x,H,its, 0, ls, msg, dx_norm, incr #FREEALL
 
 		if conv:  
 			msg = "Convergence on zero gradient; local or global minimum identified"
-			return f,x,hessin,its,1, ls, msg #FREEALL
+			return f,x,H,its,1, ls, msg, dx_norm, incr #FREEALL
 	
 	msg = "No convergence within %s iterations" %(max_iter,)
-	return f,x,hessin,its,2, ls, msg								#too many iterations in dfpmin				
+	return f,x,H,its,2, ls, msg								#too many iterations in dfpmin				
 															#FREEALL
 
 
 		
 
 	
-def maximize(panel, args,callback = None, msg_main = ""):
+def maximize(panel, args, callback, comput = None):
 	
-	
-	comput = computation.Computation(panel, callback.set_progress, 1e-10, TOLX) 
-	callback.set_computation(comput, msg_main)
-	
-	t0=time.time()
-	fret,xsol,hessin,its, conv, ls, msg=dfpmin(args,comput, callback.print)
+	#have to  completely redesign callback, so that it takes only a dict as argument
+	args = np.array(args)
+	if comput is None:
+		comput = computation.Computation(panel, callback, 1e-10) 
+	callback(conv = False, done = False)
+	f, x, H, its, conv, ls, msg, dx_norm, incr = dfpmin(args,comput, callback)
+	callback(f = f, x = x, H = H, its = its, conv = conv, msg = msg, done = True)
 	panel.input.args_archive.save(ls.ll.args,True)
-	callback.print_final(msg, fret, conv, t0, xsol)
-	return ls.ll, comput, conv
+	
+	return comput, ls, msg, its, conv, dx_norm, incr
 
+
+def run(panel, args, callback, mp):
+	t0=time.time()
+	
+	comm  = Comm(panel, args, callback, mp)
+	
+	callback.print_final(comm.msg, comm.its, comm.incr, comm.f, 1, 'Done', comm.conv, comm.dx_norm, t0, comm.x, comm.ll)
+	
+	
+	return comm.ll, comm.conv, comm.comput.H, comm.comput.g, comm.comput.G
+
+
+
+class Comm:
+	def __init__(self, panel, args, callback, mp ):
+		self.callback = callback
+		self.comput = computation.Computation(panel, gtol = -1, tolx = TOLX) 
+		callback.set_computation(self.comput)
+		self.mp = mp
+		self.panel = panel
+		self.listen = None
+		if not mp is None:
+			self.listen = self.mp.listen(
+				[f"maximize.maximize(panel, {list(args)}, callback)"])
+			self.start_listening()
+		else:
+			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, callback.generic, comput)
+			self.msg = msg
+			self.f = ls.f
+			self.conv = conv
+			self.x = ls.x
+			self.ll = ls.ll
+			self.its = its
+			self.incr = incr
+			self.dx_norm = dx_norm
+
+	
+	def start_listening(self):
+		while not self.listen.done[0]:
+			self.print()
+			time.sleep(1)
+			
+	def print(self):
+		d = self.listen.inbox[0]
+		if not 'g' in d:
+			return
+		(f, msg , its, incr, x, perc,task, 
+		 dx_norm, dx, H, hessin, g, alam, rev, msg, conv, constr) = (d['f'], d['msg'], d['its'], d['incr'], 
+						d['x'], d['perc'], d['task'], d['dx_norm'], d['dx'], 
+						d['H'], d['hessin'], d['g'], d['alam'], d['rev'], d['msg'], d['conv'], d['constr'])
+		
+		print(x[:4])
+		self.ll = logl.LL(x, self.panel, d['constr'])
+		self.comput.exec(dx, dx_norm, hessin, H, f, x, g, incr, rev, alam, its, self.ll, False)
+		
+		if self.ll.LL!=f:
+			raise RuntimeError("thats strange")
+		
+		self.msg = msg
+		self.f = f
+		self.conv = conv
+		self.x = x
+		self.its = its
+		self.incr = incr
+		self.dx_norm = dx_norm
+		
+		self.callback.print(msg, its, incr, self.ll, perc , task, dx_norm)
 
 
 
@@ -179,18 +249,13 @@ class printout:
 		self.computation = computation
 		self.msg_main = msg_main
 
-	def print(self, msg, its, incr, ll, percent , update_type, task, dx_norm):
-		if not self._print:
-			return
-		if not self.channel.output_set:
-			self.channel.set_output_obj(ll, self.computation, self.msg_main, dx_norm)
-		ok = self.channel.set_progress(percent ,msg ,task=task)
-		if update_type>0:
-			self.channel.update_after_direction(self.computation,its, dx_norm)
-		elif update_type==0 or update_type==2:
-			self.channel.update_after_linesearch(self.computation,ll,incr, dx_norm)
-		return ok
+
 	
 	def print_final(self, msg, fret, conv, t0, xsol):
 		self.channel.print_final(msg, fret, conv, t0, xsol)
 	
+
+
+
+
+

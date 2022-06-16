@@ -15,9 +15,8 @@ STANDARD_LENGTH=8
 
 
 class output:
-	def __init__(self,ll,panel,computation,main_msg, dx_norm):
+	def __init__(self,ll,panel,computation, dx_norm):
 		self.ll=ll
-		self.main_msg=main_msg
 		self.computation=computation
 		self.panel=panel
 		self.lags=self.panel.options.robustcov_lags_statistics.value[1]
@@ -27,23 +26,18 @@ class output:
 		self.d={'names':np.array(self.panel.args.names_v),
 				'count':range(self.n_variables),
 				'args':self.ll.args.args_v}
-		self.update_after_direction(computation,0, dx_norm)
+		self.update(computation, 0, ll, self.incr, dx_norm)
 		self.heading()
-		
-	def update_after_direction(self,computation,its, dx_norm):
-		self.computation=computation		
-		self.iterations=its
-		self.dx_norm = dx_norm
-		self.constraints_printout()
-		self.t_stats()
-		self.heading()
-		
-	def update_after_linesearch(self,computation,ll,incr, dx_norm):
+
+	def update(self,computation, its, ll,incr, dx_norm):
 		self.computation=computation
+		self.iterations=its
 		self.ll=ll
 		self.dx_norm = dx_norm
 		self.incr=incr
 		self.d['args']=ll.args.args_v
+		self.constraints_printout()
+		self.t_stats()
 		self.heading()
 		
 	def statistics(self):
@@ -93,7 +87,6 @@ class output:
 		instr=''
 		if not self.panel.input.Z_names is None:
 			instr=', '.join(self.panel.input.Z_names[1:])
-			instr+="\t"+self.main_msg
 		s+=f"\nDependent: {self.panel.input.Y_names[0]}"
 		n,T,k=self.panel.X.shape
 		s+=f"\tPanel: {self.panel.NT_before_loss} observations,{n} groups and {T} dates"

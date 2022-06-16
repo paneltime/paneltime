@@ -11,6 +11,7 @@ import gc
 import inspect
 import numpy as np
 from threading import Thread
+import time
 
 def main(t,initcommand,s_id,fpath):
 	fname=os.path.join(fpath,'slaves/%s.txt' %(s_id,))
@@ -57,7 +58,7 @@ def main(t,initcommand,s_id,fpath):
 				else:
 					write(f, 'quit after callback')
 			sys.stdout = sys.__stdout__
-			t.send((callback_class.d, True))
+			t.send((callback_class.outbox, True))
 		elif msg=='holdbacks':
 			holdbacks.extend(obj)
 		if not msg in ['listen']:
@@ -72,16 +73,26 @@ class CallBack:
 	def __init__(self, t, f):
 		self.t = t
 		self.f = f
+		self.time = time.time()
+		self.inbox = {}
+		self.outbox = {}
 		
 	def write(self, s):
 		write(self.f, s)
 	
-	def callback(self, d={}):
-		t.send((d,False))
-		msg, (self.d, quit) = t.receive()
+	def callback(self, **keywords):
+		for k in keywords:
+			self.outbox[k] = keywords[k]
+		quit = False
+		if time.time()-self.time>1:
+			t.send((self.outbox,False))
+			msg, (self.inbox, quit) = t.receive()
+			self.time = time.time()
+		
 		if quit:
+			self.outbox = {}
 			raise RuntimeError('Quit from callback')
-		return self.d
+		return self.inbox
 	
 	
 	
