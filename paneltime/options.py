@@ -114,6 +114,8 @@ def regression_options():
 
 	self.ARMA_constraint	        = options_item(1.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
 																	None,None,category='GARCH')	
+	self.constraints_engine	        = options_item(True,			'Determines whether to invoke the constraints engine', bool, 'Invoke constraints engine',
+																	[True,False],['Invoke constraints','Do not invoke constraints'],category='Regression')	
 		
 	self.multicoll_threshold	    = options_item(30,				'Threashold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
 																	None,None)			

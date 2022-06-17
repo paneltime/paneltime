@@ -13,6 +13,7 @@ import os
 import shutil
 import numpy as np
 import time
+import charts
 
 
 WEB_PAGE='paneltime.html'
@@ -70,17 +71,17 @@ class web_output:
 		self.panel=panel	
 		self.Jupyter=Jupyter
 		if not Jupyter:
-			self.f = open(TMP_PAGE, "w")
 			self.save_html(get_web_page('None', 'None', 'None', '', True))
 			webbrowser.open(WEB_PAGE, new = 2)
 		self.output_set = False
+		self.charts = charts.process_charts(panel)
 			
 	def set_progress(self,perc, text, task):
 		return True
 		
 	def set_output_obj(self,ll, comput, dx_norm):
 		"sets the outputobject in the output" 
-		self.output=output.output(ll,self.panel, comput)
+		self.output=output.output(ll,self.panel, comput, dx_norm)
 		self.output_set = True
 		
 		
@@ -91,11 +92,12 @@ class web_output:
 		tbl,llength=self.reg_table.table(4,'(','HTML',True,
 							   show_direction=True,
 							   show_constraints=True)		
-		web_page=get_web_page(comput.ll.LL, 
-							  comput.ll.args.args_v, 
+		web_page=get_web_page(ll.LL, 
+							  ll.args.args_v, 
 							  dx_norm,
 							  tbl,
 							  self.Jupyter==False)
+		self.charts.save_all(ll)
 		if self.Jupyter:
 			IPython.display.clear_output(wait=True)
 			display(IPython.display.HTML(web_page))
@@ -104,11 +106,9 @@ class web_output:
 
 		
 	def save_html(self,htm_str):
-		self.f.truncate(0)
+		self.f = open(WEB_PAGE, "w")
 		self.f.write(htm_str)
-		self.f.flush()
-		fpath=os.path.realpath(self.f.name).replace(self.f.name,'')
-		shutil.copy(fpath+TMP_PAGE, fpath+WEB_PAGE)
+		self.f.close()
 
 		
 	def print_final(self, msg, fret, conv, t0, xsol):
@@ -168,9 +168,9 @@ def get_web_page(LL, args, comput,tbl,auto_update):
 	img_str=''
 	pic_num[0]+=1
 	if os.path.isfile('img/chart0.png'):
-		img_str=(f"""<img src="img/histogram.png"?{pic_num[0]}   ><br>\n"""
-				f"""<img src="img/correlogram.png?{pic_num[0]}"   ><br>\n"""
-				f"""<img src="img/correlogram_variance.png?{pic_num[0]}"   >""")
+		img_str=(f"""<img src="img/histogram.png"><br>\n"""
+				f"""<img src="img/correlogram.png"   ><br>\n"""
+				f"""<img src="img/correlogram_variance.png"   >""")
 	return f"""
 <meta charset="UTF-8">
 {au_str}
@@ -181,18 +181,46 @@ def get_web_page(LL, args, comput,tbl,auto_update):
 p {{
   margin-left: 60px;
   max-width: 980px;
-  font-family: "verdana";
+  font-family: "Serif";
   text-align: left;
   color:#063f5c;
-  font-size: 12;
+  font-size: 16;
 }}
 h1 {{
   margin-left: 20px;
   max-width: 980px;
-  font-family: "verdana";
+  font-family: "Serif";
   text-align: left;
   color:black;
+  font-size: 25;
+  font-weight: bold;
+}}
+
+table.head {{
+  font-family: "Serif";
+  text-align: right;
+  color:black;
+  padding-left: 0px;
   font-size: 16;
+}}
+td.h:nth-child(odd) {{
+  background: #CCC
+}}
+td {{
+  padding-left: 0px;
+}}
+table {{
+  font-family: "Serif";
+  text-align: right;
+  color:black;
+  font-size: 16;
+}}
+
+th {{
+border-collapse: collapse;
+	border-bottom: double 3px;
+	padding-left: 0px;
+	white-space: nowrap;
 }}
 </style>
 <body>

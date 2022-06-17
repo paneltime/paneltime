@@ -49,6 +49,7 @@ def main(t,initcommand,s_id,fpath):
 			response=release_dict(d,d_list,holdbacks)
 		elif msg=='listen':			
 			sys.stdout = f
+			callback_class.reset_outbox()
 			d['callback'] = callback_class.callback
 			try:
 				exec(obj,globals(),d)
@@ -59,6 +60,7 @@ def main(t,initcommand,s_id,fpath):
 					write(f, 'quit after callback')
 			sys.stdout = sys.__stdout__
 			t.send((callback_class.outbox, True))
+			
 		elif msg=='holdbacks':
 			holdbacks.extend(obj)
 		if not msg in ['listen']:
@@ -75,10 +77,14 @@ class CallBack:
 		self.f = f
 		self.time = time.time()
 		self.inbox = {}
-		self.outbox = {}
+		self.reset_outbox()
 		
 	def write(self, s):
 		write(self.f, s)
+		
+	def reset_outbox(self):
+		self.outbox = {}
+		
 	
 	def callback(self, **keywords):
 		for k in keywords:
@@ -90,7 +96,7 @@ class CallBack:
 			self.time = time.time()
 		
 		if quit:
-			self.outbox = {}
+			self.reset_outbox()
 			raise RuntimeError('Quit from callback')
 		return self.inbox
 	

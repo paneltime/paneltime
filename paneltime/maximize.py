@@ -198,7 +198,7 @@ class Comm:
 				[f"maximize.maximize(panel, {list(args)}, callback)"])
 			self.start_listening()
 		else:
-			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, callback.generic, comput)
+			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, callback.generic, self.comput)
 			self.msg = msg
 			self.f = ls.f
 			self.conv = conv
@@ -210,9 +210,12 @@ class Comm:
 
 	
 	def start_listening(self):
+		t0 = time.time()
 		while not self.listen.done[0]:
-			self.print()
-			time.sleep(1)
+			if  time.time()-t0>0.5:
+				self.print()
+		self.print()
+
 			
 	def print(self):
 		d = self.listen.inbox[0]
@@ -223,7 +226,6 @@ class Comm:
 						d['x'], d['perc'], d['task'], d['dx_norm'], d['dx'], 
 						d['H'], d['hessin'], d['g'], d['alam'], d['rev'], d['msg'], d['conv'], d['constr'])
 		
-		print(x[:4])
 		self.ll = logl.LL(x, self.panel, d['constr'])
 		self.comput.exec(dx, dx_norm, hessin, H, f, x, g, incr, rev, alam, its, self.ll, False)
 		

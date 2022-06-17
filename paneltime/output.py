@@ -75,26 +75,26 @@ class output:
 		else:
 			CI = np.round(self.computation.CI)
 		n_CI=len(self.computation.mc_problems)
-		s=("LL:\t"+str(self.ll.LL)+'  ').ljust(23)
-		if not self.incr is None:
-			s+=("\tIncrement:  "+ str(self.incr)).ljust(17)+"  "
-		else:
-			s+=str(" ").ljust(19)
-		if not self.iterations is None:
-			s+=f"\tIteration:  {str(self.iterations).ljust(7)}"
-		if self.computation.singularity_problems:
-			s+=f"\tSingularity problems:  {str(self.computation.singularity_problems).ljust(7)}"
-		instr=''
+		
+		
+		self.model_desc =  f"Model:\t{self.panel.input.Y_names[0]} = {' + '.join(self.panel.input.X_names)}\n"
+		instr='None'
 		if not self.panel.input.Z_names is None:
-			instr=', '.join(self.panel.input.Z_names[1:])
-		s+=f"\nDependent: {self.panel.input.Y_names[0]}"
+			self.model_desc += f"Instruments:\t{', '.join(self.panel.input.Z_names[1:])}\n" 
+			
 		n,T,k=self.panel.X.shape
-		s+=f"\tPanel: {self.panel.NT_before_loss} observations,{n} groups and {T} dates"
-		if len(instr):
-			s+=f"\t\tInstruments: {instr}"		
-		s+=f"\nMax condition index: {CI}\t ({n_CI} caseses w/high CI for 1+ variables)"
-		s+=f"\tTime elapsed: {np.round(time.time()-self.computation.start_time)}\n"
-		self.heading_str=s		
+		run_time = np.round(time.time()-self.computation.start_time)
+
+		s = (
+		f"LL:\t{self.ll.LL        }\tIteration:\t{self.iterations        }\tPanel observations:\t{self.panel.NT_before_loss }\n"
+		f"Increment:\t{self.incr  }\tCollinearity - max(cond.idx):\t{CI  }\tPanel dates:\t{T                                }\n"
+		f"Time elapsed:\t{run_time}\tCollinearity - # variables:\t{n_CI  }\tPanel groups:\t{n                               }\n"
+	
+		
+		)
+		
+		self.output_stats=s
+
 		
 	def constraints_printout(self):
 		panel=self.panel
@@ -131,9 +131,11 @@ class reg_table_obj(dict):
 		dict.__init__(self)
 		self.d=output.d
 		self.Y_names=output.panel.input.Y_names
+		self.X_names=output.panel.input.X_names
 		self.args=output.ll.args.dict_string
 		self.n_variables=output.n_variables
-		self.heading=output.heading_str
+		self.output_stats = output.output_stats
+		self.model_desc = output.model_desc
 		self.footer=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
 	
 	def table(self,n_digits,brackets,fmt,stacked, show_direction, show_constraints):
@@ -146,7 +148,11 @@ class reg_table_obj(dict):
 		for a, l,is_string,name,neg,just,sep,default_digits in pr:		
 			self[a]=column(self.d,a,l, is_string, name, neg, just, sep, default_digits,self.n_variables)
 		self.X=self.output_matrix(n_digits,brackets)
-		s=format_table(self.X, include_cols,fmt,f'Regression on {self.Y_names[0]}',self.heading,self.footer)
+		s=format_table(self.X, include_cols,fmt,
+					   "Paneltime GARCH-ARIMA panel regression",
+					   self.model_desc, 
+					   self.output_stats,
+					   self.footer)
 		return s,llength
 
 	
@@ -473,13 +479,13 @@ pr=[
 		['cause',		50,			True,		'cause',			False,			'right', 		2, 					None]]		
 
 		
-def format_table(X,cols,fmt,heading,head,tail):
+def format_table(X,cols,fmt,heading, mod, stats,tail):
 	if fmt=='NORMAL':
-		return head+format_normal(X,[1],cols)+tail
+		return mod + stats+format_normal(X,[1],cols)+tail
 	if fmt=='LATEX':
-		return head+format_latex(X,cols,heading)+tail
+		return mod + stats+format_latex(X,cols,heading)+tail
 	if fmt=='HTML':
-		return format_html(X,cols,heading,head)+tail	
+		return format_html(X,cols,heading,stats, mod)+tail	
 	
 	
 def format_normal(X,add_rows=[],cols=[]):
@@ -516,18 +522,23 @@ def format_latex(X,cols,heading):
 \end{table}"""
 	return p	
 
-def format_html(X,cols,heading,head):
+def format_html(X,cols,heading,head, mod):
 	X=np.array(X,dtype='U128')
 	n,k=X.shape
-	head=head.replace('\n','<br>')
-	head=head.replace('\t','&nbsp;'*4)
-	p=f"""
-	<h1>{heading}</h1>
-	<p>{head}</p>
-	<p><table>"""
-	p+='\t</tr><th>'+'\t</th><th>'.join(X[0])+'</th></tr>\n'
+	if head[-1:] == '\n':
+		head = head[:-1]
+	head = head.replace('\n',"</td></tr>\n<td class='h'>")
+	head = head.replace('\t',"</td><td class='h'>")
+	mod = mod.replace('\n','<br>')
+	spaces = '&nbsp'*4
+	p=(f"<br><br><h1>{heading}</h1><br><br>"
+	f"<p>{mod}<br>"
+	f"<table class='head'></tr><td class='h'>{head}</td></table><br><br>\n\n"
+	f"<p><table>\t<tr><th>"
+	)
+	p += ('\t</th><th>'+spaces).join(X[0])+'</th></tr>\n'
 	for i in range(1,len(X)):
-		p+='\t</tr><td>'+'\t</td><td>'.join(X[i])+'</td></tr>\n'
+		p+='\t<tr><td>'+'\t</td><td>'.join(X[i])+'</td></tr>\n'
 	p+='</table></p>'
 	return p		
 	

@@ -43,9 +43,10 @@ class Computation:
 		self.increment=increment
 		self.constr_old=self.constr
 		self.constr=constraints.constraints(self.panel,ll.args,its)
-		self.constr.add_static_constraints(ll)		
+			
 		
-		if add_dyn_constr:
+		if self.panel.options.constraints_engine.value:
+			self.constr.add_static_constraints(ll)	
 			self.constr.add_dynamic_constraints(self, H, ll)	
 			
 		self.CI=self.constr.CI
