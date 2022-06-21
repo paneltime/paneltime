@@ -14,7 +14,6 @@ import calculus_ll as cll
 import calculus_functions as cf
 import stat_functions as stat
 import random_effects as re
-from scipy import sparse as sp
 import scipy
 import debug
 import traceback
@@ -271,30 +270,13 @@ def h(e,z,panel):
 
 def set_garch_arch(panel,args):
 	if c is None:
+		raise RuntimeError('c-library for sparese inversion not compiled, and the scipy version needs to be fixed')
 		m=set_garch_arch_scipy(panel,args)
 	else:
 		m=set_garch_arch_c(panel,args)
 	return m
 		
-		
-def set_garch_arch_c_old(panel,args):
-	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
-	the diagonal band"""
-	n=panel.max_T
-	rho=np.insert(-args['rho'],0,1)
-	psi=args['psi']
-	psi=np.insert(args['psi'],0,0) 
 
-	r=np.arange(n)
-	AMA_1,AMA_1AR,GAR_1,GAR_1MA=(
-	    np.diag(np.ones(n)),
-		np.zeros((n,n)),
-		np.diag(np.ones(n)),
-		np.zeros((n,n))
-	)
-	
-	c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA,0)
-	return  AMA_1,AMA_1AR,GAR_1,GAR_1MA
 
 def set_garch_arch_c(panel,args):
 	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
@@ -328,7 +310,7 @@ def set_garch_arch_scipy(panel,args):
 	AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)
 	if AMA_1AR is None:
 		return
-	GMA=lag_matr(panel.zero,args['psi'])
+	GMA=lag_matr(panel.I*0,args['psi'])
 	GAR_1MA,GAR_1=solve_mult(-args['gamma'], GMA, panel.I)
 	if GAR_1MA is None:
 		return

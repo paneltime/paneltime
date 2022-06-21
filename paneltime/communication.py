@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 #This module handle interfacing for various output paltforms
+
+
 try:
 	import IPython
 except:
@@ -47,7 +49,7 @@ class callback:
 	
 	def print_final(self, msg, its, incr, fret, perc, task, conv, dx_norm, t0, xsol, ll):
 		self.print(msg, its, incr, ll, perc, task, dx_norm)
-		self.channel.print_final(msg, fret, conv, t0, xsol)
+		self.channel.print_final(msg, fret, conv, t0, xsol, its)
 	
 
 
@@ -111,9 +113,9 @@ class web_output:
 		self.f.close()
 
 		
-	def print_final(self, msg, fret, conv, t0, xsol):
+	def print_final(self, msg, fret, conv, t0, xsol, its):
 		print(msg)
-		print(f"LL={fret}  success={conv}  t={time.time()-t0}")
+		print(f"LL={fret}  success={conv}  t={time.time()-t0}  its: {its}")
 		print(xsol)	
 		
 class console:
@@ -135,9 +137,9 @@ class console:
 	def update(self,comput, its,ll,incr, dx_norm):
 		print(ll.LL)
 		
-	def print_final(self, msg, fret, conv, t0, xsol):
+	def print_final(self, msg, fret, conv, t0, xsol, its):
 		print(msg)
-		print(f"LL={fret}  success={conv}  t={time.time()-t0}")
+		print(f"LL={fret}  success={conv}  t={time.time()-t0}  its: {its}")
 		print(xsol)		
 				
 class tk_widget:
@@ -155,9 +157,9 @@ class tk_widget:
 	def update(self,comput, its, ll, incr, dx_norm):
 		self.tab.update(self.panel, comput,its, ll, incr, dx_norm)
 		
-	def print_final(self, msg, fret, conv, t0, xsol):
+	def print_final(self, msg, fret, conv, t0, xsol, its):
 		print(msg)
-		print(f"LL={fret}  success={conv}  t={time.time()-t0}")
+		print(f"LL={fret}  success={conv}  t={time.time()-t0} its: {its}")
 		print(xsol)	
 
 

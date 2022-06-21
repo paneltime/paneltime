@@ -9,6 +9,7 @@ import direction
 
 
 
+
 #This module finds the array of arguments that minimizes some function. The derivative 
 #of the function also needs to be supplied. 
 #This is an adaption of the Broyden-Fletcher-Goldfarb-Shanno variant of Davidon-Fletcher-Powell algorithm by 
@@ -142,14 +143,16 @@ def dfpmin(x, comput, callback):
 				hessin = hessin, dx = dx, incr = incr, rev = ls.rev, alam = ls.alam, 
 				its = its, constr = comput.constr, perc = 1.0, task = 'Line search')			
 		
+
+		if conv:  
+			msg = "Convergence on zero gradient; local or global minimum identified"
+			return f,x,H,its,1, ls, msg, dx_norm, incr #FREEALL
+		
 		test=np.max(np.abs(dx)) 
 		if (test < TOLX):  
 			msg = "Warning: Convergence on delta x; the gradient is incorrect or the tolerance is set too low"
 			return f,x,H,its, 0, ls, msg, dx_norm, incr #FREEALL
 
-		if conv:  
-			msg = "Convergence on zero gradient; local or global minimum identified"
-			return f,x,H,its,1, ls, msg, dx_norm, incr #FREEALL
 	
 	msg = "No convergence within %s iterations" %(max_iter,)
 	return f,x,H,its,2, ls, msg								#too many iterations in dfpmin				
@@ -173,12 +176,12 @@ def maximize(panel, args, callback, comput = None):
 	return comput, ls, msg, its, conv, dx_norm, incr
 
 
-def run(panel, args, callback, mp):
+def run(panel, args, mp, window, exe_tab, console_output):
 	t0=time.time()
 	
-	comm  = Comm(panel, args, callback, mp)
+	comm  = Comm(panel, args, mp, window, exe_tab, console_output)
 	
-	callback.print_final(comm.msg, comm.its, comm.incr, comm.f, 1, 'Done', comm.conv, comm.dx_norm, t0, comm.x, comm.ll)
+	comm.callback.print_final(comm.msg, comm.its, comm.incr, comm.f, 1, 'Done', comm.conv, comm.dx_norm, t0, comm.x, comm.ll)
 	
 	
 	return comm.ll, comm.conv, comm.comput.H, comm.comput.g, comm.comput.G
@@ -186,19 +189,23 @@ def run(panel, args, callback, mp):
 
 
 class Comm:
-	def __init__(self, panel, args, callback, mp ):
-		self.callback = callback
-		self.comput = computation.Computation(panel, gtol = -1, tolx = TOLX) 
-		callback.set_computation(self.comput)
+	def __init__(self, panel, args, mp, window, exe_tab, console_output):
 		self.mp = mp
-		self.panel = panel
 		self.listen = None
+		self.panel = panel	
 		if not mp is None:
 			self.listen = self.mp.listen(
 				[f"maximize.maximize(panel, {list(args)}, callback)"])
+			
+		import communication as comm
+		self.callback = comm.callback(window,exe_tab,self.panel, console_output)
+		self.comput = computation.Computation(panel, gtol = 0, tolx = TOLX) 
+		self.callback.set_computation(self.comput)
+		
+		if not mp is None:
 			self.start_listening()
 		else:
-			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, callback.generic, self.comput)
+			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, self.callback.generic, self.comput)
 			self.msg = msg
 			self.f = ls.f
 			self.conv = conv
@@ -218,6 +225,8 @@ class Comm:
 
 			
 	def print(self):
+		if not hasattr(self,'comput'):
+			return
 		d = self.listen.inbox[0]
 		if not 'g' in d:
 			return
@@ -241,21 +250,6 @@ class Comm:
 		self.dx_norm = dx_norm
 		
 		self.callback.print(msg, its, incr, self.ll, perc , task, dx_norm)
-
-
-
-class printout:
-	def __init__(self,channel,panel,computation,msg_main,_print=True):
-		self._print=_print
-		self.channel = channel
-		self.computation = computation
-		self.msg_main = msg_main
-
-
-	
-	def print_final(self, msg, fret, conv, t0, xsol):
-		self.channel.print_final(msg, fret, conv, t0, xsol)
-	
 
 
 

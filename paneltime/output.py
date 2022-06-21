@@ -5,8 +5,6 @@
 
 import numpy as np
 from scipy import stats as scstats
-from tkinter import font as tkfont
-import tkinter as tk
 import stat_functions as stat
 import model_parser
 import time
@@ -444,10 +442,10 @@ class statistics:
 	
 	
 def get_tab_stops(X,f):
-	f = tkfont.Font(font=f)
+	
 	m_len = f.measure("m")
 	counter=2*m_len
-	tabs=[f"{counter}",tk.NUMERIC]
+	tabs=[f"{counter}",'numeric']
 	r,c=np.array(X).shape
 	for i in range(c):
 		t=1
@@ -459,7 +457,7 @@ def get_tab_stops(X,f):
 				num_max=max((len(a[0]),num_max))
 			t=max((f.measure(X[j][i])+(num_max+2)*m_len,t))
 		counter+=t
-		tabs.extend([f"{counter}",tk.NUMERIC])			
+		tabs.extend([f"{counter}",'numeric'])			
 	return tabs
 
 l=STANDARD_LENGTH

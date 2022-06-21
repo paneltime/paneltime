@@ -70,8 +70,12 @@ class Computation:
 			
 			return x, f, hessin, H, g, True		
 
-		test = (((incr/(totpgain+1e-100)) < 0.2) and self.num_hess_count>3) or self.num_hess_count>10
+		test = (((incr/(totpgain+1e-100)) < 0.0001) and self.num_hess_count>3) #or self.num_hess_count>10
 		#print((incr/(totpgain+1e-100)))
+		CI=0
+		if not self.CI is None:
+			CI = self.CI
+		test = ((CI>10000) and self.num_hess_count>3) #or self.num_hess_count>10 
 		if calc:
 			if test:
 				H = self.calc_hessian(ll)
@@ -188,16 +192,21 @@ class Computation:
 				raise RuntimeError("OLS-arguments failed, you should check the data")
 		return ll
 	
-	def calc_init_dir(self, p0):
-		"""Calculates the initial computation"""
+	def calc_init_dir(self, p0, full = False):
+		"""Calculates the initial computation""" 
 		ll = self.init_ll(p0)
 		g, G = self.calc_gradient(ll)
 		H = self.calc_hessian(ll)
 		h = np.diag(H)
-		h = h - (h == 0)
-		h = 0.75/h - 0.25	
-		hessin = np.diag(h)	
-		H = np.diag(1/h)
+		n = len(h)
+		if full:
+			H[np.diag_indices(H.shape[0])] = h - (h >= 0)
+			hessin = hess_inv(H, None)
+		else:
+			h = h - (h == 0)
+			h = 0.75/h - 0.25	
+			hessin = np.diag(h)	
+			H = np.diag(1/h)
 		return p0, ll, ll.LL , g, hessin, H
 
 	def LL(self,x):

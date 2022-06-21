@@ -9,9 +9,8 @@
 #capture singular matrix with test_small.csv
 #make sure error in h function triggers an exeption
 
-
+from matplotlib import pyplot  as plt
 import numpy as np
-import output
 import panel
 import warnings
 import multi_core as mc
@@ -20,7 +19,6 @@ import model_parser
 import maximize
 import tempstore
 import os
-import communication as comm
 import time
 
 N_NODES = 1
@@ -61,29 +59,36 @@ class input_class:
 class results:
 	def __init__(self,datainput,options,mp,pqdkm,window,exe_tab, console_output):
 		print ("Creating panel")
-		pnl=panel.panel(datainput,options,pqdkm)
-		callback = comm.callback(window,exe_tab,pnl, console_output)
+		pnl=panel.panel(datainput,options,pqdkm)			
 		self.mp=mp
+		
+		t0=time.time()		
 		if not mp is None:
 			mp.send_dict({'panel':pnl},
-						 command=("panel.ARMA_init()\n"))
-		pnl.ARMA_init()
+						 command=("panel.init()\n"), wait = False)
+		print(f"t:{time.time()-t0}, 3")
+		t0=time.time()		
+		pnl.init()
+		print(f"t:{time.time()-t0}, 4")
+		mp.send_dict_by_file_receive()
+		t0=time.time()		
 		t0 = time.time()
-		self.ll, self.conv, self.H, self.g, self.G = maximize.run(pnl, pnl.args.args_init.args_v, callback, mp)
+		
+		self.ll, self.conv, self.H, self.g, self.G = maximize.run(pnl, pnl.args.args_init.args_v, mp, window, exe_tab, console_output)
 		print(f"LL: {self.ll.LL}, time: {time.time()-t0}")
 		self.panel=pnl
 
 
 def mp_check(datainput,window):
-
+	
 	modules="""
 import maximize
 """	
 	if window is None:
-		mp=mc.multiprocess(datainput.tempfile,N_NODES,modules)
+		mp = mc.multiprocess(datainput.tempfile,N_NODES,modules)
 		return mp
 	if window.mc is None:
-		window.mc=mc.multiprocess(datainput.tempfile,N_NODES,modules)
+		window.mc = mc.multiprocess(datainput.tempfile,N_NODES,modules)
 	return window.mc
 	
 

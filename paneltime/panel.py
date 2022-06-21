@@ -3,17 +3,10 @@
 
 #This module contains classes used in the regression
 
-import stat_functions as stat
 import numpy as np
 import time
-import threading
-import debug
 import calculus_functions as cf
-import model_parser
-import calculus
-import copy
 import loglikelihood as logl
-from scipy import sparse as sp
 import arguments
 
 
@@ -33,11 +26,14 @@ class panel:
 			self.pqdkm=pqdkm
 		else:
 			self.pqdkm=settings.pqdkm.value
+	
+	def init(self):
 		self.initial_defs()
 		self.arrayize()
 		self.masking()
 		self.lag_variables()
 		self.final_defs()
+		self.arma_dot=cf.arma_dot_obj(self.X.shape[1],self.pqdkm)
 		
 
 	def initial_defs(self):
@@ -93,9 +89,6 @@ class panel:
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_RE_coef_in_variance
 		self.set_instrumentals()
 		self.tobit()
-		
-	def ARMA_init(self):
-		self.arma_dot=cf.arma_dot_obj(self.X.shape[1],self.pqdkm)
 
 	def lag_variables(self):
 		T=self.max_T

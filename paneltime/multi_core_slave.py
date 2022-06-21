@@ -28,9 +28,10 @@ def main(t,initcommand,s_id,fpath):
 			sys.exit()
 			response=True
 		elif msg=='dictionary':#a dictionary to be used in the batch will be passed
-			d_new=obj
+			d_new, command=obj
 			add_to_dict(d,d_new)
 			d_list=list(d.keys())
+			exec(command,globals(),d)
 			response=True
 		elif msg=='filetransfer':
 			fobj,expr=obj

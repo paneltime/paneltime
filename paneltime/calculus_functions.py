@@ -3,8 +3,6 @@
 
 import numpy as np
 import time
-import stat_functions as stat
-from scipy import sparse as sp
 import debug
 try:
 	import cfunctions as c
@@ -401,8 +399,7 @@ def dot(a,b,reduce_dims=True):
 	"""Matrix multiplication. Returns the dot product of a*b where either a or be or both to be
 	arrays of matrices. Faster than mmult, less general and only used for special purpose.
 	Todo: generalize and merge"""
-	if type(a)==sp.csc_matrix:
-		return a.multiply(b)
+
 	if a is None or b is None:
 		return None
 	if len(a.shape)==5 and len(b.shape)==5 and a.shape==b.shape:

@@ -280,10 +280,6 @@ def set_init_regression(initargs,panel):
 	initargs['omega'][0,0]=omega
 	initargs['beta']=beta
 
-
-	#set_ARMA_GARCH(q,p,initargs,corr,rho,lmbda,'rho','lambda')
-	#set_GARCH(panel, initargs, u, m) trying to figure out the GARCH coefficients does not seem to help
-	#-panel.mean(h)
 	
 	if panel.options.fixed_random_variance_eff.value==0:
 		if v<1e-20:

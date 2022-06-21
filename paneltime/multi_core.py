@@ -42,10 +42,13 @@ class multiprocess:
 			self.d[i]=d[i]		
 		return self.d
 
-	def send_dict(self,d,cpu_ids=None,command=''):
+	def send_dict(self,d,cpu_ids=None,command='', wait = False):
 		for i in d:
 			self.d[i]=d[i]		
-		self.master.send_dict(d,cpu_ids,command)
+		self.master.send_dict(d,cpu_ids,command, wait)
+		
+	def send_dict_by_file_receive(self):
+		self.master.send_dict_by_file_receive()
 
 	def quit(self):
 		self.master.quit()
@@ -89,7 +92,7 @@ Master PID: %s \n
 Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		print (pstr)
 
-	def send_dict(self, d,cpu_ids,command):
+	def send_dict(self, d,cpu_ids,command, wait ):
 		self.send_dict_by_file_receive()
 		f=open(self.f,'wb')
 		pickle.dump(d,f)   
@@ -97,10 +100,15 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		f.close()
 		if cpu_ids is None:
 			cpu_ids=range(self.cpu_count)
-		for i in cpu_ids:
-			self.slaves[i].send('filetransfer',(self.f,command))
+		if len(cpu_ids)<4 and False:
+			for i in cpu_ids:
+				self.slaves[i].send('dictionary',(d, command))
+		else:
+			for i in cpu_ids:
+				self.slaves[i].send('filetransfer',(self.f,command))
 		self.filesend_cpu_ids=cpu_ids
-		self.send_dict_by_file_receive()#comment out for asyncronous receive
+		if not wait:
+			self.send_dict_by_file_receive()#comment out for asyncronous receive
 		a=0
 		
 	def send_dict_by_file_receive(self):
