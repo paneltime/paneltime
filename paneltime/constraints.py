@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import stat_functions as stat
 import calculus_functions as cf
-
+import stat_functions as stat
 
 
 class constraint:
@@ -176,14 +175,14 @@ class constraints(dict):
 		self.add_custom_constraints(general_constraints, ll)
 		self.add_custom_constraints(pargs.user_constraints, ll)
 
-	def add_dynamic_constraints(self,computation, H, ll):
+	def add_dynamic_constraints(self,computation, H, ll, coll_max_limit):
 		k,k=H.shape
 		self.weak_mc_dict=dict()
 		include=np.array(k*[True])
 		include[list(computation.constr.fixed)]=False
 		self.mc_problems=[]#list of [index,associate,condition index]
 		self.CI=constraint_multicoll(k, computation, include, self.mc_problems, H)
-		add_mc_constraint(computation,self.mc_problems,self.weak_mc_dict)
+		add_mc_constraint(computation,self.mc_problems,self.weak_mc_dict, coll_max_limit)
 	
 	def add_custom_constraints(self,constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
 		"""Adds custom range constraints\n\n
@@ -342,7 +341,7 @@ def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_probl
 		mc_list.append(index)
 		return False
 		
-def add_mc_constraint(computation,mc_problems,weak_mc_dict):
+def add_mc_constraint(computation,mc_problems,weak_mc_dict, coll_max_limit):
 	"""Adds constraints for severe MC problems"""
 	constr=computation.constr
 	if len(mc_problems)==0:
@@ -354,12 +353,13 @@ def add_mc_constraint(computation,mc_problems,weak_mc_dict):
 		mc[0],mc[1]=mc[1],mc[0]
 	mc_limit = computation.panel.options.multicoll_threshold.value
 	for index,assc,cond_index in mc_problems:
-		cond = not ((index in constr.associates) or (index in constr.collinears)) and cond_index>mc_limit and (not index==no_check)
+		cond = not ((index in constr.associates) or (index in constr.collinears))and (not index==no_check)
 		# same condition, but possible have a laxer condition for weak_mc_dict. 
-		if cond:#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix:	
+		if cond and cond_index>mc_limit :#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix:	
 			weak_mc_dict[index]=[assc,cond_index]
-		if cond:#adding restrictions:
+		if cond and cond_index>coll_max_limit :#adding restrictions:
 			constr.add(assc,index,'collinear')
+			constr.add(index ,assc,'collinear')
 			
 		
 def get_no_check(computation):

@@ -9,8 +9,6 @@ import datetime
 import pickle
 import gc
 import inspect
-import numpy as np
-from threading import Thread
 import time
 
 def main(t,initcommand,s_id,fpath):

@@ -123,7 +123,9 @@ def regression_options():
 	self.arguments					= options_item("", 				"A string or dict with a dictionary in python syntax containing the initial arguments." 
 																	"An example can be obtained by printing ll.args.args_d"
 																	, [str,dict], 'Initial arguments')	
-
+	self.multi_core  				= options_item(True,			"If True, uses multiple cores for paralell computing",
+																	bool,'Multicore', [True,False],['Multicore','Single core'],category='General')
+	
 	#self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
 	self.normal_GARCH	            = options_item(True,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
 																	[True,False],['Direct GARCH','Usual GARCH'],category='GARCH')	

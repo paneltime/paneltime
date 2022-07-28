@@ -12,10 +12,7 @@ except ImportError as e:
 import numpy as np
 import calculus_ll as cll
 import calculus_functions as cf
-import stat_functions as stat
 import random_effects as re
-import scipy
-import debug
 import traceback
 import model_parser
 
@@ -106,6 +103,7 @@ class LL:
 
 	
 	def tobit(self,panel,LL):
+		import scipy
 		if sum(panel.tobit_active)==0:
 			return
 		g=[1,-1]
@@ -322,6 +320,7 @@ def set_garch_arch_scipy(panel,args):
 def solve_mult(args,b,I):
 	"""Solves X*a=b for a where X is a banded matrix with 1  and args along
 	the diagonal band"""
+	import scipy
 	n=len(b)
 	q=len(args)
 	X=np.zeros((q+1,n))

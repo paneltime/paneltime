@@ -8,8 +8,6 @@ CONST_NAME='one'
 NUMERIC_TAG="_numeric"
 
 import numpy as np
-import loaddata
-import numpy.lib.recfunctions as rfn
 import pandas as pd
 
 def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,instruments,settings,pool=(None,'mean')):

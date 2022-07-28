@@ -3,11 +3,9 @@
 import calculus
 import calculus_ll as cll
 import numpy as np
-from scipy import stats
 import constraints
 import loglikelihood as logl
 import time
-import pickle
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
@@ -27,16 +25,17 @@ class Computation:
 		self.panel=panel
 		self.constr=None
 		self.CI=0
-		self.weak_mc_dict=[]
+		self.weak_mc_dict={}
 		self.mc_problems=[]
 		self.H_correl_problem=False
 		self.singularity_problems=False
 		self.start_time=time.time()
 		self.num_hess_count = 0
 		self.H, self.g, self.G = None, None, None
+		self.mcollcheck = False
 
 
-	def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll):
+	def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll, coll_max_limit):
 		self.its=its
 		self.lmbda=lmbda
 		self.has_reversed_directions=rev
@@ -47,7 +46,7 @@ class Computation:
 		
 		if self.panel.options.constraints_engine.value:
 			self.constr.add_static_constraints(ll)	
-			self.constr.add_dynamic_constraints(self, H, ll)	
+			self.constr.add_dynamic_constraints(self, H, ll, coll_max_limit)	
 			
 		self.CI=self.constr.CI
 		if self.constr is None:
@@ -66,16 +65,14 @@ class Computation:
 		max_pgain = max(pgain)
 		g_norm =np.max(np.abs(g)*np.abs(x)/(abs(f)+1e-12) )
 		
-		if max_pgain <= self.gtol:
-			
-			return x, f, hessin, H, g, True		
 
-		test = (((incr/(totpgain+1e-100)) < 0.0001) and self.num_hess_count>3) #or self.num_hess_count>10
-		#print((incr/(totpgain+1e-100)))
+
+
+
 		CI=0
 		if not self.CI is None:
 			CI = self.CI
-		test = ((CI>10000) and self.num_hess_count>3) #or self.num_hess_count>10 
+		test = (  (totpgain < 0) or (max_pgain < 0) ) and self.num_hess_count>0
 		if calc:
 			if test:
 				H = self.calc_hessian(ll)
@@ -90,7 +87,17 @@ class Computation:
 	
 		self.H, self.g, self.G = H, g, G
 		
-		self.set(its, incr, alam, rev, True, H, ll)
+		if True:#its<1 or (CI>1e+8):
+			coll_max_limit=1e+300
+		else:
+			
+			coll_max_limit=1000
+			
+		self.set(its, incr, alam, rev, True, H, ll, coll_max_limit)
+		
+		if (max_pgain <= self.gtol) and (g_norm < 0.001):
+
+			return x, f, hessin, H, g, True		
 		
 		return x, f, hessin, H, g, False
 
@@ -109,6 +116,7 @@ class Computation:
 		return H
 	
 	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
+		from scipy import stats
 		g=[1,-1]
 		self.f=[None,None]
 		self.f_F=[None,None]
@@ -257,72 +265,3 @@ def potential_gain(dx, g, H):
 
 
 
-class Comm:
-	def __init__(self, mp, panel, args, ll, direction):
-		self.mp = mp
-		self.panel = panel
-		self.direction = direction
-		f = panel.input.tempfile.tempfile(delete=False)
-		self.f_write = f.name.replace('\\','/')
-		f.close()
-		self.write('', ll.LL, args.args_v, direction.H)
-		self.spawn()
-		self.t = time.time()
-
-	def write(self, command, LL=None, args=None, H=None):
-		f = open(self.f_write, 'wb')
-		pickle.dump((command, LL, args, H), f)
-		f.flush()
-		f.close()
-
-	def read(self, fname):
-		try:
-			f = open(fname, 'rb')
-			response, LL, args, hessin = pickle.load(f)
-		except EOFError:
-			f.close()
-			return False, None, None, None, None
-		f.close()
-		return True, response, LL, args, hessin
-
-
-	def spawn(self):
-		tasks=[]
-		lamdas=[1,4,8]
-		self.f_read_files=[]
-		for i in range(len(lamdas)):
-			f = self.panel.input.tempfile.tempfile(delete=False)
-			fname=f.name.replace('\\','/')
-			f.close()
-			self.f_read_files.append(fname)
-			tasks.append(f"maximize_num.maximize(panel, f_write='{fname}',f_read='{self.f_write}', id)")
-		self.mp.execute(tasks, wait_and_collect=False)
-
-	def terminate(self):
-		if self.mp is None:
-			return
-		self.write('abort')
-		self.mp.wait_and_collect()
-
-	def communicate(self, ll, H):
-		if time.time() - self.t<1 or self.mp is None:		
-			return ll, H
-		LLs = [ll.LL]
-		xs = [ll.args.args_v]
-		h = []
-		rf=list(self.f_read_files)
-		while len(rf):
-			f = rf.pop(0)
-			OK, response, fret, x, hessin = self.read(f)
-			if OK:
-				LLs.append(fret)
-				xs.append(x) 
-				h.append(hessinv(hessin, H))				
-			else:
-				rf.append(f)
-		i=np.argmax(LLs)
-		if LLs[i]>ll.LL:
-			ll=lgl.LL(xs[i], self.panel, self.direction.constr)
-		self.write('', ll.LL, ll.args.args_v, self.direction.H)
-		self.t = time.time()
-		return ll, H

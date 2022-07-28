@@ -26,13 +26,13 @@ class process_charts():
 		if self.ll is None:
 			return
 		for name,chart in self.chart_list:
-			chart(self.ll,self.subplot,f'img/{name}.png')				
+			chart(f'img/{name}.png')				
 
-	def histogram(self,ll,subplot,f):
+	def histogram(self,f):
 		N,T,k=self.panel.X.shape
-		fgr,axs=subplot
-		n=ll.e_norm_centered.shape[2]
-		e=ll.e_norm_centered[self.panel.included[2]].flatten()
+		fgr,axs = self.subplot
+		n=self.ll.e_norm_centered.shape[2]
+		e=self.ll.e_norm_centered[self.panel.included[2]].flatten()
 		N=e.shape[0]
 		e=e.reshape((N,1))
 
@@ -46,30 +46,35 @@ class process_charts():
 		axs.legend(prop={'size': 6})
 		name='Histogram - frequency'
 		axs.set_title(name)
-		save(subplot,f)
+		self.save(f)
 
-	def correlogram(self,ll,subplot,f):
-		fgr,axs=subplot
+	def correlogram(self,f):
+		fgr,axs=self.subplot
 		lags=20
-		rho=stat.correlogram(self.panel, ll.e_norm_centered,lags)
+		rho=stat.correlogram(self.panel, self.ll.e_norm_centered,lags)
 		x=np.arange(lags+1)
 		axs.bar(x,rho,color='grey', width=0.5,label='correlogram')
 		name='Correlogram - residuals'
 		axs.set_title(name)
-		save(subplot,f)
+		self.save(f)
 
-	def correlogram_variance(self,ll,subplot,f):
+	def correlogram_variance(self,f):
 		N,T,k=self.panel.X.shape
-		fgr,axs=subplot
+		fgr,axs=self.subplot
 		lags=20
-		e2=ll.e_norm_centered**2
+		e2=self.ll.e_norm_centered**2
 		e2=(e2-self.panel.mean(e2))*self.panel.included[3]
 		rho=stat.correlogram(self.panel, e2,lags)
 		x=np.arange(lags+1)
 		axs.bar(x,rho,color='grey', width=0.5,label='correlogram')
 		name='Correlogram - squared residuals'
 		axs.set_title(name)
-		save(subplot,f)
+		self.save(f)
+		
+	def save(self,save_file):
+		fgr,axs=self.subplot
+		fgr.savefig(save_file)
+		axs.clear()	
 
 def histogram(x,grid_range,grid_step):
 	N,k=x.shape
@@ -85,8 +90,3 @@ def histogram(x,grid_range,grid_step):
 	return histogram/N,grid
 
 
-
-def save(subplot,save_file):
-	fgr,axs=subplot
-	fgr.savefig(save_file)
-	axs.clear()

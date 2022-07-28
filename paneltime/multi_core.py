@@ -4,20 +4,19 @@
 import os
 import sys
 import subprocess
-import struct
 import pickle
 import datetime
 from queue import Queue
 from threading import Thread
 import time
-import loglikelihood as lgl
+import tempstore
 
 
 
 class multiprocess:
-	def __init__(self,tempfile,max_nodes=None,initcommand='',holdbacks=None):
+	def __init__(self,max_nodes=None,initcommand='',holdbacks=None):
 		self.d=dict()
-		self.master=master(initcommand,max_nodes,holdbacks,tempfile)#for paralell computing
+		self.master=master(initcommand,max_nodes,holdbacks)#for paralell computing
 
 	def execute(self,expr,progress_bar=None, collect=True):
 		"""For submitting multiple functions to be evalated. expr is an array of strings to be evaluated"""
@@ -46,9 +45,6 @@ class multiprocess:
 		for i in d:
 			self.d[i]=d[i]		
 		self.master.send_dict(d,cpu_ids,command, wait)
-		
-	def send_dict_by_file_receive(self):
-		self.master.send_dict_by_file_receive()
 
 	def quit(self):
 		self.master.quit()
@@ -62,12 +58,11 @@ class multiprocess:
 
 class master():
 	"""creates the slaves"""
-	def __init__(self,initcommand,max_nodes, holdbacks,tempfile):
+	def __init__(self,initcommand,max_nodes, holdbacks):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
-		self.tempfile=tempfile
-		f=tempfile.tempfile()
-		self.f=f.name
+		f = tempstore.TempfileManager().tempfile()
+		self.f = f.name
 		self.filesend_cpu_ids=[]
 		f.close()
 		if max_nodes is None:
@@ -92,8 +87,8 @@ Master PID: %s \n
 Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		print (pstr)
 
-	def send_dict(self, d,cpu_ids,command, wait ):
-		self.send_dict_by_file_receive()
+	def send_dict(self, d,cpu_ids,command, wait):
+		self.reset_filesend_receive()
 		f=open(self.f,'wb')
 		pickle.dump(d,f)   
 		f.flush() 
@@ -108,16 +103,16 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 				self.slaves[i].send('filetransfer',(self.f,command))
 		self.filesend_cpu_ids=cpu_ids
 		if not wait:
-			self.send_dict_by_file_receive()#comment out for asyncronous receive
+			self.reset_filesend_receive()#wait == True for asycronous 
 		a=0
 		
-	def send_dict_by_file_receive(self):
+	def reset_filesend_receive(self):
 		for i in self.filesend_cpu_ids:
-			res=self.slaves[i].receive()
+			res = self.slaves[i].receive()
 		self.filesend_cpu_ids=[]
 		
 	def send_holdbacks(self, key_arr):
-		self.send_dict_by_file_receive()
+		self.reset_filesend_receive()
 		"""Sends a list with keys to variables that are not to be returned by the slaves"""
 		if key_arr is None:
 			return
@@ -139,7 +134,7 @@ class Tasks:
 		if remote=True, the list must be a list of tuples, where the first item is the expression and the second is the variable that should be returned\n
 		If wait_and_collect=True, wait_and_collect MUST be called at a later stage for each node. If not the nodes will be lost"""
 		
-		mp.send_dict_by_file_receive()
+		mp.reset_filesend_receive()
 		self.mp = mp
 		self.n=len(tasks)
 		self.tasks = tasks
@@ -185,7 +180,7 @@ class Listen:
 		shall be run. The strings must have an object 'callback' wich take a single 
 		argument, which must be a dictionary, that represents the information returned from the 
 		slave. """
-		mp.send_dict_by_file_receive()
+		mp.reset_filesend_receive()
 		self.mp = mp
 		self.tasks = tasks
 		self.n=len(tasks)
@@ -323,6 +318,10 @@ class transact():
 		r=getattr(self.r,'buffer',self.r)
 		u= pickle.Unpickler(r)
 		try:
+			return u.load()
+		except pickle.UnpicklingError as e:
+			r.seek(0)
+			u= pickle.Unpickler(r)
 			return u.load()
 		except EOFError as e:
 			if e.args[0]=='Ran out of input':

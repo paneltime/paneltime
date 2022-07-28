@@ -295,10 +295,9 @@ def set_GARCH(panel,initargs,u,m):
 		e = cf.dot(AMA_1AR,u)*panel.included[3]		
 	h=h_func(e, panel,initargs)
 	if m>0:
-		corr_v=stat.correlogram(panel,h,1,center=True)[1:]
-		initargs['gamma'][0]=0#corr_v[0]
-		initargs['psi'][0]=0#corr_v[0]
-	#set_ARMA_GARCH(q,p,initargs,v_corr,gamma,psi,'gamma','psi',sum_ma=False)	
+		initargs['gamma'][0]=0
+		initargs['psi'][0]=0
+
 
 def h_func(e,panel,initargs):
 	z=None
@@ -307,25 +306,7 @@ def h_func(e,panel,initargs):
 	h_val,h_e_val,h_2e_val,h_z,h_2z,h_e_z=logl.h(e,z,panel)
 	return h_val*panel.included[3]
 	
-	
-def set_ARMA_GARCH(q,p,initargs,corr,rho,lmbda,rho_name,lambda_name,mod=1,sum_ma=True):
-	if q+p==0:
-		return
-	n=min((len(corr),q))
-	if q*p>0:
-		if rho!=0:
-			initargs[rho_name][0]=rho*mod
-			initargs[lambda_name][0]=lmbda*mod
-		else:
-			initargs[lambda_name][:n]=corr[:n]*mod
-			if sum_ma:
-				initargs[lambda_name][n-1]=sum(corr[n-1:])*mod
-	elif q>0:
-		initargs[lambda_name][:n]=corr[:n]*mod
-		if sum_ma:
-			initargs[lambda_name][n-1]=sum(corr[n-1:])*mod
-	else:
-		initargs[rho_name][0]=(rho+corr[0]*(rho==0))*mod
+
 	
 def ARMA_regression(panel):
 	gfre=panel.options.fixed_random_group_eff.value

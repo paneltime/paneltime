@@ -12,7 +12,6 @@ except:
 import webbrowser
 import output
 import os
-import shutil
 import numpy as np
 import time
 import charts
@@ -135,7 +134,8 @@ class console:
 		self.output_set = True
 
 	def update(self,comput, its,ll,incr, dx_norm):
-		print(ll.LL)
+		pass
+		#print(ll.LL)
 		
 	def print_final(self, msg, fret, conv, t0, xsol, its):
 		print(msg)
@@ -148,10 +148,10 @@ class tk_widget:
 		self.tab=window.main_tabs._tabs.add_output(exe_tab)
 		self.set_progress=self.tab.progress_bar.set_progress
 		self.output_set = False
-
 		
 	def set_output_obj(self,ll, comput, dx_norm):
 		self.tab.set_output_obj(ll,self.panel, comput, dx_norm)
+		self.output = self.tab.output
 		self.output_set = True
 		
 	def update(self,comput, its, ll, incr, dx_norm):
@@ -161,7 +161,6 @@ class tk_widget:
 		print(msg)
 		print(f"LL={fret}  success={conv}  t={time.time()-t0} its: {its}")
 		print(xsol)	
-
 
 def get_web_page(LL, args, comput,tbl,auto_update):
 	au_str=''

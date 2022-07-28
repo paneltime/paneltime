@@ -3,7 +3,7 @@
 
 import numpy as np
 import time
-import debug
+
 try:
 	import cfunctions as c
 except:

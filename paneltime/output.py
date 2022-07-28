@@ -6,8 +6,9 @@
 import numpy as np
 from scipy import stats as scstats
 import stat_functions as stat
-import model_parser
+import stat_scipy
 import time
+
 STANDARD_LENGTH=8
 		
 
@@ -39,10 +40,10 @@ class output:
 		self.heading()
 		
 	def statistics(self):
-		return statistics(self.ll,self.panel)
+		return Statistics(self.ll,self.panel)
 
 	def reg_table(self):
-		return reg_table_obj(self)
+		return RegTableObj(self)
 	
 	def t_stats(self):
 		d=self.d
@@ -124,7 +125,7 @@ class output:
 			d['assco'][i]=panel.args.names_v[weak_mc_dict[i][0]]	
 
 	
-class reg_table_obj(dict):
+class RegTableObj(dict):
 	def __init__(self,output):
 		dict.__init__(self)
 		self.d=output.d
@@ -136,7 +137,7 @@ class reg_table_obj(dict):
 		self.model_desc = output.model_desc
 		self.footer=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
 	
-	def table(self,n_digits,brackets,fmt,stacked, show_direction, show_constraints):
+	def table(self,n_digits = 3,brackets = '(',fmt = 'NORMAL',stacked = True, show_direction = False, show_constraints = True):
 		include_cols,llength=self.get_cols(stacked, show_direction, show_constraints)
 		if fmt=='INTERNAL':
 			self.X=None
@@ -347,16 +348,16 @@ def remove_illegal_signs(name):
 	return name
 		
 	
-class statistics:
+class Statistics:
 	def __init__(self,ll,panel):
 		ll.standardize(panel)
 		self.df=panel.df
 		self.N,self.T,self.k=panel.X.shape
-		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True,panel)	
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False,panel)	
-		self.no_ac_prob,self.rhos,self.RSqAC=stat.breusch_godfrey_test(panel,ll,10)
+		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat_scipy.goodness_of_fit(ll,True,panel)	
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat_scipy.goodness_of_fit(ll,False,panel)	
+		self.no_ac_prob,self.rhos,self.RSqAC=stat_scipy.breusch_godfrey_test(panel,ll,10)
 		self.DW=stat.DurbinWatson(panel,ll)
-		self.norm_prob=stat.JB_normality_test(ll.e_norm,panel)
+		self.norm_prob=stat_scipy.JB_normality_test(ll.e_norm,panel)
 		self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
 		self.df_str=self.gen_df_str(panel)	
 		self.instruments=panel.input.Z_names[1:]
@@ -400,7 +401,7 @@ class statistics:
 \tDegrees of freedom (A-B-C-D-E)\t\t:\t{panel.df}\n\n"""
 		return s
 	
-	def gen_mod_fit(self,n_digits):
+	def gen_mod_fit(self,n_digits = 3):
 		return f"""	
 \tLL-ratio\t\t:\t{round(self.LL_ratio,n_digits)}
 \tR-squared (from observed data)\t\t:\t{round(self.Rsq*100,2)}%
@@ -416,7 +417,7 @@ class statistics:
 """		
 
 
-	def adf_str(self,n_digits):
+	def adf_str(self,n_digits = 3):
 			
 		if not self.ADF_stat=='NA':
 			if self.ADF_stat<self.c1:
@@ -514,10 +515,10 @@ def format_latex(X,cols,heading):
 	for i in range(1,len(X)):
 		p+='\t'+ ' &\t'.join(X[i])+'\\\\\n'
 	p+="""
-\hline %inserts single line
-\end{tabular}
-\label{table:nonlin} % is used to refer this table in the text
-\end{table}"""
+\\hline %inserts single line
+\\end{tabular}
+\\label{table:nonlin} % is used to refer this table in the text
+\\end{table}"""
 	return p	
 
 def format_html(X,cols,heading,head, mod):
@@ -647,7 +648,7 @@ class join_table_column:
 		self.LL=ll.LL
 		self.df=panel.df
 		self.args=ll.args
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True,panel)
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat_scipy.goodness_of_fit(ll,True,panel)
 		self.instruments=panel.input.Z_names[1:]
 		self.pqdkm=panel.pqdkm		
 		self.Y_name=panel.input.Y_names

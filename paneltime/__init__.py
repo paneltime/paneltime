@@ -4,26 +4,39 @@
 import sys
 import os
 sys.path.append(__file__.replace("__init__.py",''))
-#import system_main as main
+import time
+import multi_core as mc
+
+
+	
+N_NODES=8
+
+t0=time.time()
+
+mp = mc.multiprocess(1,
+					 "import maximize\n"
+					 "import tempstore\n"
+					 "import multi_core as mc\n"
+					 "tempstore.test_and_repair()\n"
+					 f"mp = mc.multiprocess({N_NODES})\n")
+print(f"mc: {time.time()-t0}")
+
+
+from matplotlib import pyplot  as plt #matplotlib will not load late
+
 import main
 import options as opt_module
 import inspect
 import numpy as np
 import loaddata
-import tempstore
-from pandas.api.types import is_numeric_dtype
 import pandas as pd
-
-
-
 
 
 def execute(model_string,dataframe, ID=None,T=None,HF=None,join_table=None,instruments=None, console_output=False):
 	"""optimizes LL using the optimization procedure in the maximize module"""
-	tempstore.test_and_repair()
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab')
-	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table,instruments, console_output)
+	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table,instruments, console_output, mp)
 	return r
 
 def load_json(fname):
