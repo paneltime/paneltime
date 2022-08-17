@@ -145,12 +145,6 @@ def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 	dLL=dLL.reshape((N,T,1,1))
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	
 
-def dd_omega_func(dlnv_omega_e,de_xi):
-	if de_xi is None:
-		return None
-	N,T,k=de_xi.shape
-	N,T,m=dlnv_omega_e.shape	
-	return np.sum(dlnv_omega_e*de_xi,(0,1)).reshape((k,m))
 
 def add(iterable,ignore=False):
 	"""Sums iterable. If ignore=True all elements except those that are None are added. If ignore=False, None is returned if any element is None. """
@@ -211,10 +205,6 @@ def concat_marray(matrix_array):
 			arr.append(i)
 	arr=np.concatenate(arr,2)
 	return arr
-
-
-
-
 		
 def dd_func(d2LL_de2,d2LL_dln_de,d2LL_dln2,de_dh,de_dg,dln_dh,dln_dg,dLL_de2_dh_dg,dLL_dln2_dh_dg):
 	a=[]
@@ -254,218 +244,19 @@ def dd_func_mult(d0,mult,d1):
 	return x
 
 
-def ARMA_product(m,k,panel,ll,letter):
-	return panel.arma_dot.roll_array(m,k,letter,ll)
-	a=[]
-	for i in range(k):
-		a.append(roll(panel.arma_dot.conv(m,ll),-i-1,1))
-	return np.array(a)
-
-
-	
-def differenciate(X,diff,has_intercept):
-	for i in range(diff):
-		X=X-np.roll(X,1,0)
-	X=X[diff:]
-	if has_intercept:
-		X[:,0]=1
-	return X
-
-
-def roll(a,shift,axis=0,empty_val=0):
-	"""For shift>0 (shift<0) this function shifts the shift up (down) by deleting the top (bottom)
-	shift and replacing the new botom (top) shift with empty_val"""
-
-	if shift==0:
-		return a
-	if type(a)==list:
-		a=np.a(a)
-	s=a.shape
-
-	ret=np.roll(a,shift,axis)
-	v=[slice(None)]*len(s)
-	if shift>0:
-		v[axis]=slice(0,shift)
-	else:
-		n=s[axis]
-		v[axis]=slice(n+shift,n)
-	ret[tuple(v)]=empty_val
-
-	if False:#for debugging
-		arr2=a*1
-		arr=a*1
-		if len(s)==2:
-			T,k=s
-			fill=np.ones((abs(shift),k),dtype=arr2.dtype)*empty_val		
-			if shift<0:
-				ret2= np.append(fill,arr2[0:T+shift],0)
-			else:
-				ret2= np.append(arr2[shift:],fill,0)		
-		elif len(s)==3:
-			N,T,k=s
-			fill=np.ones((N,abs(shift),k),dtype=arr2.dtype)*empty_val
-			if shift<0:
-				ret2= np.append(fill,arr2[:,0:T+shift],1)
-			else:
-				ret2= np.append(arr2[:,shift:],fill,1)		
-		elif len(s)==1:
-			T=s[0]
-			fill=np.ones(abs(shift),dtype=arr2.dtype)*empty_val
-			if shift<0:
-				ret2= np.append(fill,arr2[0:T+shift],0)
-			else:
-				ret2= np.append(arr2[shift:],fill,0)	
-
-		if not np.all(ret==ret2):
-			raise RuntimeError('Check that the calling procedure has specified the "axis" argument')
-	return ret
-
-
-
-def LU(X):
-	"Calculates LU decomposition, where X may be multi dimensional. Not in use, should be tested"
-	shape=X.shape
-	N=shape[0]
-	U=np.zeros((shape))
-	L=np.zeros((shape))
-	U+=np.diag(np.ones(N))
-	X=X*1
-	for k in range(N):
-		for i in range(k,N):
-			s = 0
-			for m in range(k):
-				s+= L[i,m] * U[m,k]
-			L[i,k] = X[i,k] - s
-		singularity=(np.abs(L[k,k]) < 1E-18)
-		L[k,k]=singularity*1E-18+(1-singularity)*L[k,k]
-		for j in range(k+1,N):
-			s = 0
-			for m in range(k):
-				s += L[k,m] * U[m,j]
-			U[k,j] = (X[k,j] - s)/ L[k,k]
-	return L,U
-
-def minverse(X,L=None,U=None):
-	"Calculates the matrix inverse where X may be multi dimensional. Not in use, should be tested"
-	shape=X.shape
-	N=shape[0]
-	if L is None:
-		L,U=LU(X)
-	I=np.diag(np.ones(N))
-	inv=np.zeros(shape)
-	tmp=np.zeros(shape[1:])
-
-	for k in range(N):
-		tmp[0] = I[0,k] / L[0,0]
-		for i in range(1,N):
-			Sum = 0
-			for j in range(i):
-				Sum = Sum + L[i,j] * tmp[j]
-			tmp[i] = (I[i,k] - Sum) / L[i,i]
-		inv[N-1,k] = tmp[N-1];
-		for i in range(N-2,-1,-1):
-			Sum = 0
-			for j in range(i,N):
-				Sum = Sum + U[i,j] * inv[j,k]
-			inv[i,k] =tmp[i] - Sum
-	return inv	
-
-def diag(X):
-	return np.array([X[i,i] for i in range(len(X))])
-
-
-def mmult(X,Y):
-	"""returns the dot product of X*Y """	
-	a=X.shape
-	b=Y.shape
-	out_shape=list(a)
-	out_shape[1]=b[1]
-	r=np.zeros(out_shape)
-	for i in range(a[0]):
-		for j in range(b[1]):
-			for k in range(a[1]):
-				r[i,j]+=X[i,k]*Y[k,j]
-	return r
-
-def dots(a):
-	a=list(a)
-	m=a.pop()
-	for i in range(len(a)):
-		m=mmult(a.pop(),m)
-	return m
-
-
 def dot(a,b,reduce_dims=True):
 	"""Matrix multiplication. Returns the dot product of a*b where either a or be or both to be
 	arrays of matrices. Faster than mmult, less general and only used for special purpose.
 	Todo: generalize and merge"""
 
-	if a is None or b is None:
-		return None
-	if len(a.shape)==5 and len(b.shape)==5 and a.shape==b.shape:
-		return mmult(a,b)
-	if len(a.shape)==2 and len(b.shape)==2:
-		if a.shape[1]!=b.shape[0] and a.shape[0]==b.shape[0]:
-			return np.dot(a.T,b)
-		return np.dot(a,b)
-	if len(a.shape)==2 and len(b.shape)==3:
-		N,T,k=b.shape
-		x=np.moveaxis(b, 1, 0)
-		x=x.reshape((T,N*k))
-		x=np.dot(a,x)
-		x.resize((T,N,k))
-		x=np.moveaxis(x,0,1)
-		#slower alternative:
-		#x2=np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
-		return x
-	elif len(a.shape)==3 and len(b.shape)==2:
-		return np.array([np.dot(a[i],b) for i in range(a.shape[0])])
+
+	if len(a.shape)==3 and len(b.shape)==2:
+		x = np.array([np.dot(a[i],b) for i in range(a.shape[0])])
 	elif len(a.shape)==3 and len(b.shape)==3:
-		if a.shape[1]!=b.shape[1]:
-			raise RuntimeError("dimensions do not match")
-		elif a.shape[0]==b.shape[0] and reduce_dims:
-			x=np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
-			return x
-		elif a.shape[2]==b.shape[1]:
-			k,Ta,Ta2=a.shape
-			if Ta2!=Ta:
-				raise RuntimeError("hm")
-			N,T,m=b.shape
-			b_f=np.moveaxis(b, 1, 0)
-			a_f=a.reshape((k*T,T))
-			b_f=b_f.reshape((T,N*m))
-			x=np.dot(a_f,b_f)
-			x.resize((k,T,N,m))	
-			x=np.swapaxes(x, 2, 0)
-			#slower:
-			#x2=np.array([[np.dot(a[i],b[j]) for j in range(b.shape[0])] for i in range(a.shape[0])])
-			#x2=np.moveaxis(x2,0,2)	
-			return x
+		x = np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
+	return x
 
 
-	elif len(a.shape)==2 and len(b.shape)==4:
-		if a.shape[1]!=b.shape[1] or a.shape[1]!=a.shape[0]:
-			raise RuntimeError("dimensions do not match")
-		else:
-			N,T,k,m=b.shape
-			x=np.moveaxis(b, 1, 0)
-			x=x.reshape((T,N*k*m))
-			x=np.dot(a,x)
-			x.resize((T,N,k,m))
-			x=np.moveaxis(x,0,1)
-
-			#slower alternatives:
-			#x=np.array([[np.dot(a,b[i,:,j]) for i in range(b.shape[0])] for j in range(b.shape[2])])
-			#x=np.moveaxis(x,0,2)
-				#or
-			#x2=np.zeros(b.shape)		
-			#r=c.dot(a,b,b.shape,x2)		
-			return x
-
-	else:
-		raise RuntimeError("this multiplication is not supported by dot")
-	
-	
 class arma_dot_obj:
 	def __init__(self,n,pqdkm):
 		a=np.arange(n)

@@ -80,13 +80,13 @@ def adf_test(panel,ll,p):
 	"""Returns the augmented dickey fuller test statistic and critical value"""
 	N,T,k=panel.X.shape
 	y=ll.Y_st
-	yl1=cf.roll(y,1,1)
+	yl1=roll(y,1,1)
 	dy=y-yl1
 	date_var=np.arange(T).reshape((T,1))*panel.included[3]	#date count
 	X=np.concatenate((panel.included[3],date_var,yl1),2)
 	dyL=[]
 	for i in range(p):
-		dyL.append(cf.roll(dy,i+1,1))
+		dyL.append(roll(dy,i+1,1))
 	dyL=np.concatenate(dyL,2)
 	date_var=(date_var>p+1)
 	X=np.concatenate((X,dyL),2)
@@ -101,6 +101,11 @@ def adf_test(panel,ll,p):
 	critval=adf_crit_values(panel.NT,True)
 	res=np.append(adf_stat,critval)
 	return res
+
+def roll(x,shift, dim):
+	b = np.roll(x,shift,dim)
+	b[:,:shift]=0
+	return b
 
 def goodness_of_fit(ll,standarized,panel):
 	if standarized:
@@ -342,8 +347,8 @@ def robust_se(panel,L,hessin,XErr,nw_only=True):
 	return se_robust,se_std,V[i]
 	
 def sandwich_var(hessin,V):
-	hessinV=cf.dot(hessin,V)
-	V=cf.dot(hessinV,hessin)
+	hessinV=np.dot(hessin,V)
+	V=np.dot(hessinV,hessin)
 	v=np.diag(V)
 	return v,V
 	

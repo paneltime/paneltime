@@ -196,7 +196,7 @@ class LL:
 		self.Y_pred=cf.dot(panel.X,self.args.args_d['beta'])	
 		self.e_norm_long=self.stretch_variable(panel,self.e_norm)
 		self.Y_pred_st_long=self.stretch_variable(panel,self.Y_pred_st)
-		self.Y_pred_long=cf.dot(panel.input.X,self.args.args_d['beta'])
+		self.Y_pred_long=np.dot(panel.input.X,self.args.args_d['beta'])
 		self.e_long=panel.input.Y-self.Y_pred_long
 		
 		Rsq, Rsqadj, LL_ratio,LL_ratio_OLS=self.goodness_of_fit(panel, False)
