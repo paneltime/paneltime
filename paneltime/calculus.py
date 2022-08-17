@@ -48,6 +48,8 @@ class gradient:
 
 
 	def get(self,ll,DLL_e=None,dLL_lnv=None,return_G=False):
+		
+		
 		self.callback(perc = 0.05, text = '', task = 'gradient')
 		(self.DLL_e, self.dLL_lnv)=(DLL_e, dLL_lnv)
 		panel=self.panel
@@ -65,20 +67,24 @@ class gradient:
 		
 		(self.de_rho,self.de_lambda,self.de_beta)=(de_rho,de_lambda,de_beta)
 		
+		
 		self.de_rho_RE       =    cf.add((de_rho,     re_obj_i.dRE(de_rho, ll.e,'rho',panel), 		re_obj_t.dRE(de_rho,ll.e,'rho',panel)), True)
 		self.de_lambda_RE    =    cf.add((de_lambda,  re_obj_i.dRE(de_lambda, ll.e,'lambda',panel),	re_obj_t.dRE(de_lambda,ll.e,'lambda',panel)), True)
 		self.de_beta_RE      =    cf.add((de_beta,    re_obj_i.dRE(de_beta, ll.e,'beta',panel), 		re_obj_t.dRE(de_beta,ll.e,'beta',panel)), True)		
-
+		
+		
 		dlnv_sigma_rho,		dlnv_sigma_rho_G,		dvRE_rho	, d_rho_input		=	self.garch_arima_grad(ll,	de_rho,		self.de_rho_RE,		'rho')
 		dlnv_sigma_lambda, 	dlnv_sigma_lambda_G,	dvRE_lambda	, d_lambda_input	=	self.garch_arima_grad(ll,	de_lambda,	self.de_lambda_RE,	'lambda')
 		dlnv_sigma_beta,	dlnv_sigma_beta_G,		dvRE_beta	, d_beta_input		=	self.garch_arima_grad(ll,	de_beta,	self.de_beta_RE,	'beta')
 
+		
 		(self.dlnv_sigma_rho,self.dlnv_sigma_lambda,self.dlnv_sigma_beta)=(dlnv_sigma_rho,dlnv_sigma_lambda,dlnv_sigma_beta)
 		(self.dlnv_sigma_rho_G,self.dlnv_sigma_lambda_G,self.dlnv_sigma_beta_G)=(dlnv_sigma_rho_G,dlnv_sigma_lambda_G,dlnv_sigma_beta_G)
 		(self.dvRE_rho,self.dvRE_lambda,self.dvRE_beta)=(dvRE_rho,dvRE_lambda,dvRE_beta)
 		(self.d_rho_input,self.d_lambda_input,self.d_beta_input)=(d_rho_input,d_lambda_input,d_beta_input)
 
 		#GARCH:
+
 		(dlnv_gamma, dlnv_psi, dlnv_mu, dlnv_z_G, dlnv_z)=(None,None,None,None,None)
 		if panel.N>1:
 			dlnv_mu=cf.prod((ll.dlnvRE_mu,incl))
@@ -99,6 +105,7 @@ class gradient:
 
 		#LL
 
+		
 		#final derivatives:
 		dLL_beta=cf.add((cf.prod((dlnv_sigma_beta,dLL_lnv)),cf.prod((self.de_beta_RE,DLL_e))),True)
 		dLL_rho=cf.add((cf.prod((dlnv_sigma_rho,dLL_lnv)),cf.prod((self.de_rho_RE,DLL_e))),True)
@@ -109,6 +116,7 @@ class gradient:
 		dLL_omega=cf.prod((self.dlnv_omega,dLL_lnv))
 		dLL_mu=cf.prod((self.dlnv_mu,dLL_lnv))
 		dLL_z=cf.prod((self.dlnv_z,dLL_lnv))
+		
 
 		G=cf.concat_marray((dLL_beta,dLL_rho,dLL_lambda,dLL_gamma,dLL_psi,dLL_omega,dLL_mu,dLL_z))
 		g=np.sum(G,(0,1))
@@ -121,12 +129,17 @@ class gradient:
 		#print(gn)
 		#a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
 		#dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
-		self.callback(perc = 0.08, text = '', task = 'gradient')
 
+		self.callback(perc = 0.08, text = '', task = 'gradient')
+		
+
+		
 		if return_G:
 			return  g,G
 		else:	
 			return g
+
+
 
 
 class hessian:
@@ -149,9 +162,9 @@ class hessian:
 		p,q,d,k,m=panel.pqdkm
 		incl=self.panel.included[3]
 		
-		GARM=(cf.ARMA_product(ll.GAR_1,m,panel,ll,'m'),ll.GAR_1,m,1)
+		GARM=(ll.GAR_1,m,1)
 		
-		GARK=(cf.ARMA_product(ll.GAR_1,k,panel,ll,'k'),ll.GAR_1,k,1)
+		GARK=(ll.GAR_1,k,1)
 
 		d2lnv_gamma2		=   cf.prod((2, 
 		                        cf.dd_func_lags(panel,ll,GARK, 	g.dlnv_gamma,						g.dLL_lnv,  transpose=True)))
@@ -167,12 +180,12 @@ class hessian:
 		d2lnv_psi_beta		=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_beta)),	g.dLL_lnv)
 		d2lnv_psi_z			=	cf.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,								g.dLL_lnv)
 
-		AMAq=(-cf.ARMA_product(ll.AMA_1,q,panel,ll,'q'),ll.AMA_1,q,-1)
+		AMAq=(ll.AMA_1,q,-1)
 		d2lnv_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'lambda', transpose=True)
 		d2lnv_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'rho' )
 		d2lnv_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta')
 
-		AMAp=(-cf.ARMA_product(ll.AMA_1,p,panel,ll,'p'),ll.AMA_1,p,-1)
+		AMAp=(ll.AMA_1,p,-1)
 		d2lnv_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 		
 		self.callback(perc = 0.4, text = '', task = 'hessian')

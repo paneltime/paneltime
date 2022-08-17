@@ -49,10 +49,21 @@ class arguments:
 				return
 		if not panel.z_active and 'z' in self.user_constraints:
 			self.user_constraints.pop('z')	
-		for i in self.user_constraints:
-			for j in self.user_constraints[i]:
-				if j not in self.names_v:
-					print(f"Constraint on {j} not applied (name not found in arguments)")
+			
+		for grp in self.user_constraints:
+			try:
+				self.user_constraints[grp] = np.array(self.user_constraints[grp]).flatten()
+				test = 1.0 * self.user_constraints[grp]
+			except:
+				print(f'Failed to apply user constraints for {grp}')
+				self.user_constraints.pop('grp')
+				
+		for grp in self.user_constraints:
+			if not grp in self.names_d:
+				print(f"Constraint on {grp} not applied, {grp} not in arguments")
+			if len(self.names_d[grp]) < len(self.user_constraints[grp]):
+				print(f"Not all constraints on {grp} applied, more constraints than arguments for {grp}")
+				
 		
 
 	def initargs(self,p,d,q,m,k,panel):
@@ -270,7 +281,7 @@ class arguments:
 		
 def set_init_regression(initargs,panel):
 	p, q, d, k, m=panel.pqdkm
-	beta,rho,lmbda,corr,u=ARMA_regression(panel)
+	beta,rho,lmbda,u=ARMA_regression(panel)
 	v=panel.var(u)
 	if panel.options.normal_GARCH.value:
 		omega=panel.var(u)
@@ -279,6 +290,13 @@ def set_init_regression(initargs,panel):
 	
 	initargs['omega'][0,0]=omega
 	initargs['beta']=beta
+	
+	if False: #turns out calculating ARMA parameters serves no purpose. These are easily found by linesearch for given regression coefficients. 
+		if q > 0:
+			initargs['lambda'][0] = lmbda
+			
+		if p > 0:
+			initargs['rho'][0] = rho	
 
 	
 	if panel.options.fixed_random_variance_eff.value==0:
@@ -316,26 +334,22 @@ def ARMA_regression(panel):
 	X=(panel.X+re_obj_i.RE(panel.X, panel)+re_obj_t.RE(panel.X, panel))*panel.included[3]
 	Y=(panel.Y+re_obj_i.RE(panel.Y, panel)+re_obj_t.RE(panel.Y, panel))*panel.included[3]
 	beta,u=stat.OLS(panel,X,Y,return_e=True)
-	rho,lmbda,corr=ARMA_process_calc(u,panel)
-	return beta,rho,lmbda,corr,u
+	rho,lmbda=ARMA_process_calc(u,panel)
+	return beta,rho,lmbda,u
 
 def ARMA_process_calc(e,panel):
-	c=stat.correlogram(panel,e,7,center=True)[1:]
-	decay=c[1:]/(c[:-1]+(c[:-1]==0))
-	rho=np.median(decay)	
-	if abs(rho)>1 or np.std(np.abs(decay))>1:
-		return 0,0,c
-	r=c[0]
-	t=1-2*r*rho+rho**2
-	root=((rho**2-1)*(rho**2-1+4*r*(r-rho)))
-	den=2*(r-rho)
-	lambda_1=(t-root**0.5)/(den+(den==0))
-	lambda_2=(t+root**0.5)/(den+(den==0))	
-	if (root<0) or (den==0) or ((lambda_1>1 or lambda_1<-1) and (lambda_2>1 or lambda_2<-1)):
-		return c[1],0,c[1:]
-	if (lambda_1>1 or lambda_1<-1):
-		return rho,lambda_2,c[1:]
-	return rho,lambda_1,c
+	c=stat.correlogram(panel,e,2,center=True)[1:]
+	
+	rho = max(min(c[1]/c[0],0.99), -0.99)
+	lmbda1 = (1 - 2*c[0]*rho + rho**2)/(2*(c[0]-rho))
+	lmbda2 = (( (rho**2 - 1)*(rho**2 - 1 + 4*c[0]**2 - 4*c[0]*rho) )**0.5) / (2*(c[0]-rho))
+	
+	if abs(lmbda1+lmbda2)>abs(lmbda1-lmbda2):
+		lmbda = max(min(lmbda1 - lmbda2,0.99), -0.99)
+	else:
+		lmbda = max(min(lmbda1 + lmbda2,0.99), -0.99)
+
+	return rho,lmbda
 		
 			
 def add_names(T,namsestr,category,d,c,names):

@@ -14,7 +14,7 @@ STPMX=100.0
 
 
 class Computation:
-	def __init__(self,panel, callback = lambda **kw: None, 
+	def __init__(self,panel, t0, callback = lambda **kw: None, 
 				 gtol = 0, tolx = TOLX):
 		"""callback is a function taking any named arguments """
 		self.callback = callback
@@ -29,10 +29,11 @@ class Computation:
 		self.mc_problems=[]
 		self.H_correl_problem=False
 		self.singularity_problems=False
-		self.start_time=time.time()
+		self.start_time=t0
 		self.num_hess_count = 0
 		self.H, self.g, self.G = None, None, None
 		self.mcollcheck = False
+		self.rec =[]
 
 
 	def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll, coll_max_limit):
@@ -45,7 +46,7 @@ class Computation:
 			
 		
 		if self.panel.options.constraints_engine.value:
-			self.constr.add_static_constraints(ll)	
+			self.constr.add_static_constraints(self.panel, ll)	
 			self.constr.add_dynamic_constraints(self, H, ll, coll_max_limit)	
 			
 		self.CI=self.constr.CI
@@ -58,30 +59,34 @@ class Computation:
 		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
 
 	def exec(self, dx, dx_norm, hessin, H, f, x, g_old, incr, rev, alam, its, ll, calc = True):
+		#Thhese setting may not hold for all circumstances, and should be tested properly:
+		DET_THRESHOLD = 0
+		INCR_THRESHOLD = 20
 		
 		g, G = self.calc_gradient(ll)
 		
 		pgain, totpgain = potential_gain(dx, g, H)
 		max_pgain = max(pgain)
-		g_norm =np.max(np.abs(g)*np.abs(x)/(abs(f)+1e-12) )
-		
-
-
-
-
+		g_norm =np.max(np.abs(g*x)/(abs(f)+1e-12) )
+		self.rec.append(str(i) for i in [totpgain, max_pgain, incr, g_norm])
 		CI=0
 		if not self.CI is None:
 			CI = self.CI
-		test = (  (totpgain < 0) or (max_pgain < 0) ) and self.num_hess_count>0
 		if calc:
-			if test:
+			#print(f"{totpgain}, {max_pgain}, {incr}" )
+			if incr > INCR_THRESHOLD:
 				H = self.calc_hessian(ll)
+				if (np.linalg.det(H))<DET_THRESHOLD:
+					a = 0.25
+				else:
+					a = 1.0
+				H = a*H + (1-a)*np.diag(np.diag(H))
 				hessin = hess_inv(H, None)
 				self.num_hess_count = 0
 			else:
-				self.num_hess_count+=1
 				hessin=self.hessin_num(hessin, g-g_old, dx)
 				H = hess_inv(hessin, None)
+				self.num_hess_count+=1
 		else:
 			self.H = H
 	
@@ -178,7 +183,7 @@ class Computation:
 		if args is None:
 			args = ll.args.args_v
 		self.constr=constraints.constraints(self.panel, args)
-		self.constr.add_static_constraints()			
+		self.constr.add_static_constraints(self.panel)			
 		try:
 			args=args.args_v
 		except:
@@ -217,13 +222,6 @@ class Computation:
 			H = np.diag(1/h)
 		return p0, ll, ll.LL , g, hessin, H
 
-	def LL(self,x):
-		ll = logl.LL(x, self.panel, self.constr)
-		if ll is None:
-			return None, None
-		elif ll.LL is None:
-			return None, None
-		return ll.LL, ll
 	
 def det_managed(H):
 	try:

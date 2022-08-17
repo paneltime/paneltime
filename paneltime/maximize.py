@@ -16,9 +16,9 @@ import linesearch
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
-GTOL = 0
+GTOL = 1e-2
 
-def dfpmin(x, comput, callback, mp):
+def dfpmin(x, comput, callback, mp, panel):
 	"""Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
 	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
 	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -27,14 +27,15 @@ def dfpmin(x, comput, callback, mp):
 	function). The routine lnsrch is called to perform approximate line minimizations.
 	fargs are fixed arguments that ar not subject to optimization. ("Nummerical Recipes for C") """
 
-	comput.LL(x)
+
 	x, ll, f, g, hessin, H = comput.calc_init_dir(x)
 
 	its = 0
 	max_iter = 1000
-	for its in range(max_iter):  	#Main loop over the iterations.		
-		dx, dx_norm = direction.get(g, x, H, comput.constr, hessin, simple=False)
-		ls = linesearch.LineSearch(x, comput.LL, mp)
+	for its in range(max_iter):  	#Main loop over the iterations.
+		constr = comput.constr
+		dx, dx_norm = direction.get(g, x, H, constr, hessin, simple=False)
+		ls = linesearch.LineSearch(x, comput, mp, panel)
 		ls.lnsrch(x, f, g, dx)
 		
 		dx = ls.x - x
@@ -72,19 +73,19 @@ def maximize(panel, args, callback, mp, comput = None):
 	#have to  completely redesign callback, so that it takes only a dict as argument
 	args = np.array(args)
 	if comput is None:
-		comput = computation.Computation(panel, callback, 1e-10) 
+		comput = computation.Computation(panel, time.time(), callback, 1e-10) 
 	callback(conv = False, done = False)
-	f, x, H, its, conv, ls, msg, dx_norm, incr = dfpmin(args,comput, callback, mp)
+	f, x, H, its, conv, ls, msg, dx_norm, incr = dfpmin(args,comput, callback, mp, panel)
 	callback(f = f, x = x, H = H, its = its, conv = conv, msg = msg, done = True)
 	panel.input.args_archive.save(ls.ll.args,True)
 	
 	return comput, ls, msg, its, conv, dx_norm, incr
 
 
-def run(panel, args, mp, window, exe_tab, console_output):
+def run(panel, args, mp, mp_debug, window, exe_tab, console_output):
 	t0=time.time()
 	
-	comm  = Comm(panel, args, mp, window, exe_tab, console_output)
+	comm  = Comm(panel, args, mp, mp_debug, window, exe_tab, console_output, t0)
 	comm.callback.print_final(comm.msg, comm.its, comm.incr, comm.f, 1, 'Done', comm.conv, comm.dx_norm, t0, comm.x, comm.ll)
 	summary = Summary(comm, t0)
 
@@ -147,7 +148,7 @@ class Summary:
 		
 
 class Comm:
-	def __init__(self, panel, args, mp, window, exe_tab, console_output):
+	def __init__(self, panel, args, mp, mp_debug, window, exe_tab, console_output, t0):
 		self.mp = mp
 		self.listen = None
 		self.panel = panel	
@@ -156,14 +157,14 @@ class Comm:
 				[f"maximize.maximize(panel, {list(args)}, callback, mp)"])
 			
 		import communication as comm
-		self.callback = comm.callback(window,exe_tab,self.panel, console_output)
-		self.comput = computation.Computation(panel, gtol = GTOL, tolx = TOLX) 
+		self.callback = comm.Callback(window,exe_tab,self.panel, console_output, t0)
+		self.comput = computation.Computation(panel, t0, gtol = GTOL, tolx = TOLX) 
 		self.callback.set_computation(self.comput)
 		
 		if not mp is None:
 			self.start_listening()
 		else:
-			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, self.callback.generic, self.comput)
+			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, self.callback.generic, mp_debug, self.comput)
 			self.msg = msg
 			self.f = ls.f
 			self.conv = conv

@@ -22,10 +22,12 @@ TMP_PAGE='tmphtml'
 pic_num=[1]
 
 
-class callback:
-	def __init__(self,window, exe_tab, panel, console_output):
+class Callback:
+	def __init__(self,window, exe_tab, panel, console_output, t0):
 		self.channel = get_channel(window, exe_tab, panel, console_output)
 		self.panel = panel
+		self.start_time = t0
+		self.print_interval_time = time.time()
 		self.set_progress = self.channel.set_progress
 		self.kw = {}
 		
@@ -34,8 +36,11 @@ class callback:
 		self._print = _print
 		
 	def generic(self, **keywordargs):
-		if 'f' in keywordargs:
-			print(keywordargs['f'])
+		if time.time()-self.print_interval_time<1 or False:
+			return
+		self.print_interval_time = time.time()
+		if ('f' in keywordargs) and ('its' in keywordargs):
+			print(f"{keywordargs['f']} : {time.time()-self.start_time} : {keywordargs['its']}")
 		
 
 	def print(self, msg, its, incr, ll, perc , task, dx_norm):

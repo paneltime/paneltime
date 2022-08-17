@@ -41,10 +41,10 @@ class multiprocess:
 			self.d[i]=d[i]		
 		return self.d
 
-	def send_dict(self,d,cpu_ids=None,command='', wait = False):
+	def send_dict(self,d,cpu_ids=None,command='', cleanup = True):
 		for i in d:
 			self.d[i]=d[i]		
-		self.master.send_dict(d,cpu_ids,command, wait)
+		self.master.send_dict(d,cpu_ids,command, cleanup)
 
 	def quit(self):
 		self.master.quit()
@@ -63,7 +63,7 @@ class master():
 		functions you are going to run are """
 		f = tempstore.TempfileManager().tempfile()
 		self.f = f.name
-		self.filesend_cpu_ids=[]
+		self.pending_cpus=[]
 		f.close()
 		if max_nodes is None:
 			self.cpu_count=os.cpu_count()#assignment to self allows for the possibility to manipulate the count
@@ -87,8 +87,8 @@ Master PID: %s \n
 Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		print (pstr)
 
-	def send_dict(self, d,cpu_ids,command, wait):
-		self.reset_filesend_receive()
+	def send_dict(self, d,cpu_ids,command, cleanup):
+		self.cleanup()
 		f=open(self.f,'wb')
 		pickle.dump(d,f)   
 		f.flush() 
@@ -101,18 +101,18 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		else:
 			for i in cpu_ids:
 				self.slaves[i].send('filetransfer',(self.f,command))
-		self.filesend_cpu_ids=cpu_ids
-		if not wait:
-			self.reset_filesend_receive()#wait == True for asycronous 
+		self.pending_cpus=cpu_ids
+		if cleanup: #cleanup == False for asycronous
+			self.cleanup() 
 		a=0
 		
-	def reset_filesend_receive(self):
-		for i in self.filesend_cpu_ids:
-			res = self.slaves[i].receive()
-		self.filesend_cpu_ids=[]
+	def cleanup(self):
+		for i in self.pending_cpus:
+			_ = self.slaves[i].receive()
+		self.pending_cpus=[]
 		
 	def send_holdbacks(self, key_arr):
-		self.reset_filesend_receive()
+		self.cleanup()
 		"""Sends a list with keys to variables that are not to be returned by the slaves"""
 		if key_arr is None:
 			return
@@ -126,7 +126,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			i.p.stderr.close()
 			i.p.stdin.close()
 			i.p.kill()
-			i.p.wait()
+			i.p.cleanup()
 			
 class Tasks:
 	def __init__(self, mp, tasks, progress_bar=None):
@@ -134,7 +134,7 @@ class Tasks:
 		if remote=True, the list must be a list of tuples, where the first item is the expression and the second is the variable that should be returned\n
 		If wait_and_collect=True, wait_and_collect MUST be called at a later stage for each node. If not the nodes will be lost"""
 		
-		mp.reset_filesend_receive()
+		mp.cleanup()
 		self.mp = mp
 		self.n=len(tasks)
 		self.tasks = tasks
@@ -180,7 +180,7 @@ class Listen:
 		shall be run. The strings must have an object 'callback' wich take a single 
 		argument, which must be a dictionary, that represents the information returned from the 
 		slave. """
-		mp.reset_filesend_receive()
+		mp.cleanup()
 		self.mp = mp
 		self.tasks = tasks
 		self.n=len(tasks)

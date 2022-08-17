@@ -166,14 +166,14 @@ class constraints(dict):
 					return False
 		return True
 	
-	def add_static_constraints(self, ll=None):
+	def add_static_constraints(self, panel, ll=None):
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 		
 		c=self.ARMA_constraint
 		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
-		self.add_custom_constraints(general_constraints, ll)
-		self.add_custom_constraints(pargs.user_constraints, ll)
+		self.add_custom_constraints(panel, general_constraints, ll)
+		self.add_custom_constraints(panel, pargs.user_constraints, ll)
 
 	def add_dynamic_constraints(self,computation, H, ll, coll_max_limit):
 		k,k=H.shape
@@ -184,7 +184,7 @@ class constraints(dict):
 		self.CI=constraint_multicoll(k, computation, include, self.mc_problems, H)
 		add_mc_constraint(computation,self.mc_problems,self.weak_mc_dict, coll_max_limit)
 	
-	def add_custom_constraints(self,constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
+	def add_custom_constraints(self,panel, constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
 		"""Adds custom range constraints\n\n
 			constraints shall be on the format [(name, minimum, maximum), ...]
 			or
@@ -200,7 +200,7 @@ class constraints(dict):
 			for c in constraints:
 				self.add_custom_constraints_list(c,replace,cause,args, ll)
 		elif type(constraints)==dict:
-			self.add_custom_constraints_dict(constraints,replace,cause,args)
+			self.add_custom_constraints_dict(panel, constraints,replace,cause,args)
 		else:
 			raise TypeError("The constraints must be a list, tuple or dict.")
 	
@@ -231,12 +231,13 @@ class constraints(dict):
 		[minimum,maximum]=m
 		self.add(name,None,cause, [minimum,maximum],replace,args=args)
 		
-	def add_custom_constraints_dict(self,constraints,replace,cause,args):
+	def add_custom_constraints_dict(self, panel, constraints,replace,cause,args):
 		"""Adds a custom range constraint\n\n
 		   If list, constraint shall be on the format (minimum, maximum)"""
 		for grp in constraints:
-			for name in constraints[grp]:	
-				c=constraints[grp][name]
+			for i in range(len(panel.args.names_d[grp])):
+				name = panel.args.names_d[grp][i]
+				c=constraints[grp][i]
 				if type(c)==list:
 					self.add(name,None,cause, c,replace,args=args)
 				else:
@@ -358,7 +359,7 @@ def add_mc_constraint(computation,mc_problems,weak_mc_dict, coll_max_limit):
 		if cond and cond_index>mc_limit :#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix:	
 			weak_mc_dict[index]=[assc,cond_index]
 		if cond and cond_index>coll_max_limit :#adding restrictions:
-			constr.add(assc,index,'collinear')
+			#constr.add(assc,index,'collinear')
 			constr.add(index ,assc,'collinear')
 			
 		

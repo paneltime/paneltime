@@ -27,7 +27,7 @@ np.set_printoptions(precision=8)
 
 
 def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,
-			exe_tab,join_table,instruments, console_output, mp):
+			exe_tab,join_table,instruments, console_output, mp, mp_debug):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
@@ -37,7 +37,7 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 		print("No valid time variable defined. This is required")
 		return
 
-	summary = doit(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
+	summary = doit(datainput,options,mp, mp_debug,options.pqdkm.value,window,exe_tab, console_output)
 	
 	return summary
 
@@ -53,7 +53,7 @@ class input_class:
 			self.args=options.arguments.value
 		self.join_table=join_table
 			
-def doit(datainput,options,mp,pqdkm,window,exe_tab, console_output):
+def doit(datainput,options,mp, mp_debug,pqdkm,window,exe_tab, console_output):
 	print ("Creating panel")
 	pnl=panel.panel(datainput,options,pqdkm)			
 
@@ -62,17 +62,20 @@ def doit(datainput,options,mp,pqdkm,window,exe_tab, console_output):
 	if not mp is None:
 		command = (
 			"panel.init()\n"
-			"mp.send_dict({'panel':panel}, command=('panel.init()\\n'), wait = False)\n"
-			"import loglikelihood as logl"
+			"mp.send_dict({'panel':panel}, command='panel.init()\\n' , cleanup = False)\n"
 		)
 		
 		mp.send_dict({'panel':pnl},
-					 command = command, wait = False)
+					 command = command, cleanup = False)
+	else:
+		mp_debug.send_dict({'panel':pnl},
+					 command = 'panel.init()', cleanup = False)
+		
 
 	pnl.init()
 	if not options.multi_core.value:
 		mp = None
-	summary = maximize.run(pnl, pnl.args.args_init.args_v, mp, window, exe_tab, console_output)
+	summary = maximize.run(pnl, pnl.args.args_init.args_v, mp, mp_debug, window, exe_tab, console_output)
 	
 	return summary
 

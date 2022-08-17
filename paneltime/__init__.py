@@ -7,18 +7,24 @@ sys.path.append(__file__.replace("__init__.py",''))
 import time
 import multi_core as mc
 
-
+DEBUG_MODE = True
 	
-N_NODES=8
+N_NODES = 16
 
 t0=time.time()
 
-mp = mc.multiprocess(1,
-					 "import maximize\n"
-					 "import tempstore\n"
-					 "import multi_core as mc\n"
-					 "tempstore.test_and_repair()\n"
-					 f"mp = mc.multiprocess({N_NODES})\n")
+if not DEBUG_MODE:
+	mp = mc.multiprocess(1,
+						 "import maximize\n"
+						 "import tempstore\n"
+						 "import multi_core as mc\n"
+						 "tempstore.test_and_repair()\n"
+						 f"mp = mc.multiprocess({N_NODES}, 'import loglikelihood as logl', holdbacks = ('panel', 'constr'))\n")
+	mp_debug = None
+else:
+	mp = None
+	mp_debug = mc.multiprocess(N_NODES, "import loglikelihood as logl")
+	
 print(f"mc: {time.time()-t0}")
 
 
@@ -36,7 +42,7 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,join_table=None,instr
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab')
-	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table,instruments, console_output, mp)
+	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,join_table,instruments, console_output, mp, mp_debug)
 	return r
 
 def load_json(fname):

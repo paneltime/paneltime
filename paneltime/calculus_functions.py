@@ -484,29 +484,52 @@ class arma_dot_obj:
 		
 	def dotroll(self,aband,k,sign,b,ll):
 		
-		
-		ARMA_m=self.conv(aband,ll)
-		s=list(b.shape)
-		x=np.moveaxis(b,1,0)
-		s2=x.shape
-		x.resize((s[1],s[0]*np.prod(s[2:])))
-		x=sign*np.dot(ARMA_m,x)
-		x.resize(s2)
-		x=np.moveaxis(x,1,0)
+
+		x = self.fast_dot(aband, b)
+		if not x is None:
+			x = sign* x
+		else:
+			
+			ARMA_m=self.conv(aband,ll)
+			s=list(b.shape)
+			x=np.moveaxis(b,1,0)
+			s2=x.shape
+			x.resize((s[1],s[0]*np.prod(s[2:])))
+			x=sign*np.dot(ARMA_m,x)
+			x.resize(s2)
+			x=np.moveaxis(x,1,0)
+
 		w=[]
 		for i in range(k):
 			w.append(np.roll(np.array(x),i+1,1))
 			w[i][:,:i+1]=0
 		x=np.array(w)
-		x=np.moveaxis(x,0,2)	
+		x=np.moveaxis(x,0,2)
 		return x
 			
+			
+	def fast_dot(self, a, b):
+		a_, name = a
+		n = get_n(a_)
+		if n is None:
+			n = len(a_)
+			
+		r = a_[0]*b
+		for i in range(1,n):
+			r[:,i:] += a_[i]*b[:,:-i]
+
+		return r
+
+		
 	def dot(self,a,b,ll):
-		if len(a)>2:
-			(M,aband,k,sgn)=a
-			if len(M)==0:
+		if len(a)>2:#then this is a proper matrix
+			(aband,k,sgn)=a
+			if k==0:
 				return None
 			return self.dotroll(aband, k, sgn, b, ll)
+		r = self.fast_dot(a, b)
+		if not r is None:
+			return r
 		s=list(b.shape)
 		x=np.moveaxis(b,1,0)
 		x=x.reshape((s[1],s[0]*np.prod(s[2:])))
@@ -514,6 +537,7 @@ class arma_dot_obj:
 		x=np.dot(ARMA_m,x)
 		x.resize([s[1],s[0]]+s[2:])
 		x=np.moveaxis(x,0,1)
+		#print(time.time()-t0)
 		return x
 	
 	def conv(self,ARMA,ll):
@@ -531,7 +555,17 @@ class arma_dot_obj:
 			self.rdict[f"{name}_{letter}"][i]=roll(M,-i-1,1)
 		return self.rdict[f"{name}_{letter}"]
 
-
-
-def test(a,b):
-	return a+b
+def get_n(a):
+	minval = 0
+	a_1 = np.abs(a[1:])
+	max_a = np.max(a_1)
+	if np.min(np.abs(a_1)) >= minval:
+		return None
+	if max_a == 0:
+		return 1		
+	else:
+		nz = np.nonzero(a_1/max_a < minval)[0]
+		if len(nz)>0:
+			return nz[0]+1
+		else:
+			return None
