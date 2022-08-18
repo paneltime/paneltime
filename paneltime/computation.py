@@ -63,6 +63,7 @@ class Computation:
 		DET_THRESHOLD = 0
 		INCR_THRESHOLD = 20
 		
+		self.panel.arma_dot.update_info('its', its)
 		g, G = self.calc_gradient(ll)
 		
 		pgain, totpgain = potential_gain(dx, g, H)
@@ -79,7 +80,7 @@ class Computation:
 				if (np.linalg.det(H))<DET_THRESHOLD:
 					a = 0.25
 				else:
-					a = 1.0
+					a = 0.5
 				H = a*H + (1-a)*np.diag(np.diag(H))
 				hessin = hess_inv(H, None)
 				self.num_hess_count = 0
@@ -92,7 +93,7 @@ class Computation:
 	
 		self.H, self.g, self.G = H, g, G
 		
-		if True:#its<1 or (CI>1e+8):
+		if False:#its<1 or (CI>1e+8):
 			coll_max_limit=1e+300
 		else:
 			
@@ -210,8 +211,16 @@ class Computation:
 		ll = self.init_ll(p0)
 		g, G = self.calc_gradient(ll)
 		H = self.calc_hessian(ll)
+		a = 0.5
+		H = a*H + (1-a)*np.diag(np.diag(H))
+		H = np.diag(np.diag(H) - (np.diag(H)==0))
+		hessin = np.linalg.inv(H)
+
+		
+		return p0, ll, ll.LL , g, hessin, H
+	
 		h = np.diag(H)
-		n = len(h)
+		n = len(h)	
 		if full:
 			H[np.diag_indices(H.shape[0])] = h - (h >= 0)
 			hessin = hess_inv(H, None)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
-
+MIN_THRES = 0.0
 def LL(panel,lnv,e_REsq, e_RE):
 	incl=panel.a[3]
 	
@@ -12,10 +12,10 @@ def LL(panel,lnv,e_REsq, e_RE):
 		dlnv_pos=(lnv<1e+100)*(lnv>1e-100)
 		lnv = incl*np.maximum(np.minimum(lnv,1e+100),1e-100)
 		v=lnv
-		v_inv = incl/(lnv+incl)	
+		v_inv = incl/(lnv+incl*MIN_THRES)	
 		if panel.options.normal_GARCH.value==1:
 			
-			LL_full = LL_const-0.5*(incl*np.log(lnv+incl)+(1-k)*e_REsq*v_inv
+			LL_full = LL_const-0.5*(incl*np.log(lnv+incl*MIN_THRES)+(1-k)*e_REsq*v_inv
 									+ a* (np.abs(e_REsq-lnv)*v_inv)
 									+ (k/3)* e_REsq**2*v_inv**2
 									)				
@@ -35,7 +35,7 @@ def gradient(ll,panel):
 	
 	if panel.options.normal_GARCH.value:
 		DLL_e   =-0.5*(	(1-k)*2*e_RE*v_inv	)
-		dLL_lnv =-0.5*(	incl/(lnv+incl)-(1-k)*(e_REsq)*v_inv**2	)
+		dLL_lnv =-0.5*(	incl/(lnv+incl*MIN_THRES)-(1-k)*(e_REsq)*v_inv**2	)
 
 		DLL_e +=-0.5*(		
 			  a* 2*np.sign(e_REsq-lnv)*e_RE*v_inv
@@ -62,7 +62,7 @@ def hessian(ll,panel):
 	if panel.options.normal_GARCH.value:	
 		d2LL_de2 	=-0.5*(	(1-k)*2*v_inv	)
 		d2LL_dln_de =-0.5*(	-(1-k)*2*e_RE*v_inv**2)
-		d2LL_dln2 	=-0.5*(-1*incl/(lnv+incl)**2+(1-k)*2*(e_REsq)*v_inv**3	)
+		d2LL_dln2 	=-0.5*(-1*incl/(lnv+incl*MIN_THRES)**2+(1-k)*2*(e_REsq)*v_inv**3	)
 		
 		d2LL_de2 	+=-0.5*(		
 				  a* 2*np.sign(e_REsq-lnv)*v_inv

@@ -49,7 +49,7 @@ class gradient:
 
 	def get(self,ll,DLL_e=None,dLL_lnv=None,return_G=False):
 		
-		
+
 		self.callback(perc = 0.05, text = '', task = 'gradient')
 		(self.DLL_e, self.dLL_lnv)=(DLL_e, dLL_lnv)
 		panel=self.panel
@@ -139,7 +139,9 @@ class gradient:
 		else:	
 			return g
 
-
+def timeit(comment, t0):
+	print(f"{comment}: {time.time()-t0}")
+	return time.time()
 
 
 class hessian:
@@ -151,8 +153,8 @@ class hessian:
 		
 	
 	def get(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
-		N,T,k=self.panel.X.shape
-		return self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+		H = self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+		return H
 
 
 	def hessian(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):

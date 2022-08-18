@@ -73,7 +73,7 @@ def maximize(panel, args, callback, mp, comput = None):
 	#have to  completely redesign callback, so that it takes only a dict as argument
 	args = np.array(args)
 	if comput is None:
-		comput = computation.Computation(panel, time.time(), callback, 1e-10) 
+		comput = computation.Computation(panel, time.time(), callback, gtol = GTOL, tolx = TOLX) 
 	callback(conv = False, done = False)
 	f, x, H, its, conv, ls, msg, dx_norm, incr = dfpmin(args,comput, callback, mp, panel)
 	callback(f = f, x = x, H = H, its = its, conv = conv, msg = msg, done = True)

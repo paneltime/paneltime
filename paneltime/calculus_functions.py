@@ -259,37 +259,15 @@ def dot(a,b,reduce_dims=True):
 
 class arma_dot_obj:
 	def __init__(self,n,pqdkm):
-		a=np.arange(n)
-		A=np.tril(np.array([np.roll(a,i) for i in range(n)]).T)
-		self.nz=np.nonzero(A+np.diag(np.ones(n)))
-		self.az=A[self.nz]
-		self.mdict={}
-		for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:
-			self.mdict[i]=np.zeros((n,n))
-			
-		self.rdict={}
-		p,q,d,k,m=pqdkm
-		for name, i in [('AMA_1_p',p),('AMA_1_q',q),('GAR_1_k',k),('GAR_1_m',m)]:
-			self.rdict[name]=np.zeros((i,n,n))
+		self.info = {}
+		self.info['its']=0		
+
 		
+	def update_info(self, key,value):
+		self.info[key] = value
 		
 	def dotroll(self,aband,k,sign,b,ll):
-		
-
-		x = self.fast_dot(aband, b)
-		if not x is None:
-			x = sign* x
-		else:
-			
-			ARMA_m=self.conv(aband,ll)
-			s=list(b.shape)
-			x=np.moveaxis(b,1,0)
-			s2=x.shape
-			x.resize((s[1],s[0]*np.prod(s[2:])))
-			x=sign*np.dot(ARMA_m,x)
-			x.resize(s2)
-			x=np.moveaxis(x,1,0)
-
+		x = sign*self.fast_dot(aband, b)
 		w=[]
 		for i in range(k):
 			w.append(np.roll(np.array(x),i+1,1))
@@ -318,33 +296,9 @@ class arma_dot_obj:
 			if k==0:
 				return None
 			return self.dotroll(aband, k, sgn, b, ll)
-		r = self.fast_dot(a, b)
-		if not r is None:
-			return r
-		s=list(b.shape)
-		x=np.moveaxis(b,1,0)
-		x=x.reshape((s[1],s[0]*np.prod(s[2:])))
-		ARMA_m=self.conv(a,ll)
-		x=np.dot(ARMA_m,x)
-		x.resize([s[1],s[0]]+s[2:])
-		x=np.moveaxis(x,0,1)
-		#print(time.time()-t0)
+		x = self.fast_dot(a, b)
 		return x
-	
-	def conv(self,ARMA,ll):
-		#return ARMA
-		ARMA_array,name=ARMA
-		if ll.AMA_dict[name] is None or True:
-			self.mdict[name][self.nz]=ARMA_array[self.az]
-			ll.AMA_dict[name]=self.mdict[name]
-		return ll.AMA_dict[name]
-	
-	def roll_array(self,ARMA,k,letter,ll):
-		ARMA_array,name=ARMA
-		M=self.conv(ARMA,ll)
-		for i in range(k):
-			self.rdict[f"{name}_{letter}"][i]=roll(M,-i-1,1)
-		return self.rdict[f"{name}_{letter}"]
+
 
 def get_n(a):
 	minval = 0
