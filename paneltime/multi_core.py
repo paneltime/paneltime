@@ -70,7 +70,7 @@ class master():
 		else:
 			self.cpu_count=max_nodes
 		n=self.cpu_count
-		fpath=obtain_fname('./output/')
+		fpath=obtain_fname('output')
 		os.makedirs(fpath, exist_ok=True)
 		os.makedirs(fpath+'/slaves', exist_ok=True)
 		self.slaves=[slave() for i in range(n)]
@@ -341,7 +341,7 @@ def write(f,txt):
 
 def obtain_fname(name):
 
-	path=os.path.abspath(name)
+	path=os.path.join(os.getcwd(),name)
 	path_dir=os.path.dirname(path)
 	if not os.path.exists(path_dir):
 		os.makedirs(path_dir)	
