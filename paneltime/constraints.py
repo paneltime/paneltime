@@ -6,7 +6,7 @@ import calculus_functions as cf
 import stat_functions as stat
 
 
-class constraint:
+class Constraint:
 	def __init__(self,index,assco,cause,value, interval,names,category):
 		self.name=names[index]
 		self.intervalbound=None
@@ -31,7 +31,7 @@ class constraint:
 		self.cause=cause
 		self.category=category	
 		
-class constraints(dict):
+class Constraints(dict):
 
 	"""Stores the constraints of the LL maximization"""	
 	def __init__(self,panel,args,its=0):
@@ -50,8 +50,7 @@ class constraints(dict):
 		self.m_zero=panel.m_zero
 		self.ARMA_constraint=panel.options.ARMA_constraint.value
 		self.H_correl_problem=False
-		self.mc_problems=[]
-		
+		self.mc_problems=[]	
 
 	def add(self,name,assco,cause,interval=None,replace=True,value=None,args=None):
 		#(self,index,assco,cause,interval=None,replace=True,value=None)
@@ -101,7 +100,7 @@ class constraints(dict):
 		elif not index in self.categories[category]:
 			self.categories[category].append(index)
 
-		c=constraint(index,assco,cause,value, interval ,args.names_v,category)
+		c=Constraint(index,assco,cause,value, interval ,args.names_v,category)
 		self[index]=c
 		if value is None:
 			self.intervals[index]=c
@@ -166,11 +165,15 @@ class constraints(dict):
 					return False
 		return True
 	
-	def add_static_constraints(self, panel, ll=None):
+	def add_static_constraints(self, panel, its, ll=None):
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 		
-		c=self.ARMA_constraint
+		if its<-4:
+			c = 0.5
+		else:
+			c=self.ARMA_constraint
+		
 		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
 		self.add_custom_constraints(panel, general_constraints, ll)
 		self.add_custom_constraints(panel, pargs.user_constraints, ll)
@@ -182,7 +185,7 @@ class constraints(dict):
 		include[list(computation.constr.fixed)]=False
 		self.mc_problems=[]#list of [index,associate,condition index]
 		self.CI=constraint_multicoll(k, computation, include, self.mc_problems, H)
-		add_mc_constraint(computation,self.mc_problems,self.weak_mc_dict, coll_max_limit)
+		self.add_mc_constraint(computation, coll_max_limit)
 	
 	def add_custom_constraints(self,panel, constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
 		"""Adds custom range constraints\n\n
@@ -242,6 +245,36 @@ class constraints(dict):
 					self.add(name,None,cause, c,replace,args=args)
 				else:
 					self.add(name,None,cause, [c,None],replace,args=args)
+					
+	def add_mc_constraint(self, computation, coll_max_limit):
+		"""Adds constraints for severe MC problems"""
+		old = computation.constr_old
+		if len(self.mc_problems)==0:
+			return
+		no_check=get_no_check(computation)
+		a=[i[0] for i in self.mc_problems]
+		if no_check in a:
+			mc=self.mc_problems[a.index(no_check)]
+			mc[0],mc[1]=mc[1],mc[0]
+		mc_limit = computation.panel.options.multicoll_threshold.value
+		for index,assc,cond_index in self.mc_problems:
+			cond = not ((index in self.associates) or (index in self.collinears))and (not index==no_check)
+			# same condition, but possible have a laxer condition for weak_mc_dict. 
+			if cond and cond_index>mc_limit :#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix:	
+				self.weak_mc_dict[index]=[assc,cond_index]
+			if cond and cond_index > coll_max_limit :#adding restrictions:
+				self.add(assc,index,'collinear')
+				return
+				if old is None:
+					self.add(assc,index,'collinear')
+				elif assc in old.collinears:
+					self.add(index ,assc,'collinear')
+				else:
+					self.add(assc,index,'collinear')
+					
+
+
+
 	
 	
 def test_interval(interval,value):
@@ -268,33 +301,7 @@ def append_to_ID(ID,intlist):
 	else:
 		return False
 
-def correl_IDs(p):
-	IDs=[]
-	appended=False
-	x=np.array(p[:,1:3],dtype=int)
-	for i,j in x:
-		for k in range(len(IDs)):
-			appended=append_to_ID(IDs[k],[i,j])
-			if appended:
-				break
-		if not appended:
-			IDs.append([i,j])
-	g=len(IDs)
-	keep=g*[True]
-	for k in range(g):
-		if keep[k]:
-			for h in range(k+1,len(IDs)):
-				appended=False
-				for m in range(len(IDs[h])):
-					if IDs[h][m] in IDs[k]:
-						appended=append_to_ID(IDs[k],  IDs[h])
-						keep[h]=False
-						break
-	g=[]
-	for i in range(len(IDs)):
-		if keep[i]:
-			g.append(IDs[i])
-	return g
+
 
 def normalize(H,include):
 	C=-H[include][:,include]
@@ -341,27 +348,6 @@ def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_probl
 		mc_problems.append([index,assc,cond_index])
 		mc_list.append(index)
 		return False
-		
-def add_mc_constraint(computation,mc_problems,weak_mc_dict, coll_max_limit):
-	"""Adds constraints for severe MC problems"""
-	constr=computation.constr
-	if len(mc_problems)==0:
-		return
-	no_check=get_no_check(computation)
-	a=[i[0] for i in mc_problems]
-	if no_check in a:
-		mc=mc_problems[a.index(no_check)]
-		mc[0],mc[1]=mc[1],mc[0]
-	mc_limit = computation.panel.options.multicoll_threshold.value
-	for index,assc,cond_index in mc_problems:
-		cond = not ((index in constr.associates) or (index in constr.collinears))and (not index==no_check)
-		# same condition, but possible have a laxer condition for weak_mc_dict. 
-		if cond and cond_index>mc_limit :#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix:	
-			weak_mc_dict[index]=[assc,cond_index]
-		if cond and cond_index>coll_max_limit :#adding restrictions:
-			#constr.add(assc,index,'collinear')
-			constr.add(index ,assc,'collinear')
-			
 		
 def get_no_check(computation):
 	no_check=computation.panel.options.do_not_constrain.value

@@ -254,6 +254,8 @@ def dot(a,b,reduce_dims=True):
 		x = np.array([np.dot(a[i],b) for i in range(a.shape[0])])
 	elif len(a.shape)==3 and len(b.shape)==3:
 		x = np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
+	elif len(a.shape)==2 and len(b.shape)==3:
+		x = np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
 	return x
 
 
@@ -261,6 +263,10 @@ class arma_dot_obj:
 	def __init__(self,n,pqdkm):
 		self.info = {}
 		self.info['its']=0		
+		self.tot_time0 = None
+		self.tot_time = 0
+		self.calc_time = 0
+		self.perc_calc = 0
 
 		
 	def update_info(self, key,value):
@@ -278,6 +284,10 @@ class arma_dot_obj:
 			
 			
 	def fast_dot(self, a, b):
+		t0 = time.time()
+		if self.tot_time0 is None:
+			self.tot_time0 = t0
+		
 		a_, name = a
 		n = get_n(a_)
 		if n is None:
@@ -286,7 +296,11 @@ class arma_dot_obj:
 		r = a_[0]*b
 		for i in range(1,n):
 			r[:,i:] += a_[i]*b[:,:-i]
-
+			
+		t1 = time.time()
+		self.tot_time = t1 - self.tot_time0
+		self.calc_time += t1 -t0
+		self.perc_calc = np.round(self.calc_time/self.tot_time,3)
 		return r
 
 		

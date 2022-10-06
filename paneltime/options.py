@@ -228,6 +228,9 @@ def regression_options():
 	
 	self.make_category_tree()
 	
+	self.web_open_tab				= options_item(True, 			"True if web a new web browser tab should be opened when using web interface" 
+																	"Should a new tab be opemed?",  
+																	bool,'New web tab',[True,False],['Yes','No'])	
 	return self
 
 

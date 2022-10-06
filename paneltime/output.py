@@ -273,6 +273,8 @@ def sandwich(computation,lags,oposite=False,resize=True):
 	return se_robust,se
 
 def reduce_size(computation,oposite,resize):
+	if computation.constr is None:
+		return computation.H, computation.G, np.ones(len(computation.g),dtype=bool)
 	H=computation.H
 	G=computation.G
 	if (G is None) or (H is None):

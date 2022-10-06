@@ -2,7 +2,7 @@ import numpy as np
 import loglikelihood as logl
 
 STPMX=100.0 
-
+import time
 class LineSearch:
 	def __init__(self, x, comput, mp, panel, step = 1):
 		self.alf = 1.0e-3     #Ensures sufficient decrease in function value.
@@ -41,7 +41,7 @@ class LineSearch:
 		alamin = self.tolx/test 
 		#*******CUSTOMIZATION
 		#multithread:
-		if True:#self.comput.num_hess_count == 0:
+		if False:#self.comput.num_hess_count == 0:
 			self.ll, self.alam, self.msg = lnsrch_master(self.mp, x, f, dx, self.panel, self.comput.constr, self.alf, slope)
 			if not self.ll is None:
 				self.x = self.ll.args.args_v
@@ -122,7 +122,6 @@ def lnsrch_master(mp,  x, f, dx, panel, constr, alf, slope):
 
 	for i in range(MAX_ITS):
 		lls, args, lmbds = get_likelihoods(x, dx, f, mp, constr, rec, panel)
-		
 		if len(lls) > 0:
 			if (lls[0] >= f + alf*lmbds[0]*slope):
 				break
@@ -219,9 +218,13 @@ class LikelihoodRecord:
 			
 	def get_lmbds(self):
 		self.set_range()
+		if len(self.lmbds) == 1:
+			MINVAL = 0.0001
+			stp = (2*self.center - MINVAL)/(self.n_cores-2)
+			lmbds = [MINVAL + i*stp for i in range(self.n_cores-1)]
+			return lmbds
 		lmbds = []
-		if not 1 in self.lmbds:
-			lmbds.append(1)
+
 		if not self.center in self.lmbds:
 			lmbds = [self.center]
 		for i in range(20):

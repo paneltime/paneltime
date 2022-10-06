@@ -42,68 +42,70 @@ class Computation:
 		self.has_reversed_directions=rev
 		self.increment=increment
 		self.constr_old=self.constr
-		self.constr=constraints.constraints(self.panel,ll.args,its)
+		self.constr = constraints.Constraints(self.panel,ll.args,its)
 			
-		
+		if self.constr is None:
+			self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
+			self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
+			return
+			
 		if self.panel.options.constraints_engine.value:
-			self.constr.add_static_constraints(self.panel, ll)	
+			self.constr.add_static_constraints(self.panel, its, ll)	
 			self.constr.add_dynamic_constraints(self, H, ll, coll_max_limit)	
 			
 		self.CI=self.constr.CI
-		if self.constr is None:
-			self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
-		else:
-			self.H_correl_problem=self.constr.H_correl_problem	
-			self.mc_problems=self.constr.mc_problems
-			self.weak_mc_dict=self.constr.weak_mc_dict
-		self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
+		self.H_correl_problem=self.constr.H_correl_problem	
+		self.mc_problems=self.constr.mc_problems
+		self.weak_mc_dict=self.constr.weak_mc_dict
+		
 
 	def exec(self, dx, dx_norm, hessin, H, f, x, g_old, incr, rev, alam, its, ll, calc = True):
 		#Thhese setting may not hold for all circumstances, and should be tested properly:
-		DET_THRESHOLD = 0
-		INCR_THRESHOLD = 20
-		
+		NUM_ITER = 5
+		MAX_COLL = 1e+300
+
 		self.panel.arma_dot.update_info('its', its)
 		g, G = self.calc_gradient(ll)
 		
 		pgain, totpgain = potential_gain(dx, g, H)
 		max_pgain = max(pgain)
-		g_norm =np.max(np.abs(g*x)/(abs(f)+1e-12) )
+		
+		a = np.ones(len(g))
+		if not self.constr is None:
+			a[list(self.constr.collinears.keys())] =0		
+		g_norm =np.max(np.abs(g*a*x)/(abs(f)+1e-12) )
+		
 		self.rec.append(str(i) for i in [totpgain, max_pgain, incr, g_norm])
 		CI=0
 		if not self.CI is None:
 			CI = self.CI
-		if calc:
-			#print(f"{totpgain}, {max_pgain}, {incr}" )
-			if incr > INCR_THRESHOLD:
-				H = self.calc_hessian(ll)
-				if (np.linalg.det(H))<DET_THRESHOLD:
-					a = 0.25
-				else:
-					a = 0.5
-				H = a*H + (1-a)*np.diag(np.diag(H))
-				hessin = hess_inv(H, None)
-				self.num_hess_count = 0
+			
+		if ((max_pgain <= self.gtol) and (g_norm < self.gtol)):
+			if its <NUM_ITER:
+				self.num_hess_count = NUM_ITER+1
 			else:
-				hessin=self.hessin_num(hessin, g-g_old, dx)
-				H = hess_inv(hessin, None)
+				return x, f, hessin, H, g, True	
+			
+		if calc:
+			if self.num_hess_count>NUM_ITER:
+				H = self.calc_hessian(ll)	
+				self.num_hess_count = 0				
+			else:
+				try:
+					hessin=self.hessin_num(hessin, g-g_old, dx)
+					Hn = np.linalg.inv(hessin)
+					H = Hn
+				except:
+					pass
 				self.num_hess_count+=1
 		else:
 			self.H = H
 	
 		self.H, self.g, self.G = H, g, G
-		
-		if False:#its<1 or (CI>1e+8):
-			coll_max_limit=1e+300
-		else:
 			
-			coll_max_limit=1000
-			
-		self.set(its, incr, alam, rev, True, H, ll, coll_max_limit)
+		self.set(its, incr, alam, rev, True, H, ll, MAX_COLL)
 		
-		if (max_pgain <= self.gtol) and (g_norm < 0.001):
-
-			return x, f, hessin, H, g, True		
+	
 		
 		return x, f, hessin, H, g, False
 
@@ -183,8 +185,8 @@ class Computation:
 	def init_ll(self,args=None, ll=None):
 		if args is None:
 			args = ll.args.args_v
-		self.constr=constraints.constraints(self.panel, args)
-		self.constr.add_static_constraints(self.panel)			
+		self.constr=constraints.Constraints(self.panel, args)
+		self.constr.add_static_constraints(self.panel, 0)			
 		try:
 			args=args.args_v
 		except:
@@ -211,10 +213,10 @@ class Computation:
 		ll = self.init_ll(p0)
 		g, G = self.calc_gradient(ll)
 		H = self.calc_hessian(ll)
-		a = 0.5
-		H = a*H + (1-a)*np.diag(np.diag(H))
-		H = np.diag(np.diag(H) - (np.diag(H)==0))
-		hessin = np.linalg.inv(H)
+		d = np.diag(H)
+		d = d - (d==0)
+		H = np.diag(d)
+		hessin = np.diag(1/d)
 
 		
 		return p0, ll, ll.LL , g, hessin, H

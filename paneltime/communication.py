@@ -39,8 +39,16 @@ class Callback:
 		if time.time()-self.print_interval_time<1 or False:
 			return
 		self.print_interval_time = time.time()
-		if ('f' in keywordargs) and ('its' in keywordargs):
-			print(f"{keywordargs['f']} : {time.time()-self.start_time} : {keywordargs['its']}")
+		a = keywordargs	
+		try:
+			msg, its, incr, ll, perc, task, dx_norm, f = (
+				a['msg'], a['its'], a['incr'], a['ll'], a['perc'], 
+				a['task'], a['dx_norm'], a['f'])
+			print(f"{f} : {time.time()-self.start_time} : {its}")
+			#self.print(msg, its, incr, ll, perc, task, dx_norm)
+			#print(a['perc_calc'])
+		except:
+			pass
 		
 
 	def print(self, msg, its, incr, ll, perc , task, dx_norm):
@@ -78,7 +86,8 @@ class web_output:
 		self.Jupyter=Jupyter
 		if not Jupyter:
 			self.save_html(get_web_page('None', 'None', 'None', '', True))
-			webbrowser.open(WEB_PAGE, new = 2)
+			if panel.options.web_open_tab.value:
+				webbrowser.open(WEB_PAGE, new = 2)
 		self.output_set = False
 		self.charts = charts.process_charts(panel)
 			

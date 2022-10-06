@@ -139,11 +139,6 @@ class gradient:
 		else:	
 			return g
 
-def timeit(comment, t0):
-	print(f"{comment}: {time.time()-t0}")
-	return time.time()
-
-
 class hessian:
 	def __init__(self,panel,g,callback):
 		self.panel=panel

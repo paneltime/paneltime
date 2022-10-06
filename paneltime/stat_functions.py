@@ -24,8 +24,8 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 	d=np.abs(d)**0.5+1e-100
 	MaxEv=np.max(d)  
 	fi=np.abs(EVec*EVec/((d*d).reshape((1,ub))+1E-200))
-	fiTot=np.sum(fi,1)
-	pi=fi/fiTot.reshape((ub,1))
+	fiTot=np.sum(fi,1).reshape((ub,1))
+	pi=fi/(fiTot + (fiTot==0)*1E-200)
 	pi=pi.T
 	CondIx=MaxEv/d
 	ind=np.argsort(CondIx)

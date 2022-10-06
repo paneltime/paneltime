@@ -9,7 +9,7 @@ import multi_core as mc
 
 DEBUG_MODE = True
 	
-N_NODES = 16
+N_NODES = 15
 
 t0=time.time()
 

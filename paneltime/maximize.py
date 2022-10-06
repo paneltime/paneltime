@@ -16,9 +16,9 @@ import linesearch
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
-GTOL = 1e-2
+GTOL = 1e-5
 
-def dfpmin(x, comput, callback, mp, panel):
+def dfpmin(x, comput, callback, mp, panel, debug_mode):
 	"""Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
 	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
 	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -34,21 +34,23 @@ def dfpmin(x, comput, callback, mp, panel):
 	max_iter = 1000
 	for its in range(max_iter):  	#Main loop over the iterations.
 		constr = comput.constr
+
 		dx, dx_norm = direction.get(g, x, H, constr, hessin, simple=False)
 		ls = linesearch.LineSearch(x, comput, mp, panel)
-		ls.lnsrch(x, f, g, dx)
+		ls.lnsrch(x, f, g, dx)	
 		
 		dx = ls.x - x
 		incr = ls.f - f
-
+		
 
 		x, f, hessin, H, g, conv = comput.exec(dx, dx_norm,  hessin, H, ls.f, ls.x, ls.g, incr, ls.rev, ls.alam, its, ls.ll)
 		
+		ll = None
+		if debug_mode: ll = ls.ll
 		
 		callback(msg = ls.msg, dx_norm = dx_norm, f = f, x = x, H = H, g = g, 
 				hessin = hessin, dx = dx, incr = incr, rev = ls.rev, alam = ls.alam, 
-				its = its, constr = comput.constr, perc = 1.0, task = 'Line search')			
-		
+				its = its, constr = comput.constr, perc = 1.0, task = 'Line search', ll = ll, perc_calc = panel.arma_dot.perc_calc)			
 
 		if conv:  
 			msg = "Convergence on zero gradient; local or global minimum identified"
@@ -65,17 +67,20 @@ def dfpmin(x, comput, callback, mp, panel):
 															#FREEALL
 
 
-		
+def timeit(msg, t0):
+	t1=time.time()
+	print(f"{msg}:{t1-t0}")
+	return t1
 
 	
-def maximize(panel, args, callback, mp, comput = None):
+def maximize(panel, args, callback, mp, comput, debug_mode):
 	
 	#have to  completely redesign callback, so that it takes only a dict as argument
 	args = np.array(args)
 	if comput is None:
 		comput = computation.Computation(panel, time.time(), callback, gtol = GTOL, tolx = TOLX) 
 	callback(conv = False, done = False)
-	f, x, H, its, conv, ls, msg, dx_norm, incr = dfpmin(args,comput, callback, mp, panel)
+	f, x, H, its, conv, ls, msg, dx_norm, incr = dfpmin(args,comput, callback, mp, panel, debug_mode)
 	callback(f = f, x = x, H = H, its = its, conv = conv, msg = msg, done = True)
 	panel.input.args_archive.save(ls.ll.args,True)
 	
@@ -115,6 +120,7 @@ class Summary:
 		reg_output = comm.callback.channel.output
 		self.table = output.RegTableObj(reg_output)
 		self.statistics = output.Statistics(comm.ll, comm.panel)
+		self.its = comm.its
 		
 		
 		
@@ -154,7 +160,7 @@ class Comm:
 		self.panel = panel	
 		if not mp is None:#This is put here rather than in the next "if not mp" block for efficiency
 			self.listen = self.mp.listen(
-				[f"maximize.maximize(panel, {list(args)}, callback, mp)"])
+				[f"maximize.maximize(panel, {list(args)}, callback, mp, None, False)"])
 			
 		import communication as comm
 		self.callback = comm.Callback(window,exe_tab,self.panel, console_output, t0)
@@ -164,7 +170,7 @@ class Comm:
 		if not mp is None:
 			self.start_listening()
 		else:
-			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, self.callback.generic, mp_debug, self.comput)
+			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, self.callback.generic, mp_debug, self.comput, True)
 			self.msg = msg
 			self.f = ls.f
 			self.conv = conv
