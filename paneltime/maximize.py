@@ -4,6 +4,8 @@ import loglikelihood as logl
 import computation
 import direction
 import linesearch
+import itertools
+import stat_functions as stat
 
 
 #This module finds the array of arguments that minimizes some function. The derivative 
@@ -18,7 +20,7 @@ EPS=3.0e-16
 TOLX=(4*EPS) 
 GTOL = 1e-5
 
-def dfpmin(x, comput, callback, mp, panel, debug_mode):
+def dfpmin(x, comput, callback, panel, debug_mode, maxiter):
 	"""Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
 	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
 	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -31,12 +33,12 @@ def dfpmin(x, comput, callback, mp, panel, debug_mode):
 	x, ll, f, g, hessin, H = comput.calc_init_dir(x)
 
 	its = 0
-	max_iter = 1000
-	for its in range(max_iter):  	#Main loop over the iterations.
+	
+	for its in range(maxiter):  	#Main loop over the iterations.
 		constr = comput.constr
 
 		dx, dx_norm = direction.get(g, x, H, constr, hessin, simple=False)
-		ls = linesearch.LineSearch(x, comput, mp, panel)
+		ls = linesearch.LineSearch(x, comput, panel)
 		ls.lnsrch(x, f, g, dx)	
 		
 		dx = ls.x - x
@@ -46,7 +48,8 @@ def dfpmin(x, comput, callback, mp, panel, debug_mode):
 		x, f, hessin, H, g, conv = comput.exec(dx, dx_norm,  hessin, H, ls.f, ls.x, ls.g, incr, ls.rev, ls.alam, its, ls.ll)
 		
 		ll = None
-		if debug_mode: ll = ls.ll
+		if debug_mode: #don't send objects unless in debug mode
+			ll = ls.ll
 		
 		callback(msg = ls.msg, dx_norm = dx_norm, f = f, x = x, H = H, g = g, 
 				hessin = hessin, dx = dx, incr = incr, rev = ls.rev, alam = ls.alam, 
@@ -62,7 +65,7 @@ def dfpmin(x, comput, callback, mp, panel, debug_mode):
 			return f,x,H,its, 0, ls, msg, dx_norm, incr #FREEALL
 
 	
-	msg = "No convergence within %s iterations" %(max_iter,)
+	msg = "No convergence within %s iterations" %(maxiter,)
 	return f,x,H,its,2, ls, msg, dx_norm, incr								#too many iterations in dfpmin				
 															#FREEALL
 
@@ -73,17 +76,57 @@ def timeit(msg, t0):
 	return t1
 
 	
-def maximize(panel, args, callback, mp, comput, debug_mode):
+def maximize(panel, args, callback, mp, debug_mode, comput = None):
+	if True:
+		a = get_directions(panel, args)
+		tasks = []
+		for i in range(len(a)):
+			tasks.append(
+				f'f{i},x{i}, t{i}, its{i} = maximize.maximize_node(panel, {list(a[i])}, False, maxiter = 1000, return_simple=True, nonanalytic=True)'
+			)
+		d = mp.execute(tasks)
+		f = {}
+		for i in range(len(a)):
+			f[d[f'f{i}']]=d[f'x{i}']
+		args = f[max(f)]
+	else:
+		args = args.args_v
+	comput, ls, msg, its, conv, dx_norm, incr = maximize_node(panel, a[3], debug_mode, comput, callback, nonanalytic=True)
+	return maximize_node(panel, args, debug_mode, comput, callback)
+
+def get_directions(panel, args):
+	d = args.positions
+	size = panel.options.initial_arima_garch_params.value
+	pos = [d[k][0] for k in ['rho', 'lambda'] if len(d[k])]
+	perm = np.array(list(itertools.product([-1,0, 1], repeat=len(pos))), dtype=float)
+	
+	perm[:,:2] =perm[:,:2]*0.2
+	#perm[:,2:] =perm[:,2:]*0.2
+	a = np.array([args.args_v for i in range(len(perm))])
+	a[:,pos] = perm
+	return a
+	
+	
+	
+	
+def maximize_node(panel, args, debug_mode, comput = None, callback = lambda **kw: None, maxiter = 10000, return_simple = False, nonanalytic = False):
 	
 	#have to  completely redesign callback, so that it takes only a dict as argument
 	args = np.array(args)
+	t0=time.time()
 	if comput is None:
-		comput = computation.Computation(panel, time.time(), callback, gtol = GTOL, tolx = TOLX) 
+		comput = computation.Computation(panel, time.time(), GTOL, TOLX, callback, nonanalytic)
+	if False:
+		LL = logl.LL(args, panel, comput.constr)
+		LL.standardize(panel)
+		beta = stat.OLS(panel,LL.X_st,LL.Y_st,return_e=False)
+		args[:len(beta)]=beta.flatten()
 	callback(conv = False, done = False)
-	f, x, H, its, conv, ls, msg, dx_norm, incr = dfpmin(args,comput, callback, mp, panel, debug_mode)
+	f, x, H, its, conv, ls, msg, dx_norm, incr = dfpmin(args,comput, callback, panel, debug_mode, maxiter)
 	callback(f = f, x = x, H = H, its = its, conv = conv, msg = msg, done = True)
 	panel.input.args_archive.save(ls.ll.args,True)
-	
+	if return_simple:
+		return ls.f, ls.x, time.time()-t0, its
 	return comput, ls, msg, its, conv, dx_norm, incr
 
 
@@ -158,19 +201,21 @@ class Comm:
 		self.mp = mp
 		self.listen = None
 		self.panel = panel	
-		if not mp is None:#This is put here rather than in the next "if not mp" block for efficiency
+		if not mp is None:#This is put here rather than in the next "if not mp" block, so that arranging output can be 
+						  #done simultainiously with calculattions. 
+			mp.send_dict({'args':args})
 			self.listen = self.mp.listen(
-				[f"maximize.maximize(panel, {list(args)}, callback, mp, None, False)"])
+				[f"maximize.maximize(panel, args, callback, mp, False)"])
 			
 		import communication as comm
 		self.callback = comm.Callback(window,exe_tab,self.panel, console_output, t0)
-		self.comput = computation.Computation(panel, t0, gtol = GTOL, tolx = TOLX) 
+		self.comput = computation.Computation(panel, t0, GTOL, TOLX) 
 		self.callback.set_computation(self.comput)
 		
 		if not mp is None:
 			self.start_listening()
 		else:
-			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, self.callback.generic, mp_debug, self.comput, True)
+			comput, ls, msg, its, conv, dx_norm, incr = maximize(panel, args, self.callback.generic, mp_debug, True, self.comput)
 			self.msg = msg
 			self.f = ls.f
 			self.conv = conv

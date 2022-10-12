@@ -113,7 +113,7 @@ def regression_options():
 																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
 
 	self.ARMA_constraint	        = options_item(1.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
-																	None,None,category='GARCH')	
+																	None,None,category='ARIMA-GARCH')	
 	self.constraints_engine	        = options_item(True,			'Determines whether to invoke the constraints engine', bool, 'Invoke constraints engine',
 																	[True,False],['Invoke constraints','Do not invoke constraints'],category='Regression')	
 		
@@ -128,7 +128,7 @@ def regression_options():
 	
 	#self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
 	self.normal_GARCH	            = options_item(True,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
-																	[True,False],['Direct GARCH','Usual GARCH'],category='GARCH')	
+																	[True,False],['Direct GARCH','Usual GARCH'],category='ARIMA-GARCH')	
 		
 	
 	self.do_not_constrain			= options_item(None, 			"The name of a variable of interest \nthat shall not be constrained due to \nmulticollinearity",
@@ -159,11 +159,15 @@ def regression_options():
 																	"h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
 																	, str,"GARCH function",category='Regression')
 
+	self.initial_arima_garch_params = options_item(0.1,			'The initial size of arima-garch parameters (all directions will be attempted', 
+												  	  	  	  	  	 float, 'initial size of arima-garch parameters',
+																	"%s>=0",category='ARIMA-GARCH')		
+	
 	self.kurtosis_adj				= options_item(0,				'Amount of kurtosis adjustment', float, 'Amount of kurtosis adjustment',
-																	"%s>=0",category='GARCH')	
+																	"%s>=0",category='ARIMA-GARCH')	
 	
 	self.GARCH_assist				= options_item(0,				'Amount of weight put on assisting GARCH variance to be close to squared residuals', float, 'GARCH assist',
-																	"%s>=0",category='GARCH')		
+																	"%s>=0",category='ARIMA-GARCH')		
 		
 	self.loadargs					= options_item(1, 				"Determines whether the regression arguments from the previous run should be kept", 
 																	int, 'Load arguments', [0,1,2],
@@ -177,11 +181,6 @@ def regression_options():
 	self.minimum_iterations			= options_item(0, 				'Minimum number of iterations in maximization:',
 													  				int,"Minimum iterations", "%s>-1")		
 	
-	#self.pedantic					= options_item(0, 				"Determines how pedantic the maximization shuould be\n"
-	#																"If slightly pedantic, the linesearch is allways run twice after the computation is calcualted\n"
-	#																"If pedantic, the maximization also tries to fix supected variables\n"
-	#																"If very pedantic the maximization also uses brute force as a last resort",  
-	#																int,'Pedantic',[0,1,2,3],['Not pedantic', 'Slightly pedantic','Pedantic','Very pedantic'])
 	
 	self.pool						= options_item(False, 			"True if sample is to be pooled, otherwise False." 
 																	"For running a pooled regression",  

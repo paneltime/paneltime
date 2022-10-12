@@ -75,7 +75,7 @@ def doit(datainput,options,mp, mp_debug,pqdkm,window,exe_tab, console_output):
 	pnl.init()
 	if not options.multi_core.value:
 		mp = None
-	summary = maximize.run(pnl, pnl.args.args_init.args_v, mp, mp_debug, window, exe_tab, console_output)
+	summary = maximize.run(pnl, pnl.args.args_init, mp, mp_debug, window, exe_tab, console_output)
 	
 	return summary
 

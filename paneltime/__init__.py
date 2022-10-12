@@ -9,7 +9,7 @@ import multi_core as mc
 
 DEBUG_MODE = True
 	
-N_NODES = 15
+N_NODES = 16
 
 t0=time.time()
 
@@ -19,11 +19,15 @@ if not DEBUG_MODE:
 						 "import tempstore\n"
 						 "import multi_core as mc\n"
 						 "tempstore.test_and_repair()\n"
-						 f"mp = mc.multiprocess({N_NODES}, 'import loglikelihood as logl', holdbacks = ('panel', 'constr'))\n")
+						 f"mp = mc.multiprocess({N_NODES}," 
+						 	 "'import loglikelihood as logl\\n'\n"
+							 "'import maximize', " 
+							 "holdbacks = ('panel', 'constr'))\n")
 	mp_debug = None
 else:
 	mp = None
-	mp_debug = mc.multiprocess(N_NODES, "import loglikelihood as logl")
+	mp_debug = mc.multiprocess(N_NODES, "import loglikelihood as logl\n"
+										"import maximize")
 	
 print(f"mc: {time.time()-t0}")
 

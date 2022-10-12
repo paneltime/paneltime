@@ -1,4 +1,4 @@
-SID: 5      TIME:2022-08-26 13:45:26.387244 
+SID: 13      TIME:2022-10-11 14:03:25.142886 
 Traceback (most recent call last):
   File "\\ad.uit.no\uit\data\esi000data\dokumenter\forskning\papers\paneltime\paneltime\paneltime\multi_core.py", line 321, in receive
     return u.load()
@@ -16,5 +16,4 @@ Traceback (most recent call last):
 RuntimeError: An error occured in one of the spawned sub-processes. 
 Check the output in "slave_errors.txt' in your working directory or 
 run without multiprocessing
- 2022-08-26 13:45:26.387244
-
+ 2022-10-11 14:03:25.142385
