@@ -143,8 +143,6 @@ def regression_options():
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 	
 	
-	self.RE_in_GARCH      = options_item(False,			'GARCH process is calculated after FE/RE', bool, 'If True, GARCH is calcualted after FE/RE, an not ',
-																	[True,False],['GARCH calcualted after FE/RE','GARCH calcualted before FE/RE'],category='Fixed-random effects')	
 	
 	self.h_function					= options_item(					"def h(e,z):\n"
 																	"	e2			=	e**2+1e-5\n"

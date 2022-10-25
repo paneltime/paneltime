@@ -167,6 +167,6 @@ def kuhn_tucker2(c,i,j,n,H,g,x,dx,dx_init,recalc=True):
 
 	
 def normalize(dx, x):
-	dx_norm=(x!=0)*dx/(np.abs(x)+(x==0))
+	dx_norm=(x!=0)*dx/(np.abs(x)+(np.abs(x)<1e-100))
 	dx_norm=(x<1e-2)*dx+(x>=1e-2)*dx_norm	
 	return dx_norm	

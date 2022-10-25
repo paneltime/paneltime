@@ -9,7 +9,7 @@ import multi_core as mc
 
 DEBUG_MODE = True
 	
-N_NODES = 16
+N_NODES = 10
 
 t0=time.time()
 
@@ -22,7 +22,7 @@ if not DEBUG_MODE:
 						 f"mp = mc.multiprocess({N_NODES}," 
 						 	 "'import loglikelihood as logl\\n'\n"
 							 "'import maximize', " 
-							 "holdbacks = ('panel', 'constr'))\n")
+							 "holdbacks = ('panel',))\n")
 	mp_debug = None
 else:
 	mp = None

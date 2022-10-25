@@ -5,17 +5,29 @@
 import sys
 #sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.win-amd64-3.5'))
 #sys.path.append(__file__.replace("paneltime\\loglikelihood.py",'build\\lib.linux-x86_64-3.5'))
+from pathlib import Path
+import os
+import numpy.ctypeslib as npct
+import ctypes as ct
 try:#only using c function if installed
-	import cfunctions as c
+	from cfunctions import cextension as c
+	p = os.path.join(Path(__file__).parent.absolute(),'cfunctions')
+	cfunct = npct.load_library('ctypes.dll',p)
 except ImportError as e:
 	c=None
+	
+
 import numpy as np
 import calculus_ll as cll
 import calculus_functions as cf
 import random_effects as re
 import traceback
 import model_parser
+import time
 
+
+CDPT = ct.POINTER(ct.c_double) 
+CIPT = ct.POINTER(ct.c_uint) 
 
 	
 
@@ -58,44 +70,44 @@ class LL:
 
 	def LL_calc(self,panel):
 		X=panel.XIV
-		matrices=self.arma_calc(panel)
-		if matrices is None:
-			return None		
-		AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
+
 		
 		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-cf.dot(X,self.args.args_d['beta'])
-		e = panel.arma_dot.dot(AMA_1AR,u,self)
-		e_RE = (e+self.re_obj_i.RE(e, panel)+self.re_obj_t.RE(e, panel))*panel.included[3]
+		u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*panel.included[3]
+		
+		matrices=self.arma_calc(panel, u_RE)
+		if matrices is None:
+			return None		
+		AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE2, lnv2=matrices		
+		e_RE = e_RE2#panel.arma_dot.dot(AMA_1AR,u_RE,self)
+		self.h_val, self.h_e_val, self.h_2e_val = e_RE**2*panel.included[3], 2*e_RE*panel.included[3], 2*panel.included[3]
+		self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function	
+		lnv_ARMA = lnv2#panel.arma_dot.dot(GAR_1MA,self.h_val,self)
+		
 		
 		e_REsq =(e_RE**2+(e_RE==0)*1e-18) 
-		grp = self.variance_RE(panel,e_REsq)#experimental
-		
 		W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
 		
-		if panel.options.RE_in_GARCH.value:
-			lnv_ARMA = self.garch(panel, GAR_1MA, e_RE)
-		else:
-			lnv_ARMA = self.garch(panel, GAR_1MA, e)	
+		
 		lnv = W_omega+lnv_ARMA
-		lnv+=grp
+
 		LL_full,v,v_inv,self.dlnv_pos=cll.LL(panel,lnv,e_REsq, e_RE)
 		self.tobit(panel,LL_full)
 		LL=np.sum(LL_full*panel.included[3])
 		self.LL_all=np.sum(LL_full)
-		self.add_variables(panel,matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,e_REsq,v_inv,LL_full)
+		self.add_variables(panel,matrices, u, u_RE, lnv_ARMA, lnv, v, W_omega,e_RE,e_REsq,v_inv,LL_full)
 		if abs(LL)>1e+100: 
 			return None				
 		return LL
 		
-	def add_variables(self,panel,matrices,u,e,lnv_ARMA,lnv,v,W_omega,grp,e_RE,e_REsq,v_inv,LL_full):
+	def add_variables(self,panel,matrices,u, u_RE,lnv_ARMA,lnv,v,W_omega,e_RE,e_REsq,v_inv,LL_full):
 		self.v_inv05=v_inv**0.5
 		self.e_norm=e_RE*self.v_inv05	
 		self.e_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
-		self.u,self.e, self.lnv_ARMA        = u,         e,     lnv_ARMA
+		self.u, self.u_RE, self.lnv_ARMA        = u,  u_RE,   lnv_ARMA
 		self.lnv,  self.v,    self.LL_full = lnv,       v,    LL_full
 		self.W_omega=W_omega
-		self.grp=grp
 		self.e_RE=e_RE
 		self.e_REsq=e_REsq
 		self.v_inv=v_inv
@@ -113,26 +125,11 @@ class LL:
 				I=panel.tobit_I[i]
 				self.F[i]= scipy.stats.norm.cdf(g[i]*self.e_norm[I])
 				LL[I]=np.log(self.F[i])
-
-	def garch(self,panel,GAR_1MA,e):	
-		if panel.pqdkm[4]>0:
-			if panel.z_active:
-				h_res=self.h(panel,e, self.args.args_d['z'][0])
-			else:
-				h_res=self.h(panel,e, None)
-			(self.h_val,     self.h_e_val,
-			 self.h_2e_val,  self.h_z_val,
-			 self.h_2z_val,  self.h_ez_val)=[cf.prod((i,panel.included[3])) for i in h_res]
-			return panel.arma_dot.dot(GAR_1MA,self.h_val,self)
-		else:
-			(self.h_val,    self.h_e_val,
-			 self.h_2e_val, self.h_z_val,
-			 self.h_2z_val, self.h_ez_val,
-			 self.avg_h)=(0,0,0,0,0,0,0)
-			return 0			
+	
 	
 	def variance_RE(self,panel,e_REsq):
 		"""Calculates random/fixed effects for variance."""
+		#not in use, expermental. Should be applied to normalize before ARIMA/GARCH
 		self.vRE,self.lnvRE,self.dlnvRE=panel.zeros[3],panel.zeros[3],panel.zeros[3]
 		self.ddlnvRE,self.dlnvRE_mu,self.ddlnvRE_mu_vRE=panel.zeros[3],None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
@@ -246,56 +243,84 @@ class LL:
 	def h(self,panel,e,z):
 		return h(e, z, panel)
 	
-	def arma_calc(self,panel):
-		matrices=set_garch_arch(panel,self.args.args_d)
+	def arma_calc(self,panel, u):
+		matrices=set_garch_arch(panel,self.args.args_d, u)
 		if matrices is None:
 			return None		
-		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA=matrices
+		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.lnv=matrices
 		self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
 		return matrices	
 	
-			
-def h(e,z,panel):
-	try:
-		if panel.options.normal_GARCH.value:
-			return e**2, 2*e, 2,  None,None,None
-		d=dict()
-		exec(panel.h_def,globals(),d)
-		return d['h'](e,z)
-	except Exception as err:
-		raise RuntimeError("Warning,error in the ARCH error function h(e,z): %s" %(err))
+
 	
 
-def set_garch_arch(panel,args):
+def set_garch_arch(panel,args, u):
 	if c is None:
 		raise RuntimeError('c-library for sparese inversion not compiled, and the scipy version needs to be fixed')
 		m=set_garch_arch_scipy(panel,args)
 	else:
-		m=set_garch_arch_c(panel,args)
+		m=set_garch_arch_c(panel,args, u)
 	return m
 		
 
 
-def set_garch_arch_c(panel,args):
+def set_garch_arch_c(panel,args,u):
 	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
 	the diagonal band"""
-	n=panel.max_T
+	N, T, _ = u.shape
 	rho=np.insert(-args['rho'],0,1)
 	psi=args['psi']
 	psi=np.insert(args['psi'],0,0) 
 
-	r=np.arange(n)
-	AMA_1,AMA_1AR,GAR_1,GAR_1MA=(
-		np.append([1],np.zeros(n-1)),
-		np.zeros(n),
-		np.append([1],np.zeros(n-1)),
-		np.zeros(n),
+	
+	AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, lnv=(
+		np.append([1],np.zeros(T-1)),
+		np.zeros(T),
+		np.append([1],np.zeros(T-1)),
+		np.zeros(T),
+		np.zeros(u.shape),
+		np.zeros(u.shape)
 	)
-	c.bandinverse(args['lambda'],rho,-args['gamma'],psi,n,AMA_1,AMA_1AR,GAR_1,GAR_1MA,1)
+	
+	if True:
+		t0 = time.time()
+		for i in range(5000):
+			c.arma_arrays(args['lambda'],rho,-args['gamma'],psi,T,AMA_1,AMA_1AR,GAR_1,GAR_1MA,u,e,lnv)	
+		print(f"Old c:{time.time()-t0}")
+		a=[np.array(i) for i in (AMA_1,AMA_1AR,GAR_1,GAR_1MA,u,e,lnv)]
+		
+		lmbda = args['lambda']
+		gmma = -args['gamma']
+		lengths = np.array(( N , T , 
+							len(lmbda), len(rho), len(gmma), len(psi)), 
+							dtype=int)
+		
+		t0 = time.time()
+		args = (lengths.ctypes.data_as(CIPT), 
+						  lmbda.ctypes.data_as(CDPT), rho.ctypes.data_as(CDPT),
+						  gmma.ctypes.data_as(CDPT), psi.ctypes.data_as(CDPT),
+						  AMA_1.ctypes.data_as(CDPT), AMA_1AR.ctypes.data_as(CDPT),
+						  GAR_1.ctypes.data_as(CDPT), GAR_1MA.ctypes.data_as(CDPT),
+						  u.ctypes.data_as(CDPT), 
+						  e.ctypes.data_as(CDPT), lnv.ctypes.data_as(CDPT)
+						  )	
+		for i in range(5000):
+			cfunct.armas(*args)	
+		print(f"New c:{time.time()-t0}")
+		b=[np.array(i) for i in (AMA_1,AMA_1AR,GAR_1,GAR_1MA,u,e,lnv)]
+		
+		for i in range(len(a)):
+			ai = a[i][np.isnan(a[i])==False]
+			bi = a[i][np.isnan(a[i])==False]
+			print(np.all(ai==bi))
+			
+			
 	r=[]
 	#Creating nympy arrays with name properties. 
 	for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:
 		r.append((locals()[i],i))
+	for i in ['e', 'lnv']:
+		r.append(locals()[i])
 	return r
 
 

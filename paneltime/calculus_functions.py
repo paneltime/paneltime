@@ -29,7 +29,7 @@ def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 	#ARIMA:
 	if not AMAL is None:
 		if u_gradient:
-			de2_zeta_xi=-panel.arma_dot.dot(AMAL,panel.XIV,ll)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
+			de2_zeta_xi=-panel.arma_dot.dot(AMAL,g.X_RE,ll)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
 		else:
 			de2_zeta_xi=panel.arma_dot.dot(AMAL,de_zeta,ll)#"T x N x s x m
 		if transpose:#only happens if lags==k
@@ -37,7 +37,7 @@ def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 		de2_zeta_xi=de2_zeta_xi*panel.included[4]
 	else:
 		de2_zeta_xi=None
-	de2_zeta_xi_RE=add(([de2_zeta_xi, ll.re_obj_i.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2,panel), ll.re_obj_t.ddRE(de2_zeta_xi,de_xi,de_zeta,ll.e,vname1,vname2,panel)]),True)
+	de2_zeta_xi_RE=de2_zeta_xi
 	
 	return de2_zeta_xi_RE,de2_zeta_xi
 
@@ -94,10 +94,8 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 		d2LL_d2e_zeta_xi_RE = de2_zeta_xi_RE * DLL_e	
 		d2LL_d2e_zeta_xi_RE = np.sum(np.sum(d2LL_d2e_zeta_xi_RE*incl,0),0)
 		
-	RE_suffix='_RE'
-	if (not panel.options.RE_in_GARCH.value):
-		de2_zeta_xi_RE=de2_zeta_xi
-		RE_suffix=''
+	RE_suffix=''
+
 	de_xi_RE=g.__dict__['de_'+vname1+RE_suffix]
 	de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]	
 

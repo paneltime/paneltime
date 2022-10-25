@@ -10,6 +10,7 @@ import pickle
 import gc
 import inspect
 import time
+from threading import Thread
 
 def main(t,initcommand,s_id,fpath):
 	fname=os.path.join(fpath,'slaves/%s.txt' %(s_id,))
@@ -48,15 +49,7 @@ def main(t,initcommand,s_id,fpath):
 			response=release_dict(d,d_list,holdbacks)
 		elif msg=='listen':			
 			sys.stdout = f
-			callback_class.reset_outbox()
-			d['callback'] = callback_class.callback
-			try:
-				exec(obj,globals(),d)
-			except Exception as e:
-				if str(e)!='Quit from callback':
-					raise RuntimeError(e)
-				else:
-					write(f, 'quit after callback')
+			listen(obj, callback_class, d, f)
 			sys.stdout = sys.__stdout__
 			t.send((callback_class.outbox, True))
 			
@@ -70,35 +63,58 @@ def main(t,initcommand,s_id,fpath):
 		gc.collect()
 		
 
+def listen(command, callback_class, d, f):
+	callback_class.reset_outbox()
+	d['callback'] = callback_class.callback
+	try:
+		thread = Thread(target=exec,args=(command,globals(),d))
+		thread.start()
+		while thread.is_alive():
+			callback_class.send_callback(False)
+			time.sleep(0.2)
+		callback_class.send_callback(True)
+			
+	except Exception as e:
+		if str(e)!='Quit from callback':
+			raise RuntimeError(e)
+		else:
+			write(f, 'quit after callback')
+			
+
+
+		
+
 class CallBack:
 	def __init__(self, t, f):
 		self.t = t
 		self.f = f
-		self.time = time.time()
 		self.inbox = {}
 		self.reset_outbox()
+		self.thread = None
 		
 	def write(self, s):
 		write(self.f, s)
 		
 	def reset_outbox(self):
 		self.outbox = {}
-		
 	
 	def callback(self, **keywords):
 		for k in keywords:
 			self.outbox[k] = keywords[k]
-		quit = False
-		if time.time()-self.time>1:
-			t.send((self.outbox,False))
-			msg, (self.inbox, quit) = t.receive()
-			self.time = time.time()
-		
+			
+	def send_callback(self,done):
+		self.t.send((self.outbox,done))
+		msg, (self.inbox, quit) = self.t.receive()
 		if quit:
 			self.reset_outbox()
 			raise RuntimeError('Quit from callback')
-		return self.inbox
-	
+
+
+def isalive(thread):
+	try:
+		return thread.is_alive()
+	except:
+		return False
 	
 	
 def add_to_dict(to_dict,from_dict):

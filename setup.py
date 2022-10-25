@@ -21,6 +21,19 @@ import shutil
 import os
 		
 
+def copy_build_files():
+	d = [i for i in os.listdir('./build') if 
+		 os.path.isdir(f'./build/{i}') and i[:3]=='lib']
+	for dr in d:
+		a = [i for i in os.listdir(f'./build/{dr}') if 
+			 not os.path.isdir(f'./build/{dr}/{i}')]
+		for i in a:
+			if os.path.exists(f'./paneltime/cfunctions/{i}'):
+				os.remove(f'./paneltime/cfunctions/{i}')
+			shutil.copy(f'./build/{dr}/{i}', f'./paneltime/cfunctions/{i}')
+
+
+
 try:
 	import numpy as np
 except:
@@ -28,7 +41,8 @@ except:
 		subprocess.check_call([sys.executable, "-m", "pip", "install", 'numpy'])
 		time.sleep(2)
 		import numpy as np
-	except:
+	except Exception as e:
+		print(e)
 		print("""Warning: the python package numpy is not preinstalled. 
 Without it the 'cfunctions' library will not be installed, which will affect performance.
 Try uninstall paneltime, install numpy and install paneltime again""")
@@ -41,12 +55,14 @@ with open(path.join(here, 'README.txt'), encoding='utf-8') as f:
 try:
 	ext=[]
 	print("Building C-extension")
-	cfunc=Extension('cfunctions',sources=['paneltime/cfunctions.cpp'],include_dirs=[np.get_include()])
+	cfunc=Extension('cextension',sources=['paneltime/cfunctions/cextension.cpp'],include_dirs=[np.get_include()])
 	print("Done building C-extension")
 	ext=[cfunc]
-except:
+except Exception as e:
+	print(e)
 	print("""Warning: 'cfunctions' library not compiled. This may affect performance. 
 If you are installing on a Windows machine, precompiled versions exist for python 3.5,3.6 and 3.7, so you should be fine""")
+	
 setup(
     name='paneltime',
     ext_modules=ext,
@@ -127,10 +143,10 @@ setup(
     
     package_data={
         '': ['gui/*', '*.ico','gui/img/*.png',
-		'cfunctions.cp35-win_amd64.pyd',
-		'cfunctions.cp36-win_amd64.pyd',
-		'cfunctions.cpython-35m-x86_64-linux-gnu.so',
-		'cfunctions.cp37-win_amd64.pyd'],
+		'cextension.cp35-win_amd64.pyd',
+		'cextension.cp36-win_amd64.pyd',
+		'cextension.cpython-35m-x86_64-linux-gnu.so',
+		'cextension.cp37-win_amd64.pyd'],
         },
     include_package_data=True,
     #**************************************************************************<REMOVED
@@ -151,3 +167,6 @@ setup(
             ],
         },
 )
+
+print("Copying build files")
+copy_build_files()

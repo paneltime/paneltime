@@ -1,6 +1,9 @@
 import numpy as np
 import loglikelihood as logl
 
+#remove:
+import pickle
+
 STPMX=100.0 
 import time
 class LineSearch:
@@ -98,6 +101,10 @@ class LineSearch:
 			self.msg = f"No function increase after {max_iter} iterations"
 
 	def func(self,x):
+		if False:#for debug
+			f = open('ctest.dump','wb')
+			pickle.dump((x, self.panel, self.comput.constr), f)
+			f.close()		
 		ll = logl.LL(x, self.panel, self.comput.constr)
 		if ll is None:
 			return None, None

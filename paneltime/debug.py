@@ -102,10 +102,9 @@ def LL_calc(self,panel):
 	grp = self.variance_RE(panel,e_REsq)#experimental
 	
 	W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
-	if panel.options.RE_in_GARCH.value:
-		lnv_ARMA = self.garch(panel, GAR_1MA, e_RE)
-	else:
-		lnv_ARMA = self.garch(panel, GAR_1MA, e)	
+
+	lnv_ARMA = self.garch(panel, GAR_1MA, e_RE)
+	
 	lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
 	lnv+=grp
 	self.dlnv_pos=(lnv<100)*(lnv>-100)

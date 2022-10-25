@@ -29,39 +29,31 @@ class Callback:
 		self.start_time = t0
 		self.print_interval_time = time.time()
 		self.set_progress = self.channel.set_progress
-		self.kw = {}
+		self.kwds = {}
 		
-	def set_computation(self, computation, _print=True):
-		self.computation = computation
+	def set_communication(self, comm, _print=True):
+		self.comm = comm
 		self._print = _print
 		
 	def generic(self, **keywordargs):
-		if time.time()-self.print_interval_time<1 or False:
-			return
-		self.print_interval_time = time.time()
-		a = keywordargs	
-		try:
-			msg, its, incr, ll, perc, task, dx_norm, f = (
-				a['msg'], a['its'], a['incr'], a['ll'], a['perc'], 
-				a['task'], a['dx_norm'], a['f'])
-			print(f"{f} : {time.time()-self.start_time} : {its}")
-			#self.print(msg, its, incr, ll, perc, task, dx_norm)
-			#print(a['perc_calc'])
-		except:
-			pass
+		for k in keywordargs:
+			self.kwds[k] = keywordargs[k]
+
 		
 
 	def print(self, msg, its, incr, ll, perc , task, dx_norm):
 		if not self._print:
 			return
 		if not self.channel.output_set:
-			self.channel.set_output_obj(ll, self.computation, dx_norm)
+			self.channel.set_output_obj(ll, self.comm, dx_norm)
 		self.channel.set_progress(perc ,msg ,task=task)
-		self.channel.update(self.computation,its,ll,incr, dx_norm)
+		self.channel.update(self.comm,its,ll,incr, dx_norm)
+		a=0
 	
 	def print_final(self, msg, its, incr, fret, perc, task, conv, dx_norm, t0, xsol, ll):
 		self.print(msg, its, incr, ll, perc, task, dx_norm)
 		self.channel.print_final(msg, fret, conv, t0, xsol, its)
+		a=0
 	
 
 

@@ -14,9 +14,9 @@ STANDARD_LENGTH=8
 
 
 class output:
-	def __init__(self,ll,panel,computation, dx_norm):
+	def __init__(self,ll,panel,comm, dx_norm):
 		self.ll=ll
-		self.computation=computation
+		self.comm=comm
 		self.panel=panel
 		self.lags=self.panel.options.robustcov_lags_statistics.value[1]
 		self.n_variables=self.panel.args.n_args
@@ -25,11 +25,11 @@ class output:
 		self.d={'names':np.array(self.panel.args.names_v),
 				'count':range(self.n_variables),
 				'args':self.ll.args.args_v}
-		self.update(computation, 0, ll, self.incr, dx_norm)
+		self.update(comm, 0, ll, self.incr, dx_norm)
 		self.heading()
 
-	def update(self,computation, its, ll,incr, dx_norm):
-		self.computation=computation
+	def update(self,comm, its, ll,incr, dx_norm):
+		self.comm=comm
 		self.iterations=its
 		self.ll=ll
 		self.dx_norm = dx_norm
@@ -47,18 +47,18 @@ class output:
 	
 	def t_stats(self):
 		d=self.d
-		computation=self.computation
+		comm=self.comm
 		panel=self.panel
 		
 		T=len(d['names'])
-		if computation.H is None:
+		if comm.H is None:
 			return
-		d['se_robust'],d['se_st']=sandwich(computation,self.lags)
-		d['se_robust_oposite'],d['se_st_oposite']=sandwich(computation,self.lags,oposite=True)
+		d['se_robust'],d['se_st']=sandwich(comm,self.lags)
+		d['se_robust_oposite'],d['se_st_oposite']=sandwich(comm,self.lags,oposite=True)
 		if not (d['se_st_oposite'] is None):
 			d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
 			d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
-		#d['se_robust_fullsize'],d['se_st_fullsize']=sandwich(computation,self.lags,resize=False)
+		#d['se_robust_fullsize'],d['se_st_fullsize']=sandwich(comm,self.lags,resize=False)
 		no_nan=np.isnan(d['se_robust'])==False
 		valid=no_nan
 		valid[no_nan]=(d['se_robust'][no_nan]>0)
@@ -69,11 +69,11 @@ class output:
 		d['sign_codes']=get_sign_codes(d['tsign'])
 	
 	def heading(self):
-		if self.computation.CI is None:
+		if self.comm.constr.CI is None:
 			CI ='None'
 		else:
-			CI = np.round(self.computation.CI)
-		n_CI=len(self.computation.mc_problems)
+			CI = np.round(self.comm.constr.CI)
+		n_CI=len(self.comm.constr.mc_problems)
 		
 		
 		self.model_desc =  f"Model:\t{self.panel.input.Y_names[0]} = {' + '.join(self.panel.input.X_names)}\n"
@@ -82,7 +82,7 @@ class output:
 			self.model_desc += f"Instruments:\t{', '.join(self.panel.input.Z_names[1:])}\n" 
 			
 		n,T,k=self.panel.X.shape
-		run_time = np.round(time.time()-self.computation.start_time)
+		run_time = np.round(time.time()-self.comm.start_time)
 
 		s = (
 		f"LL:\t{self.ll.LL        }\tIteration:\t{self.iterations        }\tPanel observations:\t{self.panel.NT_before_loss }\n"
@@ -97,9 +97,9 @@ class output:
 		
 	def constraints_printout(self):
 		panel=self.panel
-		computation=self.computation
-		constr=computation.constr
-		weak_mc_dict=computation.weak_mc_dict
+		comm=self.comm
+		constr=comm.constr
+		weak_mc_dict=comm.constr.weak_mc_dict
 		d=self.d
 		if not self.dx_norm is None:
 			d['dx_norm']=self.dx_norm
@@ -259,9 +259,9 @@ class column:
 			else:
 				return np.array([str(i).ljust(self.length)[:self.length] for i in self.input])
 
-def sandwich(computation,lags,oposite=False,resize=True):
-	panel=computation.panel
-	H,G,idx=reduce_size(computation,oposite,resize)
+def sandwich(comm,lags,oposite=False,resize=True):
+	panel=comm.panel
+	H,G,idx=reduce_size(comm,oposite,resize)
 	lags=lags+panel.lost_obs
 	try:
 		hessin=np.linalg.inv(-H)
@@ -272,24 +272,24 @@ def sandwich(computation,lags,oposite=False,resize=True):
 	se_robust,se,V=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True)
 	return se_robust,se
 
-def reduce_size(computation,oposite,resize):
-	if computation.constr is None:
-		return computation.H, computation.G, np.ones(len(computation.g),dtype=bool)
-	H=computation.H
-	G=computation.G
+def reduce_size(comm,oposite,resize):
+	if comm.constr is None:
+		return comm.H, comm.G, np.ones(len(comm.g),dtype=bool)
+	H=comm.H
+	G=comm.G
 	if (G is None) or (H is None):
 		return
 	m=len(H)
 	if not resize:
 		return H,G,np.ones(m,dtype=bool)
-	weak_mc_dict=computation.weak_mc_dict.keys()
-	constr=list(computation.constr.fixed.keys())	
+	weak_mc_dict=comm.constr.weak_mc_dict.keys()
+	constr=list(comm.constr.fixed.keys())	
 	if oposite:
-		weak_mc_dict=[computation.weak_mc_dict[i][0] for i in computation.weak_mc_dict]
+		weak_mc_dict=[comm.constr.weak_mc_dict[i][0] for i in comm.constr.weak_mc_dict]
 		constr=[]
-		for i in computation.constr.fixed:
-			if not computation.constr.fixed[i].assco_ix is None:
-				constr.append(computation.constr.fixed[i].assco_ix)
+		for i in comm.constr.fixed:
+			if not comm.constr.fixed[i].assco_ix is None:
+				constr.append(comm.constr.fixed[i].assco_ix)
 	for i in weak_mc_dict:
 		if not i in constr:
 			constr.append(i)

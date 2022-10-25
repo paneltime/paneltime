@@ -1,4 +1,4 @@
-Paneltime
+# Paneltime
 
 
 Author: Espen Sirnes
@@ -8,7 +8,7 @@ This package integrates paneldata estimation with a very efficient ARIMA/GARCH
 estimator. 
 
 
-Installation
+## Installation
 
 
 Use standard "pip install paneltime" for installation
@@ -19,12 +19,12 @@ For compiling the custum clibrary (sparse matrix inversion):
 
 If you are NOT installing on Windows, make sure these requirements are satisfied before you install:
 
-For GUI:
-	Tkinter:   From root, "apt python3-tk" in Linux
+## For GUI:
+Tkinter:   From root, "apt python3-tk" in Linux
 
-For matplotlib to be installed:
-	pk-konfig: From root, "apt pk-konfig" in Linux
-	Freetype : From root, "apt install libfreetype6 libfreetype6-dev" in Linux)
+## For matplotlib to be installed:
+pk-konfig: From root, "apt pk-konfig" in Linux
+Freetype : From root, "apt install libfreetype6 libfreetype6-dev" in Linux)
 
 
 

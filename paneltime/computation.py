@@ -14,7 +14,7 @@ STPMX=100.0
 
 
 class Computation:
-	def __init__(self,panel, t0, gtol, tolx, callback = lambda **kw: None, nonanalytic = False):
+	def __init__(self,panel, gtol, tolx, callback = lambda **kw: None, nummerical = False):
 		"""callback is a function taking any named arguments """
 		self.callback = callback
 		self.gradient=calculus.gradient(panel, self.callback)
@@ -28,12 +28,11 @@ class Computation:
 		self.mc_problems=[]
 		self.H_correl_problem=False
 		self.singularity_problems=False
-		self.start_time=t0
 		self.num_hess_count = 0
 		self.H, self.g, self.G = None, None, None
 		self.mcollcheck = False
 		self.rec =[]
-		self.nonanalytic = nonanalytic
+		self.nummerical = nummerical
 
 
 	def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll, coll_max_limit):
@@ -87,7 +86,7 @@ class Computation:
 				return x, f, hessin, H, g, True	
 			
 		if calc:
-			if self.num_hess_count>NUM_ITER and (not self.nonanalytic):
+			if self.num_hess_count>NUM_ITER and (not self.nummerical):
 				H = self.calc_hessian(ll)	
 				self.num_hess_count = 0				
 			else:
@@ -214,7 +213,7 @@ class Computation:
 		g, G = self.calc_gradient(ll)
 		H = self.calc_hessian(ll)
 		d = np.diag(H)
-		d = d - (d==0)
+		d = d - (np.abs(d)<1e-100)
 		H = np.diag(d)
 		hessin = np.diag(1/d)
 

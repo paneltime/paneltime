@@ -18,7 +18,7 @@ class multiprocess:
 		self.d=dict()
 		self.master=master(initcommand,max_nodes,holdbacks)#for paralell computing
 
-	def execute(self,expr,progress_bar=None, collect=True):
+	def execute(self,expr,progress_bar=None, collect=True, abort_after_first=False):
 		"""For submitting multiple functions to be evalated. expr is an array of strings to be evaluated"""
 		"""If collect == True, collect results immediately, else results are collected later with collect()"""
 
@@ -26,7 +26,7 @@ class multiprocess:
 		self.tasks = Tasks(self.master, expr,progress_bar=progress_bar)
 		if not collect:
 			return
-		d,d_node = self.tasks.collect()
+		d,d_node = self.tasks.collect(abort_after_first)
 		self.tasks = None
 		for i in d:
 			self.d[i]=d[i]
@@ -130,9 +130,8 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			
 class Tasks:
 	def __init__(self, mp, tasks, progress_bar=None):
-		"""tasks is a list of string expressions to be executed. All variables in expressions are stored in the dictionary sent to the slaves
-		if remote=True, the list must be a list of tuples, where the first item is the expression and the second is the variable that should be returned\n
-		If wait_and_collect=True, wait_and_collect MUST be called at a later stage for each node. If not the nodes will be lost"""
+		"""A class that sends out tasks (a list of strings to be executed) to nodes in mp. Use the collect method to collect the results
+		"""
 		
 		mp.cleanup()
 		self.mp = mp
@@ -150,7 +149,7 @@ class Tasks:
 			t=Thread(target=mp.slaves[i].receive,args=(self.q,), daemon=True)
 			t.start()
 
-	def collect(self):
+	def collect(self, first = False):
 		"""Waiting and collecting the sent tasks. """
 
 		if len(self.tasks) == 0:
@@ -158,7 +157,9 @@ class Tasks:
 
 		for i in range(self.n):
 			d,s = self.q.get()
-			self.d_arr.append([d,s])			
+			self.d_arr.append([d,s])		
+			if first:
+				break			
 			if self.sent<len(self.tasks):
 				self.mp.slaves[s].send(self.msg, self.tasks[self.sent])#supplying additional tasks for returned cpus
 				t=Thread(target=self.mp.slaves[s].receive,args = (self.q,),daemon=True)
@@ -172,6 +173,8 @@ class Tasks:
 		
 		return d,d_node
 	
+	
+	
 
 
 class Listen:
@@ -182,6 +185,8 @@ class Listen:
 		slave. """
 		mp.cleanup()
 		self.mp = mp
+		self.first = -1
+		self.last = 0
 		self.tasks = tasks
 		self.n=len(tasks)
 		self.msg = 'listen'
@@ -224,6 +229,7 @@ class Listen:
 				break
 			for i in d:
 				self.inbox[s][i] = d[i]
+			self.last = s
 		if not done:
 			obj = self.mp.slaves[s].receive()
 			d, done = obj
@@ -232,6 +238,8 @@ class Listen:
 		if not done:
 			raise RuntimeError(f'Subprocess {s} did not end properly')
 		self.done[s]=True
+		if self.first<0:
+			self.first=s
 		
 	def update_outbox(self,d):
 		for i in d:
