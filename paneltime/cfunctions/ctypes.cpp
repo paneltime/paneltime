@@ -3,16 +3,9 @@
 /*Use "cl /LD /O2 /fp:fast ctypes.cpp" to compile for windows */
 /*Linux: gcc -O3 and –march=native */
 
+/*#include <cstdio>
+FILE *fp = fopen("coutput.txt","w"); */
 
-double min(double a, double b){
-	if(a>b){
-		return b;
-		}
-		else
-		{
-		return a;
-			}
-	}
 
 void inverse(long n, double *x_args, long nx, double *b_args, long nb, 
 				double *a, double *ab) {
@@ -22,22 +15,24 @@ void inverse(long n, double *x_args, long nx, double *b_args, long nb,
 	double sum_ax;
 	double sum_ab;
 	
+	for(i=0;i<n;i++){a[i]=0.0;};
 	a[0]=1.0;
 	ab[0] = b_args[0];
 
 	for(i=1;i<n;i++){
 		sum_ax=0;
 		sum_ab=0;
-		for(j=0;j<min(nx,i);j++){
+		for(j=0;j<i && j<nx;j++){
 			sum_ax+=x_args[j]*a[i-j-1];
+			//fprintf(fp, "%f, %f, %d, %d,%d\n", x_args[j], a[i-j-1], j, i, i-j-1);
 		}
 		a[i]=-sum_ax;
-		for(j=0;j<min(nb,i+1);j++){
+		for(j=0;j<i+1 && j<nb;j++){
 			sum_ab+=b_args[j]*a[i-j];
 		}
 		ab[i]=sum_ab;
 	}
-	
+	//fclose(fp);
 }
 	
 extern "C" __declspec(dllexport) int  armas(long *lengths, 

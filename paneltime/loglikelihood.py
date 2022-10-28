@@ -10,9 +10,9 @@ import os
 import numpy.ctypeslib as npct
 import ctypes as ct
 try:#only using c function if installed
-	from cfunctions import cextension as c
 	p = os.path.join(Path(__file__).parent.absolute(),'cfunctions')
 	cfunct = npct.load_library('ctypes.dll',p)
+	#from cfunctions import cextension as c
 except ImportError as e:
 	c=None
 	
@@ -255,6 +255,7 @@ class LL:
 	
 
 def set_garch_arch(panel,args, u):
+	return set_garch_arch_c(panel,args, u)
 	if c is None:
 		raise RuntimeError('c-library for sparese inversion not compiled, and the scipy version needs to be fixed')
 		m=set_garch_arch_scipy(panel,args)
@@ -282,39 +283,25 @@ def set_garch_arch_c(panel,args,u):
 		np.zeros(u.shape)
 	)
 	
-	if True:
-		t0 = time.time()
-		for i in range(5000):
-			c.arma_arrays(args['lambda'],rho,-args['gamma'],psi,T,AMA_1,AMA_1AR,GAR_1,GAR_1MA,u,e,lnv)	
-		print(f"Old c:{time.time()-t0}")
-		a=[np.array(i) for i in (AMA_1,AMA_1AR,GAR_1,GAR_1MA,u,e,lnv)]
-		
-		lmbda = args['lambda']
-		gmma = -args['gamma']
-		lengths = np.array(( N , T , 
+
+	#c.arma_arrays(args['lambda'],rho,-args['gamma'],psi,T,AMA_1,AMA_1AR,GAR_1,GAR_1MA,u,e,lnv)	
+
+	lmbda = args['lambda']
+	gmma = -args['gamma']
+	lengths = np.array(( N , T , 
 							len(lmbda), len(rho), len(gmma), len(psi)), 
 							dtype=int)
-		
-		t0 = time.time()
-		args = (lengths.ctypes.data_as(CIPT), 
+
+	cfunct.armas(lengths.ctypes.data_as(CIPT), 
 						  lmbda.ctypes.data_as(CDPT), rho.ctypes.data_as(CDPT),
 						  gmma.ctypes.data_as(CDPT), psi.ctypes.data_as(CDPT),
 						  AMA_1.ctypes.data_as(CDPT), AMA_1AR.ctypes.data_as(CDPT),
 						  GAR_1.ctypes.data_as(CDPT), GAR_1MA.ctypes.data_as(CDPT),
 						  u.ctypes.data_as(CDPT), 
 						  e.ctypes.data_as(CDPT), lnv.ctypes.data_as(CDPT)
-						  )	
-		for i in range(5000):
-			cfunct.armas(*args)	
-		print(f"New c:{time.time()-t0}")
-		b=[np.array(i) for i in (AMA_1,AMA_1AR,GAR_1,GAR_1MA,u,e,lnv)]
-		
-		for i in range(len(a)):
-			ai = a[i][np.isnan(a[i])==False]
-			bi = a[i][np.isnan(a[i])==False]
-			print(np.all(ai==bi))
-			
-			
+						  )		
+	
+
 	r=[]
 	#Creating nympy arrays with name properties. 
 	for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:

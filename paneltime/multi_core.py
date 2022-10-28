@@ -14,9 +14,9 @@ import tempstore
 
 
 class multiprocess:
-	def __init__(self,max_nodes=None,initcommand='',holdbacks=None):
+	def __init__(self,fpath, max_nodes=None,initcommand='',holdbacks=None):
 		self.d=dict()
-		self.master=master(initcommand,max_nodes,holdbacks)#for paralell computing
+		self.master=master(initcommand,max_nodes,holdbacks, fpath)#for paralell computing
 
 	def execute(self,expr,progress_bar=None, collect=True, abort_after_first=False):
 		"""For submitting multiple functions to be evalated. expr is an array of strings to be evaluated"""
@@ -58,7 +58,7 @@ class multiprocess:
 
 class master():
 	"""creates the slaves"""
-	def __init__(self,initcommand,max_nodes, holdbacks):
+	def __init__(self,initcommand,max_nodes, holdbacks, fpath):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
 		f = tempstore.TempfileManager().tempfile()
@@ -70,7 +70,7 @@ class master():
 		else:
 			self.cpu_count=max_nodes
 		n=self.cpu_count
-		fpath=obtain_fname('output')
+		fpath=os.path.join(fpath,'mp')
 		os.makedirs(fpath, exist_ok=True)
 		os.makedirs(fpath+'/slaves', exist_ok=True)
 		self.slaves=[slave() for i in range(n)]
@@ -185,6 +185,7 @@ class Listen:
 		slave. """
 		mp.cleanup()
 		self.mp = mp
+		self.nodes = []
 		self.first = -1
 		self.last = 0
 		self.tasks = tasks
@@ -193,61 +194,72 @@ class Listen:
 		if self.n>mp.cpu_count:
 			raise RuntimeError(f'Can only listen to at most one task per node. You have chosen {self.n} tasks, but there are only {mp.cpu_count} nodes')		
 		
-		self.inbox = [{} for i in range(self.n)]
 		self.outbox = outbox
 		self.thread = []
-		self.done = [False]*self.n
+		self.done = False
 		self.q = False
 		for i in range(self.n):
-			t=Thread(target=self.listen,args=(i,), daemon=False)
+			node = ListenNode(self, i)
+			self.nodes.append(node)
+			t=Thread(target=node.listen, daemon=False)
 			t.start()
 			self.thread.append(t)
-			
-	def listen(self, s):
+
+	def quit(self):
+		#return
+		for i in self.nodes:
+			i.q = True
+								  
+class ListenNode:
+	def __init__(self, listen, s):
+		self.q = listen.q	
+		self.parent = listen
+		self.s = s
+		self.parent.mp.slaves[s].send(self.parent.msg, self.parent.tasks[s])
+		self.inbox = {'node':s}	
+		self.done = False
+		
+	def listen(self):
 		try:
-			self.listen_unhandled(s)
+			self.listen_unhandled()
 		except ValueError as e:
 			print(e)
 			if str(e) in ['peek of closed file',
 						  'write to closed file']:#happens when accessing after master process has ended
 				return	
 		except Exception as e:
-			print(e)
-				
-								  
+			print(e)		
 		
-	def listen_unhandled(self, s):
-		quit = self.q	
-		self.mp.slaves[s].send(self.msg, self.tasks[s])
+	def listen_unhandled(self):
 		while True:
-			quit = self.q
-			d, done = self.mp.slaves[s].receive()
+			quit = self.q or self.parent.q
+			d, done = self.parent.mp.slaves[self.s].receive()
 			if done: 
 				break	
-			self.mp.slaves[s].send(self.msg, (self.outbox, quit))				
+			self.parent.mp.slaves[self.s].send(self.parent.msg, (self.parent.outbox, quit))				
 			if quit or done:
 				break
 			for i in d:
-				self.inbox[s][i] = d[i]
-			self.last = s
+				self.inbox[i] = d[i]
+			self.parent.last = self.s
 		if not done:
-			obj = self.mp.slaves[s].receive()
+			obj = self.parent.mp.slaves[self.s].receive()
 			d, done = obj
 		for i in d:
-			self.inbox[s][i] = d[i]		
+			self.inbox[i] = d[i]		
 		if not done:
-			raise RuntimeError(f'Subprocess {s} did not end properly')
-		self.done[s]=True
-		if self.first<0:
-			self.first=s
-		
-	def update_outbox(self,d):
-		for i in d:
-			self.outbox[i] = d[i]
-		
+			raise RuntimeError(f'Subprocess {self.s} did not end properly')
+		self.done=True
+		if self.parent.first<0:
+			self.parent.first=self.s
+		self.parent.done = sum([node.done for node in self.parent.nodes])==len(self.parent.nodes)
+			
 	def quit(self):
-		#return
 		self.q = True
+		
+
+		
+
 
 		
 		
@@ -301,7 +313,7 @@ class slave():
 			return answ
 		q.put((self.t.receive(),self.slave_id))
 
-
+	
 	def kill(self):
 		self.p.kill()
 
@@ -343,15 +355,3 @@ def write(f,txt):
 	f.write(str(txt)+'\n')
 	f.flush()
 
-
-
-
-
-def obtain_fname(name):
-
-	path=os.path.join(os.getcwd(),name)
-	path_dir=os.path.dirname(path)
-	if not os.path.exists(path_dir):
-		os.makedirs(path_dir)	
-
-	return path

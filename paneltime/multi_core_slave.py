@@ -72,6 +72,10 @@ def listen(command, callback_class, d, f):
 		while thread.is_alive():
 			callback_class.send_callback(False)
 			time.sleep(0.2)
+			
+		t0 = time.time()
+		while (callback_class.outbox['terminate']==False) and (time.time()-t0<1):
+			time.sleep(0.01)
 		callback_class.send_callback(True)
 			
 	except Exception as e:

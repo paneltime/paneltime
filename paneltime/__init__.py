@@ -7,26 +7,29 @@ sys.path.append(__file__.replace("__init__.py",''))
 import time
 import multi_core as mc
 
-DEBUG_MODE = True
+
+
+DEBUG_MODE = False
 	
 N_NODES = 10
 
 t0=time.time()
 
+path = os.getcwd()
 if not DEBUG_MODE:
-	mp = mc.multiprocess(1,
+	mp = mc.multiprocess(path, 1,
 						 "import maximize\n"
 						 "import tempstore\n"
 						 "import multi_core as mc\n"
 						 "tempstore.test_and_repair()\n"
-						 f"mp = mc.multiprocess({N_NODES}," 
+						 f"mp = mc.multiprocess('{path}/mp', {N_NODES}," 
 						 	 "'import loglikelihood as logl\\n'\n"
 							 "'import maximize', " 
 							 "holdbacks = ('panel',))\n")
 	mp_debug = None
 else:
 	mp = None
-	mp_debug = mc.multiprocess(N_NODES, "import loglikelihood as logl\n"
+	mp_debug = mc.multiprocess(path, N_NODES, "import loglikelihood as logl\n"
 										"import maximize")
 	
 print(f"mc: {time.time()-t0}")

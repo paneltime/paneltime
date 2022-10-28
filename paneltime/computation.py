@@ -62,6 +62,7 @@ class Computation:
 		#Thhese setting may not hold for all circumstances, and should be tested properly:
 		NUM_ITER = 5
 		MAX_COLL = 1e+300
+		GTOL_ANAL = 1
 
 		self.panel.arma_dot.update_info('its', its)
 		g, G = self.calc_gradient(ll)
@@ -84,9 +85,9 @@ class Computation:
 				self.num_hess_count = NUM_ITER+1
 			else:
 				return x, f, hessin, H, g, True	
-			
+		print(f"{f}, {max_pgain}, {g_norm}, {((max_pgain <= GTOL_ANAL))}")
 		if calc:
-			if self.num_hess_count>NUM_ITER and (not self.nummerical):
+			if ((max_pgain <= GTOL_ANAL)) and self.num_hess_count>5:
 				H = self.calc_hessian(ll)	
 				self.num_hess_count = 0				
 			else:
@@ -216,20 +217,7 @@ class Computation:
 		d = d - (np.abs(d)<1e-100)
 		H = np.diag(d)
 		hessin = np.diag(1/d)
-
 		
-		return p0, ll, ll.LL , g, hessin, H
-	
-		h = np.diag(H)
-		n = len(h)	
-		if full:
-			H[np.diag_indices(H.shape[0])] = h - (h >= 0)
-			hessin = hess_inv(H, None)
-		else:
-			h = h - (h == 0)
-			h = 0.75/h - 0.25	
-			hessin = np.diag(h)	
-			H = np.diag(1/h)
 		return p0, ll, ll.LL , g, hessin, H
 
 	
