@@ -77,7 +77,6 @@ class Processes(dict):
 class Process:
 	def __init__(self, name, task, parent):			
 		self.name = name
-		self.q = Queue()
 		self.parent = parent
 		self.task = task
 		self.d = parent.d
@@ -85,14 +84,13 @@ class Process:
 		self.callback = self.d['callback']	
 		
 		if name == 'transfer dictionary':
-			thread = Thread(target=self.get_dict, args = (self.q, ))
+			thread = Thread(target=self.get_dict)
 		else:
-			thread = Thread(target=self.run, args = (self.q, ))
+			thread = Thread(target=self.run)
 
 		thread.start()		
-	
 		
-	def run(self, q):
+	def run(self):
 		try:
 			self.parent.set_status(self.name, True)
 			exec(self.task, globals(), self.d)
@@ -103,7 +101,7 @@ class Process:
 			raise RuntimeError(e)
 			
 		
-	def get_dict(self, q):		
+	def get_dict(self):		
 		try:
 			self.parent.set_status(self.name, True)
 			f = open(self.parent.f_dict,'rb')
