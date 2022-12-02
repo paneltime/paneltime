@@ -166,13 +166,6 @@ def regression_options():
 	
 	self.GARCH_assist				= options_item(0,				'Amount of weight put on assisting GARCH variance to be close to squared residuals', float, 'GARCH assist',
 																	"%s>=0",category='ARIMA-GARCH')		
-		
-	self.loadargs					= options_item(1, 				"Determines whether the regression arguments from the previous run should be kept", 
-																	int, 'Load arguments', [0,1,2],
-																	['No loading',
-																	'Load from last run of identical model',
-																	'Load from last run'
-																	])
 	
 	self.min_group_df				= options_item(1, 				"The smallest permissible number of observations in each group. Must be at least 1", int, 'Minimum degrees of freedom', "%s>0",category='Regression')
 

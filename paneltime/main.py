@@ -16,7 +16,6 @@ import warnings
 import multi_core as mc
 import model_parser
 import maximize
-import tempstore
 import os
 import time
 
@@ -27,12 +26,12 @@ np.set_printoptions(precision=8)
 
 
 def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,
-			exe_tab,join_table,instruments, console_output, mp, mp_debug):
+			exe_tab,instruments, console_output, mp, mp_debug):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
 		if exe_tab.isrunning==False:return
-	datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,join_table,instruments)
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
 	if datainput.timevar is None:
 		print("No valid time variable defined. This is required")
 		return
@@ -42,16 +41,14 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
 	return summary
 
 class input_class:
-	def __init__(self,dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,join_table,instruments):
+	def __init__(self,dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments):
 		
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,heteroscedasticity_factors,instruments,options)
 		self.descr=model_string
 		self.n_nodes = N_NODES
-		self.args_archive=tempstore.args_archive(self.descr, options.loadargs.value)
 		self.args=None
 		if options.arguments.value!="":
 			self.args=options.arguments.value
-		self.join_table=join_table
 			
 def doit(datainput,options,mp, mp_debug,pqdkm,window,exe_tab, console_output):
 	print ("Creating panel")
@@ -60,16 +57,15 @@ def doit(datainput,options,mp, mp_debug,pqdkm,window,exe_tab, console_output):
 	
 	
 	if not mp is None:
-		command = (
-			"panel.init()\n"
-			"mp.send_dict({'panel':panel}, command='panel.init()\\n' , cleanup = False)\n"
-		)
-		
-		mp.send_dict({'panel':pnl},
-					 command = command, cleanup = False)
+		mp.send_dict({'panel':pnl})
+		mp.exec("panel.init()\n"
+				"mp.send_dict({'panel':panel})\n"
+				"mp_debug.wait_untill_done()\n"
+				"mp.exe('panel.init()', 'panel')\n")
 	else:
-		mp_debug.send_dict({'panel':pnl},
-					 command = 'panel.init()', cleanup = False)
+		mp_debug.send_dict({'panel':pnl})
+		mp_debug.wait_untill_done()
+		mp_debug.exec('panel.init()', 'panel')
 		
 
 	pnl.init()

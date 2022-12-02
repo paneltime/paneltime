@@ -9,116 +9,77 @@ import datetime
 from queue import Queue
 from threading import Thread
 import time
-import tempstore
+import tempfile
+import random
+import string
 
 
-
-class multiprocess:
-	def __init__(self,fpath, max_nodes=None,initcommand='',holdbacks=None):
-		self.d=dict()
-		self.master=master(initcommand,max_nodes,holdbacks, fpath)#for paralell computing
-
-	def execute(self,expr,progress_bar=None, collect=True, abort_after_first=False):
-		"""For submitting multiple functions to be evalated. expr is an array of strings to be evaluated"""
-		"""If collect == True, collect results immediately, else results are collected later with collect()"""
-
-		self.progress_bar = progress_bar
-		self.tasks = Tasks(self.master, expr,progress_bar=progress_bar)
-		if not collect:
-			return
-		d,d_node = self.tasks.collect(abort_after_first)
-		self.tasks = None
-		for i in d:
-			self.d[i]=d[i]
-		return self.d
-
-	def collect(self):
-		if self.tasks==None:
-			raise RuntimeError('Tasks has all ready been collected')
-		d,d_node = self.tasks.collect()
-		self.tasks = None
-		for i in d:
-			self.d[i]=d[i]		
-		return self.d
-
-	def send_dict(self,d,cpu_ids=None,command='', cleanup = True):
-		for i in d:
-			self.d[i]=d[i]		
-		self.master.send_dict(d,cpu_ids,command, cleanup)
-
-	def quit(self):
-		self.master.quit()
-
-	def listen(self, tasks, outbox = {}):
-		self.listen_task = Listen(self.master, tasks, outbox)
-		return self.listen_task
-	
-	
-	
-
-class master():
+class Master():
 	"""creates the slaves"""
-	def __init__(self,initcommand,max_nodes, holdbacks, fpath):
+	def __init__(self, max_nodes, fpath):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
-		f = tempstore.TempfileManager().tempfile()
-		self.f = f.name
 		self.pending_cpus=[]
-		f.close()
 		if max_nodes is None:
-			self.cpu_count=os.cpu_count()#assignment to self allows for the possibility to manipulate the count
+			self.cpu_count=os.cpu_count()
 		else:
 			self.cpu_count=max_nodes
 		n=self.cpu_count
-		fpath=os.path.join(fpath,'mp')
-		os.makedirs(fpath, exist_ok=True)
-		os.makedirs(fpath+'/slaves', exist_ok=True)
-		self.slaves=[slave() for i in range(n)]
+		self.dict_file = create_temp_file(self.cpu_count)
+		self.fpath = makepath(fpath)
+		self.slaves=[Slave() for i in range(n)]
 		pids=[]
 		for i in range(n):
-			self.slaves[i].confirm(i,initcommand,fpath) 
+			self.slaves[i].confirm(i, self.fpath, self.dict_file) 
 			pid=str(self.slaves[i].p_id)
 			if int(i/5.0)==i/5.0:
 				pid='\n'+pid
 			pids.append(pid)
-		self.send_holdbacks(holdbacks)
 		pstr="""Multi core processing enabled using %s cores. \n
 Master PID: %s \n
 Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		print (pstr)
 
-	def send_dict(self, d,cpu_ids,command, cleanup):
-		self.cleanup()
-		f=open(self.f,'wb')
-		pickle.dump(d,f)   
-		f.flush() 
+	def send_dict(self, d):
+		f = open(self.dict_file, 'wb')
+		pickle.dump(d, f)  
 		f.close()
-		if cpu_ids is None:
-			cpu_ids=range(self.cpu_count)
-		if len(cpu_ids)<4 and False:
-			for i in cpu_ids:
-				self.slaves[i].send('dictionary',(d, command))
-		else:
-			for i in cpu_ids:
-				self.slaves[i].send('filetransfer',(self.f,command))
-		self.pending_cpus=cpu_ids
-		if cleanup: #cleanup == False for asycronous
-			self.cleanup() 
-		a=0
+		r = []
+		for i in range(self.cpu_count):
+			self.slaves[i].send('transfer dictionary',None)
+			r.append(self.slaves[i].receive())
+			
+	def exec(self, tasks, name):
+		#todo: add capebilities for useing more nodes than cpu_count
+		r = []
+		if tasks is None:
+			tasks = [None]*self.cpu_count
+		if type(tasks)==str:
+			tasks = [tasks]*self.cpu_count
+		for i in range(min((len(tasks), self.cpu_count))):
+			self.slaves[i].send(name,tasks[i])
+		for i in range(min((len(tasks), self.cpu_count))):	
+			r.append(self.slaves[i].receive())
+		return r
+			
+			
+	def callback(self, proc_name, outbox = {}, s_id = None):
+		d=[]
+		if not s_id is None:
+			self.slaves[s_id].send('callback',(proc_name,outbox))
+			return self.slaves[s_id].receive()
+		for i in range(self.cpu_count):
+			self.slaves[i].send('callback',(proc_name, outbox))
+			d.append(self.slaves[i].receive())
+		return d
+	
+	def wait_untill_done(self):
+		while self.any_alive():
+			time.sleep(0.01)
 		
-	def cleanup(self):
-		for i in self.pending_cpus:
-			_ = self.slaves[i].receive()
-		self.pending_cpus=[]
-		
-	def send_holdbacks(self, key_arr):
-		self.cleanup()
-		"""Sends a list with keys to variables that are not to be returned by the slaves"""
-		if key_arr is None:
-			return
-		for s in self.slaves:
-			s.send('holdbacks',key_arr)
-			res=s.receive()
+	def any_alive(self):
+		return sum(self.exec(None, 'check_state'))
+
 			
 	def quit(self):
 		for i in self.slaves:
@@ -128,158 +89,14 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			i.p.kill()
 			i.p.cleanup()
 			
-class Tasks:
-	def __init__(self, mp, tasks, progress_bar=None):
-		"""A class that sends out tasks (a list of strings to be executed) to nodes in mp. Use the collect method to collect the results
-		"""
-		
-		mp.cleanup()
-		self.mp = mp
-		self.n=len(tasks)
-		self.tasks = tasks
-		self.sent=min((mp.cpu_count, self.n))
-		self.d_arr=[]
-		self.msg = 'exec'
-		self.progress_bar = progress_bar
-		self.q = Queue()
+def makepath(fpath):
+	fpath=os.path.join(fpath,'mp')
+	os.makedirs(fpath, exist_ok=True)
+	os.makedirs(fpath+'/slaves', exist_ok=True)	
+	return fpath
 
-
-		for i in range(self.sent):
-			mp.slaves[i].send(self.msg, self.tasks[i])#initiating the self.cpus first evaluations
-			t=Thread(target=mp.slaves[i].receive,args=(self.q,), daemon=True)
-			t.start()
-
-	def collect(self, first = False):
-		"""Waiting and collecting the sent tasks. """
-
-		if len(self.tasks) == 0:
-			return		
-
-		for i in range(self.n):
-			d,s = self.q.get()
-			self.d_arr.append([d,s])		
-			if first:
-				break			
-			if self.sent<len(self.tasks):
-				self.mp.slaves[s].send(self.msg, self.tasks[self.sent])#supplying additional tasks for returned cpus
-				t=Thread(target=self.mp.slaves[s].receive,args = (self.q,),daemon=True)
-				t.start()
-				self.sent += 1
-			
-			if not self.progress_bar is None:
-				pb_func,pb_min,pb_max,text = self.progress_bar			
-				pb_func(pb_min+(pb_max-pb_min)*i/self.n,text)
-		d,d_node=get_slave_dicts(self.d_arr)
-		
-		return d,d_node
 	
-	
-	
-
-
-class Listen:
-	def __init__(self, mp, tasks, outbox={}):
-		"""tasks is a list of strings with the code that 
-		shall be run. The strings must have an object 'callback' wich take a single 
-		argument, which must be a dictionary, that represents the information returned from the 
-		slave. """
-		mp.cleanup()
-		self.mp = mp
-		self.nodes = []
-		self.first = -1
-		self.last = 0
-		self.tasks = tasks
-		self.n=len(tasks)
-		self.msg = 'listen'
-		if self.n>mp.cpu_count:
-			raise RuntimeError(f'Can only listen to at most one task per node. You have chosen {self.n} tasks, but there are only {mp.cpu_count} nodes')		
-		
-		self.outbox = outbox
-		self.thread = []
-		self.done = False
-		self.q = False
-		for i in range(self.n):
-			node = ListenNode(self, i)
-			self.nodes.append(node)
-			t=Thread(target=node.listen, daemon=False)
-			t.start()
-			self.thread.append(t)
-
-	def quit(self):
-		#return
-		for i in self.nodes:
-			i.q = True
-								  
-class ListenNode:
-	def __init__(self, listen, s):
-		self.q = listen.q	
-		self.parent = listen
-		self.s = s
-		self.parent.mp.slaves[s].send(self.parent.msg, self.parent.tasks[s])
-		self.inbox = {'node':s}	
-		self.done = False
-		
-	def listen(self):
-		try:
-			self.listen_unhandled()
-		except ValueError as e:
-			print(e)
-			if str(e) in ['peek of closed file',
-						  'write to closed file']:#happens when accessing after master process has ended
-				return	
-		except Exception as e:
-			print(e)		
-		
-	def listen_unhandled(self):
-		while True:
-			quit = self.q or self.parent.q
-			d, done = self.parent.mp.slaves[self.s].receive()
-			if done: 
-				break	
-			self.parent.mp.slaves[self.s].send(self.parent.msg, (self.parent.outbox, quit))				
-			if quit or done:
-				break
-			for i in d:
-				self.inbox[i] = d[i]
-			self.parent.last = self.s
-		if not done:
-			obj = self.parent.mp.slaves[self.s].receive()
-			d, done = obj
-		for i in d:
-			self.inbox[i] = d[i]		
-		if not done:
-			raise RuntimeError(f'Subprocess {self.s} did not end properly')
-		self.done=True
-		if self.parent.first<0:
-			self.parent.first=self.s
-		self.parent.done = sum([node.done for node in self.parent.nodes])==len(self.parent.nodes)
-			
-	def quit(self):
-		self.q = True
-		
-
-		
-
-
-		
-		
-			
-	
-def get_slave_dicts(d_arr):
-
-	d_var={}
-	d_node={}
-	for d,s in d_arr:
-		for key in d:
-			if key in d_var:
-				raise RuntimeWarning('Slaves returned identical variable names. Some variables will be overwritten')
-			d_var[key]=d[key]
-			d_node[key]=s
-	return d_var,d_node
-
-
-
-class slave():
+class Slave():
 	"""Creates a slave"""
 	command = [sys.executable, "-u", "-m", "multi_core_slave.py"]
 
@@ -292,26 +109,21 @@ class slave():
 		os.chdir(cwdr)
 		self.t=transact(self.p.stdout,self.p.stdin)
 		
-	def confirm(self,slave_id,initcommand,fpath):
+	def confirm(self,slave_id, path, f_dict):
 		self.p_id = self.receive()
 		self.slave_id=slave_id
-		self.send('init_transact',(initcommand,slave_id,fpath))
-		self.initcommand=initcommand
-		self.fpath=fpath
+		self.send('init_transact', (slave_id, path, f_dict))
 		pass
 
-	def send(self,msg,obj):
+	def send(self,msg, obj):
 		"""Sends msg and obj to the slave"""
 		if not self.p.poll() is None:
 			raise RuntimeError('process has ended')
-		self.t.send((msg,obj))     
+		self.t.send((msg, obj))     
 
-	def receive(self,q=None):
-
-		if q is None:
-			answ=self.t.receive()
-			return answ
-		q.put((self.t.receive(),self.slave_id))
+	def receive(self):
+		answ=self.t.receive()
+		return answ
 
 	
 	def kill(self):
@@ -325,12 +137,6 @@ class transact():
 
 	def send(self,msg):
 		w=getattr(self.w,'buffer',self.w)
-		pickle.dump(msg,w)
-		w.flush()   
-
-	def send_debug(self,msg,f):
-		w=getattr(self.w,'buffer',self.w)
-		write(f,str(w))
 		pickle.dump(msg,w)
 		w.flush()   	
 
@@ -352,6 +158,43 @@ run without multiprocessing\n %s""" %(datetime.datetime.now()))
 				raise RuntimeError('EOFError:'+e.args[0])
 
 def write(f,txt):
-	f.write(str(txt)+'\n')
+	f = open(f, 'w')
+	f.write(txt)
 	f.flush()
+	f.close()
+	
+def read(file):
+	f = open(file, 'r')
+	s = f.read()
+	f.close()
+	return s
 
+def create_temp_file(cpu_count):
+	tdir = tempfile.gettempdir()
+	f = os.path.join(tdir,gen_file_name(True))
+	try:#deleting old file
+		fold = read(f)
+		os.remove(fold)
+	except Exception as e:
+		print(e)
+		a=0
+	
+	f_dict = gen_file_name()
+	f_ = open(f_dict,'w')
+	f_.close()
+	write(f, f_dict)
+	return f_dict
+	
+def gen_file_name(seed=False):
+	if seed:
+		f = os.path.join('\\'.join(__file__.split('\\')[:-2]),os.path.join('.git','config'))
+		seed = os.path.getmtime(f)
+		random.seed(seed)
+	else:
+		random.seed()
+	tdir = tempfile.gettempdir()
+	fname = ''.join(random.choice(string.ascii_uppercase+string.ascii_lowercase + string.digits) for _ in range(20))
+	fname = os.path.join(tdir,fname)
+	return fname
+		
+		

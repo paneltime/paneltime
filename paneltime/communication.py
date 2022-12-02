@@ -22,39 +22,7 @@ TMP_PAGE='tmphtml'
 pic_num=[1]
 
 
-class Callback:
-	def __init__(self,window, exe_tab, panel, console_output, t0):
-		self.channel = get_channel(window, exe_tab, panel, console_output)
-		self.panel = panel
-		self.start_time = t0
-		self.print_interval_time = time.time()
-		self.set_progress = self.channel.set_progress
-		self.kwds = {}
-		
-	def set_communication(self, comm, _print=True):
-		self.comm = comm
-		self._print = _print
-		
-	def generic(self, **keywordargs):
-		for k in keywordargs:
-			self.kwds[k] = keywordargs[k]
 
-		
-
-	def print(self, msg, its, incr, ll, perc , task, dx_norm):
-		if not self._print:
-			return
-		if not self.channel.output_set:
-			self.channel.set_output_obj(ll, self.comm, dx_norm)
-		self.channel.set_progress(perc ,msg ,task=task)
-		self.channel.update(self.comm,its,ll,incr, dx_norm)
-		a=0
-	
-	def print_final(self, msg, its, incr, fret, perc, task, conv, dx_norm, t0, xsol, ll, node):
-		self.print(msg, its, incr, ll, perc, task, dx_norm)
-		self.channel.print_final(msg, fret, conv, t0, xsol, its, node)
-		a=0
-	
 
 
 def get_channel(window,exe_tab,panel, console_output):

@@ -89,7 +89,7 @@ class arguments:
 
 		return args
 
-	def set_init_args(self,panel,initargs=None,default=False):
+	def set_init_args(self,panel,initargs=None):
 		p, q, d, k, m=panel.pqdkm
 		if initargs is None:
 			initargs=self.initargs(p, d, q, m, k, panel)
@@ -99,13 +99,6 @@ class arguments:
 
 		beta,omega=set_init_regression(initargs,panel)
 		self.args_start=self.create_args(initargs,panel)
-		if not default:
-			#previous arguments
-			self.process_init_user_args(panel.input.args_archive.args,
-												initargs,'loaded',panel)
-			#user defined arguments:
-			self.process_init_user_args(panel.input.args,
-												initargs,'user defined',panel)
 		self.args_init=self.create_args(initargs,panel)
 		self.set_restricted_args(p, d, q, m, k,panel,omega,beta)
 		self.n_args=len(self.args_init.args_v)

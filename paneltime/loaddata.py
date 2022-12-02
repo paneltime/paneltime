@@ -3,14 +3,13 @@
 import numpy as np
 from datetime import datetime
 from datetime import date
-import tempstore
 import model_parser
 import pandas as pd
 import json
 import csv
 forbidden_names=['tobit_low','tobit_high',model_parser.DEFAULT_INTERCEPT_NAME,model_parser.CONST_NAME]
 
-def load(filepath_or_buffer,load_tmp_data,sep=None, header="infer", 
+def load(filepath_or_buffer,sep=None, header="infer", 
 					 names=None, index_col=None, usecols=None, squeeze=False, prefix=None, 
 					 mangle_dupe_cols=True, dtype=None, engine=None, converters=None, 
 					 true_values=None, false_values=None, skipinitialspace=False, skiprows=None, 
@@ -22,11 +21,6 @@ def load(filepath_or_buffer,load_tmp_data,sep=None, header="infer",
 					 escapechar=None, comment=None, encoding=None, dialect=None, error_bad_lines=True, 
 					 warn_bad_lines=True, delim_whitespace=False, 
 					 memory_map=False, float_precision=None):
-	if load_tmp_data:
-		data=tempstore.loaddata(fname)
-		if not data is None:
-			load_data_printout(data)
-			return data
 	print ("opening file ...")
 	sep=get_sep(filepath_or_buffer, sep)
 	data=pd.read_csv(filepath_or_buffer, sep, sep,header, 
@@ -63,13 +57,7 @@ def append(d,key,i):
 	else:
 		d[key]=[i]
 
-def load_SQL(sql_string,conn,load_tmp_data=True, index_col=None, coerce_float=True, params=None, parse_dates=None, columns=None, chunksize=None):
-	if load_tmp_data:
-		data=tempstore.loaddata((sql_string))
-		if not data is None:
-			print('local data loaded')
-			print ("The following variables were loaded:"+', '.join(data.keys()))
-			return data
+def load_SQL(sql_string,conn,index_col=None, coerce_float=True, params=None, parse_dates=None, columns=None, chunksize=None):
 	return pd.read_sql(sql_string, conn, index_col, coerce_float, params, parse_dates, columns, chunksize)
 
 
