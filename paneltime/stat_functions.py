@@ -6,24 +6,25 @@
 import calculus_functions as cf
 import numpy as np
 import random_effects
+import stat_dist
 
 
-def var_decomposition(XXNorm=None,X=None,concat=False):
+def var_decomposition(XXNorm=None,X=None):
 	"""Variance decomposition. Returns the matrix of condition indexes for each factor (rows) and each variable
 	(columns). Calculates the normalized sum of squares using square_and_norm if XXNorm is not supplied"""
 	if XXNorm is None:
 		XXNorm=square_and_norm(X)
 	ub=len(XXNorm)     
-	d,EVec=np.linalg.eig(XXNorm)
-	if np.any(np.round(d.imag,15)!=len(d)*[0]):
+	ev,p=np.linalg.eig(XXNorm)
+	if np.any(np.round(ev.imag,15)!=len(ev)*[0]):
 		pass
 		#print( "non-real XX matrix")
 		
-	d=d.real
-	EVec=EVec.real
-	d=np.abs(d)**0.5+1e-100
+	ev=ev.real
+	p=p.real
+	d=np.abs(ev)**0.5+1e-100
 	MaxEv=np.max(d)  
-	fi=np.abs(EVec*EVec/((d*d).reshape((1,ub))+1E-200))
+	fi=np.abs(p*p/((d*d).reshape((1,ub))+1E-200))
 	fiTot=np.sum(fi,1).reshape((ub,1))
 	pi=fi/(fiTot + (fiTot==0)*1E-200)
 	pi=pi.T
@@ -32,10 +33,7 @@ def var_decomposition(XXNorm=None,X=None,concat=False):
 	pi=pi[ind]
 	CondIx=CondIx[ind]
 	CondIx=CondIx.reshape((len(CondIx),1))
-	if concat:
-		return np.concatenate((CondIx,pi),1)
-	else:
-		return CondIx,pi
+	return CondIx,pi, ev, p
 
 def square_and_norm(X):
 	"""Squares X, and normalize to unit lenght.
@@ -55,7 +53,7 @@ def singular_elim(panel,X):
 	ci_threshold=50
 	keep,XXCorrel=find_singulars(panel,X) 
 	XXNorm=square_and_norm(X)
-	cond_ix,pi=var_decomposition(XXNorm)
+	cond_ix, pi, d, p =var_decomposition(XXNorm)
 	if max(cond_ix)<ci_threshold:
 		return keep,cond_ix
 	for cix in range(1,len(cond_ix)):
@@ -353,5 +351,42 @@ def sandwich_var(hessin,V):
 	return v,V
 	
 
+def breusch_godfrey_test(panel,ll, lags):
+	"""returns the probability that err_vec are not auto correlated""" 
+	e=ll.e_norm_centered
+	X=ll.XIV_st
+	N,T,k=X.shape
+	X_u=X[:,lags:T]
+	u=e[:,lags:T]
+	c=panel.included[3][:,lags:T]
+	for i in range(1,lags+1):
+		X_u=np.append(X_u,e[:,lags-i:T-i],2)
+	Beta,Rsq = OLS(panel,X_u,u,False,True,c=c)
+	T=(panel.NT-k-1-lags)
+	BGStat=T*Rsq
+	rho=Beta[k:]
+	ProbNoAC=1.0-stat_dist.chisq(BGStat,lags)
+	return ProbNoAC, rho, Rsq #The probability of no AC given H0 of AC.
 
+
+
+
+def JB_normality_test(e,panel):
+	"""Jarque-Bera test for normality. 
+	returns the probability that a set of residuals are drawn from a normal distribution"""
+	e=e[panel.included[3]]
+	a=np.argsort(np.abs(e))[::-1]
+	
+	ec=e[a][int(0.001*len(e)):]
+	
+	df=len(ec)
+	ec=ec-np.mean(ec)
+	s=(np.sum(ec**2)/df)**0.5
+	mu3=np.sum(ec**3)/df
+	mu4=np.sum(ec**4)/df
+	S=mu3/s**3
+	C=mu4/s**4
+	JB=df*((S**2)+0.25*(C-3)**2)/6.0
+	p=1.0-stat_dist.chisq(JB,2)
+	return p
 

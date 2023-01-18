@@ -121,7 +121,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
-    install_requires=['numpy >= 1.11','scipy','matplotlib','pymysql', 'pandas'],
+    install_requires=['numpy >= 1.11','matplotlib','pymysql', 'pandas'],
 	extras_require={'linux':'gcc'},	
     #**************************************************************************<REMOVED
 

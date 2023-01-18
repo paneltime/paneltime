@@ -117,13 +117,16 @@ def regression_options():
 	self.constraints_engine	        = options_item(True,			'Determines whether to invoke the constraints engine', bool, 'Invoke constraints engine',
 																	[True,False],['Invoke constraints','Do not invoke constraints'],category='Regression')	
 		
-	self.multicoll_threshold	    = options_item(30,				'Threashold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
+	self.multicoll_threshold_report = options_item(30,				'Threshold for reporting multicoll problems', float, 'Multicollinearity threshold',
+																	None,None)		
+	
+	self.multicoll_threshold_max    = options_item(1000,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
 																	None,None)			
 	
 	self.arguments					= options_item("", 				"A string or dict with a dictionary in python syntax containing the initial arguments." 
 																	"An example can be obtained by printing ll.args.args_d"
 																	, [str,dict], 'Initial arguments')	
-	self.multi_core  				= options_item(True,			"If True, uses multiple cores for paralell computing",
+	self.parallel  				= options_item(True,			"If True, uses multiple cores for parallel computing",
 																	bool,'Multicore', [True,False],['Multicore','Single core'],category='General')
 	
 	#self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	

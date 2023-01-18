@@ -33,7 +33,7 @@ class panel:
 		self.masking()
 		self.lag_variables()
 		self.final_defs()
-		self.arma_dot=cf.arma_dot_obj(self.X.shape[1],self.pqdkm)
+		self.arma_dot=cf.arma_dot_obj()
 		
 
 	def initial_defs(self):

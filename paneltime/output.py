@@ -4,9 +4,8 @@
 #This module calculates statistics and saves it to a file
 
 import numpy as np
-from scipy import stats as scstats
+import stat_dist
 import stat_functions as stat
-import stat_scipy
 import time
 
 STANDARD_LENGTH=8
@@ -65,7 +64,7 @@ class output:
 		d['tstat']=np.array(T*[np.nan])
 		d['tsign']=np.array(T*[np.nan])
 		d['tstat'][valid]=d['args'][valid]/d['se_robust'][valid]
-		d['tsign'][valid]=(1-scstats.t.cdf(np.abs(d['tstat'][valid]),panel.df))#Two sided tests
+		d['tsign'][valid]=(1-stat_dist.tcdf(np.abs(d['tstat'][valid]),panel.df))#Two sided tests
 		d['sign_codes']=get_sign_codes(d['tsign'])
 	
 	def heading(self):
@@ -301,6 +300,7 @@ def reduce_size(comm,oposite,resize):
 	return H,G,idx
 
 def expand_x(x,idx,matrix=False):
+	x = np.real(x)
 	m=len(idx)
 	if matrix:
 		x_full=np.zeros((m,m))
@@ -355,11 +355,11 @@ class Statistics:
 		ll.standardize(panel)
 		self.df=panel.df
 		self.N,self.T,self.k=panel.X.shape
-		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat_scipy.goodness_of_fit(ll,True,panel)	
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat_scipy.goodness_of_fit(ll,False,panel)	
-		self.no_ac_prob,self.rhos,self.RSqAC=stat_scipy.breusch_godfrey_test(panel,ll,10)
+		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True,panel)	
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False,panel)	
+		self.no_ac_prob,self.rhos,self.RSqAC=stat.breusch_godfrey_test(panel,ll,10)
 		self.DW=stat.DurbinWatson(panel,ll)
-		self.norm_prob=stat_scipy.JB_normality_test(ll.e_norm,panel)
+		self.norm_prob=stat.JB_normality_test(ll.e_norm,panel)
 		self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
 		self.df_str=self.gen_df_str(panel)	
 		self.instruments=panel.input.Z_names[1:]
@@ -650,7 +650,7 @@ class join_table_column:
 		self.LL=ll.LL
 		self.df=panel.df
 		self.args=ll.args
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat_scipy.goodness_of_fit(ll,True,panel)
+		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True,panel)
 		self.instruments=panel.input.Z_names[1:]
 		self.pqdkm=panel.pqdkm		
 		self.Y_name=panel.input.Y_names

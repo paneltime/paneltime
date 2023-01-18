@@ -258,13 +258,8 @@ def dot(a,b,reduce_dims=True):
 
 
 class arma_dot_obj:
-	def __init__(self,n,pqdkm):
-		self.info = {}
-		self.info['its']=0
-
-		
-	def update_info(self, key,value):
-		self.info[key] = value
+	def __init__(self):
+		pass
 		
 	def dotroll(self,aband,k,sign,b,ll):
 		x = sign*self.fast_dot(aband, b)

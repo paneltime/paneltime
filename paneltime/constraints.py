@@ -178,14 +178,14 @@ class Constraints(dict):
 		self.add_custom_constraints(panel, general_constraints, ll)
 		self.add_custom_constraints(panel, pargs.user_constraints, ll)
 
-	def add_dynamic_constraints(self,computation, H, ll, coll_max_limit):
+	def add_dynamic_constraints(self,computation, H, ll):
 		k,k=H.shape
 		self.weak_mc_dict=dict()
 		include=np.array(k*[True])
 		include[list(computation.constr.fixed)]=False
 		self.mc_problems=[]#list of [index,associate,condition index]
 		self.CI=constraint_multicoll(k, computation, include, self.mc_problems, H)
-		self.add_mc_constraint(computation, coll_max_limit)
+		self.add_mc_constraint(computation)
 	
 	def add_custom_constraints(self,panel, constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
 		"""Adds custom range constraints\n\n
@@ -246,17 +246,19 @@ class Constraints(dict):
 				else:
 					self.add(name,None,cause, [c,None],replace,args=args)
 					
-	def add_mc_constraint(self, computation, coll_max_limit):
+	def add_mc_constraint(self, computation):
 		"""Adds constraints for severe MC problems"""
 		old = computation.constr_old
 		if len(self.mc_problems)==0:
 			return
+		
 		no_check=get_no_check(computation)
 		a=[i[0] for i in self.mc_problems]
 		if no_check in a:
 			mc=self.mc_problems[a.index(no_check)]
 			mc[0],mc[1]=mc[1],mc[0]
-		mc_limit = computation.panel.options.multicoll_threshold.value
+		mc_limit = computation.panel.options.multicoll_threshold_report.value
+		coll_max_limit = computation.panel.options.multicoll_threshold_max.value
 		for index,assc,cond_index in self.mc_problems:
 			cond = not ((index in self.associates) or (index in self.collinears))and (not index==no_check)
 			# same condition, but possible have a laxer condition for weak_mc_dict. 
@@ -314,7 +316,7 @@ def decomposition(H,include=None):
 	if include is None:
 		include=[True]*len(H)
 	C,includemap=normalize(H, include)
-	c_index,var_prop=stat.var_decomposition(XXNorm=C)
+	c_index, var_prop, d, p = stat.var_decomposition(XXNorm=C)
 	c_index=c_index.flatten()
 	return c_index, var_prop,includemap
 	
@@ -325,7 +327,7 @@ def multicoll_problems(computation,H,include,mc_problems):
 		return False,False
 	mc_list=[]
 	largest_ci=None
-	limit = computation.panel.options.multicoll_threshold.value
+	limit = computation.panel.options.multicoll_threshold_report.value
 	for cix in range(1,len(c_index)):
 		if (np.sum(var_prop[-cix]>0.5)>1) and (c_index[-cix]>limit):
 			if largest_ci is None:

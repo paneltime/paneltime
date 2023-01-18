@@ -4,13 +4,13 @@
 
 import numpy as np
 import stat_functions as stat
-from scipy import stats as scstats
+import stat_dist
 import os
 from matplotlib import pyplot  as plt
 
 
 
-class process_charts():
+class ProcessCharts():
 	def __init__(self,panel):
 		self.panel=panel
 		self.ll=None	
@@ -39,7 +39,7 @@ class process_charts():
 		grid_range=4
 		grid_step=0.05	
 		h,grid=histogram(e,grid_range,grid_step)
-		norm=scstats.norm.pdf(grid)*grid_step	
+		norm=stat_dist.norm(grid, cdf = False)*grid_step	
 
 		axs.bar(grid,h,color='grey', width=0.025,label='histogram')
 		axs.plot(grid,norm,'green',label='normal distribution')

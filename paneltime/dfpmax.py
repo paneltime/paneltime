@@ -2,6 +2,7 @@ import numpy as np
 import time
 import direction
 import linesearch
+import callback
 #import stat_functions as stat
 
 
@@ -17,7 +18,7 @@ EPS=3.0e-16
 TOLX=(4*EPS) 
 GTOL = 1e-5
 
-def dfpmax(x, comput, callback, panel, maxiter):
+def dfpmax(x, comput, callback, panel, slave_id):
 	"""Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
 	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
 	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -31,71 +32,82 @@ def dfpmax(x, comput, callback, panel, maxiter):
 	its, msg = 0, ''
 	MAXITER = 10000
 	
-	cbhandler = CallBackHandler(callback, maxiter)
-	
-
+	cbhandler = CallBackHandler(callback, slave_id)
+	fdict = {}
 	for its in range(MAXITER):  	#Main loop over the iterations.
+		
+		
 		constr = comput.constr
-
-		dx, dx_norm = direction.get(g, x, H, constr, hessin, simple=False)
+		dx, dx_norm = direction.get(g, x, H, constr, f, hessin, simple=False)
 		ls = linesearch.LineSearch(x, comput, panel)
 		ls.lnsrch(x, f, g, dx)	
 
 		dx = ls.x - x
 		incr = ls.f - f
-
-
+		fdict[its] = ls.f
+		
+		
 		x, f, hessin, H, g, conv = comput.exec(dx, dx_norm,  hessin, H, ls.f, ls.x, ls.g, incr, ls.rev, ls.alam, its, ls.ll)
-
+		
 		err = np.max(np.abs(dx)) < TOLX
 		
-		terminated = conv or err or its+1==MAXITER
-		print(f"terminated: {terminated}, quit: {callback.outbox['quit']}")
-		if conv:
+		terminate = (conv>0) or err or its+1==MAXITER
+		
+		#print(f"sid:{slave_id}, f:{ls.f}, conv:{conv}, its:{its}")
+
+		if conv==1:
 			msg = "Convergence on zero gradient; local or global minimum identified"
+		elif conv==2:
+			msg = "Convergence on zero expected gain; local or global minimum identified given multicolinearity constraints"		
 		elif err:
 			msg = "Warning: Convergence on delta x; the gradient is incorrect or the tolerance is set too low"
-		elif terminated:
+		elif terminate:
 			msg = "No convergence within %s iterations" %(MAXITER,)
 			
-		
-		cbhandler.assign(ls, msg, dx_norm, f, x, H, comput.G, g, hessin, dx, 
-						  incr, its, comput.constr, 'linesearch', terminated, 
-						  conv)			
 
-		if terminated:		
-			return
+		cbhandler.assign(ls, msg, dx_norm, f, x, H, comput.G, g, hessin, dx, 
+						  incr, its, comput.constr, 'linesearch', terminate, 
+						  conv, fdict)			
+
+		if terminate or cbhandler.quit:	
+			print(f"quit slave {slave_id}")
+			return cbhandler.callback.outbox
 			
 class CallBackHandler:
-	def __init__(self, callback, maxiter):
+	def __init__(self, callback, slave_id):
 		self.t = time.time()
-		self.f_maxiter = None
 		self.callback = callback
-		self.maxiter = maxiter
+		self.id = slave_id
+		self.quit = False
+		
 															
 	def assign(self, ls, msg, dx_norm, f, x, H, G, g, hessin, dx, incr, its, 
-						  constr, task, terminated, conv):
-		
-		if self.callback.outbox['quit']:
-			raise RuntimeError(callback.QUIT_EXCEPTION)
-	
-		if its==self.maxiter:
-			self.f_maxiter = f
-			
-		if its>self.maxiter:
-			a=0
+						  constr, task, terminate, conv, fdict):
 
-		if (time.time()-self.t < 0.1) and (not terminated) and (its!=self.maxiter):
-			return
+
+		self.check_for_quit_order()
 		
+
+
 		if msg == '':
 			msg = ls.msg	
-
+		
 		self.callback.callback(msg = msg, dx_norm = dx_norm, f = f, x = x, 
 				 H = H, G=G, g = g, hessin = hessin, dx = dx, 
 				 incr = incr, rev = ls.rev, alam = ls.alam, 
 				 its = its, constr = constr, perc=min(its/100, 1), task = task, 
-				 f_maxiter = self.f_maxiter, terminated=terminated, conv = conv)
+				 terminate= terminate or self.quit, conv = conv, slave_id = self.id, 
+				 fdict = dict(fdict) )
 		
-		return
+	def check_for_quit_order(self):
+
+		if not 'quit' in  self.callback.inbox:
+			return
+		if not self.callback.inbox['quit']:
+			return
+		self.quit = True		
+		
+	
+				
+
 

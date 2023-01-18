@@ -24,6 +24,8 @@ import random_effects as re
 import traceback
 import model_parser
 import time
+import stat_dist
+import stat_functions
 
 
 CDPT = ct.POINTER(ct.c_double) 
@@ -115,7 +117,6 @@ class LL:
 
 	
 	def tobit(self,panel,LL):
-		import scipy
 		if sum(panel.tobit_active)==0:
 			return
 		g=[1,-1]
@@ -123,7 +124,7 @@ class LL:
 		for i in [0,1]:
 			if panel.tobit_active[i]:
 				I=panel.tobit_I[i]
-				self.F[i]= scipy.stats.norm.cdf(g[i]*self.e_norm[I])
+				self.F[i]= stat_dist.norm(g[i]*self.e_norm[I])
 				LL[I]=np.log(self.F[i])
 	
 	
@@ -196,8 +197,8 @@ class LL:
 		self.Y_pred_long=np.dot(panel.input.X,self.args.args_d['beta'])
 		self.e_long=panel.input.Y-self.Y_pred_long
 		
-		Rsq, Rsqadj, LL_ratio,LL_ratio_OLS=self.goodness_of_fit(panel, False)
-		Rsq2, Rsqadj2, LL_ratio2,LL_ratio_OLS2=self.goodness_of_fit(panel, True)
+		Rsq, Rsqadj, LL_ratio,LL_ratio_OLS=stat_functions.goodness_of_fit(self, False, panel)
+		Rsq2, Rsqadj2, LL_ratio2,LL_ratio_OLS2=stat_functions.goodness_of_fit(self, True, panel)
 		a=0
 				
 	
@@ -209,22 +210,7 @@ class LL:
 		if norm:
 			X=X*self.v_inv05
 		X_long=self.stretch_variable(panel,X)
-		return X,X_long	
-
-	def goodness_of_fit(self,panel,standarized):
-		if standarized:
-			s_res=panel.var(self.e_RE)
-			s_tot=panel.var(self.Y_st)
-		else:
-			s_res=panel.var(self.u)
-			s_tot=panel.var(panel.Y)		
-		r_unexpl=s_res/s_tot
-		Rsq=1-r_unexpl
-		Rsqadj=1-r_unexpl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
-		panel.args.create_null_ll(panel)
-		LL_ratio_OLS=2*(self.LL-panel.args.LL_OLS)
-		LL_ratio=2*(self.LL-panel.args.LL_null)
-		return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS		
+		return X,X_long		
 	
 	def stretch_variable(self,panel,X):
 		N,T,k=X.shape
@@ -257,6 +243,7 @@ class LL:
 def set_garch_arch(panel,args, u):
 	return set_garch_arch_c(panel,args, u)
 	if c is None:
+		#todo: this might not be neccessary at all
 		raise RuntimeError('c-library for sparese inversion not compiled, and the scipy version needs to be fixed')
 		m=set_garch_arch_scipy(panel,args)
 	else:
@@ -312,7 +299,7 @@ def set_garch_arch_c(panel,args,u):
 
 
 def set_garch_arch_scipy(panel,args):
-
+	#after implementing ctypes, the scipy version might be dropped entirely
 	p,q,d,k,m=panel.pqdkm
 	nW,n=panel.nW,panel.max_T
 

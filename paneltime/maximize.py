@@ -4,95 +4,131 @@ import loglikelihood as logl
 import computation
 import itertools
 import callback
+import dfpmax
+import output
+from queue import Queue
+import communication as comm
+import output
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
 GTOL = 1e-5
 
+SLEEP_INTERV = 0.5
+TEST_ITER = 30
+MINTIME = 1.0
 
 
+def maximize(panel, args, qin, qout, mp):
 
-
-def maximize(panel, args, callback, mp, debug_mode, start_time=0):
+	task_name = 'maximization'
+	callbk = callback.CallBack(qin, qout, mp.callback_active)
 	
-	t0=time.time()
-
 	a = get_directions(panel, args)
+	#a = a[6:8]
+	if not mp.is_parallel:
+		a = [a[7]]#for debug
 	tasks = []
-	maxiter = 10
+
 	for i in range(len(a)):
 		tasks.append(
-			f'callback.callback(node={i})\n'
-			f'maximize.maximize_node(panel, {list(a[i])}, callback, nummerical=False, gtol=1e-5, maxiter={maxiter})\n'
+			f'maximize.maximize_node(panel, {list(a[i])}, qin, qout, slave_id, False, 1e-5, {mp.callback_active})\n'
 		)
-
-	if True:#set to true for parallell/non-debug mode
-		mp.wait_untill_done()
-		mp.exec(tasks, 'maximization')
-		f_maxiter = None
-		while f_maxiter is None:
-			time.sleep(0.01)
-			cb = mp.callback('maximization')
-			fltr = [('f_maxiter' in d) for d in cb]
-			if sum(fltr)==len(tasks):
-				unnassigned = mp.cpu_count - len(tasks)
-				if np.all([not d['f_maxiter'] is None for d in cb[:-unnassigned]]):
-					f_maxiter = [d['f_maxiter'] for d in cb[:-unnassigned]]
-					max_node = f_maxiter.index(max(f_maxiter))
-		for i in range(len(tasks)):
-			if i == max_node:
-				_ = mp.callback('maximization', {'quit':True}, i)
-		while True:
-			d = mp.callback('maximization', s_id = max_node)
-			callback.callback(**d)
-			if d['terminated']:
-				break
-		callback.callback(**d)
-	else:
-		exec(f'maximize_node(panel, {list(a[2])}, callback, nummerical=False, maxiter={maxiter}, gtol=1e-2)\n')
-		callback.callback(node = 0)
+	mp.exec(tasks, task_name)
+	f = None
+	while True:
+		t = time.time()
+		cb = mp.callback(task_name)	
+		if mp.callback_active:
+			maxidx, bestix = get_res(cb[:len(tasks)], mp)
+		else:
+			while sum(mp.check_state())>0:
+				time.sleep(0.1)
+			maxidx, bestix = get_final_res(mp, tasks, task_name)
 			
-	callback.callback(time_used=time.time()-t0, last_time = time.time(), maximization_done = True)
+		if not maxidx is None:
+			break
+		if not bestix is None:
+			cb[bestix]['node'] = bestix
+			callbk.callback(**cb[bestix])
+		if time.time()-t<MINTIME:
+			time.sleep(max(MINTIME - (time.time()-t), 0))	
+	cb_max = mp.collect(task_name, maxidx)
+	cb_max['node'] = maxidx
+	return cb_max
 
+def get_cb_property(cb, kw, nonevalue = None):
+	values = [d[kw] if kw in d else nonevalue for d in cb]
+	return values
 	
+def get_final_res(mp, tasks, task_name):
+	res = mp.collect(task_name)[:len(tasks)]
+	f = get_cb_property(res, 'f', -1e+300)
+	maxidx = f.index(max(f))
+	return maxidx, maxidx
+	
+def get_res(cb, mp):
+	test_its = 30
+	f = get_cb_property(cb, 'f')
+	conv = np.array(get_cb_property(cb, 'conv', False))
+	its = np.array(get_cb_property(cb, 'its',0))
+	fdict = get_cb_property(cb, 'fdict', {})
+	flist = [i for i in f if not i is None]
+	terminated = np.array(mp.check_state())[:len(cb)]==0
+	if len(cb)==1 and terminated[0]:#debug
+		return 0, 0
+	if np.all(its>=test_its):
+		ftest = [d[test_its] for d in fdict]
+		srt = np.argsort(ftest)
+		for i in srt[:-2]:
+			_ = mp.callback('maximization', {'quit':True}, i)
+	if len(flist)==0:
+		bestix = None
+	else:
+		bestix = f.index(max(flist))
+	if not np.any(conv):
+		if np.all(terminated):
+			return bestix, bestix
+		return None, bestix
+	maxval = max(np.array(f)[conv])
+	max_idx = f.index(maxval)
+	if maxval>=max([x for x in f if not x is None]):
+		return max_idx, max_idx
+	
+	if np.all(terminated):
+		return max_idx, max_idx
+	return None, bestix
+
 
 def get_directions(panel, args):
 	d = args.positions
 	size = panel.options.initial_arima_garch_params.value
 	pos = [d[k][0] for k in ['rho', 'lambda'] if len(d[k])]
 	perm = np.array(list(itertools.product([-1,0, 1], repeat=len(pos))), dtype=float)
-	perm[:,:2] =perm[:,:2]*0.2
+	perm[:,:2] =perm[:,:2]*0.1
 	a = np.array([args.args_v for i in range(len(perm))])
 	a[:,pos] = perm
 	return a
 
 
-def maximize_node(panel, args, callback , maxiter = 10000, nummerical = False, 
-                  gtol=GTOL):
+def maximize_node(panel, args, qin, qout, slave_id , nummerical, gtol, callback_active):
 
 	#have to  completely redesign callback, so that it takes only a dict as argument
 	args = np.array(args)
-	comput = computation.Computation(panel, gtol, TOLX, callback.callback, nummerical=nummerical)
-	if False:
-		LL = logl.LL(args, panel, comput.constr)
-		LL.standardize(panel)
-		beta = stat.OLS(panel,LL.X_st,LL.Y_st,return_e=False)
-		args[:len(beta)]=beta.flatten()
-	callback.callback(quit=False, conv=False, perc=0)
-	try:
-		dfpmax(args,comput, callback, panel, maxiter)
-	except RuntimeError as e:
-		if str(e)!='Quitting on demand':
-			raise RuntimeError(e)
+	callbk = callback.CallBack(qin, qout, callback_active)
+	comput = computation.Computation(panel, gtol, TOLX, None, nummerical)
+	callbk.callback(quit=False, conv=False, perc=0)
+	res = dfpmax.dfpmax(args,comput, callbk, panel, slave_id)
+	return res
 
 
 
 
-def run(panel, args, mp, mp_debug, window, exe_tab, console_output):
+
+def run(panel, args, mp, window, exe_tab, console_output):
 	t0=time.time()
-
-	comm  = Comm(panel, args, mp, mp_debug, window, exe_tab, console_output, t0)
-	comm.callback.print_final(comm.msg, comm.its, comm.incr, comm.f, 1, 'Done', comm.conv, comm.dx_norm, t0, comm.x, comm.ll, comm.node)
+	comm  = Comm(panel, args, mp, window, exe_tab, console_output, t0)
+	comm.channel.print_final(comm.msg, comm.ll.LL, comm.conv, t0, comm.ll.args.args_v, comm.its, comm.node)
 	summary = Summary(comm, t0)
 
 	return summary
@@ -100,7 +136,6 @@ def run(panel, args, mp, mp_debug, window, exe_tab, console_output):
 
 class Summary:
 	def __init__(self, comm, t0):
-		import output
 		self.time = time.time() - t0
 		self.panel = comm.panel
 		self.ll = comm.ll
@@ -109,16 +144,16 @@ class Summary:
 		self.coef_names = comm.ll.args.names_v
 		self.coef_se, self.coef_se_robust = output.sandwich(comm,100)
 		self.converged = comm.conv
-		self.hessian = comm.comput.H
-		self.gradient_vector = comm.comput.g
-		self.gradient_matrix = comm.comput.G
+		self.hessian = comm.H
+		self.gradient_vector = comm.g
+		self.gradient_matrix = comm.G
 		self.count_samp_size_orig = comm.panel.orig_size
 		self.count_samp_size_after_filter = comm.panel.NT_before_loss
 		self.count_deg_freedom = comm.panel.df
 		N, T , k = comm.panel.X.shape
 		self.count_ids = N
 		self.count_dates = N
-		reg_output = comm.callback.channel.output
+		reg_output = comm.channel.output
 		self.table = output.RegTableObj(reg_output)
 		self.statistics = output.Statistics(comm.ll, comm.panel)
 		self.its = comm.its
@@ -155,76 +190,62 @@ class Summary:
 
 
 class Comm:
-	def __init__(self, panel, args, mp, mp_debug, window, exe_tab, console_output, t0):
+	def __init__(self, panel, args, mp, window, exe_tab, console_output, t0):
 		self.mp = mp
-		self.listen = None
 		self.start_time=t0
-		self.panel = panel	
-		if not mp is None:#This is put here rather than in the next "if not mp" block, so that arranging output can be 
-							#done simultainiously with calculattions. 
-			self.mp.send_dict({'args':args})
-			self.mp.wait_untill_done()
-			self.mp.exec(
-                [f"maximize.maximize(panel, args, callback, mp, False, start_time = {t0})"], 'maximize')
+		self.panel = panel
+		self.mp.send_dict({'args':args})
+		a=0
+		
+		self.mp.exec(
+			[f"maximize.maximize(panel, args, qin, qout, mp)"], 'maximize')
 
-		import communication as comm
-		self.callback = callback.CallBack(comm.get_channel(window,exe_tab,self.panel,console_output))
-		self.callback.set_communication(self)
-		self.comput = computation.Computation(panel, GTOL, TOLX, self.callback.callback) 
-		if not mp is None:
-			self.start_listening()
-		else:
-			maximize(panel, args, self.callback, mp_debug, True)
-			d = self.callback.outbox
-			self.msg = d['msg']
-			self.f = d['f']
-			self.conv = d['conv']
-			self.node = d['node']
-			self.x = d['x']
-			self.ll =  logl.LL(d['x'], self.panel, d['constr'])
-			self.its = d['its']
-			self.incr = d['incr']
-			self.dx_norm = d['dx_norm']
-			self.dx = d['dx']
-			self.H = d['H']
-			self.g = d['g']
-			self.G = d['G']
-			self.rev = d['rev']
-			self.alam = d['alam']
-			self.constr = d['constr']
-			self.comput.exec(self.dx, self.dx_norm, None, self.H, self.f, self.x,self.g, self.incr, 
-								 self.rev, self.alam, self.its, self.ll, False)			
-			if 'time_used' in d:
-				print(f'Time used {d["time_used"]}')
-				print(f'Time used since finnish {time.time()-d["last_time"]}')
-			
+		self.channel = comm.get_channel(window,exe_tab,self.panel,console_output)
+		self.res = self.listen()
 
 
-	def start_listening(self):
-		t0 = time.time()
-		done = False
-		while self.mp.any_alive():
-			if  time.time()-t0>0.5:
-				self.print(self.mp.callback('maximize'))
-				t0 = time.time()
-		self.print( self.mp.callback('maximize'))
+	def listen(self):
+		quit = False
+		mintime = 2
+		while True:
+			t = time.time()
+			count = self.mp.count_alive()
+			if not count:
+				quit = True
+			d = self.mp.callback('maximize')[0]		
+			self.print(d)
+			if quit:
+				break
+			if time.time()-t<mintime:
+				time.sleep(max(mintime - (time.time()-t), 0))
+		d = self.mp.collect('maximize',0)
+		self.print(d)
 
 	def print(self, d):
-		if not hasattr(self,'comput'):
-			return False
 		if not 'g' in d:
 			return False
 		(self.f, self.its, self.incr, self.x, self.perc,self.task, 
          self.dx_norm, self.dx, self.H, self.G, self.g, self.alam, self.rev, 
-		 self.msg, self.conv, self.constr, self.node, terminated) = (
+		 self.msg, self.conv, self.constr, terminate, self.node) = (
 			 d['f'], d['its'], d['incr'], d['x'], d['perc'], d['task'], d['dx_norm'], d['dx'], 
-			 d['H'], d['G'], d['g'], d['alam'], d['rev'], d['msg'], d['conv'], d['constr'], d['node'], d['terminated'])
+			 d['H'], d['G'], d['g'], d['alam'], d['rev'], d['msg'], d['conv'], d['constr'], d['terminate'], d['node'])
 
 		self.ll = logl.LL(self.x, self.panel, self.constr)
-		self.comput.exec(self.dx, self.dx_norm, None, self.H, self.f, self.x,self.g, self.incr, 
-						 self.rev, self.alam, self.its, self.ll, False)
+		self.print_to_channel(self.msg, self.its, self.incr, self.ll, self.perc , self.task, self.dx_norm)
 		
-		self.callback.print(self.msg, self.its, self.incr, self.ll, self.perc , self.task, self.dx_norm)
+	def print_to_channel(self, msg, its, incr, ll, perc , task, dx_norm):
+		if not self.channel.output_set:
+			self.channel.set_output_obj(ll, self, dx_norm)
+		self.channel.set_progress(perc ,msg ,task=task)
+		self.channel.update(self,its,ll,incr, dx_norm)
+		ev = np.linalg.eigvals(self.H)
+		try:
+			det = np.linalg.det(self.H)
+		except:
+			det = 'NA'
+		if self.panel.input.paralell2:
+			print(f"sid: {self.node}, its:{its}, LL:{ll.LL}, det:{det}, sum pos ev: {sum(ev>0)}, cond number: {ev[0]/(ev[-1]+(ev[-1]==0))}")
+		a=0	
 
 
 

@@ -13,7 +13,6 @@
 import numpy as np
 import panel
 import warnings
-import multi_core as mc
 import model_parser
 import maximize
 import os
@@ -26,52 +25,53 @@ np.set_printoptions(precision=8)
 
 
 def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,
-			exe_tab,instruments, console_output, mp, mp_debug):
+			exe_tab,instruments, console_output, mp, paralell2):
 
 	"""optimizes LL using the optimization procedure in the maximize module"""
 	if not exe_tab is None:
 		if exe_tab.isrunning==False:return
-	datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
+	datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments, paralell2)
 	if datainput.timevar is None:
 		print("No valid time variable defined. This is required")
 		return
 
-	summary = doit(datainput,options,mp, mp_debug,options.pqdkm.value,window,exe_tab, console_output)
+	summary = doit(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
 	
 	return summary
 
 class input_class:
-	def __init__(self,dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments):
+	def __init__(self,dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments, paralell2):
 		
 		model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,heteroscedasticity_factors,instruments,options)
 		self.descr=model_string
 		self.n_nodes = N_NODES
+		self.paralell2 = paralell2
 		self.args=None
 		if options.arguments.value!="":
 			self.args=options.arguments.value
 			
-def doit(datainput,options,mp, mp_debug,pqdkm,window,exe_tab, console_output):
+def doit(datainput,options,mp,pqdkm,window,exe_tab, console_output):
 	print ("Creating panel")
 	pnl=panel.panel(datainput,options,pqdkm)			
 
-	
-	
-	if not mp is None:
-		mp.send_dict({'panel':pnl})
-		mp.exec("panel.init()\n"
-				"mp.send_dict({'panel':panel})\n"
-				"mp_debug.wait_untill_done()\n"
-				"mp.exe('panel.init()', 'panel')\n")
-	else:
-		mp_debug.send_dict({'panel':pnl})
-		mp_debug.wait_untill_done()
-		mp_debug.exec('panel.init()', 'panel')
-		
+	mp.send_dict({'panel':pnl})
+	mp.collect('init')
+	s = mp.dict_file.replace('\\','/')
 
+	mp.exec(
+			"panel.init()\n"
+			f"mp.send_dict({{'panel':panel}})\n"
+			"mp.collect('init')\n"
+			"mp.exec('panel.init()', 'panelinit')\n"
+			"mp.collect('panelinit')\n", 
+			'panelinit')
+	mp.collect('panelinit')
 	pnl.init()
-	if not options.multi_core.value:
+	
+	if not options.parallel.value:
 		mp = None
-	summary = maximize.run(pnl, pnl.args.args_init, mp, mp_debug, window, exe_tab, console_output)
+	
+	summary = maximize.run(pnl, pnl.args.args_init, mp, window, exe_tab, console_output)
 	
 	return summary
 

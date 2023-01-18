@@ -6,6 +6,7 @@ import numpy as np
 import constraints
 import loglikelihood as logl
 import time
+import stat_dist
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
@@ -14,8 +15,10 @@ STPMX=100.0
 
 
 class Computation:
-	def __init__(self,panel, gtol, tolx, callback, nummerical = False):
+	def __init__(self,panel, gtol, tolx, callback, nummerical):
 		"""callback is a function taking any named arguments """
+		if callback is None:
+			callback = lambda **kwargs: None#function that does nothing
 		self.callback = callback
 		self.gradient=calculus.gradient(panel, self.callback)
 		self.gtol = gtol
@@ -36,7 +39,7 @@ class Computation:
 		self.quit = False
 
 
-	def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll, coll_max_limit):
+	def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll):
 		self.its=its
 		self.lmbda=lmbda
 		self.has_reversed_directions=rev
@@ -51,7 +54,7 @@ class Computation:
 			
 		if self.panel.options.constraints_engine.value:
 			self.constr.add_static_constraints(self.panel, its, ll)	
-			self.constr.add_dynamic_constraints(self, H, ll, coll_max_limit)	
+			self.constr.add_dynamic_constraints(self, H, ll)	
 			
 		self.CI=self.constr.CI
 		self.H_correl_problem=self.constr.H_correl_problem	
@@ -62,14 +65,12 @@ class Computation:
 	def exec(self, dx, dx_norm, hessin, H, f, x, g_old, incr, rev, alam, its, ll, calc = True):
 		#Thhese setting may not hold for all circumstances, and should be tested properly:
 		NUM_ITER = 5
-		MAX_COLL = 1e+300
-		GTOL_ANAL = 1
-
-		self.panel.arma_dot.update_info('its', its)
+		GTOL_ANAL = 10
+		
 		g, G = self.calc_gradient(ll)
 		
 		pgain, totpgain = potential_gain(dx, g, H)
-		max_pgain = max(pgain)
+		max_pgain = abs(max(pgain))
 		
 		a = np.ones(len(g))
 		if not self.constr is None:
@@ -81,34 +82,37 @@ class Computation:
 		if not self.CI is None:
 			CI = self.CI
 			
-		if ((max_pgain <= self.gtol) and (g_norm < self.gtol)):
-			if its <NUM_ITER:
-				self.num_hess_count = NUM_ITER+1
-			else:
-				return x, f, hessin, H, g, True	
-		print(f"{its}: {f}, {max_pgain}, {g_norm}, {((max_pgain <= GTOL_ANAL))}")
+		
+		if its >NUM_ITER:
+			if abs(g_norm) < self.gtol:
+				return x, f, hessin, H, g, 1
+			elif abs(totpgain)<1e-9:
+				return x, f, hessin, H, g, 2
+			
+
+		calchess = ((abs(g_norm) <0.01 or abs(max_pgain)<10) and self.num_hess_count>3) or self.num_hess_count>5
+		print(f"{its}: {f}, {max_pgain}, {totpgain}, {g_norm}, {self.num_hess_count},{incr}, {np.mean(np.abs(dx_norm))}, hessian:{calchess}")
 		if calc:
-			if False:#((max_pgain <= GTOL_ANAL)) and self.num_hess_count>1:
-				H = self.calc_hessian(ll)	
-				self.num_hess_count = 0				
+			if calchess:
+				H = self.calc_hessian(ll)#+np.diag(np.diag(H))
+				self.num_hess_count = 0
 			else:
+				self.num_hess_count +=1
 				try:
 					hessin=self.hessin_num(hessin, g-g_old, dx)
 					Hn = np.linalg.inv(hessin)
 					H = Hn
 				except:
-					pass#H = self.calc_hessian(ll)
-				self.num_hess_count+=1
-		else:
-			self.H = H
-	
+					H = self.calc_hessian(ll)
+
 		self.H, self.g, self.G = H, g, G
 			
-		self.set(its, incr, alam, rev, True, H, ll, MAX_COLL)
+		self.set(its, incr, alam, rev, True, H, ll)
 		
 	
 		
 		return x, f, hessin, H, g, False
+
 
 
 	def calc_gradient(self,ll):
@@ -125,14 +129,13 @@ class Computation:
 		return H
 	
 	def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
-		from scipy import stats
 		g=[1,-1]
 		self.f=[None,None]
 		self.f_F=[None,None]
 		for i in [0,1]:
 			if self.panel.tobit_active[i]:
 				I=self.panel.tobit_I[i]
-				self.f[i]=stats.norm.pdf(g[i]*ll.e_norm[I])
+				self.f[i]=stat_dist.norm(g[i]*ll.e_norm[I], cdf = False)
 				self.f_F[i]=(ll.F[i]!=0)*self.f[i]/(ll.F[i]+(ll.F[i]==0))
 				self.v_inv05=ll.v_inv**0.5
 				DLL_e[I]=g[i]*self.f_F[i]*self.v_inv05[I]
@@ -214,13 +217,13 @@ class Computation:
 		ll = self.init_ll(p0)
 		g, G = self.calc_gradient(ll)
 		H = self.calc_hessian(ll)
-		d = np.diag(H)
-		d = d - (np.abs(d)<1e-100)
-		H = np.diag(d)
-		hessin = np.diag(1/d)
+		#d = np.diag(H)
+		#d = d - (np.abs(d)<1e-100)
+		#H = np.diag(d)
+		#hessin = np.diag(1/d)
+		hessin = np.linalg.inv(H)
 		
 		return p0, ll, ll.LL , g, hessin, H
-
 	
 def det_managed(H):
 	try:

@@ -5,16 +5,16 @@
 
 
 try:
+	get_ipython()#fails if not in IPython environment
 	import IPython
 except:
 	IPython = None
 
-import webbrowser
 import output
 import os
 import numpy as np
 import time
-import charts
+
 
 
 WEB_PAGE='paneltime.html'
@@ -42,6 +42,8 @@ def get_channel(window,exe_tab,panel, console_output):
 		
 class web_output:
 	def __init__(self,Jupyter,panel):
+		global webbrowser
+		import webbrowser
 		self.panel=panel	
 		self.Jupyter=Jupyter
 		if not Jupyter:
@@ -49,7 +51,8 @@ class web_output:
 			if panel.options.web_open_tab.value:
 				webbrowser.open(WEB_PAGE, new = 2)
 		self.output_set = False
-		self.charts = charts.process_charts(panel)
+		#import charts
+		#self.charts = charts.ProcessCharts(panel)
 			
 	def set_progress(self,perc, text, task):
 		return True
@@ -72,7 +75,7 @@ class web_output:
 							  dx_norm,
 							  tbl,
 							  self.Jupyter==False)
-		self.charts.save_all(ll)
+		#self.charts.save_all(ll)
 		if self.Jupyter:
 			IPython.display.clear_output(wait=True)
 			display(IPython.display.HTML(web_page))
