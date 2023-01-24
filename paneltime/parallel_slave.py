@@ -95,13 +95,11 @@ class Process:
 		self.parent = parent
 		self.task = task
 		self.d = dict(parent.d)
-		self.d['qin'] = Queue()
-		self.d['qout'] = Queue()
+		self.d['inbox'] = {}
+		self.d['outbox'] = {}
 		self.threadq = Queue()
-		self.qin = self.d['qout']
-		self.qout = self.d['qin']
-		self.inbox={}
-		self.outbox = {}
+		self.inbox = self.d['outbox']
+		self.outbox = self.d['inbox']
 		self.result = {}, None
 		
 		if name == 'transfer dictionary':
@@ -111,6 +109,8 @@ class Process:
 			if name == 'debug':
 				execute_task(self.d, task, self.threadq)
 			else:
+				prtask = task.replace('\n', ' ')
+				#print(f"id inbox: {id(self.inbox)}, id outbox:{id(self.outbox)}, task:{prtask}")
 				self.thread = Thread(target=execute_task, args=(self.d, task, self.threadq, self.name))
 				self.thread.start()	
 		a=0
@@ -129,37 +129,12 @@ class Process:
 			raise RuntimeError(e)
 		
 	def transact(self, incoming):
-		if not hasattr(self,'thread'):
-			return self.inbox
+		#print(f'reading from {id(self.inbox)}')
 		if not self.thread.is_alive():
-			return self.inbox
+			return dict(self.inbox)
 		for k in incoming:
 			self.outbox[k] = incoming[k]	
-		self.qout.put(self.outbox)
-		
-		mintime = 1
-		t=time.time()
-		while True:
-			
-			if self.qin.empty():
-				if time.time()-t<mintime:
-					#print(f"thread alive:{self.thread.is_alive()}, sid:{self.parent.parent.id}")
-					time.sleep(max(mintime - (time.time()-t), 0))
-			t=time.time()
-			if not self.qin.empty():
-				r = dict(self.qin.get())
-				if self.qin.empty():
-					break
-			if not self.thread.is_alive():
-				return self.inbox
-			
-		if r is None:
-			return self.inbox
-		inbox = dict(self.inbox)
-		for k in r:
-			inbox[k] = r[k]
-		self.inbox = inbox
-		return self.inbox
+		return dict(self.inbox)
 
 	
 	def collect(self):

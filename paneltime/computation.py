@@ -91,7 +91,7 @@ class Computation:
 			
 
 		calchess = ((abs(g_norm) <0.01 or abs(max_pgain)<10) and self.num_hess_count>3) or self.num_hess_count>5
-		print(f"{its}: {f}, {max_pgain}, {totpgain}, {g_norm}, {self.num_hess_count},{incr}, {np.mean(np.abs(dx_norm))}, hessian:{calchess}")
+		#print(f"{its}: {f}, {max_pgain}, {totpgain}, {g_norm}, {self.num_hess_count},{incr}, {np.mean(np.abs(dx_norm))}, hessian:{calchess}")
 		if calc:
 			if calchess:
 				H = self.calc_hessian(ll)#+np.diag(np.diag(H))
@@ -111,7 +111,7 @@ class Computation:
 		
 	
 		
-		return x, f, hessin, H, g, False
+		return x, f, hessin, H, g, 0
 
 
 

@@ -25,7 +25,7 @@ mp = parallel.Parallel(1, path, PARALLEL_LAYER1, CALLBACK_ACTIVE)
 
 mp.exec(["import maximize\n"
 		"import parallel as parallel\n"
-		f"mp = parallel.Parallel({N_NODES},'{subpath}', {PARALLEL_LAYER2}, {CALLBACK_ACTIVE})\n" 
+		f"mp = parallel.Parallel({N_NODES},'{subpath}', {PARALLEL_LAYER2}, {CALLBACK_ACTIVE}, 1)\n" 
 		"mp.exec('import loglikelihood as logl\\n'\n"
 		"'import maximize', 'init')\n"], 'init')
 

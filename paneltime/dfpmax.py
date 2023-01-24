@@ -35,8 +35,7 @@ def dfpmax(x, comput, callback, panel, slave_id):
 	cbhandler = CallBackHandler(callback, slave_id)
 	fdict = {}
 	for its in range(MAXITER):  	#Main loop over the iterations.
-		
-		
+
 		constr = comput.constr
 		dx, dx_norm = direction.get(g, x, H, constr, f, hessin, simple=False)
 		ls = linesearch.LineSearch(x, comput, panel)
@@ -70,7 +69,11 @@ def dfpmax(x, comput, callback, panel, slave_id):
 						  conv, fdict)			
 
 		if terminate or cbhandler.quit:	
-			print(f"quit slave {slave_id}")
+			if terminate:
+				cause = msg
+			else:
+				cause = 'forced'
+			print(f"quit slave {slave_id}, time: {time.time()}, cause: {cause}, conv:{conv}")
 			return cbhandler.callback.outbox
 			
 class CallBackHandler:
@@ -79,6 +82,7 @@ class CallBackHandler:
 		self.callback = callback
 		self.id = slave_id
 		self.quit = False
+		self.inbox = {}
 		
 															
 	def assign(self, ls, msg, dx_norm, f, x, H, G, g, hessin, dx, incr, its, 
@@ -91,8 +95,12 @@ class CallBackHandler:
 
 		if msg == '':
 			msg = ls.msg	
-		
-		self.callback.callback(msg = msg, dx_norm = dx_norm, f = f, x = x, 
+			
+		if time.time()-self.t<1 and not (self.quit or terminate):
+			return
+		self.t = time.time()
+
+		self.inbox = self.callback.callback(msg = msg, dx_norm = dx_norm, f = f, x = x, 
 				 H = H, G=G, g = g, hessin = hessin, dx = dx, 
 				 incr = incr, rev = ls.rev, alam = ls.alam, 
 				 its = its, constr = constr, perc=min(its/100, 1), task = task, 
@@ -105,7 +113,7 @@ class CallBackHandler:
 			return
 		if not self.callback.inbox['quit']:
 			return
-		self.quit = True		
+		self.quit = True
 		
 	
 				

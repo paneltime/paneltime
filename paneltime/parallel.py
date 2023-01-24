@@ -16,10 +16,13 @@ import parallel_slave
 import hashlib
 import psutil
 import signal
+import numpy as np
+
+MIN_TIME = 1
 
 class Parallel():
 	"""creates the slaves"""
-	def __init__(self, max_nodes, fpath, run_parallel = True, callback_active = True):
+	def __init__(self, max_nodes, fpath, run_parallel = True, callback_active = True, layer = 0):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
 		if max_nodes is None:
@@ -29,6 +32,7 @@ class Parallel():
 		self.callback_active = callback_active
 		n=self.cpu_count
 		self.is_parallel = run_parallel
+		self.layer = layer
 		self.slave_path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
 		self.kill_orphans(fpath)
 		self.dict_file = create_temp_files(self.cpu_count, fpath)
@@ -36,7 +40,9 @@ class Parallel():
 		self.slaves=[Slave(run_parallel, n, self.slave_path) for i in range(n)]
 		self.final_results = {}
 		self.n_tasks = {}
+		self.t = time.time()
 		pids=[]
+		self.sum_running = {}
 		for i in range(n):
 			self.slaves[i].confirm(i, self.fpath) 
 			pid=str(self.slaves[i].p_id)
@@ -64,30 +70,49 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			tasks = [tasks]*self.cpu_count
 		self.n_tasks[name] = len(tasks)
 		self.final_results[name] = [None]*self.n_tasks[name]
+		self.sum_running[name] = len(tasks)
 		return self.async_send_receive(name, tasks)
 			
 	def callback(self, name, outbox = {}, s_id = None, collect_finnished_procs = True):
 		if not self.callback_active:
 			return [{}]*self.cpu_count
 		d=[]
+		sumrun = -1
+		while time.time() - self.t<MIN_TIME or sumrun<0:
+			is_running = np.array(self.check_state(name))
+			sumrun = sum(is_running)
+			if sumrun<self.sum_running[name] :
+				self.sum_running[name] = sumrun
+				break #break if changed
+			time.sleep(0.1)
+		self.t = time.time()		
+			
+
 		if not s_id is None:
 			self.slaves[s_id].send('callback',(name,outbox))
-			return self.slaves[s_id].receive()
-		response = self.async_send_receive('callback', (name, outbox))
+			return self.slaves[s_id].receive()	
+		
 		if not collect_finnished_procs:
-			return response
-		is_running = self.check_state(name)
+			return self.async_send_receive('callback', (name, outbox))
+		
+		response = self.final_results[name]
 		for i in range(self.n_tasks[name]):
-			if (not is_running[i]) and (self.final_results[name][i] is None):
+			if (not is_running[i]) and (response[i] is None):
 				r = self.collect(name, i)
-				self.final_results[name][i] = r
-				if r is None:
-					self.final_results[name][i] = 'No result'
-			if not self.final_results[name][i] is None:
-				response[i] = self.final_results[name][i]
+				if not r is None:
+					print(f"collected sid:{i}, conv:{r['conv']}, f:{r['f']}, layer: {self.layer}")
+				response[i] = r
+		remaining_procs = np.arange(self.n_tasks[name])[np.array([i is None for i in response])]
+		if len(remaining_procs)==0:
+			return response
+		response = list(response)
+		r = self.async_send_receive('callback', (name, outbox), remaining_procs)
+		for i in range(self.n_tasks[name]):
+			if response[i] is None:
+				response[i] = r[i]
 		return response
 
-	
+
 	def collect(self, name, sid=None):
 		if not sid is None:
 			self.slaves[sid].send('collect', name)
@@ -96,17 +121,20 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 
 		return self.async_send_receive('collect', name)
 		
-	def async_send_receive(self,msg, obj):
+	def async_send_receive(self,msg, obj, slave_list=[]):
 		r = []
 		q = Queue()
+
 		if not type(obj) == list:
 			obj = [obj]*self.cpu_count
-		for i in range(len(obj)):
+		if len(slave_list)==0:
+			slave_list = range(len(obj))		
+		for i in slave_list:
 			self.slaves[i].send(msg, obj[i])
 			t = Thread(target = self.slaves[i].receive, args = (q, ), daemon= True)
 			t.start()
-		r = [None]*len(obj)
-		for i in range(len(obj)):
+		r = [{}]*len(obj)
+		for i in slave_list:
 			res, sid = q.get()
 			r[sid] = res
 		return r
@@ -129,11 +157,16 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			
 	def kill_orphans(self, fpath):
 		for proc in psutil.process_iter():
-			if proc.name() == 'python.exe':
-				if proc.cmdline()[-1]==self.slave_path:
-					pid = proc.pid
-					os.kill(pid, signal.SIGTERM)
-					print(f"killed pid {pid}")					
+			try:
+				self.kill_orphan(proc)
+			except psutil.NoSuchProcess:
+				pass
+
+					
+	def kill_orphan(self, proc):
+		if proc.name() == 'python.exe' and proc.cmdline()[-1]==self.slave_path:
+			os.kill(proc.pid, signal.SIGTERM)
+			print(f"killed pid {proc.pid}")			
 
 				
 			

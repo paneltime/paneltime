@@ -14,33 +14,39 @@ EPS=3.0e-16
 TOLX=(4*EPS) 
 GTOL = 1e-5
 
-SLEEP_INTERV = 0.5
+
 TEST_ITER = 30
-MINTIME = 1.0
 
+def maximize_single(panel, args):#for debugging
+	args = args.args_v
+	t = time.time()
+	d = maximize_node(panel, args,0.01)
+	print(f"f:{d['f']}, its: {d['its']}, t:{time.time()-t}")
+	print(d['x'])
+	return d
 
-def maximize(panel, args, qin, qout, mp):
+def maximize(panel, args, inbox, outbox, mp, t0):
 
 	task_name = 'maximization'
-	callbk = callback.CallBack(qin, qout, mp.callback_active)
+	callbk = callback.CallBack(inbox, outbox)
 	
 	a = get_directions(panel, args)
 	#a = a[6:8]
 	if not mp.is_parallel:
-		a = [a[7]]#for debug
+		a = [a[4]]#for debug
 	tasks = []
-
+	
 	for i in range(len(a)):
 		tasks.append(
-			f'maximize.maximize_node(panel, {list(a[i])}, qin, qout, slave_id, False, 1e-5, {mp.callback_active})\n'
+			f'maximize.maximize_node(panel, {list(a[i])}, 0.001, inbox, outbox, slave_id, False)\n'
 		)
+	evalnodes = EvaluateNodes(mp, len(tasks), t0)
 	mp.exec(tasks, task_name)
-	f = None
+	
 	while True:
-		t = time.time()
 		cb = mp.callback(task_name)	
 		if mp.callback_active:
-			maxidx, bestix = get_res(cb[:len(tasks)], mp)
+			maxidx, bestix = evalnodes.get(cb[:len(tasks)])
 		else:
 			while sum(mp.check_state())>0:
 				time.sleep(0.1)
@@ -51,8 +57,6 @@ def maximize(panel, args, qin, qout, mp):
 		if not bestix is None:
 			cb[bestix]['node'] = bestix
 			callbk.callback(**cb[bestix])
-		if time.time()-t<MINTIME:
-			time.sleep(max(MINTIME - (time.time()-t), 0))	
 	cb_max = mp.collect(task_name, maxidx)
 	cb_max['node'] = maxidx
 	return cb_max
@@ -66,38 +70,55 @@ def get_final_res(mp, tasks, task_name):
 	f = get_cb_property(res, 'f', -1e+300)
 	maxidx = f.index(max(f))
 	return maxidx, maxidx
+
+class EvaluateNodes:
+	def __init__(self, mp, n, t0):
+		self.mp = mp
+		self.n_tests = 0
+		self.n = n
+		self.t = t0
+		self.included = list(range(n))
+		
+		
+	def get(self, cb):
+		f = get_cb_property(cb, 'f')
+		conv = np.array(get_cb_property(cb, 'conv', 0))>0
+		its = np.array(get_cb_property(cb, 'its',0))
+		k = int(self.n_tests>0)
+		test_its = [20, 40][k]
+		collect = [5, 1][k]	
+		fdict = get_cb_property(cb, 'fdict', {})
+		flist = [i for i in f if not i is None]
+		terminated = np.array(self.mp.check_state())[:self.n]==0
+		if self.n==1 and terminated[0] and False:#debug
+			return 0, 0
+		if np.all((its>=test_its)+terminated):
+			self.n_tests += 1
+			ftest = []
+			for i,d in enumerate(fdict):
+				if not terminated[i]:
+					ftest.append(d[test_its])
+				else:
+					last_it = min((np.sort(list(d.keys()))[-1], test_its))
+					ftest.append(d[last_it])
+			srt = np.argsort(ftest)
+			for i in srt[:-collect]:
+				if not terminated[i]:
+					self.mp.callback('maximization', {'quit':True}, i)
+
+			if self.n_tests>0 and np.any(conv[-collect:]):
+				first = max(np.array(f)[conv])
+				max_idx = f.index(first)
+				return max_idx, max_idx			
+		if len(flist)==0:
+			bestix = None
+		else:
+			bestix = f.index(max(flist))
 	
-def get_res(cb, mp):
-	test_its = 30
-	f = get_cb_property(cb, 'f')
-	conv = np.array(get_cb_property(cb, 'conv', False))
-	its = np.array(get_cb_property(cb, 'its',0))
-	fdict = get_cb_property(cb, 'fdict', {})
-	flist = [i for i in f if not i is None]
-	terminated = np.array(mp.check_state())[:len(cb)]==0
-	if len(cb)==1 and terminated[0]:#debug
-		return 0, 0
-	if np.all(its>=test_its):
-		ftest = [d[test_its] for d in fdict]
-		srt = np.argsort(ftest)
-		for i in srt[:-2]:
-			_ = mp.callback('maximization', {'quit':True}, i)
-	if len(flist)==0:
-		bestix = None
-	else:
-		bestix = f.index(max(flist))
-	if not np.any(conv):
 		if np.all(terminated):
 			return bestix, bestix
 		return None, bestix
-	maxval = max(np.array(f)[conv])
-	max_idx = f.index(maxval)
-	if maxval>=max([x for x in f if not x is None]):
-		return max_idx, max_idx
 	
-	if np.all(terminated):
-		return max_idx, max_idx
-	return None, bestix
 
 
 def get_directions(panel, args):
@@ -111,11 +132,11 @@ def get_directions(panel, args):
 	return a
 
 
-def maximize_node(panel, args, qin, qout, slave_id , nummerical, gtol, callback_active):
+def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0 , nummerical = False):
 
 	#have to  completely redesign callback, so that it takes only a dict as argument
 	args = np.array(args)
-	callbk = callback.CallBack(qin, qout, callback_active)
+	callbk = callback.CallBack(inbox, outbox)
 	comput = computation.Computation(panel, gtol, TOLX, None, nummerical)
 	callbk.callback(quit=False, conv=False, perc=0)
 	res = dfpmax.dfpmax(args,comput, callbk, panel, slave_id)
@@ -194,34 +215,31 @@ class Comm:
 		self.mp = mp
 		self.start_time=t0
 		self.panel = panel
-		self.mp.send_dict({'args':args})
+		self.mp.send_dict({'args':args, 't0':t0})
 		a=0
 		
 		self.mp.exec(
-			[f"maximize.maximize(panel, args, qin, qout, mp)"], 'maximize')
+			[f"maximize.maximize(panel, args, inbox, outbox, mp, t0)"], 'maximize')
 
 		self.channel = comm.get_channel(window,exe_tab,self.panel,console_output)
 		self.res = self.listen()
 
 
 	def listen(self):
-		quit = False
-		mintime = 2
+		hasprinted = False
 		while True:
 			t = time.time()
 			count = self.mp.count_alive()
 			if not count:
-				quit = True
-			d = self.mp.callback('maximize')[0]		
-			self.print(d)
-			if quit:
 				break
-			if time.time()-t<mintime:
-				time.sleep(max(mintime - (time.time()-t), 0))
+			d = self.mp.callback('maximize')[0]
+			
+			self.get(d)
 		d = self.mp.collect('maximize',0)
-		self.print(d)
+		self.get(d, False)
+		print(f"listen time:{time.time()-self.start_time}")
 
-	def print(self, d):
+	def get(self, d, prnt = True):
 		if not 'g' in d:
 			return False
 		(self.f, self.its, self.incr, self.x, self.perc,self.task, 
@@ -231,7 +249,8 @@ class Comm:
 			 d['H'], d['G'], d['g'], d['alam'], d['rev'], d['msg'], d['conv'], d['constr'], d['terminate'], d['node'])
 
 		self.ll = logl.LL(self.x, self.panel, self.constr)
-		self.print_to_channel(self.msg, self.its, self.incr, self.ll, self.perc , self.task, self.dx_norm)
+		if prnt:
+			self.print_to_channel(self.msg, self.its, self.incr, self.ll, self.perc , self.task, self.dx_norm)
 		
 	def print_to_channel(self, msg, its, incr, ll, perc , task, dx_norm):
 		if not self.channel.output_set:
