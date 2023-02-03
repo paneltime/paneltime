@@ -108,6 +108,8 @@ def regression_options():
 	#to the data sets loaded. Hence, a change in the options here only has effect
 	#ON DATA SETS LOADED AFTER THE CHANGE
 	self=options()
+	self.accuracy					= options_item(0, 				"Accuracy of the optimization algorithm. 0 = fast and inaccurate, 3=slow and maximum accuracy", int, 
+																	'Accuracy', "%s>0",category='Regression')
 	
 	self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
 																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')

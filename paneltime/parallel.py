@@ -22,7 +22,7 @@ MIN_TIME = 1
 
 class Parallel():
 	"""creates the slaves"""
-	def __init__(self, max_nodes, fpath, run_parallel = True, callback_active = True, layer = 0):
+	def __init__(self, max_nodes, fpath, run_parallel, callback_active, direct, layer = 0):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
 		if max_nodes is None:
@@ -33,6 +33,8 @@ class Parallel():
 		n=self.cpu_count
 		self.is_parallel = run_parallel
 		self.layer = layer
+		self.direct = direct #flag to indicate to the host process whether the process should be run in the
+		#directely in the simplest way, without any layers or multiprocessing (for debugging).
 		self.slave_path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
 		self.kill_orphans(fpath)
 		self.dict_file = create_temp_files(self.cpu_count, fpath)

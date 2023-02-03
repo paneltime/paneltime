@@ -70,7 +70,7 @@ def doit(datainput,options,mp,pqdkm,window,exe_tab, console_output):
 	
 	if not options.parallel.value:
 		mp = None
-	if True:
+	if not mp.direct:
 		summary = maximize.run(pnl, pnl.args.args_init, mp, window, exe_tab, console_output)
 	else:
 		summary =  maximize.maximize_single(pnl, pnl.args.args_init)

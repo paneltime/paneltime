@@ -15,7 +15,7 @@ STPMX=100.0
 
 
 class Computation:
-	def __init__(self,panel, gtol, tolx, callback, nummerical):
+	def __init__(self,panel, gtol, tolx, callback, nummerical, diag_hess):
 		"""callback is a function taking any named arguments """
 		if callback is None:
 			callback = lambda **kwargs: None#function that does nothing
@@ -37,6 +37,11 @@ class Computation:
 		self.rec =[]
 		self.nummerical = nummerical
 		self.quit = False
+		self.avg_incr = 0
+		self.ev_constr = False
+		self.diag_hess = diag_hess
+		self.CI_anal = 0
+
 
 
 	def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll):
@@ -65,37 +70,58 @@ class Computation:
 	def exec(self, dx, dx_norm, hessin, H, f, x, g_old, incr, rev, alam, its, ll, calc = True):
 		#Thhese setting may not hold for all circumstances, and should be tested properly:
 		NUM_ITER = 5
-		GTOL_ANAL = 10
+		TOTP_TOL = 0.0001
 		
 		g, G = self.calc_gradient(ll)
 		
 		pgain, totpgain = potential_gain(dx, g, H)
+		self.totpgain = totpgain
 		max_pgain = abs(max(pgain))
 		
 		a = np.ones(len(g))
 		if not self.constr is None:
-			a[list(self.constr.collinears.keys())] =0		
+			a[list(self.constr.fixed.keys())] =0		
 		g_norm =np.max(np.abs(g*a*x)/(abs(f)+1e-12) )
 		
 		self.rec.append(str(i) for i in [totpgain, max_pgain, incr, g_norm])
 		CI=0
 		if not self.CI is None:
 			CI = self.CI
-			
-		
-		if its >NUM_ITER:
-			if abs(g_norm) < self.gtol:
-				return x, f, hessin, H, g, 1
-			elif abs(totpgain)<1e-9:
-				return x, f, hessin, H, g, 2
-			
 
-		calchess = ((abs(g_norm) <0.01 or abs(max_pgain)<10) and self.num_hess_count>3) or self.num_hess_count>5
-		#print(f"{its}: {f}, {max_pgain}, {totpgain}, {g_norm}, {self.num_hess_count},{incr}, {np.mean(np.abs(dx_norm))}, hessian:{calchess}")
+		if its >NUM_ITER and ((abs(g_norm) < self.gtol) or (abs(totpgain)<TOTP_TOL)):
+			Ha = self.calc_hessian(ll)
+			self.CI_anal = condition_index(Ha)
+			if abs(g_norm) < self.gtol:
+				return x, f, hessin, Ha, g, 1
+			elif abs(totpgain)<TOTP_TOL:
+				return x, f, hessin, Ha, g, 2
+			
+		self.avg_incr = incr + self.avg_incr*0.7
+		self.ev_constr = False#its>20
+		
+		err = np.max(np.abs(dx)) < TOLX
+		
+
+			
+		calchess = err #or ((self.CI>10000) and (self.num_hess_count>1))
+		#calchess = ((abs(g_norm) <0.1 or max_pgain<10 or self.avg_incr<1) and (self.num_hess_count>10))  and False
+		#print(f"{its}: {f}\tx: {x[:3]}")
+			
 		if calc:
 			if calchess:
-				H = self.calc_hessian(ll)#+np.diag(np.diag(H))
+				print('Anal hess')
+				Ha = self.calc_hessian(ll)
 				self.num_hess_count = 0
+				if True:
+					try:
+						hessin=self.hessin_num(hessin, g-g_old, dx)
+						Hn = np.linalg.inv(hessin)
+					except:
+						Hn = H
+					a = 0
+					H = (Hn * a + Ha * (1-a))
+				else:
+					H = Ha
 			else:
 				self.num_hess_count +=1
 				try:
@@ -217,12 +243,13 @@ class Computation:
 		ll = self.init_ll(p0)
 		g, G = self.calc_gradient(ll)
 		H = self.calc_hessian(ll)
-		#d = np.diag(H)
-		#d = d - (np.abs(d)<1e-100)
-		#H = np.diag(d)
-		#hessin = np.diag(1/d)
-		hessin = np.linalg.inv(H)
-		
+		if self.diag_hess:
+			d = np.diag(H)
+			d = d - (np.abs(d)<1e-100)
+			H = np.diag(d)
+			hessin = np.diag(1/d)
+		else:
+			hessin = np.linalg.inv(H)
 		return p0, ll, ll.LL , g, hessin, H
 	
 def det_managed(H):
@@ -238,6 +265,14 @@ def inv_hess(hessian):
 		return None	
 	return h
 
+def condition_index(H):
+	n = len(H)
+	d=np.maximum(np.abs(np.diag(H)).reshape((n,1)),1e-30)**0.5
+	C = -H/(d*d.T)
+	ev = np.abs(np.linalg.eigvals(C))**0.5
+	if min(ev) == 0:
+		return 1e-150
+	return max(ev)/min(ev)	
 
 		
 def hess_inv(h, hessin):

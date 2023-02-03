@@ -36,8 +36,8 @@ def dfpmax(x, comput, callback, panel, slave_id):
 	fdict = {}
 	for its in range(MAXITER):  	#Main loop over the iterations.
 
-		constr = comput.constr
-		dx, dx_norm = direction.get(g, x, H, constr, f, hessin, simple=False)
+
+		dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, comput.ev_constr, simple=False)
 		ls = linesearch.LineSearch(x, comput, panel)
 		ls.lnsrch(x, f, g, dx)	
 
@@ -64,8 +64,8 @@ def dfpmax(x, comput, callback, panel, slave_id):
 			msg = "No convergence within %s iterations" %(MAXITER,)
 			
 
-		cbhandler.assign(ls, msg, dx_norm, f, x, H, comput.G, g, hessin, dx, 
-						  incr, its, comput.constr, 'linesearch', terminate, 
+		cbhandler.assign(ls, msg, dx_norm, f, x, H, comput, g, hessin, dx, 
+						  incr, its, 'linesearch', terminate, 
 						  conv, fdict)			
 
 		if terminate or cbhandler.quit:	
@@ -85,8 +85,8 @@ class CallBackHandler:
 		self.inbox = {}
 		
 															
-	def assign(self, ls, msg, dx_norm, f, x, H, G, g, hessin, dx, incr, its, 
-						  constr, task, terminate, conv, fdict):
+	def assign(self, ls, msg, dx_norm, f, x, H, comput, g, hessin, dx, incr, its, 
+						  task, terminate, conv, fdict):
 
 
 		self.check_for_quit_order()
@@ -101,11 +101,11 @@ class CallBackHandler:
 		self.t = time.time()
 
 		self.inbox = self.callback.callback(msg = msg, dx_norm = dx_norm, f = f, x = x, 
-				 H = H, G=G, g = g, hessin = hessin, dx = dx, 
+				 H = H, G=comput.G, g = g, hessin = hessin, dx = dx, 
 				 incr = incr, rev = ls.rev, alam = ls.alam, 
-				 its = its, constr = constr, perc=min(its/100, 1), task = task, 
+				 its = its, constr = comput.constr, perc=min(its/100, 1), task = task, 
 				 terminate= terminate or self.quit, conv = conv, slave_id = self.id, 
-				 fdict = dict(fdict) )
+				 fdict = dict(fdict), CI = comput.CI, CI_anal = comput.CI_anal, tpgain = comput.totpgain)
 		
 	def check_for_quit_order(self):
 

@@ -264,7 +264,7 @@ def sandwich(comm,lags,oposite=False,resize=True):
 	lags=lags+panel.lost_obs
 	try:
 		hessin=np.linalg.inv(-H)
-	except Exception as e:
+	except np.linalg.LinAlgError as e:
 		print(e)
 		return None,None
 	se_robust,se,V=stat.robust_se(panel,lags,hessin,G)
