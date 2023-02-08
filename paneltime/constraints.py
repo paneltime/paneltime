@@ -81,7 +81,7 @@ class Constraints(dict):
 				return False
 		interval,value=test_interval(interval, value)
 		if interval is None:#this is a fixed constraint
-			if len(self.fixed)==len(args.names_v)-1:#can't lock all variables
+			if len(self.fixed)==len(args.caption_v)-1:#can't lock all variables
 				return False
 			if value is None:
 				value=self.args.args_v[index]
@@ -100,7 +100,7 @@ class Constraints(dict):
 		elif not index in self.categories[category]:
 			self.categories[category].append(index)
 
-		c=Constraint(index,assco,cause,value, interval ,args.names_v,category)
+		c=Constraint(index,assco,cause,value, interval ,args.caption_v,category)
 		self[index]=c
 		if value is None:
 			self.intervals[index]=c
@@ -165,7 +165,7 @@ class Constraints(dict):
 					return False
 		return True
 	
-	def add_static_constraints(self, panel, its, ll=None):
+	def add_static_constraints(self, panel, its, init_arma_constr, ll=None):
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 		
@@ -177,6 +177,20 @@ class Constraints(dict):
 		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
 		self.add_custom_constraints(panel, general_constraints, ll)
 		self.add_custom_constraints(panel, pargs.user_constraints, ll)
+		
+		c = [
+			[(f'rho{i}', 0) for i in range(1,p)] +
+			[(f'lambda{i}', 0) for i in range(1,q)] + 
+			[(f'gamma{i}', 0) for i in range(1,k)] +
+			[(f'psi{i}', 0) for i in range(1,m)],
+			
+			[(f'rho{i}', 0) for i in range(1,p)] +
+			[(f'lambda{i}', 0) for i in range(1,q)] + 
+			[(f'gamma{i}', 0) for i in range(0,k)] +
+			[(f'psi{i}', 0) for i in range(0,m)]			
+			]
+		if init_arma_constr>0:
+			self.add_custom_constraints(panel, c[init_arma_constr-1], ll)
 
 	def add_dynamic_constraints(self,computation, H, ll):
 		k,k=H.shape
@@ -195,7 +209,7 @@ class Constraints(dict):
 			(a dictionary of dictonaries on the form dict[category][name]) 
 			where items are lists of [minimum,maximum] or the fixing value
 			
-			name is taken from self.panel_args.names_v"""	
+			name is taken from self.panel_args.caption_v"""	
 		
 		if clear:
 			self.clear(cause)
@@ -238,8 +252,8 @@ class Constraints(dict):
 		"""Adds a custom range constraint\n\n
 		   If list, constraint shall be on the format (minimum, maximum)"""
 		for grp in constraints:
-			for i in range(len(panel.args.names_d[grp])):
-				name = panel.args.names_d[grp][i]
+			for i in range(len(panel.args.caption_d[grp])):
+				name = panel.args.caption_d[grp][i]
 				c=constraints[grp][i]
 				if type(c)==list:
 					self.add(name,None,cause, c,replace,args=args)
@@ -273,11 +287,7 @@ class Constraints(dict):
 					self.add(index ,assc,'collinear')
 				else:
 					self.add(assc,index,'collinear')
-					
 
-
-
-	
 	
 def test_interval(interval,value):
 	if not interval is None:

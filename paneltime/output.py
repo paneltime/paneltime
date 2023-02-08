@@ -21,7 +21,7 @@ class output:
 		self.n_variables=self.panel.args.n_args
 		self.incr=0
 		self.dx_norm = dx_norm
-		self.d={'names':np.array(self.panel.args.names_v),
+		self.d={'names':np.array(self.panel.args.caption_v),
 				'count':range(self.n_variables),
 				'args':self.ll.args.args_v}
 		self.update(comm, 0, ll, self.incr, dx_norm)
@@ -121,7 +121,7 @@ class output:
 				
 		for i in weak_mc_dict:#adding associates of non-severe multicollinearity
 			d['multicoll'][i]='|'
-			d['assco'][i]=panel.args.names_v[weak_mc_dict[i][0]]	
+			d['assco'][i]=panel.args.caption_v[weak_mc_dict[i][0]]	
 
 	
 class RegTableObj(dict):
@@ -272,6 +272,7 @@ def sandwich(comm,lags,oposite=False,resize=True):
 	return se_robust,se
 
 def reduce_size(comm,oposite,resize):
+	#this looks unneccessary complicated
 	if comm.constr is None:
 		return comm.H, comm.G, np.ones(len(comm.g),dtype=bool)
 	H=comm.H
@@ -289,9 +290,10 @@ def reduce_size(comm,oposite,resize):
 		for i in comm.constr.fixed:
 			if not comm.constr.fixed[i].assco_ix is None:
 				constr.append(comm.constr.fixed[i].assco_ix)
-	for i in weak_mc_dict:
-		if not i in constr:
-			constr.append(i)
+	if False:#not sure why this is here
+		for i in weak_mc_dict:
+			if not i in constr:
+				constr.append(i)
 	idx=np.ones(m,dtype=bool)
 	if len(constr)>0:#removing fixed constraints from the matrix
 		idx[constr]=False
@@ -557,7 +559,7 @@ class join_table(dict):
 			else:
 				self.names_category_list[0].insert(k,i)
 				k+=1
-		self.names_v=[itm for s in self.names_category_list for itm in s]#flattening
+		self.caption_v=[itm for s in self.names_category_list for itm in s]#flattening
 		
 	def update(self,ll,stats,desc,panel):
 		if not desc in self:
@@ -565,18 +567,18 @@ class join_table(dict):
 				for j in ll.args.names_category_list[i]:
 					if not j in self.names_category_list[i]:
 						self.names_category_list[i].append(j)
-			self.names_v=[itm for s in self.names_category_list for itm in s]#flattening
+			self.caption_v=[itm for s in self.names_category_list for itm in s]#flattening
 		self[desc]=join_table_column(stats, ll,panel)
 		
 		
 	def make_table(self, stacked, brackets,digits,caption):
 		keys=list(self.keys())
 		k=len(keys)
-		n=len(self.names_v)
+		n=len(self.caption_v)
 		if stacked:
 			X=[['' for j in range(2+k)] for i in range(4+3*n)]
 			for i in range(n):
-				X[3*i+1][1]=self.names_v[i]		
+				X[3*i+1][1]=self.caption_v[i]		
 				X[3*i+1][0]=i
 			X[1+3*n][1]='Log likelihood'
 			X[2+3*n][1]='Degrees of freedom'	
@@ -584,7 +586,7 @@ class join_table(dict):
 		else:
 			X=[['' for j in range(2+2*k)] for i in range(4+n)]
 			for i in range(n):
-				X[i+1][1]=self.names_v[i]	
+				X[i+1][1]=self.caption_v[i]	
 				X[i+1][0]=i
 			X[1+n][1]='Log likelihood'
 			X[2+n][1]='Degrees of freedom'		
@@ -615,9 +617,9 @@ class join_table(dict):
 			X[0][(2-stacked)*col+2]+=f"{self[key].Y_name} ({alphabet[col]})"
 		else:
 			X[0][(2-stacked)*col+2]=alphabet[col]
-		n=len(self.names_v)
-		m=len(self[key].args.names_v)
-		ix=[self.names_v.index(i) for i in self[key].args.names_v]
+		n=len(self.caption_v)
+		m=len(self[key].args.caption_v)
+		ix=[self.caption_v.index(i) for i in self[key].args.caption_v]
 		se=np.round(self[key].stats['se_robust'],digits)
 		sgn=self[key].stats['sign_codes']
 		args=np.round(self[key].args.args_v,digits)

@@ -7,6 +7,7 @@ import constraints
 import loglikelihood as logl
 import time
 import stat_dist
+import stat_functions as stat
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
@@ -41,6 +42,9 @@ class Computation:
 		self.ev_constr = False
 		self.diag_hess = diag_hess
 		self.CI_anal = 0
+		p, q, d, k, m = panel.pqdkm
+		self.init_arma = 2#((p>1)|(q>1)|(k>1)|(m>1))*2
+		self.init_arma_its = 0
 
 
 
@@ -58,7 +62,7 @@ class Computation:
 			return
 			
 		if self.panel.options.constraints_engine.value:
-			self.constr.add_static_constraints(self.panel, its, ll)	
+			self.constr.add_static_constraints(self.panel, its, self.init_arma, ll)	
 			self.constr.add_dynamic_constraints(self, H, ll)	
 			
 		self.CI=self.constr.CI
@@ -88,40 +92,54 @@ class Computation:
 		if not self.CI is None:
 			CI = self.CI
 
-		if its >NUM_ITER and ((abs(g_norm) < self.gtol) or (abs(totpgain)<TOTP_TOL)):
+		det = np.linalg.det(H)
+		se = [None]*len(H)	
+		if its >NUM_ITER and ((abs(g_norm) < self.gtol) or (abs(totpgain)<TOTP_TOL)) and self.init_arma==0:
 			Ha = self.calc_hessian(ll)
-			self.CI_anal = condition_index(Ha)
+			
+			self.constr.add_dynamic_constraints(self, Ha, ll)
+			keep = [not i in self.constr.fixed.keys() for i in range(len(H))]
+			Ha_keep = Ha[keep][:,keep]
+			self.CI_anal = condition_index(Ha_keep)
+			try:
+				det = np.linalg.det(Ha_keep)
+				hessin[keep][:,keep] = np.linalg.inv(Ha_keep)
+				se = stat.robust_se(self.panel, 100, hessin, G)[0]				
+			except Exception as e:
+				print(e)
+	
 			if abs(g_norm) < self.gtol:
-				return x, f, hessin, Ha, g, 1
+				return x, f, hessin, Ha, g, 1, se, det
 			elif abs(totpgain)<TOTP_TOL:
-				return x, f, hessin, Ha, g, 2
+				return x, f, hessin, Ha, g, 2, se, det
+			
+		#print(f"its:{its}, f:{f}, init_reg:{self.init_arma}")
+		if g_norm<10*self.gtol:
+			self.init_arma =0
+		elif g_norm<100*self.gtol and self.init_arma>0:
+			self.init_arma =1		
+
 			
 		self.avg_incr = incr + self.avg_incr*0.7
-		self.ev_constr = False#its>20
+		self.ev_constr = False#self.CI>1000
 		
 		err = np.max(np.abs(dx)) < TOLX
 		
 
 			
-		calchess = err #or ((self.CI>10000) and (self.num_hess_count>1))
-		#calchess = ((abs(g_norm) <0.1 or max_pgain<10 or self.avg_incr<1) and (self.num_hess_count>10))  and False
-		#print(f"{its}: {f}\tx: {x[:3]}")
-			
+		calchess = err or ((self.CI>10000) and (self.num_hess_count>10) and abs(g_norm)>100*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
+	
 		if calc:
 			if calchess:
-				print('Anal hess')
+				
 				Ha = self.calc_hessian(ll)
+				a = 0.5
+				try:
+					hessin = np.linalg.inv(Ha)*a + (1-a)*hessin
+				except:
+					pass
 				self.num_hess_count = 0
-				if True:
-					try:
-						hessin=self.hessin_num(hessin, g-g_old, dx)
-						Hn = np.linalg.inv(hessin)
-					except:
-						Hn = H
-					a = 0
-					H = (Hn * a + Ha * (1-a))
-				else:
-					H = Ha
+
 			else:
 				self.num_hess_count +=1
 				try:
@@ -137,7 +155,7 @@ class Computation:
 		
 	
 		
-		return x, f, hessin, H, g, 0
+		return x, f, hessin, H, g, 0, se, det
 
 
 
@@ -216,7 +234,7 @@ class Computation:
 		if args is None:
 			args = ll.args.args_v
 		self.constr=constraints.Constraints(self.panel, args)
-		self.constr.add_static_constraints(self.panel, 0)			
+		self.constr.add_static_constraints(self.panel, 0, self.init_arma)			
 		try:
 			args=args.args_v
 		except:

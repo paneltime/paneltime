@@ -59,9 +59,9 @@ class arguments:
 				self.user_constraints.pop('grp')
 				
 		for grp in self.user_constraints:
-			if not grp in self.names_d:
+			if not grp in self.caption_d:
 				print(f"Constraint on {grp} not applied, {grp} not in arguments")
-			if len(self.names_d[grp]) < len(self.user_constraints[grp]):
+			if len(self.caption_d[grp]) < len(self.user_constraints[grp]):
 				print(f"Not all constraints on {grp} applied, more constraints than arguments for {grp}")
 				
 		
@@ -117,8 +117,8 @@ class arguments:
 			oargs=eval(self.create_args(oargs,panel).dict_string)
 		for cat in oargs:
 			for name in oargs[cat]:
-				if name in self.names_d[cat]:
-					k=self.names_d[cat].index(name)
+				if name in self.caption_d[cat]:
+					k=self.caption_d[cat].index(name)
 					initargs[cat][k]=oargs[cat][name]
 
 		
@@ -192,32 +192,44 @@ class arguments:
 		"""Creates a vector of the names of all regression varaibles, 
 		including variables, ARIMA and GARCH terms. This defines the positions
 		of the variables througout the estimation."""
-		d=dict()
-		names=list(panel.input.X.keys())#copy variable names
-		d['beta']=list(names)
-		c=[list(names)]
-		add_names(p,'rho%s    AR    p','rho',d,c,names)
-		add_names(q,'lambda%s MA    q','lambda',d,c,names)
-		add_names(k,'gamma%s  GARCH k','gamma',d,c,names)
-		add_names(m,'psi%s    ARCH  m','psi',d,c,names)
+		d, names_d = {}, {}
+		captions=list(panel.input.X.keys())#copy variable names
+		d['beta']=list(captions)
+		c=[list(captions)]
+		names = [f'x{i}' for i in range(panel.n_beta)]
+		names_d['beta'] = list(names)
+		add_names(p,'rho%s    AR    p','rho',d,c,captions, names, names_d)
+		add_names(q,'lambda%s MA    q','lambda',d,c,captions, names, names_d)
+		add_names(k,'gamma%s  GARCH k','gamma',d,c,captions, names, names_d)
+		add_names(m,'psi%s    ARCH  m','psi',d,c,captions, names, names_d)
 		
 		
 		d['omega']=list(panel.input.W.keys())
+		captions.extend(panel.input.W.keys())
+		
+		names_d['omega'] = [f'omega{i}' for i in range(panel.nW)]
+		names.extend(names_d['omega'])
+		
 		c.append(d['omega'])
 		
-		names.extend(panel.input.W.keys())
 		if m>0:
 			if panel.N>1 and not self.mu_removed:
 				d['mu']=['mu (var.ID eff.)']
-				names.extend(d['mu'])
+				captions.extend(d['mu'])
+				names_d['mu']=['mu']
+				names.extend(d['mu'])				
 				c.append(d['mu'])
 			if panel.z_active:
 				d['z']=['z in h(e,z)']
-				names.extend(d['z'])
+				captions.extend(d['z'])
+				names_d['z']=['z']
+				names.extend(d['z'])					
 				c.append(d['z'])
 			
-		self.names_v=names
-		self.names_d=d
+		self.caption_v=captions
+		self.caption_d=d
+		self.names_v = names
+		self.names_d = names_d
 		self.names_category_list=c
 
 	def create_args(self,args,panel,constraints=None):
@@ -232,10 +244,10 @@ class arguments:
 		dict_string=[]
 		for c in self.categories:
 			s=[]
-			names=self.names_d[c]
+			captions=self.caption_d[c]
 			a=args_d[c].flatten()
-			for i in range(len(names)):
-				s.append(f"'{names[i]}':{a[i]}")
+			for i in range(len(captions)):
+				s.append(f"'{captions[i]}':{a[i]}")
 			dict_string.append(f"'{c}':\n"+"{"+",\n".join(s)+"}")
 		dict_string="{"+",\n".join(dict_string)+"}"
 		return arguments_set(args_d, args_v, dict_string, self,panel)
@@ -254,19 +266,25 @@ class arguments:
 		#returns name, list of indicies
 		if x is None:
 			return None, None
-		if x in self.names_v:
+		if x in self.caption_v:
 			if single_item:
-				indicies=self.names_v.index(x)
+				indicies=self.caption_v.index(x)
 			else:
-				indicies=[self.names_v.index(x)]	
+				indicies=[self.caption_v.index(x)]	
 			return x,indicies
 		elif x in self.positions and not single_item:
 			indicies=list(self.positions[x])
 			return x,indicies
+		elif x in self.names_v:
+			if single_item:
+				indicies=self.names_v.index(x)
+			else:
+				indicies=[self.names_v.index(x)]	
+			return x,indicies			
 		try:
-			name=self.names_v[x]
+			name=self.caption_v[x]
 		except Exception as e:
-			raise RuntimeError(f"{e}. The identifier of an argument must be an integer or a string macthing a name in 'self.names_v' or a category in 'self.positions'")
+			raise RuntimeError(f"{e}. The identifier of an argument must be an integer or a string macthing a name in 'self.caption_v' or a category in 'self.positions'")
 		if single_item:
 			return name,x
 		else:
@@ -351,12 +369,18 @@ def ARMA_process_calc(e,panel):
 	return rho,lmbda
 		
 			
-def add_names(T,namsestr,category,d,c,names):
+def add_names(T,captionstr,category,d,c,captions, names, names_d):
 	a=[]
+	n=[]
+	if ' ' in captionstr:
+		namestr = captionstr.split(' ')[0]
 	for i in range(T):
-		a.append(namsestr %(i,))
-	names.extend(a)
+		a.append(captionstr %(i,))
+		n.append(namestr %(i,))
+	captions.extend(a)
+	names.extend(n)
 	d[category]=a
+	names_d[category]=n
 	c.append(a)
 
 
@@ -367,8 +391,10 @@ class arguments_set:
 		self.args_d=args_d#dictionary of arguments
 		self.args_v=args_v#vector of arguments
 		self.dict_string=dict_string#a string defining a dictionary of named arguments. For user input of initial arguments
+		self.caption_v=arguments.caption_v#vector of captions
+		self.caption_d=arguments.caption_d#dict of captions
 		self.names_v=arguments.names_v#vector of names
-		self.names_d=arguments.names_d#dict of names
+		self.names_d=arguments.names_d#dict of names		
 		self.n_args=len(self.args_v)
 		self.pqdkm=panel.pqdkm
 		self.positions=arguments.positions

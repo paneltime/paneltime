@@ -182,7 +182,7 @@ class LL:
 			return		
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
-		if model_parser.DEFAULT_INTERCEPT_NAME in panel.args.names_d['beta']:
+		if model_parser.DEFAULT_INTERCEPT_NAME in panel.args.caption_d['beta']:
 			m=self.args.args_d['beta'][0,0]
 		else:
 			m=panel.mean(panel.Y)	

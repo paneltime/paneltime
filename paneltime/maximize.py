@@ -9,10 +9,13 @@ import output
 from queue import Queue
 import communication as comm
 import output
+import stat_functions as stat
+import os
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
 GTOL = 1e-5
+DATA_FILE = "data.csv"
 
 
 TEST_ITER = 30
@@ -21,11 +24,36 @@ def maximize_single(panel, args):#for debugging
 	a = get_directions(panel, args)
 	t = time.time()
 	
-	d = maximize_node(panel, a[5],0.001, diag_hess=True)
+	d = maximize_node(panel, a[8],0.001, diag_hess=True)
+	coef_se, coef_se_robust = output.sandwich(comm_single(d, panel),100)
 	print(f"f:{d['f']}, its: {d['its']}, t:{time.time()-t}")
 	print(d['x'])
 	return d
 
+class comm_single:
+	def __init__(self, d, panel):
+		self.panel = panel
+		self.constr = d['constr']
+		self.H = d['H']
+		self.g = d['g']
+		self.G = d['G']
+		
+	
+
+def create_file(panel):
+	gf_head = ['Rsq', 'Rsqadj', 'LL_ratio','LL_ratio_OLS']
+	txt = ';'.join(['sid','ll', 'CI', 'CI analytical'] + 
+					panel.args.names_v + 
+					['se ' + i for i in  panel.args.names_v] +
+					['st ' + i for i in  gf_head]  + 
+					gf_head +
+					['var_RE', 'var_u']) + '\n'
+	exists = os.path.exists(DATA_FILE)
+	fl = open(DATA_FILE, 'a')
+	if not exists:
+		fl.write(txt)
+	fl.close()
+	
 def maximize(panel, args, inbox, outbox, mp, t0):
 
 	task_name = 'maximization'
@@ -44,6 +72,7 @@ def maximize(panel, args, inbox, outbox, mp, t0):
 	evalnodes = EvaluateNodes(mp, len(tasks), t0, panel)
 	mp.exec(tasks, task_name)
 	
+	create_file(panel)
 	while True:
 		cb = mp.callback(task_name)	
 		if mp.callback_active:
@@ -62,8 +91,10 @@ def maximize(panel, args, inbox, outbox, mp, t0):
 	cb_max['node'] = maxidx
 	return cb_max
 
-def get_cb_property(cb, kw, nonevalue = None):
+def get_cb_property(cb, kw, nonevalue = None, ndarray = True):
 	values = [d[kw] if kw in d else nonevalue for d in cb]
+	if ndarray:
+		return np.array(values)
 	return values
 	
 def get_final_res(mp, tasks, task_name):
@@ -82,16 +113,26 @@ class EvaluateNodes:
 		self.included = list(range(n))
 		self.accuracy = self.panel.options.accuracy.value
 		
+		
+
+		a=0
 
 	def get(self, cb):
-		f = np.array(get_cb_property(cb, 'f'))
-		conv = np.array(get_cb_property(cb, 'conv', 0))>0
-		its = np.array(get_cb_property(cb, 'its',0))
-		ci = np.array(get_cb_property(cb, 'CI',1e+300))
-		ci_anal = np.array(get_cb_property(cb, 'CI_anal',1e+300))
-		tpgain = np.array(get_cb_property(cb, 'tpgain',0))
-		x = get_cb_property(cb, 'x',0)
-		x=np.array(x)
+		f = get_cb_property(cb, 'f')
+		conv = get_cb_property(cb, 'conv', 0)>0
+		its = get_cb_property(cb, 'its',0)
+		ci = get_cb_property(cb, 'CI',1e+300)
+		ci_anal = get_cb_property(cb, 'CI_anal',1e+300)
+		tpgain = get_cb_property(cb, 'tpgain',0)
+		x = get_cb_property(cb, 'x',None, False)
+		se = get_cb_property(cb, 'se',[None], False)
+		rsq_st =  get_cb_property(cb, 'rsq_st',[None], False)
+		rsq =  get_cb_property(cb, 'rsq_st',[None], False)
+		var_RE =  get_cb_property(cb, 'var_RE',[None], False)
+		var_u =  get_cb_property(cb, 'var_u',[None], False)
+		H =  get_cb_property(cb, 'H',None, False)
+		det  =  get_cb_property(cb, 'det',None, False)
+
 		
 
 		
@@ -101,21 +142,29 @@ class EvaluateNodes:
 		flist = [i for i in f if not i is None]
 
 		if np.all(terminated):
-			citot = ci#np.minimum(ci,1e+150)*ci_anal
+			convdet = conv*det!=0
+			if np.any(convdet):
+				conv = convdet		
 			if np.any(conv):
-				ctotconv = citot[conv]
-				srt = np.argsort(ctotconv)
-				#minctot = citot[srt[min((sum(conv),3))-1]]
-				minctot = citot[srt[0]]
-				fval = max(f[citot<=minctot])
+				fval = max(f[conv])
 			else:
 				fval = max(f)
 			ix = list(f).index(fval)
 			if True:
+				txt = ''
 				for i in range(len(f)):
-					print(f"f:{f[i]},CI:{ci[i]}, x:{cb[i]['x'][:3]}, CI_anal: {ci_anal[i]}, citot:{tpgain[i]}")				
-				print(ix)
-				print(x[ix])
+					txt += ';'.join(
+									str(s) for s in ([i,f[i], ci[i], ci_anal[i]] + 
+									list(cb[i]['x']) + 
+									list(se[i]) +
+									list(rsq_st[i])  + 
+									list(rsq[i])  +
+									[var_RE[i], var_u[i]])
+					) + '\n'					
+					print(f"f:{f[i]}, x:{cb[i]['x'][:3]},CI:{ci[i]}, CI_anal: {ci_anal[i]}, det: {det[i]}")	
+				fl = open(DATA_FILE, 'a')
+				fl.write(txt)
+				fl.close()
 			return ix, ix
 
 		if len(flist)==0:
@@ -197,7 +246,14 @@ def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0
 	callbk = callback.CallBack(inbox, outbox)
 	comput = computation.Computation(panel, gtol, TOLX, None, nummerical, diag_hess)
 	callbk.callback(quit=False, conv=False, perc=0)
-	res = dfpmax.dfpmax(args,comput, callbk, panel, slave_id)
+	res, ll = dfpmax.dfpmax(args,comput, callbk, panel, slave_id)
+	H, G, g, hessin = res['H'], res['G'], res['g'], res['hessin']
+
+	ll.standardize(panel)
+	res['rsq_st'] = stat.goodness_of_fit(ll,True,panel)
+	res['rsq'] = stat.goodness_of_fit(ll,True,panel)
+	res['var_RE'] = panel.var(ll.e_RE)
+	res['var_u'] = panel.var(ll.u)
 	return res
 
 
@@ -220,7 +276,7 @@ class Summary:
 		self.ll = comm.ll
 		self.log_likelihood = comm.ll.LL
 		self.coef_params = comm.ll.args.args_v
-		self.coef_names = comm.ll.args.names_v
+		self.coef_names = comm.ll.args.caption_v
 		self.coef_se, self.coef_se_robust = output.sandwich(comm,100)
 		self.converged = comm.conv
 		self.hessian = comm.H

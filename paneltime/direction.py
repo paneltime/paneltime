@@ -114,7 +114,7 @@ def solve_delete(constr,H, g, x, f, ev_constr):
 	H_full = np.zeros((m,m))
 	idx = idx.reshape((1,m))
 	nz = np.nonzero(idx*idx.T)
-	H_full[nz] = H[nz]
+	H_full[nz] = H[np.nonzero(np.ones((n,n)))]
 	H_full[H_full==0] = H_orig[H_full==0]
 	return xi_full, H_full
 

@@ -46,7 +46,7 @@ def dfpmax(x, comput, callback, panel, slave_id):
 		fdict[its] = ls.f
 		
 		
-		x, f, hessin, H, g, conv = comput.exec(dx, dx_norm,  hessin, H, ls.f, ls.x, ls.g, incr, ls.rev, ls.alam, its, ls.ll)
+		x, f, hessin, H, g, conv, se, det = comput.exec(dx, dx_norm,  hessin, H, ls.f, ls.x, ls.g, incr, ls.rev, ls.alam, its, ls.ll)
 		
 		err = np.max(np.abs(dx)) < TOLX
 		
@@ -66,7 +66,7 @@ def dfpmax(x, comput, callback, panel, slave_id):
 
 		cbhandler.assign(ls, msg, dx_norm, f, x, H, comput, g, hessin, dx, 
 						  incr, its, 'linesearch', terminate, 
-						  conv, fdict)			
+						  conv, fdict, se, det)			
 
 		if terminate or cbhandler.quit:	
 			if terminate:
@@ -74,7 +74,7 @@ def dfpmax(x, comput, callback, panel, slave_id):
 			else:
 				cause = 'forced'
 			print(f"quit slave {slave_id}, time: {time.time()}, cause: {cause}, conv:{conv}")
-			return cbhandler.callback.outbox
+			return cbhandler.callback.outbox, ls.ll
 			
 class CallBackHandler:
 	def __init__(self, callback, slave_id):
@@ -86,7 +86,7 @@ class CallBackHandler:
 		
 															
 	def assign(self, ls, msg, dx_norm, f, x, H, comput, g, hessin, dx, incr, its, 
-						  task, terminate, conv, fdict):
+						  task, terminate, conv, fdict, se, det):
 
 
 		self.check_for_quit_order()
@@ -105,7 +105,7 @@ class CallBackHandler:
 				 incr = incr, rev = ls.rev, alam = ls.alam, 
 				 its = its, constr = comput.constr, perc=min(its/100, 1), task = task, 
 				 terminate= terminate or self.quit, conv = conv, slave_id = self.id, 
-				 fdict = dict(fdict), CI = comput.CI, CI_anal = comput.CI_anal, tpgain = comput.totpgain)
+				 fdict = dict(fdict), CI = comput.CI, CI_anal = comput.CI_anal, tpgain = comput.totpgain, se = se, det = det)
 		
 	def check_for_quit_order(self):
 
