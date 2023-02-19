@@ -184,8 +184,8 @@ class Constraints(dict):
 			[(f'gamma{i}', 0) for i in range(1,k)] +
 			[(f'psi{i}', 0) for i in range(1,m)],
 			
-			[(f'rho{i}', 0) for i in range(1,p)] +
-			[(f'lambda{i}', 0) for i in range(1,q)] + 
+			[(f'rho{i}', 0) for i in range(0,p)] +
+			[(f'lambda{i}', 0) for i in range(0,q)] + 
 			[(f'gamma{i}', 0) for i in range(0,k)] +
 			[(f'psi{i}', 0) for i in range(0,m)]			
 			]

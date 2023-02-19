@@ -8,10 +8,10 @@ import numpy as np
 
 def tcdf(x, n):
 	if type(x)==float or type(x)==np.float64:
-		hg = float(hyper([0.5, (1.0+n)/2], [3.0/2], -x**2/5.0))
-		gm = gamma((1+n)/2)/(gamma(n/2)*(pi*n)**0.5)
-		dist = 0.5 + x* hg * gm
-		return dist	
+		w = n/(x**2+n)
+		I = betainc(0.5*n, 0.5,x2=w, regularized = True)
+		dist = float(1-I)
+		return dist
 	if len(x)>100:
 		raise RuntimeWarning(f"Dimension is {len(x)}. This function is not made for such large dimension. Consider using scipy. ")
 	return np.array([tcdf(i, n) for i in x])

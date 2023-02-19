@@ -118,21 +118,25 @@ def regression_options():
 																	None,None,category='ARIMA-GARCH')	
 	self.constraints_engine	        = options_item(True,			'Determines whether to invoke the constraints engine', bool, 'Invoke constraints engine',
 																	[True,False],['Invoke constraints','Do not invoke constraints'],category='Regression')	
-		
+	
+	self.debug_mode	      	        = options_item(False,			'Determines whether the code will run in debug mode. Should normally allways be False', 
+																	bool, 'Debug or not',
+																	[True,False],['Debug mode','Not debug mode'],category='General')	
+	
 	self.multicoll_threshold_report = options_item(30,				'Threshold for reporting multicoll problems', float, 'Multicollinearity threshold',
 																	None,None)		
 	
 	self.multicoll_threshold_max    = options_item(1000,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
 																	None,None)			
 	
-	self.arguments					= options_item("", 				"A string or dict with a dictionary in python syntax containing the initial arguments." 
+	self.arguments					= options_item(None, 				"A dict or string defining a dictionary in python syntax containing the initial arguments." 
 																	"An example can be obtained by printing ll.args.args_d"
-																	, [str,dict], 'Initial arguments')	
-	self.parallel  				= options_item(True,			"If True, uses multiple cores for parallel computing",
+																	, [str,dict, list, np.ndarray], 'Initial arguments')	
+	self.parallel  					= options_item(True,			"If True, uses multiple cores for parallel computing",
 																	bool,'Multicore', [True,False],['Multicore','Single core'],category='General')
 	
 	#self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
-	self.normal_GARCH	            = options_item(True,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
+	self.EGARCH	            = options_item(True,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
 																	[True,False],['Direct GARCH','Usual GARCH'],category='ARIMA-GARCH')	
 		
 	

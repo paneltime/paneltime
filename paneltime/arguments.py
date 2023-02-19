@@ -16,6 +16,7 @@ class arguments:
 	"""Sets initial arguments and stores static properties of the arguments"""
 	def __init__(self,panel):
 		p, q, d, k, m=panel.pqdkm
+		self.initial_user_defined = False
 		self.categories=['beta','rho','lambda','gamma','psi','omega']
 		if panel.z_active:
 			self.categories+=['z']
@@ -89,38 +90,19 @@ class arguments:
 
 		return args
 
-	def set_init_args(self,panel,initargs=None):
+	def set_init_args(self,panel,initargs=None, default = True):
 		p, q, d, k, m=panel.pqdkm
+		
 		if initargs is None:
-			initargs=self.initargs(p, d, q, m, k, panel)
+			initargs = self.initargs(p, d, q, m, k, panel)
+			
 		#de2=np.roll(e**2,1)-e**2
 		#c=stat.correl(np.concatenate((np.roll(de2,1),de2),2),panel)[0,1]
-		
-
-		beta,omega=set_init_regression(initargs,panel)
+		beta,omega = self.set_init_regression(initargs,panel, default)
 		self.args_start=self.create_args(initargs,panel)
 		self.args_init=self.create_args(initargs,panel)
 		self.set_restricted_args(p, d, q, m, k,panel,omega,beta)
 		self.n_args=len(self.args_init.args_v)
-		
-	def process_init_user_args(self,old_args,initargs,errstr,panel):
-		if old_args is None:
-			return
-		oargs=old_args
-		if isinstance(old_args,arguments_set):
-			oargs=eval(old_args.dict_string)
-		elif type(old_args)==str:
-			oargs=eval(old_args)
-		if type(oargs)!=dict:
-			raise RuntimeError(f"The {errstr} arguments need to be a dictionary, not {type(oargs)}")
-		if type(oargs['beta'])!=dict:
-			oargs=eval(self.create_args(oargs,panel).dict_string)
-		for cat in oargs:
-			for name in oargs[cat]:
-				if name in self.caption_d[cat]:
-					k=self.caption_d[cat].index(name)
-					initargs[cat][k]=oargs[cat][name]
-
 		
 
 	def set_restricted_args(self,p, d, q, m, k, panel,omega,beta):
@@ -290,30 +272,51 @@ class arguments:
 		else:
 			return name,[x]
 		
-def set_init_regression(initargs,panel):
-	p, q, d, k, m=panel.pqdkm
-	beta,rho,lmbda,u=ARMA_regression(panel)
-	v=panel.var(u)
-	if panel.options.normal_GARCH.value:
-		omega=panel.var(u)
-	else:
-		omega=np.log(panel.var(u))
-	
-	initargs['omega'][0,0]=omega
-	initargs['beta']=beta
-	
-	if False: #turns out calculating ARMA parameters serves no purpose. These are easily found by linesearch for given regression coefficients. 
-		if q > 0:
-			initargs['lambda'][0] = lmbda
+	def set_init_regression(self, initargs,panel, default):
+		usrargs =  panel.options.arguments.value
+		if not usrargs is None:
+			if type(usrargs)==str:
+				try:
+					usrargs = eval(usrargs.replace(" array"," np.array"))
+				except NameError as e:
+					if str(e)=="name 'array' is not defined":
+						usrargs = eval(usrargs.replace("array"," np.array"))
+			args = self.create_args(usrargs,panel)
+			for c in args.args_d:
+				initargs[c] = args.args_d[c]
+			self.initial_user_defined = True
+			return initargs['beta'], initargs['omega'][0,0]
+		p, q, d, k, m=panel.pqdkm
+		beta,rho,lmbda,u=ARMA_regression(panel)
+		v=panel.var(u)
+		if panel.options.EGARCH.value==0:
+			omega0=panel.var(u)
+			omega1 = 0
+		else:
+			omega0=np.log(panel.var(u))
 			
-		if p > 0:
-			initargs['rho'][0] = rho	
-
+		if panel.nW>1:
+			omega1 = panel.var(panel.W[:,:,1:2])
+			omega1 = omega0/omega1
+			a=0.00
+			initargs['omega'][1,0]=omega1*a
+			initargs['omega'][0,0]=omega0*(1-a)
+		else:
+			initargs['omega'][0,0]=omega0
+		initargs['beta']=beta
+		
+		if default: #turns out calculating ARMA parameters serves no purpose, default is therefore allways true. These coefficients are easily found by linesearch for given regression coefficients. 
+			if q > 0:
+				initargs['lambda'][0] = lmbda
+				
+			if p > 0:
+				initargs['rho'][0] = rho	
 	
-	if panel.options.fixed_random_variance_eff.value==0:
-		if v<1e-20:
-			print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
-	return beta,omega
+		
+		if panel.options.fixed_random_variance_eff.value==0:
+			if v<1e-20:
+				print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
+		return beta,omega0
 
 def set_GARCH(panel,initargs,u,m):
 	matrices=logl.set_garch_arch(panel,initargs)

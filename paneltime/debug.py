@@ -62,7 +62,13 @@ def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
 		ddL=(f1.__dict__[llname]-f0.__dict__[llname])/d
 	return ddL
 
+def test_c_armas(u_RE, var_ARMA, e_RE, panel, ll):
+	var_ARMA2 = panel.arma_dot.dot(ll.GAR_1MA,ll.h_val,ll)
+	e_RE2 = panel.arma_dot.dot(ll.AMA_1AR,u_RE,ll)	
+	print(f"Testsums arma: c:{np.sum(var_ARMA**2)}, py:{np.sum(var_ARMA2**2)}")
+	print(f"Testsums e: c:{np.sum(e_RE**2)}, py:{np.sum(e_RE2**2)}")
 
+	
 	
 def hess_debug_detail(f0,panel,d,llname,varname1,varname2,pos1=0,pos2=0):
 	args1=lgl.copy_array_dict(f0.args.args_d)
@@ -122,3 +128,19 @@ def LL_calc(self,panel):
 		return None				
 	return LL
 
+
+def save_reg_data(ll, panel, fname = 'repr.csv'):
+	#saves data neccessary to reproduce 
+	N,T,k = panel.X.shape
+	a = np.concatenate((panel.X, panel.Y, panel.W, ll.e, ll.var), 2)
+	a = a.reshape((T, a.shape[2]))
+	coefs = np.zeros((T,1))
+	coef_arr = ll.args.args_v
+	coefs[:len(coef_arr),0] = coef_arr
+	a = np.concatenate((a, 
+						ll.LL_full[0].reshape((T,1)),
+						ll.AMA_1AR[0].reshape((T,1))[::-1],
+						ll.GAR_1MA[0].reshape((T,1))[::-1],
+						coefs
+						),1)
+	np.savetxt(fname, a, fmt='%s', delimiter=';')	

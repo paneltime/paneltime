@@ -9,6 +9,7 @@ import time
 import matplotlib
 import parallel
 
+
 PARALLEL_LAYER1 = False
 PARALLEL_LAYER2 = True
 CALLBACK_ACTIVE = True
@@ -31,7 +32,8 @@ mp.exec(["import maximize\n"
 		"import parallel as parallel\n"
 		f"mp = parallel.Parallel({N_NODES},'{subpath}', {PARALLEL_LAYER2}, {CALLBACK_ACTIVE}, {DIRECT}, 1)\n" 
 		"mp.exec('import loglikelihood as logl\\n'\n"
-		"'import maximize', 'init')\n"], 'init')
+		"'import maximize', 'init')\n"
+		"outbox['mp'] = mp\n"], 'init')
 
 print(f"parallel: {time.time()-t0}")
 
@@ -44,14 +46,62 @@ import main
 import options as opt_module
 import inspect
 import loaddata
+import psutil
+import signal
+from threading import Thread
+import traceback
 
 
 def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, console_output=True):
-	"""optimizes LL using the optimization procedure in the maximize module"""
+
+	"""Maximizes the likelihood of an ARIMA/GARCH model with random/fixed effects (RE/FE)\n
+	model_string: a string on the form 'Y ~ X1 + X2 + X3\n
+	dataframe: a dataframe consisting of variables with the names usd in model_string, ID, T, HF and instruments\n
+	ID: The group identifier\n
+	T: the time identifier\n
+	HF: list with names of heteroskedasticity factors (additional regressors in GARCH)\n
+	instruments: list with names of instruments
+	console_output: if True, GUI output is turned off (GUI output is experimental)
+	"""
+	
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab')
-	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,instruments, console_output, mp, PARALLEL_LAYER2)
+	try:
+		r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,instruments, console_output, mp, PARALLEL_LAYER2)
+	except KeyboardInterrupt as e:
+		print('interrrupt')
+		kill_orpahns()
+	except Exception as e:
+		print('exept')
+		traceback.print_exc(file=sys.stdout)
+		print('except2')
+		kill_orpahns()
+		raise e
 	return r
+
+
+def kill_orpahns():
+	try:
+		pids = mp.callback('init')[0]['mp'].pids
+	except:
+		pids = []
+	pids = [int(i) for i in pids]
+	kill(pids)
+	kill([int(mp.pids[0])])
+	kill([os.getpid()])
+	
+	
+
+def kill(pids):
+	for proc in psutil.process_iter():
+		pid = proc.pid
+		if pid in pids:
+			try:
+				os.kill(proc.pid, signal.SIGTERM)
+				print(f"killed pid {pid}")
+			except psutil.NoSuchProcess:
+				pass
+
 
 def load_json(fname):
 
@@ -90,7 +140,7 @@ def load_SQL(conn,sql_string):
 			return dataframe
 	dataframe=main.loaddata.load_SQL(sql_string,conn)
 	#except RuntimeError as e:
-	#	raise RuntimeError(e)
+	#	raise e
 	return dataframe
 		
 	

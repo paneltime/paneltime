@@ -13,9 +13,9 @@ except:
 def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=False):
 	de2_zeta_xi_RE,de2_zeta_xi 	= dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 	dd_re_variance 							= dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient)
-	d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE 	= dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient)
+	d2LL_d2var_zeta_xi,d2LL_d2e_zeta_xi_RE 	= dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient)
 	
-	return d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE
+	return d2LL_d2var_zeta_xi,d2LL_d2e_zeta_xi_RE
 
 def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient):
 	#de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"
@@ -75,8 +75,8 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 	else:
 		ddvRE_d_xi_zeta=None
 		
-	dlnvRE,		ddlnvRE		=	ll.dlnvRE.reshape((N,T,1,1)),		ll.ddlnvRE.reshape((N,T,1,1))
-	dd_re_variance	=	add((prod((dlnvRE,ddvRE_d_xi_zeta))	,	ddlnvRE*dvRE_xi*dvRE_zeta))
+	dvarRE,		ddvarRE		=	ll.dvarRE.reshape((N,T,1,1)),		ll.ddvarRE.reshape((N,T,1,1))
+	dd_re_variance	=	add((prod((dvarRE,ddvRE_d_xi_zeta))	,	ddvarRE*dvRE_xi*dvRE_zeta))
 	return dd_re_variance
 
 
@@ -100,28 +100,28 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 	de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]	
 
 	
-	dLL_lnv=g.dLL_lnv.reshape(N,T,1,1)
+	dLL_var=g.dLL_var.reshape(N,T,1,1)
 	if de2_zeta_xi_RE is None:
 		de2_zeta_xi_RE=0
-	d2lnv_zeta_xi=None
-	d2LL_d2lnv_zeta_xi=None
+	d2var_zeta_xi=None
+	d2LL_d2var_zeta_xi=None
 	d_omega_e=None
-	d2lnv_zeta_xi_h=None
+	d2var_zeta_xi_h=None
 	if panel.pqdkm[4]>0:
 		if u_gradient:
 			de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]
 		h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi_RE
 		h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi_RE.reshape((N,T,m,1)) * de_zeta_RE.reshape((N,T,1,k))
 
-		d2lnv_zeta_xi_h = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
+		d2var_zeta_xi_h = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 		
-		d2lnv_zeta_xi_h = panel.arma_dot.dot(ll.GAR_1MA, d2lnv_zeta_xi_h,ll)
+		d2var_zeta_xi_h = panel.arma_dot.dot(ll.GAR_1MA, d2var_zeta_xi_h,ll)
 		
-	d2lnv_zeta_xi = add((d2lnv_zeta_xi_h,  dd_re_variance,d_omega_e), True)
-	if not d2lnv_zeta_xi is None:
-		d2LL_d2lnv_zeta_xi = np.sum(prod((d2lnv_zeta_xi,dLL_lnv*incl),True),(0,1))
+	d2var_zeta_xi = add((d2var_zeta_xi_h,  dd_re_variance,d_omega_e), True)
+	if not d2var_zeta_xi is None:
+		d2LL_d2var_zeta_xi = np.sum(prod((d2var_zeta_xi,dLL_var*incl),True),(0,1))
 	
-	return d2LL_d2lnv_zeta_xi,d2LL_d2e_zeta_xi_RE
+	return d2LL_d2var_zeta_xi,d2LL_d2e_zeta_xi_RE
 
 def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 	#d is "N x T x m" and L is "k x T x T"

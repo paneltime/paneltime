@@ -44,6 +44,8 @@ class Computation:
 		self.CI_anal = 0
 		p, q, d, k, m = panel.pqdkm
 		self.init_arma = 2#((p>1)|(q>1)|(k>1)|(m>1))*2
+		if panel.args.initial_user_defined:
+			self.init_arma = 0
 		self.init_arma_its = 0
 
 
@@ -94,9 +96,8 @@ class Computation:
 
 		det = np.linalg.det(H)
 		se = [None]*len(H)	
-		if its >NUM_ITER and ((abs(g_norm) < self.gtol) or (abs(totpgain)<TOTP_TOL)) and self.init_arma==0:
+		if its >NUM_ITER and ((abs(g_norm) < self.gtol) or ((abs(totpgain)<TOTP_TOL) and its>5000)) and self.init_arma==0:
 			Ha = self.calc_hessian(ll)
-			
 			self.constr.add_dynamic_constraints(self, Ha, ll)
 			keep = [not i in self.constr.fixed.keys() for i in range(len(H))]
 			Ha_keep = Ha[keep][:,keep]
@@ -113,11 +114,12 @@ class Computation:
 			elif abs(totpgain)<TOTP_TOL:
 				return x, f, hessin, Ha, g, 2, se, det
 			
-		#print(f"its:{its}, f:{f}, init_reg:{self.init_arma}")
-		if g_norm<10*self.gtol:
-			self.init_arma =0
-		elif g_norm<100*self.gtol and self.init_arma>0:
-			self.init_arma =1		
+		#print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
+
+		if its>7 or abs(g_norm)<10*self.gtol:
+			self.init_arma = 0
+		elif (its>3 or abs(g_norm)<100*self.gtol) and not self.panel.args.initial_user_defined:
+			self.init_arma = 1		
 
 			
 		self.avg_incr = incr + self.avg_incr*0.7
@@ -131,7 +133,7 @@ class Computation:
 	
 		if calc:
 			if calchess:
-				
+				print('analytic')
 				Ha = self.calc_hessian(ll)
 				a = 0.5
 				try:
@@ -244,16 +246,13 @@ class Computation:
 		if ll is None:
 			ll=logl.LL(args, self.panel, constraints=self.constr,print_err=True)
 		if ll.LL is None:
-			if self.panel.options.loadargs.value:
-				print("WARNING: Initial arguments failed, attempting default OLS-arguments ...")
-				self.panel.args.set_init_args(self.panel,default=True)
-				ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
-				if ll.LL is None:
-					raise RuntimeError("OLS-arguments failed too, you should check the data")
-				else:
-					print("default OLS-arguments worked")
+			print("WARNING: Initial arguments failed, attempting default OLS-arguments ...")
+			self.panel.args.set_init_args(self.panel,default=True)
+			ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
+			if ll.LL is None:
+				raise RuntimeError("OLS-arguments failed too, you should check the data")
 			else:
-				raise RuntimeError("OLS-arguments failed, you should check the data")
+				print("default OLS-arguments worked")
 		return ll
 	
 	def calc_init_dir(self, p0, full = False):

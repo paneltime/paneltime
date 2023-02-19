@@ -43,7 +43,8 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 	if X==[] or Y==['']:
 		raise RuntimeError("No independent or dependent variables specified")		
 	
-	x=IDs_num+IDs+timevar+timevar_num+W+Z+Y+X
+	x = IDs_num+IDs+timevar+timevar_num+W+Z+Y+X
+	x = list(dict.fromkeys(x))
 	df,ip.max_lags=eval_variables(x, df, pd_panel)
 	df=df[x]
 	n=len(df)

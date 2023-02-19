@@ -489,6 +489,8 @@ def format_table(X,cols,fmt,heading, mod, stats,tail):
 		return mod + stats+format_latex(X,cols,heading)+tail
 	if fmt=='HTML':
 		return format_html(X,cols,heading,stats, mod)+tail	
+	if fmt=='CONSOLE':
+		return mod + stats+format_console(X)+tail
 	
 	
 def format_normal(X,add_rows=[],cols=[]):
@@ -505,6 +507,26 @@ def format_normal(X,add_rows=[],cols=[]):
 		
 	return p	
 
+def format_console(X):
+	p=''
+	X = np.array(X)
+	dcol = 2
+	n,k = X.shape
+	colwith = [max(
+		[len(s) for s in X[:,i]])
+			   for i in range(k)
+			   ]
+	for i in range(n):
+		p+='\n'
+		for j in range(k):
+			if j == 0:
+				p+=f'{X[i][j]}'.ljust(3)
+			elif j==1:
+				p+=f'{X[i][j]}'.ljust(colwith[j]+dcol)
+			else:
+				p+=f'{X[i][j]}'.rjust(colwith[j]+dcol)
+		
+	return p	
 
 def format_latex(X,cols,heading):
 	X=np.array(X,dtype='U128')

@@ -126,7 +126,7 @@ class Process:
 	
 		except Exception as e:
 			traceback.print_exc(file = sys.stdout)
-			raise RuntimeError(e)
+			raise e
 		
 	def transact(self, incoming):
 		#print(f'reading from {id(self.inbox)}')
@@ -156,7 +156,7 @@ def execute_task(d, task, queue,name):#None blocking
 		r = execute_task_(d, task)			
 	except Exception as e:
 		traceback.print_exc(file = sys.stdout)
-		raise RuntimeError(e)
+		raise e
 	queue.put((d,r))
 
 	
@@ -194,7 +194,7 @@ def run(transact, print_to_file = True):
 		traceback.print_exc(file = f)
 		f.flush()
 		f.close()
-		raise RuntimeError(e)
+		raise e
 	
 def handshake(transact, print_to_file):
 	#Handshake:

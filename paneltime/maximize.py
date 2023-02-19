@@ -15,7 +15,7 @@ import os
 EPS=3.0e-16 
 TOLX=(4*EPS) 
 GTOL = 1e-5
-DATA_FILE = "data.csv"
+
 
 
 TEST_ITER = 30
@@ -23,8 +23,11 @@ TEST_ITER = 30
 def maximize_single(panel, args):#for debugging
 	a = get_directions(panel, args)
 	t = time.time()
-	
-	d = maximize_node(panel, a[8],0.001, diag_hess=True)
+	if panel.options.arguments.value is None:
+		args = a[8]
+	else:
+		args = args.args_v
+	d = maximize_node(panel,args,0.001, diag_hess=True)
 	coef_se, coef_se_robust = output.sandwich(comm_single(d, panel),100)
 	print(f"f:{d['f']}, its: {d['its']}, t:{time.time()-t}")
 	print(d['x'])
@@ -37,23 +40,7 @@ class comm_single:
 		self.H = d['H']
 		self.g = d['g']
 		self.G = d['G']
-		
-	
 
-def create_file(panel):
-	gf_head = ['Rsq', 'Rsqadj', 'LL_ratio','LL_ratio_OLS']
-	txt = ';'.join(['sid','ll', 'CI', 'CI analytical'] + 
-					panel.args.names_v + 
-					['se ' + i for i in  panel.args.names_v] +
-					['st ' + i for i in  gf_head]  + 
-					gf_head +
-					['var_RE', 'var_u']) + '\n'
-	exists = os.path.exists(DATA_FILE)
-	fl = open(DATA_FILE, 'a')
-	if not exists:
-		fl.write(txt)
-	fl.close()
-	
 def maximize(panel, args, inbox, outbox, mp, t0):
 
 	task_name = 'maximization'
@@ -72,7 +59,6 @@ def maximize(panel, args, inbox, outbox, mp, t0):
 	evalnodes = EvaluateNodes(mp, len(tasks), t0, panel)
 	mp.exec(tasks, task_name)
 	
-	create_file(panel)
 	while True:
 		cb = mp.callback(task_name)	
 		if mp.callback_active:
@@ -87,6 +73,7 @@ def maximize(panel, args, inbox, outbox, mp, t0):
 		if not bestix is None:
 			cb[bestix]['node'] = bestix
 			callbk.callback(**cb[bestix])
+		
 	cb_max = mp.collect(task_name, maxidx)
 	cb_max['node'] = maxidx
 	return cb_max
@@ -112,120 +99,88 @@ class EvaluateNodes:
 		self.t = t0
 		self.included = list(range(n))
 		self.accuracy = self.panel.options.accuracy.value
+		self.debug_mode = panel.options.debug_mode.value
+		self.create_file()
+		self.max_ll = None
 		
-		
-
-		a=0
 
 	def get(self, cb):
+		terminated = np.array(self.mp.check_state())[:self.n]==0
 		f = get_cb_property(cb, 'f')
+
+		flist = np.array(f)
+		flist = [i for i in f if not i is None]
+
+		if np.all(terminated):
+			ix = self.finish(cb, f)
+			return ix, ix
+		if len(flist)==0:
+			return None, None
+		bestix = list(f).index(max(flist))
+		return None, bestix
+	
+	def finish(self, cb, f):
 		conv = get_cb_property(cb, 'conv', 0)>0
-		its = get_cb_property(cb, 'its',0)
+		det  =  get_cb_property(cb, 'det',None, False)	
+		convdet = conv*det!=0
+		if np.any(convdet):
+			conv = convdet		
+		if np.any(conv):
+			fval = max(f[conv])
+		else:
+			fval = max(f)
+		ix = list(f).index(fval)
+		self.write_to_file(cb,f)
+		return ix
+	
+	def write_to_file(self,cb, f):
+		"For debugging"
+		if not self.debug_mode:
+			return
+		conv = get_cb_property(cb, 'conv', 0)>0
 		ci = get_cb_property(cb, 'CI',1e+300)
 		ci_anal = get_cb_property(cb, 'CI_anal',1e+300)
-		tpgain = get_cb_property(cb, 'tpgain',0)
 		x = get_cb_property(cb, 'x',None, False)
 		se = get_cb_property(cb, 'se',[None], False)
 		rsq_st =  get_cb_property(cb, 'rsq_st',[None], False)
 		rsq =  get_cb_property(cb, 'rsq_st',[None], False)
 		var_RE =  get_cb_property(cb, 'var_RE',[None], False)
 		var_u =  get_cb_property(cb, 'var_u',[None], False)
-		H =  get_cb_property(cb, 'H',None, False)
-		det  =  get_cb_property(cb, 'det',None, False)
-
+		det  =  get_cb_property(cb, 'det',None, False)	
 		
-
-		
-		terminated = np.array(self.mp.check_state())[:self.n]==0
-
-		flist = np.array(f)
-		flist = [i for i in f if not i is None]
-
-		if np.all(terminated):
-			convdet = conv*det!=0
-			if np.any(convdet):
-				conv = convdet		
-			if np.any(conv):
-				fval = max(f[conv])
-			else:
-				fval = max(f)
-			ix = list(f).index(fval)
-			if True:
-				txt = ''
-				for i in range(len(f)):
-					txt += ';'.join(
-									str(s) for s in ([i,f[i], ci[i], ci_anal[i]] + 
-									list(cb[i]['x']) + 
+		txt = ''
+		for i in range(len(f)):
+			txt += ';'.join(
+						str(s) for s in ([i,f[i], ci[i], ci_anal[i]] + 
+													 list(x[i]) + 
 									list(se[i]) +
 									list(rsq_st[i])  + 
 									list(rsq[i])  +
-									[var_RE[i], var_u[i]])
-					) + '\n'					
-					print(f"f:{f[i]}, x:{cb[i]['x'][:3]},CI:{ci[i]}, CI_anal: {ci_anal[i]}, det: {det[i]}")	
-				fl = open(DATA_FILE, 'a')
-				fl.write(txt)
-				fl.close()
-			return ix, ix
-
-		if len(flist)==0:
-			return None, None
-		bestix = list(f).index(max(flist))
-		return None, bestix
-	
-	def handle_conv(self, conv, its, terminated, cb, f):
-		fdict = get_cb_property(cb, 'fdict', {})
-		converged = {}
-		for i, c in enumerate(conv):
-			if c and not i in converged:
-				converged[i] = its[i]
-		cur_its = max(converged.values())
-
-		if np.all((its>=cur_its)|terminated):#ensures that the same results are returned every time
-			maxf = max(np.array(f)[list(converged.keys())])
-			maxix = f.index(maxf)	
-			if self.accuracy == 0:
-				return maxix
-		else:
-			return None
-		if (len(converged)>1 or (len(converged)&np.all((its>100)|terminated))) and (not maxf is None):
-			
-			if self.accuracy == 1:
-				return maxix
-			non_conv = np.arange(len(cb))[(conv==False)|(terminated==False)]
-			if len(non_conv):
-				cur_its = (its>=cur_its)*cur_its
-				f_at_cur_its = np.array([fdict[i][cur_its[i]] for i in range(len(cb))])
-				f_nonconv = max(f_at_cur_its[non_conv])
-				if f_nonconv-maxf<=1:
-					return maxix
-			else:
-				return maxix 
+									[var_RE[i], var_u[i], conv[i]])
+									) + '\n'					
+			print(f"f:{f[i]}, x:{x[i][:3]},CI:{ci[i]}, CI_anal: {ci_anal[i]}, det: {det[i]}, conv:{conv[i]}")	
+		fl = open(self.data_file, 'a')
+		fl.write(txt)
+		fl.close()
 		
-		return None
-	
-	def quit_procs(self, test_its, cb, terminated, its):
-		fdict = get_cb_property(cb, 'fdict', {})
-		
-		if not np.all((its>=test_its)|terminated):
+	def create_file(self):
+		"For debugging"
+		if not self.debug_mode:
 			return
-		n = len(cb)
-		quit = 0	
-			
-		ftest = []
-		for i in range(len(fdict)):
-			d = fdict[i]
-			if not terminated[i]:
-				ftest.append(d[test_its])
-			else:
-				last_it = min((np.sort(list(d.keys()))[-1], test_its))
-				ftest.append(d[last_it])
-		srt = np.argsort(ftest)
-		self.terminated_nodes = srt[:quit]
-		self.included = srt[quit:]
-		for i in self.terminated_nodes:
-			if not terminated[i]:
-				self.mp.callback('maximization', {'quit':True}, i)
-				terminated[i] == True
+		panel = self.panel
+		self.data_file = "data.csv"
+		gf_head = ['Rsq', 'Rsqadj', 'LL_ratio','LL_ratio_OLS']
+		txt = ';'.join(['sid','ll', 'CI', 'CI analytical'] + 
+						panel.args.names_v + 
+						['se ' + i for i in  panel.args.names_v] +
+						['st ' + i for i in  gf_head]  + 
+						gf_head +
+						['var_RE', 'var_u', 'converged']) + '\n'
+		exists = os.path.exists(self.data_file)
+		fl = open(self.data_file, 'a')
+		if not exists:
+			fl.write(txt)
+		fl.close()	
 
 
 def get_directions(panel, args):
@@ -247,7 +202,11 @@ def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0
 	comput = computation.Computation(panel, gtol, TOLX, None, nummerical, diag_hess)
 	callbk.callback(quit=False, conv=False, perc=0)
 	res, ll = dfpmax.dfpmax(args,comput, callbk, panel, slave_id)
-	H, G, g, hessin = res['H'], res['G'], res['g'], res['hessin']
+
+	import debug
+	debug.save_reg_data(ll, panel)
+
+	H, G, g = res['H'], res['G'], res['g']
 
 	ll.standardize(panel)
 	res['rsq_st'] = stat.goodness_of_fit(ll,True,panel)
@@ -326,6 +285,7 @@ class Summary:
 
 class Comm:
 	def __init__(self, panel, args, mp, window, exe_tab, console_output, t0):
+		self.current_max = None
 		self.mp = mp
 		self.start_time=t0
 		self.panel = panel
@@ -338,9 +298,7 @@ class Comm:
 		self.channel = comm.get_channel(window,exe_tab,self.panel,console_output)
 		self.res = self.listen()
 
-
 	def listen(self):
-		hasprinted = False
 		while True:
 			t = time.time()
 			count = self.mp.count_alive()
@@ -365,8 +323,7 @@ class Comm:
 		self.print_to_channel(self.msg, self.its, self.incr, self.ll, self.perc , self.task, self.dx_norm, prnt)
 		
 	def print_to_channel(self, msg, its, incr, ll, perc , task, dx_norm, prnt):
-		if not self.channel.output_set:
-			self.channel.set_output_obj(ll, self, dx_norm)
+		self.channel.set_output_obj(ll, self, dx_norm)
 		self.channel.set_progress(perc ,msg ,task=task)
 		self.channel.update(self,its,ll,incr, dx_norm)
 		ev = np.abs(np.linalg.eigvals(self.H))**0.5
@@ -374,9 +331,9 @@ class Comm:
 			det = np.linalg.det(self.H)
 		except:
 			det = 'NA'
-		if self.panel.input.paralell2 and prnt:
-			print(f"sid: {self.node}, its:{its}, LL:{ll.LL}, det:{det}, sum pos ev: {sum(ev>0)}, cond number: {ev[0]/(ev[-1]+(ev[-1]==0))}")
-		a=0	
+		if self.panel.input.paralell2 and prnt and self.f!=self.current_max:
+			print(f"node: {self.node}, its: {self.its},  LL:{self.f}")
+		self.current_max = self.f
 
 
 

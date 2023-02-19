@@ -1,11 +1,12 @@
 /* File : cfunctions.c */
 
 /*Use "cl /LD /O2 /fp:fast ctypes.cpp" to compile for windows */
-/*Linux: gcc -O3 and –march=native */
+/*Linux: gcc -O3 and march=native */
 
 /*#include <cstdio>
 FILE *fp = fopen("coutput.txt","w"); */
 
+#include <cmath>
 
 void inverse(long n, double *x_args, long nx, double *b_args, long nb, 
 				double *a, double *ab) {
@@ -35,22 +36,24 @@ void inverse(long n, double *x_args, long nx, double *b_args, long nb,
 	//fclose(fp);
 }
 	
-extern "C" __declspec(dllexport) int  armas(long *lengths, 
+extern "C" __declspec(dllexport) int  armas(long *parameters, 
 				double *lambda, double *rho, double *gamma, double *psi,
 				double *AMA_1, double *AMA_1AR, 
 				double *GAR_1, double *GAR_1MA, 
-				double *u, double *e, double *lnv
+				double *u, double *e, double *var, double *h
 				) {
 				
-	double sum;
+	double sum, esq;
 	long k,j,i;
 
-    long N = lengths[0];
-	long T = lengths[1];
-    long nlm = lengths[2];
-    long nrh = lengths[3];
-    long ngm = lengths[4];
-    long npsi = lengths[5];
+    long N = parameters[0];
+	long T = parameters[1];
+    long nlm = parameters[2];
+    long nrh = parameters[3];
+    long ngm = parameters[4];
+    long npsi = parameters[5];
+	long egarch = parameters[6];
+	long lost_obs = parameters[7];
 	long rw;
 
 
@@ -69,13 +72,20 @@ extern "C" __declspec(dllexport) int  armas(long *lengths,
 				}
 			e[k + i*N] = sum;
 			//GARCH:
+			if(i>=lost_obs){
+				h[k + i*N] = sum*sum;
+				if(egarch){
+					h[k + i*N] = log(h[k + i*N] + (h[k + i*N]==0)*1e-18);
+				}
+			}
 			sum =0;
 			for(j=0;j<=i;j++){//time dimension, back tracking
-					sum += GAR_1MA[j]*e[k + (i-j)*N]*e[k + (i-j)*N];
-				}
-			lnv[k + i*N] = sum;
+				sum += GAR_1MA[j]*h[k + (i-j)*N];
 			}
+			var[k + i*N] = sum;
 		}
+	}
+
 
     return 0;
 }

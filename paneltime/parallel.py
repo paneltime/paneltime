@@ -17,6 +17,7 @@ import hashlib
 import psutil
 import signal
 import numpy as np
+import __main__
 
 MIN_TIME = 1
 
@@ -31,29 +32,30 @@ class Parallel():
 			self.cpu_count=max_nodes
 		self.callback_active = callback_active
 		n=self.cpu_count
+		self.kill_warned = False
 		self.is_parallel = run_parallel
 		self.layer = layer
 		self.direct = direct #flag to indicate to the host process whether the process should be run in the
 		#directely in the simplest way, without any layers or multiprocessing (for debugging).
-		self.slave_path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
-		self.kill_orphans(fpath)
+		self.kill_orphans()
 		self.dict_file = create_temp_files(self.cpu_count, fpath)
 		self.fpath = makepath(fpath)
-		self.slaves=[Slave(run_parallel, n, self.slave_path) for i in range(n)]
+		self.slaves=[Slave(run_parallel, n) for i in range(n)]
 		self.final_results = {}
 		self.n_tasks = {}
 		self.t = time.time()
-		pids=[]
+		self.pids = []
+		self.master_pid = os.getpid()
 		self.sum_running = {}
 		for i in range(n):
 			self.slaves[i].confirm(i, self.fpath) 
 			pid=str(self.slaves[i].p_id)
 			if int(i/5.0)==i/5.0:
 				pid='\n'+pid
-			pids.append(pid)
+			self.pids.append(pid)
 		pstr="""Multi core processing enabled using %s cores. \n
 Master PID: %s \n
-Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
+Slave PIDs: %s"""  %(n, self.master_pid,', '.join(self.pids))
 		print (pstr)
 
 	def send_dict(self, d):
@@ -101,7 +103,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 		for i in range(self.n_tasks[name]):
 			if (not is_running[i]) and (response[i] is None):
 				r = self.collect(name, i)
-				if not r is None:
+				if not r is None and False:#set to true for debug
 					print(f"collected sid:{i}, conv:{r['conv']}, f:{r['f']}, layer: {self.layer}")
 				response[i] = r
 		remaining_procs = np.arange(self.n_tasks[name])[np.array([i is None for i in response])]
@@ -150,6 +152,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 
 			
 	def quit(self):
+		print('quitting')
 		for i in self.slaves:
 			i.p.stdout.close()
 			i.p.stderr.close()
@@ -157,7 +160,9 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			i.p.kill()
 			i.p.cleanup()
 			
-	def kill_orphans(self, fpath):
+	def kill_orphans(self):
+		if self.layer>0:
+			return
 		for proc in psutil.process_iter():
 			try:
 				self.kill_orphan(proc)
@@ -166,9 +171,16 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 
 					
 	def kill_orphan(self, proc):
-		if proc.name() == 'python.exe' and proc.cmdline()[-1]==self.slave_path:
+		if proc.name() == 'python.exe' and False:#to shut down all python processes for debug, allmost never usefull.
 			os.kill(proc.pid, signal.SIGTERM)
-			print(f"killed pid {proc.pid}")			
+		if proc.name() == 'python.exe' and proc.cmdline()[-1]==(__main__.__file__):
+			os.kill(proc.pid, signal.SIGTERM)
+			if not self.kill_warned:
+				print("Du to the paralle processing, only one instance of a "
+					  "script can run at any time. If you want to run mulitple "
+					  "instances, create multiple scripts.")
+				self.kill_warned = True
+			print(f"killed pid {proc.pid}" )
 
 				
 			
@@ -182,18 +194,19 @@ def makepath(fpath):
 	
 class Slave():
 	"""Creates a slave"""
-	def __init__(self, run_parallel, n, path):
+	def __init__(self, run_parallel, n):
 		"""Starts local worker"""
 		self.n_nodes = n
 		if run_parallel:
-			command = f'"{sys.executable}" -u "{path}"'	
-			self.p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
+			command = f'"{sys.executable}" -u "{path}" "{__main__.__file__}"'	
+			self.p = Popen(command)
 			sys.stderr = self.p.stderr
 			self.t = Transact(self.p.stdout,self.p.stdin)
 			
 		else:
 			qin, qout = Queue(), Queue()
-			self.p = ThreadProcess(parallel_slave.run, (TransactThread(qout, qin),False))
+			self.p = ThreadPopen(parallel_slave.run, (TransactThread(qout, qin),False))
 			self.p.start()
 			self.t = TransactThread(qin, qout)
 
@@ -208,10 +221,12 @@ class Slave():
 	def send(self,msg, obj):
 		"""Sends msg and obj to the slave"""
 		if not self.p.poll() is None:
-			raise RuntimeError('process has ended')
+			raise RuntimeError(f'Subprocess {self.slave_id} has unexpectedly closed')
 		self.t.send((msg, obj))     
 
 	def receive(self, q = None):
+		if not self.p.poll() is None:
+			raise RuntimeError(f'Subprocess {self.slave_id} has unexpectedly closed')
 		answ=self.t.receive()
 		if q is None:
 			return answ
@@ -276,11 +291,18 @@ class Transact():
 		self.f.write(f'{direction}: {self.name}, {self.slave_id}\n{time.time()-self.time}:\n{str(msg)[:30]}\ntime:{time.time()}\n')	
 		self.time = time.time()		
 		
-			
-class ThreadProcess(Thread):
+class Popen(subprocess.Popen):
+	def __init__(self, command):
+		super().__init__(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		self.is_pipe = True
+	
+	
+	
+class ThreadPopen(Thread):
 	"""Starts local worker"""
 	def __init__(self, target, args):
 		super().__init__(target=target, args = args)
+		self.is_pipe = False
 	def kill(self):
 		raise RuntimeError("No kill procedure written yet")
 	def poll(self):

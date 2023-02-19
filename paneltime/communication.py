@@ -59,6 +59,8 @@ class web_output:
 		
 	def set_output_obj(self,ll, comput, dx_norm):
 		"sets the outputobject in the output" 
+		if self.output_set:
+			return		
 		self.output=output.output(ll,self.panel, comput, dx_norm)
 		self.output_set = True
 		
@@ -107,14 +109,28 @@ class console:
 		return True
 		
 	def set_output_obj(self,ll, comput, dx_norm):
+		if self.output_set:
+			return
 		self.output=output.output(ll,self.panel, comput, dx_norm)
 		self.output_set = True
+		self.comput = comput
 
 	def update(self,comput, its,ll,incr, dx_norm):
-		pass
-		#print(ll.LL)
+		self.ll = ll
+		self.incr = incr
+		self.dx_norm = dx_norm
+
 		
 	def print_final(self, msg, fret, conv, t0, xsol, its, node):
+		if self.output_set:
+			self.output.update(self.comput,its, self.ll, 0, self.dx_norm)
+			self.its=its
+			self.reg_table=self.output.reg_table()	
+			tbl,llength=self.reg_table.table(5,'(','CONSOLE',False,
+								   show_direction=False,
+								   show_constraints=False)	
+			print(tbl)
+			return
 		print(msg)
 		print(f"LL={fret}  success={conv}  t={time.time()-t0}  its: {its}   node: {node}")
 		print(xsol)		
@@ -127,6 +143,8 @@ class tk_widget:
 		self.output_set = False
 		
 	def set_output_obj(self,ll, comput, dx_norm):
+		if self.output_set:
+			return		
 		self.tab.set_output_obj(ll,self.panel, comput, dx_norm)
 		self.output = self.tab.output
 		self.output_set = True
