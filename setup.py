@@ -120,7 +120,7 @@ setup(
     #**************************************************************************REMOVED>
     
     package_data={
-        '': ['*.ico','cfunctions/ctypes.dll'],
+        '': ['*.ico','cfunctions/ctypes.dll', 'cfunctions/ctypes_c.dll'],
         },
     include_package_data=True,
     #**************************************************************************<REMOVED
