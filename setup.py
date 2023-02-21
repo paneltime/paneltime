@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.1.16'
+version='1.2.3'
 
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages, Extension
@@ -20,18 +20,6 @@ import time
 import shutil
 import os
 		
-
-def copy_build_files():
-	d = [i for i in os.listdir('./build') if 
-		 os.path.isdir(f'./build/{i}') and i[:3]=='lib']
-	for dr in d:
-		a = [i for i in os.listdir(f'./build/{dr}') if 
-			 not os.path.isdir(f'./build/{dr}/{i}')]
-		for i in a:
-			if os.path.exists(f'./paneltime/cfunctions/{i}'):
-				os.remove(f'./paneltime/cfunctions/{i}')
-			shutil.copy(f'./build/{dr}/{i}', f'./paneltime/cfunctions/{i}')
-
 
 
 try:
@@ -52,20 +40,10 @@ here = path.abspath(path.dirname(__file__))
 # Get the long description from the README file
 with open(path.join(here, 'README.txt'), encoding='utf-8') as f:
 	long_description = f.read()
-try:
-	ext=[]
-	print("Building C-extension")
-	cfunc=Extension('cextension',sources=['paneltime/cfunctions/cextension.cpp'],include_dirs=[np.get_include()])
-	print("Done building C-extension")
-	ext=[cfunc]
-except Exception as e:
-	print(e)
-	print("""Warning: 'cfunctions' library not compiled. This may affect performance. 
-If you are installing on a Windows machine, precompiled versions exist for python 3.5,3.6 and 3.7, so you should be fine""")
-	
+
 setup(
     name='paneltime',
-    ext_modules=ext,
+    
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
@@ -93,15 +71,15 @@ setup(
         'Development Status :: 4 - Beta',
 
         # Indicate who your project is intended for
-        'Intended Audience :: Researchers',
-        'Topic :: Statistical Software :: time series estimation',
+        'Intended Audience :: Science/Research',
+        'Topic :: Scientific/Engineering',
 
         # Pick your license as you wish (should match "license" above)
-        'License :: OSI Approved :: GPL-3.0 License',
+        'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.8',
         ],
 
     # What does your project relate to?
@@ -121,7 +99,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     #**************************************************************************REMOVED>
-    install_requires=['numpy >= 1.11','matplotlib','pymysql', 'pandas'],
+    install_requires=['numpy >= 1.11','pymysql', 'pandas', 'psutil', 'mpmath'],
 	extras_require={'linux':'gcc'},	
     #**************************************************************************<REMOVED
 
@@ -142,11 +120,7 @@ setup(
     #**************************************************************************REMOVED>
     
     package_data={
-        '': ['gui/*', '*.ico','gui/img/*.png',
-		'cextension.cp35-win_amd64.pyd',
-		'cextension.cp36-win_amd64.pyd',
-		'cextension.cpython-35m-x86_64-linux-gnu.so',
-		'cextension.cp37-win_amd64.pyd'],
+        '': ['*.ico','cfunctions/ctypes.dll'],
         },
     include_package_data=True,
     #**************************************************************************<REMOVED
@@ -168,5 +142,3 @@ setup(
         },
 )
 
-print("Copying build files")
-copy_build_files()

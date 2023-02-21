@@ -201,7 +201,7 @@ class Slave():
 			path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
 			command = f'"{sys.executable}" -u "{path}" "{__main__.__file__}"'	
 			self.p = Popen(command)
-			sys.stderr = self.p.stderr
+			#sys.stderr = self.p.stderr
 			self.t = Transact(self.p.stdout,self.p.stdin)
 			
 		else:
@@ -363,9 +363,9 @@ def read(file):
 
 def create_temp_files(cpu_count, fpath):
 	number_of_files = 1
-
+	
+	f = get_file(fpath)
 	try:#deleting old file
-		f = get_file(fpath)
 		folds = eval(read(f))
 		for i in folds:
 			os.remove(i)
@@ -387,10 +387,12 @@ def create_temp_files(cpu_count, fpath):
 
 def get_file(fpath):
 	tdir = tempfile.gettempdir()
-	f = os.path.join(tdir,gen_file_name(fpath))
+	f = os.path.join(tdir,'safdHLKk3223jd')
+	#f = os.path.join(tdir,gen_file_name(fpath))
 	return f
 	
 def gen_file_name(seed=False):
+	#must use a seed that is constant also in an installed environment
 	if not seed==False:
 		f = os.path.join(os.sep.join(__file__.split(os.sep)[:-2]),os.path.join('.git','config'))
 		n = len(seed)

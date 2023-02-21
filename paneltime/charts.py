@@ -6,12 +6,17 @@ import numpy as np
 import stat_functions as stat
 import stat_dist
 import os
-from matplotlib import pyplot  as plt
+try:
+	from matplotlib import pyplot  as plt
+except:
+	plt = None
 
 
 
 class ProcessCharts():
 	def __init__(self,panel):
+		if plt is None:
+			return
 		self.panel=panel
 		self.ll=None	
 		self.subplot=plt.subplots(1,figsize=(4,2.5),dpi=75)

@@ -6,7 +6,10 @@ import sys
 import os
 sys.path.append(__file__.replace("__init__.py",''))
 import time
-import matplotlib
+try:
+	import matplotlib
+except:
+	matplotlib = None
 import parallel
 
 

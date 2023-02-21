@@ -114,7 +114,7 @@ def regression_options():
 	self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
 																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
 
-	self.ARMA_constraint	        = options_item(1.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
+	self.ARMA_constraint	        = options_item(1000.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
 																	None,None,category='ARIMA-GARCH')	
 	self.constraints_engine	        = options_item(True,			'Determines whether to invoke the constraints engine', bool, 'Invoke constraints engine',
 																	[True,False],['Invoke constraints','Do not invoke constraints'],category='Regression')	
@@ -144,9 +144,9 @@ def regression_options():
 													 				[str,type(None)],"Avoid constraint",
 																	descr_for_input_boxes=['Variable not to constraint:'])	
 	
-	self.fixed_random_group_eff		= options_item(2,				'Fixed, random or no group effects', int, 'Group fixed random effect',[0,1,2], 
+	self.fixed_random_group_eff		= options_item(0,				'Fixed, random or no group effects', int, 'Group fixed random effect',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
-	self.fixed_random_time_eff		= options_item(2,				'Fixed, random or no time effects', int, 'Time fixed random effect',[0,1,2], 
+	self.fixed_random_time_eff		= options_item(0,				'Fixed, random or no time effects', int, 'Time fixed random effect',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
 	self.fixed_random_variance_eff	= options_item(0,				'Fixed, random or no group effects for variance', int, 'Variance fixed random effects',[0,1,2], 
 																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
