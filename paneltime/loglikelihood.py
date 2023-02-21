@@ -8,7 +8,7 @@ import os
 import numpy.ctypeslib as npct
 import ctypes as ct
 p = os.path.join(Path(__file__).parent.absolute(),'cfunctions')
-cfunct = npct.load_library('ctypes.dll',p)
+cfunct = npct.load_library('ctypes_c.dll',p)
 
 import numpy as np
 import calculus_ll as cll
