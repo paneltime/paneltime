@@ -3,6 +3,7 @@
 /*Use "cl /LD cfunctions.c" to compile */
 
 //#include <stdio.h>
+#include <cmath>
 
 double min(double a, double b){
     if(a>b){
