@@ -11,36 +11,6 @@ try:
 except:
 	matplotlib = None
 import parallel
-
-
-PARALLEL_LAYER1 = False
-PARALLEL_LAYER2 = True
-CALLBACK_ACTIVE = True
-DIRECT = False
-if DIRECT:
-	PARALLEL_LAYER2 = False
-	
-	
-N_NODES = 10
-
-t0=time.time()
-
-path = os.getcwd().replace('\\', '/')
-subpath = os.path.join(path,'mp').replace('\\', '/')
-
-mp = parallel.Parallel(1, path, PARALLEL_LAYER1, CALLBACK_ACTIVE, DIRECT)
-
-
-mp.exec(["import maximize\n"
-		"import parallel as parallel\n"
-		f"mp = parallel.Parallel({N_NODES},'{subpath}', {PARALLEL_LAYER2}, {CALLBACK_ACTIVE}, {DIRECT}, 1)\n" 
-		"mp.exec('import loglikelihood as logl\\n'\n"
-		"'import maximize', 'init')\n"
-		"outbox['mp'] = mp\n"], 'init')
-
-print(f"parallel: {time.time()-t0}")
-
-
 import pandas as pd
 
 
@@ -53,6 +23,36 @@ import psutil
 import signal
 from threading import Thread
 import traceback
+
+def initiate_parlell(layer1, layer2, direct):
+	
+	global mp, PARALLEL_LAYER2
+	PARALLEL_LAYER1 = False
+	PARALLEL_LAYER2 = True
+	CALLBACK_ACTIVE = True
+	DIRECT = False
+	if DIRECT:
+		PARALLEL_LAYER2 = False
+		
+		
+	N_NODES = 10
+	
+	t0=time.time()
+	
+	path = os.getcwd().replace('\\', '/')
+	subpath = os.path.join(path,'mp').replace('\\', '/')
+	
+	mp = parallel.Parallel(1, path, PARALLEL_LAYER1, CALLBACK_ACTIVE, DIRECT)
+	
+	
+	mp.exec(["import maximize\n"
+			"import parallel as parallel\n"
+			f"mp = parallel.Parallel({N_NODES},'{subpath}', {PARALLEL_LAYER2}, {CALLBACK_ACTIVE}, {DIRECT}, 1)\n" 
+			"mp.exec('import loglikelihood as logl\\n'\n"
+			"'import maximize', 'init')\n"
+			"outbox['mp'] = mp\n"], 'init')
+	
+	print(f"parallel: {time.time()-t0}")
 
 
 def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, console_output=True):
