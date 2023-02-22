@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.2.5'
+version='1.2.6'
 
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages, Extension
