@@ -11,7 +11,7 @@
 
 
 import numpy as np
-import panel
+from paneltime import panel
 import warnings
 import model_parser
 import maximize
