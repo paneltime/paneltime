@@ -173,7 +173,7 @@ Slave PIDs: %s"""  %(n, self.master_pid,', '.join(self.pids))
 	def kill_orphan(self, proc):
 		if proc.name() == 'python.exe' and False:#to shut down all python processes for debug, allmost never usefull.
 			os.kill(proc.pid, signal.SIGTERM)
-		if proc.name() == 'python.exe' and proc.cmdline()[-1]==(__main__.__file__):
+		if proc.name() == 'python.exe' and proc.cmdline()[-1]==(os.path.abspath('')):
 			os.kill(proc.pid, signal.SIGTERM)
 			if not self.kill_warned:
 				print("Du to the paralle processing, only one instance of a "
@@ -199,7 +199,7 @@ class Slave():
 		self.n_nodes = n
 		if run_parallel:
 			path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
-			command = f'"{sys.executable}" -u "{path}" "{__main__.__file__}"'	
+			command = f'"{sys.executable}" -u "{path}" "{os.path.abspath("")}"'	
 			self.p = Popen(command)
 			#sys.stderr = self.p.stderr
 			self.t = Transact(self.p.stdout,self.p.stdin)

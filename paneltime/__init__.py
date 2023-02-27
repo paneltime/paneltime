@@ -24,13 +24,13 @@ import signal
 from threading import Thread
 import traceback
 
-def initiate_parlell(layer1, layer2, direct):
+def initiate_parallel(layer1, layer2, direct):
 	
 	global mp, PARALLEL_LAYER2
-	PARALLEL_LAYER1 = False
-	PARALLEL_LAYER2 = True
+	PARALLEL_LAYER1 = layer1
+	PARALLEL_LAYER2 = layer2
 	CALLBACK_ACTIVE = True
-	DIRECT = False
+	DIRECT = direct
 	if DIRECT:
 		PARALLEL_LAYER2 = False
 		
