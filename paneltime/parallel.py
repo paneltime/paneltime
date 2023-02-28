@@ -3,6 +3,7 @@
 
 import os
 import sys
+from subprocess import Popen
 import subprocess
 import pickle
 import datetime
@@ -194,6 +195,7 @@ def makepath(fpath):
 	os.makedirs(fpath+'/slaves', exist_ok=True)	
 	return fpath
 
+
 	
 class Slave():
 	"""Creates a slave"""
@@ -202,9 +204,8 @@ class Slave():
 		self.n_nodes = n
 		if run_parallel:		
 			path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
-			command = f'"{sys.executable}" -u "{path}" "{id_str()}"'	
-			self.p = Popen(command)
-			#sys.stderr = self.p.stderr
+			command = [sys.executable, "-u",  path, id_str()]
+			self.p = Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			self.t = Transact(self.p.stdout,self.p.stdin)
 			
 		else:
@@ -294,18 +295,11 @@ class Transact():
 		self.f.write(f'{direction}: {self.name}, {self.slave_id}\n{time.time()-self.time}:\n{str(msg)[:30]}\ntime:{time.time()}\n')	
 		self.time = time.time()		
 		
-class Popen(subprocess.Popen):
-	def __init__(self, command):
-		super().__init__(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-		self.is_pipe = True
-	
-	
 	
 class ThreadPopen(Thread):
 	"""Starts local worker"""
 	def __init__(self, target, args):
 		super().__init__(target=target, args = args)
-		self.is_pipe = False
 	def kill(self):
 		raise RuntimeError("No kill procedure written yet")
 	def poll(self):

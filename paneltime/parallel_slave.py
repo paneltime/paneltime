@@ -170,6 +170,7 @@ def execute_task_(d, task):
 
 
 def run(transact, print_to_file = True):
+		
 	if not print_to_file:
 		msg, (s_id, path, n_nodes), fname = handshake(transact, print_to_file)
 		#Wait for instructions:
@@ -182,7 +183,7 @@ def run(transact, print_to_file = True):
 		#Wait for instructions:		
 		fstdout = os.path.join(path,f'slaves/{s_id}.txt')
 		if print_to_file:
-			sys.stdout = open(fstdout,'w',1)	
+			sys.stdout = open(fstdout,'w',1)
 		Slave(transact, s_id, path, print_to_file, n_nodes)
 	except Exception as e:
 		print(f'error was: {e}')
@@ -200,7 +201,7 @@ def handshake(transact, print_to_file):
 	#Handshake:
 	transact.send(os.getpid())
 	path='.'
-	msg, (s_id, path, n_nodes)=transact.receive()
+	msg, (s_id, path, n_nodes)=transact.receive()	
 	transact.set('slave', n_nodes, path, s_id)
 	#error handling
 	fname = os.path.join(path,'slave_errors.txt')	
