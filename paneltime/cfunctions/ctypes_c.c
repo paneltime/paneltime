@@ -1,12 +1,22 @@
 /* File : ctypes_c.c */
 
 /*Use "cl /LD ctypes_c.c" to compile for windows */
-
+/*Use "gcc -shared -o ctypes.so -fPIC ctypes_c.c" to compile for linux*/
 //#include <stdio.h>
-#ifdef linux
+
 #include <cmath>
-#elif _WIN32
-#include <math.h>
+
+
+#if defined(_MSC_VER)
+    //  Microsoft 
+    #define EXPORT __declspec(dllexport)
+#elif defined(__GNUC__)
+    //  GCC
+    #define EXPORT __attribute__((visibility("default")))
+#else
+    //  do nothing and hope for the best?
+    #define EXPORT
+    #pragma warning Unknown dynamic link import/export semantics.
 #endif
 
 double min(double a, double b){
@@ -47,7 +57,7 @@ void inverse(long n, double *x_args, long nx, double *b_args, long nb,
 
 
 
-__declspec(dllexport) int  armas(double *parameters, 
+EXPORT int  armas(double *parameters, 
                                  double *lambda, double *rho, double *gamma, double *psi,
                 double *AMA_1, double *AMA_1AR, 
                 double *GAR_1, double *GAR_1MA, 
