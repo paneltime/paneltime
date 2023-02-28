@@ -23,7 +23,7 @@ MIN_TIME = 1
 
 class Parallel():
 	"""creates the slaves"""
-	def __init__(self, max_nodes, fpath, run_parallel, callback_active, direct, layer = 0):
+	def __init__(self, max_nodes, fpath, run_parallel, callback_active):
 		"""module is a string with the name of the modulel where the
 		functions you are going to run are """
 		if max_nodes is None:
@@ -34,8 +34,6 @@ class Parallel():
 		n=self.cpu_count
 		self.kill_warned = False
 		self.is_parallel = run_parallel
-		self.layer = layer
-		self.direct = direct #flag to indicate to the host process whether the process should be run in the
 		#directely in the simplest way, without any layers or multiprocessing (for debugging).
 		self.kill_orphans()
 		self.dict_file = create_temp_files(self.cpu_count, fpath)
@@ -161,8 +159,6 @@ Slave PIDs: %s"""  %(n, self.master_pid,', '.join(self.pids))
 			i.p.cleanup()
 			
 	def kill_orphans(self):
-		if self.layer>0:
-			return
 		for proc in psutil.process_iter():
 			try:
 				self.kill_orphan(proc)
@@ -171,19 +167,26 @@ Slave PIDs: %s"""  %(n, self.master_pid,', '.join(self.pids))
 
 					
 	def kill_orphan(self, proc):
+
 		if proc.name() == 'python.exe' and False:#to shut down all python processes for debug, allmost never usefull.
 			os.kill(proc.pid, signal.SIGTERM)
-		if proc.name() == 'python.exe' and proc.cmdline()[-1]==(os.path.abspath('')):
+
+		if proc.name() == 'python.exe' and proc.cmdline()[-1]==(id_str()):
 			os.kill(proc.pid, signal.SIGTERM)
 			if not self.kill_warned:
-				print("Du to the paralle processing, only one instance of a "
+				print("Due to the paralle processing, only one instance of a "
 					  "script can run at any time. If you want to run mulitple "
 					  "instances, create multiple scripts.")
 				self.kill_warned = True
 			print(f"killed pid {proc.pid}" )
 
 				
-			
+def id_str():
+	try:
+		return __main__.__file__
+	except:
+		import IPython
+		return id(IPython)	
 			
 def makepath(fpath):
 	fpath=os.path.join(fpath,'mp')
@@ -197,9 +200,9 @@ class Slave():
 	def __init__(self, run_parallel, n):
 		"""Starts local worker"""
 		self.n_nodes = n
-		if run_parallel:
+		if run_parallel:		
 			path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
-			command = f'"{sys.executable}" -u "{path}" "{os.path.abspath("")}"'	
+			command = f'"{sys.executable}" -u "{path}" "{id_str()}"'	
 			self.p = Popen(command)
 			#sys.stderr = self.p.stderr
 			self.t = Transact(self.p.stdout,self.p.stdin)

@@ -122,6 +122,7 @@ class console:
 
 		
 	def print_final(self, msg, fret, conv, t0, xsol, its, node):
+		print(msg)
 		if self.output_set:
 			self.output.update(self.comput,its, self.ll, 0, self.dx_norm)
 			self.its=its
@@ -130,10 +131,9 @@ class console:
 								   show_direction=False,
 								   show_constraints=False)	
 			print(tbl)
-			return
-		print(msg)
-		print(f"LL={fret}  success={conv}  t={time.time()-t0}  its: {its}   node: {node}")
-		print(xsol)		
+		else:
+			print(f"LL={fret}  success={conv}  t={time.time()-t0}  its: {its}   node: {node}")
+			print(xsol)		
 				
 class tk_widget:
 	def __init__(self,window,exe_tab,panel):

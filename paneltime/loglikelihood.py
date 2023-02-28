@@ -9,7 +9,7 @@ import numpy.ctypeslib as npct
 import ctypes as ct
 p = os.path.join(Path(__file__).parent.absolute(),'cfunctions')
 if os.name=='nt':
-	cfunct = npct.load_library('ctypes_c.dll',p)
+	cfunct = npct.load_library('ctypes.dll',p)
 else:
 	cfunct = npct.load_library('ctypes.so',p)
 
@@ -75,30 +75,34 @@ class LL:
 		u = panel.Y-cf.dot(X,self.args.args_d['beta'])
 		u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*incl
 		
-		matrices=self.arma_calc(panel, u_RE)
+		egarch_add = 0.1
+		matrices=self.arma_calc(panel, u_RE, egarch_add)
 		if matrices is None:
 			return None		
 		AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var_ARMA, h=matrices	
 			
 
+		#NOTE: self.h_val itself is set in ctypes.cpp/ctypes.c, and therefore has no effect on the LL. If you change self.h_val below, you need to 
+		#change it in the c-scripts too. self.h_val is included below for later calulcations. 
 		if panel.options.EGARCH.value==0:
 			e_REsq =(e_RE**2+(e_RE==0)*1e-18) 
 			nd =1
 			self.h_val, self.h_e_val, self.h_2e_val = e_RE**2*incl, nd*2*e_RE*incl, nd*2*incl
 			self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 		else:
-			minesq = 1e-100
+			minesq = 1e-20
 			e_REsq =np.maximum(e_RE**2,minesq)
-			nd = e_RE**2<minesq			
-			self.h_val, self.h_e_val, self.h_2e_val = np.log(e_REsq)*incl, nd*2*np.sign(e_RE)/(e_REsq)**0.5, -2*nd*incl/(e_REsq)
+			nd = e_RE**2>minesq		
+			
+			self.h_val, self.h_e_val, self.h_2e_val = np.log(e_REsq+egarch_add)*incl, 2*incl*e_RE/(e_REsq+egarch_add), incl*2/(e_REsq+egarch_add) - incl*2*e_RE**2/(e_REsq+egarch_add)**2
 			self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 		
 		W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
 		
-		
-		#import debug
-		#debug.test_c_armas(u_RE, var_ARMA, e_RE, panel, self)
-		
+		if False:#debug
+			import debug
+			debug.test_c_armas(u_RE, var_ARMA, e_RE, panel, self)
+			print(h[0,:20,0])
 		
 		var = W_omega+var_ARMA
 
@@ -237,8 +241,8 @@ class LL:
 	def h(self,panel,e,z):
 		return h(e, z, panel)
 	
-	def arma_calc(self,panel, u):
-		matrices=set_garch_arch(panel,self.args.args_d, u)
+	def arma_calc(self,panel, u, egarch_add):
+		matrices=set_garch_arch(panel,self.args.args_d, u, egarch_add)
 		if matrices is None:
 			return None		
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, h=matrices
@@ -247,7 +251,7 @@ class LL:
 	
 
 
-def set_garch_arch(panel,args,u):
+def set_garch_arch(panel,args,u, egarch_add):
 	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
 	the diagonal band"""
 	N, T, _ = u.shape
@@ -273,8 +277,7 @@ def set_garch_arch(panel,args,u):
 	gmma = -args['gamma']
 	parameters = np.array(( N , T , 
 							len(lmbda), len(rho), len(gmma), len(psi), 
-							panel.options.EGARCH.value, panel.tot_lost_obs), 
-							dtype=int)
+							panel.options.EGARCH.value, panel.tot_lost_obs, egarch_add))
 
 	cfunct.armas(parameters.ctypes.data_as(CIPT), 
 						  lmbda.ctypes.data_as(CDPT), rho.ctypes.data_as(CDPT),

@@ -1,9 +1,13 @@
-/* File : cfunctions.c */
+/* File : ctypes_c.c */
 
-/*Use "cl /LD cfunctions.c" to compile */
+/*Use "cl /LD ctypes_c.c" to compile for windows */
 
 //#include <stdio.h>
+#ifdef linux
 #include <cmath>
+#elif _WIN32
+#include <math.h>
+#endif
 
 double min(double a, double b){
     if(a>b){
@@ -43,7 +47,7 @@ void inverse(long n, double *x_args, long nx, double *b_args, long nb,
 
 
 
-__declspec(dllexport) int  armas(long *parameters, 
+__declspec(dllexport) int  armas(double *parameters, 
                                  double *lambda, double *rho, double *gamma, double *psi,
                 double *AMA_1, double *AMA_1AR, 
                 double *GAR_1, double *GAR_1MA, 
@@ -53,14 +57,15 @@ __declspec(dllexport) int  armas(long *parameters,
     double sum, esq;
     long k,j,i;
 
-    long N = parameters[0];
-	long T = parameters[1];
-    long nlm = parameters[2];
-    long nrh = parameters[3];
-    long ngm = parameters[4];
-    long npsi = parameters[5];
-	long egarch = parameters[6];
-	long lost_obs = parameters[7];
+    long N = (int) parameters[0];
+	long T = (int) parameters[1];
+    long nlm = (int) parameters[2];
+    long nrh = (int) parameters[3];
+    long ngm = (int) parameters[4];
+    long npsi = (int) parameters[5];
+	long egarch = (int) parameters[6];
+	long lost_obs = (int) parameters[7];
+	double egarch_add = parameters[8];
 	long rw;
 
 
@@ -87,6 +92,7 @@ __declspec(dllexport) int  armas(long *parameters,
 			if(i>=lost_obs){
 				h[k + i*N] = sum*sum;
 				if(egarch){
+					h[k + i*N] += egarch_add;
 					h[k + i*N] = log(h[k + i*N] + (h[k + i*N]==0)*1e-18);
 				}
 			}

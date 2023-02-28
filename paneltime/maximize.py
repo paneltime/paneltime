@@ -20,38 +20,21 @@ GTOL = 1e-5
 
 TEST_ITER = 30
 
-def maximize_single(panel, args):#for debugging
-	a = get_directions(panel, args)
-	t = time.time()
-	if panel.options.arguments.value is None:
-		args = a[8]
-	else:
-		args = args.args_v
-	d = maximize_node(panel,args,0.001, diag_hess=True)
-	coef_se, coef_se_robust = output.sandwich(comm_single(d, panel),100)
-	print(f"f:{d['f']}, its: {d['its']}, t:{time.time()-t}")
-	print(d['x'])
-	return d
 
-class comm_single:
-	def __init__(self, d, panel):
-		self.panel = panel
-		self.constr = d['constr']
-		self.H = d['H']
-		self.g = d['g']
-		self.G = d['G']
 
-def maximize(panel, args, inbox, outbox, mp, t0):
+def maximize(panel, args, mp, t0, comm):
 
 	task_name = 'maximization'
-	callbk = callback.CallBack(inbox, outbox)
 	
 	a = get_directions(panel, args)
 	#a = a[6:8]
-	if not mp.is_parallel:
-		a = [a[5]]#for debug
-	tasks = []
+	if not mp.is_parallel or panel.args.initial_user_defined:
+		node = 5
+		d = maximize_node(panel, args.args_v, 0.001, {}, {}, 0, False, True)
+		d['node'] = node
+		return d
 	
+	tasks = []
 	for i in range(len(a)):
 		tasks.append(
 			f'maximize.maximize_node(panel, {list(a[i])}, 0.001, inbox, outbox, slave_id, False, True)\n'
@@ -72,7 +55,7 @@ def maximize(panel, args, inbox, outbox, mp, t0):
 			break
 		if not bestix is None:
 			cb[bestix]['node'] = bestix
-			callbk.callback(**cb[bestix])
+			comm.get(cb[bestix])
 		
 	cb_max = mp.collect(task_name, maxidx)
 	cb_max['node'] = maxidx
@@ -289,24 +272,9 @@ class Comm:
 		self.mp = mp
 		self.start_time=t0
 		self.panel = panel
-		self.mp.send_dict({'args':args, 't0':t0})
-		a=0
-		
-		self.mp.exec(
-			[f"maximize.maximize(panel, args, inbox, outbox, mp, t0)"], 'maximize')
-
 		self.channel = comm.get_channel(window,exe_tab,self.panel,console_output)
-		self.res = self.listen()
-
-	def listen(self):
-		while True:
-			t = time.time()
-			count = self.mp.count_alive()
-			if not count:
-				break
-			d = self.mp.callback('maximize')[0]
-			self.get(d,True)
-		d = self.mp.collect('maximize',0)
+		d = maximize(panel, args, mp, t0, self)
+		
 		self.get(d, False)
 
 
@@ -331,7 +299,7 @@ class Comm:
 			det = np.linalg.det(self.H)
 		except:
 			det = 'NA'
-		if self.panel.input.paralell2 and prnt and self.f!=self.current_max:
+		if prnt and self.f!=self.current_max:
 			print(f"node: {self.node}, its: {self.its},  LL:{self.f}")
 		self.current_max = self.f
 

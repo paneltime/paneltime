@@ -114,7 +114,7 @@ class Computation:
 			elif abs(totpgain)<TOTP_TOL:
 				return x, f, hessin, Ha, g, 2, se, det
 			
-		#print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
+		print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
 
 		if its>7 or abs(g_norm)<10*self.gtol:
 			self.init_arma = 0
@@ -125,9 +125,7 @@ class Computation:
 		self.avg_incr = incr + self.avg_incr*0.7
 		self.ev_constr = False#self.CI>1000
 		
-		err = np.max(np.abs(dx)) < TOLX
-		
-
+		err = np.max(np.abs(dx)) < 100*TOLX
 			
 		calchess = err or ((self.CI>10000) and (self.num_hess_count>10) and abs(g_norm)>100*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
 	

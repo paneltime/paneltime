@@ -24,35 +24,23 @@ import signal
 from threading import Thread
 import traceback
 
-def initiate_parallel(layer1, layer2, direct):
-	
-	global mp, PARALLEL_LAYER2
-	PARALLEL_LAYER1 = layer1
-	PARALLEL_LAYER2 = layer2
-	CALLBACK_ACTIVE = True
-	DIRECT = direct
-	if DIRECT:
-		PARALLEL_LAYER2 = False
-		
-		
-	N_NODES = 10
-	
-	t0=time.time()
-	
-	path = os.getcwd().replace('\\', '/')
-	subpath = os.path.join(path,'mp').replace('\\', '/')
-	
-	mp = parallel.Parallel(1, path, PARALLEL_LAYER1, CALLBACK_ACTIVE, DIRECT)
+PARALLEL = True
+
+CALLBACK_ACTIVE = True
+
 	
 	
-	mp.exec(["import maximize\n"
-			"import parallel as parallel\n"
-			f"mp = parallel.Parallel({N_NODES},'{subpath}', {PARALLEL_LAYER2}, {CALLBACK_ACTIVE}, {DIRECT}, 1)\n" 
-			"mp.exec('import loglikelihood as logl\\n'\n"
-			"'import maximize', 'init')\n"
-			"outbox['mp'] = mp\n"], 'init')
-	
-	print(f"parallel: {time.time()-t0}")
+N_NODES = 10
+
+t0=time.time()
+
+path = os.getcwd().replace('\\', '/')
+
+mp = parallel.Parallel(N_NODES, path, PARALLEL, CALLBACK_ACTIVE)
+
+mp.exec("import maximize\n", 'init')
+
+print(f"parallel: {time.time()-t0}")
 
 
 def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, console_output=True):
@@ -69,42 +57,10 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
 	
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab')
-	try:
-		r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,instruments, console_output, mp, PARALLEL_LAYER2)
-	except KeyboardInterrupt as e:
-		print('interrrupt')
-		kill_orpahns()
-	except Exception as e:
-		print('exept')
-		traceback.print_exc(file=sys.stdout)
-		print('except2')
-		kill_orpahns()
-		raise e
+
+	r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,instruments, console_output, mp)
+
 	return r
-
-
-def kill_orpahns():
-	try:
-		pids = mp.callback('init')[0]['mp'].pids
-	except:
-		pids = []
-	pids = [int(i) for i in pids]
-	kill(pids)
-	kill([int(mp.pids[0])])
-	kill([os.getpid()])
-	
-	
-
-def kill(pids):
-	for proc in psutil.process_iter():
-		pid = proc.pid
-		if pid in pids:
-			try:
-				os.kill(proc.pid, signal.SIGTERM)
-				print(f"killed pid {pid}")
-			except psutil.NoSuchProcess:
-				pass
-
 
 def load_json(fname):
 

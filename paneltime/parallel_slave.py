@@ -162,7 +162,6 @@ def execute_task(d, task, queue,name):#None blocking
 	
 def execute_task_(d, task):
 	try:#If a returned value is desired, the task must be a function call
-		print(task)
 		return eval(task, globals(), d)
 	except SyntaxError as e:#else, it is assumed that the script only generates local variables for later use
 		exec(task, globals(), d)
