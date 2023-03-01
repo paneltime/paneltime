@@ -1,6 +1,12 @@
 
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+callback =  importfile(os.path.join(path,'callback.py'))
+
+
 import sys
 import os
 import parallel

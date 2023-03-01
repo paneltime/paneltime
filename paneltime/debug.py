@@ -2,11 +2,17 @@
 # -*- coding: utf-8 -*-
 
 #used for debugging
+
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+logl =  importfile(os.path.join(path,'loglikelihood.py'))
+cf =  importfile(os.path.join(path,'calculus_functions.py'))
+
+
 import numpy as np
-import calculus_functions as cf
 import time
 import os
-import loglikelihood as lgl
 
 
 

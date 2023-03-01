@@ -2,12 +2,17 @@
 # -*- coding: utf-8 -*-
 
 #This module contains classes used in the regression
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+
+logl =  importfile(os.path.join(path,'loglikelihood.py'))
+cf =  importfile(os.path.join(path,'calculus_functions.py'))
+arguments =  importfile(os.path.join(path,'arguments.py'))
 
 import numpy as np
 import time
-import calculus_functions as cf
-import loglikelihood as logl
-import arguments
+
 
 
 min_AC=0.000001

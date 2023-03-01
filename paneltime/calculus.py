@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+cf =  importfile(os.path.join(path,'calculus_functions.py'))
+cll =  importfile(os.path.join(path,'calculus_ll.py'))
+
 import calculus_functions as cf
 import calculus_ll as cll
 import numpy as np

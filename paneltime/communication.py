@@ -10,7 +10,11 @@ try:
 except:
 	IPython = None
 
-import output
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+output =  importfile(os.path.join(path,'output.py'))
+
 import os
 import numpy as np
 import time

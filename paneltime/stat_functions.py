@@ -2,6 +2,13 @@
 # -*- coding: utf-8 -*-
 
 #This module contains statistical procedures
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+random_effects =  importfile(os.path.join(path,'random_effects.py'))
+cf =  importfile(os.path.join(path,'calculus_functions.py'))
+stat_dist =  importfile(os.path.join(path,'stat_dist.py'))
+
 
 import calculus_functions as cf
 import numpy as np

@@ -8,14 +8,17 @@
 
 #capture singular matrix with test_small.csv
 #make sure error in h function triggers an exeption
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+panel =  importfile(os.path.join(path,'panel.py'))
+model_parser =  importfile(os.path.join(path,'model_parser.py'))
+maximize =  importfile(os.path.join(path,'maximize.py'))
+
+
 import sys
-
 import numpy as np
-import pt_panel as panel
-
 import warnings
-import model_parser
-import maximize
 import os
 import time
 

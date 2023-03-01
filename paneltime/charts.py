@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+stat =  importfile(os.path.join(path,'stat_functions.py'))
+stat_dist =  importfile(os.path.join(path,'stat_dist.py'))
 
 import numpy as np
-import stat_functions as stat
-import stat_dist
 import os
 try:
 	from matplotlib import pyplot  as plt

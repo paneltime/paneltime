@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+parallel_slave =  importfile(os.path.join(path,'parallel_slave.py'))
+
 import os
 import sys
 from subprocess import Popen
@@ -13,7 +18,6 @@ import time
 import tempfile
 import random
 import string
-import parallel_slave
 import hashlib
 import psutil
 import signal

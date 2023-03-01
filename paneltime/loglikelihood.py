@@ -2,6 +2,17 @@
 # -*- coding: utf-8 -*-
 
 #contains the log likelihood object
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+stat_functions =  importfile(os.path.join(path,'stat_functions.py'))
+re =  importfile(os.path.join(path,'random_effects.py'))
+cf =  importfile(os.path.join(path,'calculus_functions.py'))
+cll =  importfile(os.path.join(path,'calculus_ll.py'))
+stat_dist =  importfile(os.path.join(path,'stat_dist.py'))
+model_parser =  importfile(os.path.join(path,'model_parser.py'))
+
+
 import sys
 from pathlib import Path
 import os
@@ -14,14 +25,9 @@ else:
 	cfunct = npct.load_library('ctypes.so',p)
 
 import numpy as np
-import calculus_ll as cll
-import calculus_functions as cf
-import random_effects as re
 import traceback
-import model_parser
 import time
-import stat_dist
-import stat_functions
+
 
 
 CDPT = ct.POINTER(ct.c_double) 

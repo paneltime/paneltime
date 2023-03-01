@@ -1,5 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+stat =  importfile(os.path.join(path,'stat_functions.py'))
+stat_dist =  importfile(os.path.join(path,'stat_dist.py'))
+calculus =  importfile(os.path.join(path,'calculus.py'))
+constraints =  importfile(os.path.join(path,'constraints.py'))
+
+
 import calculus
 import calculus_ll as cll
 import numpy as np

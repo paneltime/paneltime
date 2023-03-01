@@ -1,8 +1,9 @@
-import numpy as np
-import loglikelihood as logl
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+logl =  importfile(os.path.join(path,'loglikelihood.py'))
 
-#remove:
-import pickle
+import numpy as np
 
 STPMX=100.0 
 import time
@@ -100,11 +101,7 @@ class LineSearch:
 				
 			self.msg = f"No function increase after {max_iter} iterations"
 
-	def func(self,x):
-		if False:#for debug
-			f = open('ctest.dump','wb')
-			pickle.dump((x, self.panel, self.comput.constr), f)
-			f.close()		
+	def func(self,x):	
 		ll = logl.LL(x, self.panel, self.comput.constr)
 		if ll is None:
 			return None, None

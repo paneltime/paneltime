@@ -2,12 +2,16 @@
 # -*- coding: utf-8 -*-
 
 #This module contains the argument class for the panel object
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+stat =  importfile(os.path.join(path,'stat_functions.py'))
+logl =  importfile(os.path.join(path,'loglikelihood.py'))
+re =  importfile(os.path.join(path,'random_effects.py'))
+cf =  importfile(os.path.join(path,'calculus_functions.py'))
 
-import stat_functions as stat
 import numpy as np
-import loglikelihood as logl
-import random_effects as re
-import calculus_functions as cf
+
 
 
 

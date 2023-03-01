@@ -1,8 +1,13 @@
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+linesearch =  importfile(os.path.join(path,'linesearch.py'))
+callback =  importfile(os.path.join(path,'callback.py'))
+direction =  importfile(os.path.join(path,'direction.py'))
+
 import numpy as np
 import time
-import direction
-import linesearch
-import callback
+
 #import stat_functions as stat
 
 

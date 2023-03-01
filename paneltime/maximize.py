@@ -1,15 +1,19 @@
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+stat =  importfile(os.path.join(path,'stat_functions.py'))
+logl =  importfile(os.path.join(path,'loglikelihood.py'))
+output =  importfile(os.path.join(path,'output.py'))
+callback =  importfile(os.path.join(path,'callback.py'))
+computation =  importfile(os.path.join(path,'computation.py'))
+dfpmax =  importfile(os.path.join(path,'dfpmax.py'))
+comm =  importfile(os.path.join(path,'communication.py'))
+
+
 import numpy as np
 import time
-import loglikelihood as logl
-import computation
 import itertools
-import callback
-import dfpmax
-import output
 from queue import Queue
-import communication as comm
-import output
-import stat_functions as stat
 import os
 
 EPS=3.0e-16 
@@ -185,9 +189,8 @@ def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0
 	comput = computation.Computation(panel, gtol, TOLX, None, nummerical, diag_hess)
 	callbk.callback(quit=False, conv=False, perc=0)
 	res, ll = dfpmax.dfpmax(args,comput, callbk, panel, slave_id)
-
-	import debug
-	debug.save_reg_data(ll, panel)
+	#debug =  importfile(os.path.join(path,'debug.py'))
+	#debug.save_reg_data(ll, panel)	
 
 	H, G, g = res['H'], res['G'], res['g']
 

@@ -1,9 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+stat =  importfile(os.path.join(path,'stat_functions.py'))
+cf =  importfile(os.path.join(path,'calculus_functions.py'))
+
+
 import numpy as np
-import calculus_functions as cf
-import stat_functions as stat
+
 
 
 class Constraint:

@@ -4,10 +4,6 @@
 import numpy as np
 import time
 
-try:
-	import cfunctions as c
-except:
-	c=None
 
 
 def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=False):

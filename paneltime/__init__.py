@@ -1,26 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from pydoc import importfile
+import os
+path = os.path.dirname(__file__)
+parallel = importfile(os.path.join(path,'parallel.py'))
+output = importfile(os.path.join(path,'output.py'))
+main = importfile(os.path.join(path,'main.py'))
+opt_module = importfile(os.path.join(path,'options.py'))
+loaddata = importfile(os.path.join(path,'loaddata.py'))
 
 import numpy as np
 import sys
-import os
-sys.path.append(__file__.replace("__init__.py",''))
 import time
 try:
 	import matplotlib
 except:
 	matplotlib = None
-import parallel
 import pandas as pd
-import output
-import main
-import options as opt_module
+
 import inspect
-import loaddata
-import psutil
-import signal
-from threading import Thread
-import traceback
+
 
 mp = None
 
