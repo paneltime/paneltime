@@ -28,7 +28,7 @@ def maximize(panel, args, mp, t0, comm):
 	
 	a = get_directions(panel, args)
 	#a = a[6:8]
-	if not mp.is_parallel or panel.args.initial_user_defined:
+	if mp is None or panel.args.initial_user_defined:
 		node = 5
 		d = maximize_node(panel, args.args_v, 0.001, {}, {}, 0, False, True)
 		d['node'] = node

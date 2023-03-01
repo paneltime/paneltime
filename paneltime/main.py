@@ -53,14 +53,15 @@ class input_class:
 def doit(datainput,options,mp,pqdkm,window,exe_tab, console_output):
 	print ("Creating panel")
 	pnl=panel.panel(datainput,options,pqdkm)			
-
-	mp.send_dict({'panel':pnl})
-	mp.collect('init')
-	s = mp.dict_file.replace('\\','/')
-
-	mp.exec("panel.init()\n", 'panelinit')
-	mp.collect('panelinit')
+	
+	if not mp is None:
+		mp.send_dict({'panel':pnl})
+		mp.collect('init')
+		s = mp.dict_file.replace('\\','/')
+		mp.exec("panel.init()\n", 'panelinit')
 	pnl.init()
+	if not mp is None:
+		mp.collect('panelinit')
 	
 	if not options.parallel.value:
 		mp = None

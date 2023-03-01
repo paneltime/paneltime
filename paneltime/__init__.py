@@ -12,8 +12,6 @@ except:
 	matplotlib = None
 import parallel
 import pandas as pd
-
-
 import output
 import main
 import options as opt_module
@@ -24,23 +22,25 @@ import signal
 from threading import Thread
 import traceback
 
-PARALLEL = True
+mp = None
 
 CALLBACK_ACTIVE = True
 
 	
+def prepare_parallel():
+	global mp
+	N_NODES = 10
+	PARALLEL = True #change to false for debugging
 	
-N_NODES = 10
-
-t0=time.time()
-
-path = os.getcwd().replace('\\', '/')
-
-mp = parallel.Parallel(N_NODES, path, PARALLEL, CALLBACK_ACTIVE)
-
-mp.exec("import maximize\n", 'init')
-
-print(f"parallel: {time.time()-t0}")
+	t0=time.time()
+	
+	path = os.getcwd().replace('\\', '/')
+	
+	mp = parallel.Parallel(N_NODES, path, PARALLEL, CALLBACK_ACTIVE)
+	
+	mp.exec("import maximize\n", 'init')
+	
+	print(f"parallel: {time.time()-t0}")
 
 
 def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, console_output=True):
