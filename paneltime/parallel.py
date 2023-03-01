@@ -187,7 +187,7 @@ def id_str():
 		return __main__.__file__
 	except:
 		import IPython
-		return id(IPython)	
+		return str(id(IPython))
 			
 def makepath(fpath):
 	fpath=os.path.join(fpath,'mp')

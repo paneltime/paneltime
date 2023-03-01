@@ -8,10 +8,11 @@
 
 #capture singular matrix with test_small.csv
 #make sure error in h function triggers an exeption
-
+import sys
 
 import numpy as np
-import panel
+import pt_panel as panel
+
 import warnings
 import model_parser
 import maximize
