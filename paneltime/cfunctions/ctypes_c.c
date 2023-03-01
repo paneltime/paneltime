@@ -12,7 +12,7 @@
     #define EXPORT __declspec(dllexport)
 #elif defined(__GNUC__)
     //  GCC
-    #define EXPORT __attribute__((visibility("default")))
+    #define EXPORT __attribute__((visibility("visible")))
 #else
     //  do nothing and hope for the best?
     #define EXPORT

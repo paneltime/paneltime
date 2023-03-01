@@ -20,6 +20,12 @@ FILE *fp = fopen("coutput.txt","w"); */
     #pragma warning Unknown dynamic link import/export semantics.
 #endif
 
+#if MY_LIB_COMPILING
+#   define MY_LIB_PUBLIC EXPORT
+#else
+#   define MY_LIB_PUBLIC IMPORT
+#endif
+
 void inverse(long n, double *x_args, long nx, double *b_args, long nb, 
 				double *a, double *ab) {
 	
