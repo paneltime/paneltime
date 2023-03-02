@@ -1,29 +1,22 @@
 /* File : ctypes.cpp */
 
 /*Use "cl /LD /O2 /fp:fast ctypes.cpp" to compile for windows */
-/*Linux: gcc -O3 and march=native */
-
+/*Linux suggestion (check): gcc -O3 and march=native */
+/*Linux: g++ -shared -o ctypes.so -fPIC ctypes.cpp*/
 /*#include <cstdio>
 FILE *fp = fopen("coutput.txt","w"); */
 
 #include <cmath>
 
-#if defined(_MSC_VER)
-    //  Microsoft 
-    #define EXPORT extern "C" __declspec(dllexport)
-#elif defined(__GNUC__)
-    //  GCC
-    #define EXPORT __attribute__((visibility("default")))
-#else
-    //  do nothing and hope for the best?
-    #define EXPORT
-    #pragma warning Unknown dynamic link import/export semantics.
-#endif
 
-#if MY_LIB_COMPILING
-#   define MY_LIB_PUBLIC EXPORT
+#if defined(_MSC_VER)
+	//  Microsoft 
+	#define EXPORT extern "C" __declspec(dllexport)
+#elif defined(__GNUC__)
+	//  GCC
+	#define EXPORT extern "C" 
 #else
-#   define MY_LIB_PUBLIC IMPORT
+	#define EXPORT extern "C" 
 #endif
 
 void inverse(long n, double *x_args, long nx, double *b_args, long nb, 

@@ -23,7 +23,6 @@ if os.name=='nt':
 	cfunct = npct.load_library('ctypes.dll',p)
 else:
 	cfunct = npct.load_library('ctypes.so',p)
-
 import numpy as np
 import traceback
 import time
@@ -59,7 +58,7 @@ class LL:
 		self.args=panel.args.create_args(args,panel,constraints)
 		self.h_err=""
 		self.LL=None
-		#self.LL=self.LL_calc(panel)
+		self.LL=self.LL_calc(panel)
 		try:
 			self.LL=self.LL_calc(panel)
 			if np.isnan(self.LL):
