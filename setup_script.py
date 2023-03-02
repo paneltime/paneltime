@@ -12,9 +12,9 @@ def main():
 	
 def rm(fldr):
 	try:
-		shutil.rmtree('dist')
-	except:
-		pass
+		shutil.rmtree(fldr)
+	except Exception as e:
+		print(e)
 
 
 main()

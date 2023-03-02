@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.2.7'
+version='1.2.9'
 
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages, Extension
@@ -120,7 +120,7 @@ setup(
     #**************************************************************************REMOVED>
     
     package_data={
-        '': ['*.ico','cfunctions/ctypes.dll', 'cfunctions/ctypes_c.dll'],
+        '': ['*.ico','cfunctions/ctypes.dll', 'cfunctions/ctypes.so'],
         },
     include_package_data=True,
     #**************************************************************************<REMOVED
