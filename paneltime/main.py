@@ -8,12 +8,10 @@
 
 #capture singular matrix with test_small.csv
 #make sure error in h function triggers an exeption
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-panel =  importfile(os.path.join(path,'panel.py'))
-model_parser =  importfile(os.path.join(path,'model_parser.py'))
-maximize =  importfile(os.path.join(path,'maximize.py'))
+
+from .processing import panel
+from .processing import model_parser
+from . import maximization
 
 
 import sys
@@ -68,7 +66,7 @@ def doit(datainput,options,mp,pqdkm,window,exe_tab, console_output):
 
   if not options.parallel.value:
     mp = None
-  summary = maximize.run(pnl, pnl.args.args_init, mp, window, exe_tab, console_output)
+  summary = maximization.run(pnl, pnl.args.args_init, mp, window, exe_tab, console_output)
 
   return summary
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-parallel_slave =  importfile(os.path.join(path,'parallel_slave.py'))
+try:
+  from . import slave
+except:
+  import slave
 
 import os
 import sys
@@ -23,12 +23,16 @@ import psutil
 import signal
 import numpy as np
 import __main__
+import tempfile
+
+#path = os.getcwd().replace('\\', '/') #uncomment to save to active folder
+TMP_PATH = tempfile.gettempdir()
 
 MIN_TIME = 1
 
 class Parallel():
   """creates the slaves"""
-  def __init__(self, max_nodes, fpath, run_parallel, callback_active):
+  def __init__(self, max_nodes, run_parallel, callback_active):
     """module is a string with the name of the modulel where the
     functions you are going to run are """
     if max_nodes is None:
@@ -41,8 +45,7 @@ class Parallel():
     self.is_parallel = run_parallel
     #directely in the simplest way, without any layers or multiprocessing (for debugging).
     self.kill_orphans()
-    self.dict_file = create_temp_files(self.cpu_count, fpath)
-    self.fpath = makepath(fpath)
+    self.dict_file = create_temp_files(self.cpu_count)
     self.slaves=[Slave(run_parallel, n) for i in range(n)]
     self.final_results = {}
     self.n_tasks = {}
@@ -51,7 +54,7 @@ class Parallel():
     self.master_pid = os.getpid()
     self.sum_running = {}
     for i in range(n):
-      self.slaves[i].confirm(i, self.fpath) 
+      self.slaves[i].confirm(i) 
       pid=str(self.slaves[i].p_id)
       if int(i/5.0)==i/5.0:
         pid='\n'+pid
@@ -193,8 +196,8 @@ def id_str():
     import IPython
     return str(id(IPython))
 
-def makepath(fpath):
-  fpath=os.path.join(fpath,'mp')
+def makepath():
+  fpath=os.path.join(TMP_PATH,'mp')
   os.makedirs(fpath, exist_ok=True)
   os.makedirs(fpath+'/slaves', exist_ok=True)	
   return fpath
@@ -207,24 +210,24 @@ class Slave():
     """Starts local worker"""
     self.n_nodes = n
     if run_parallel:		
-      path = os.path.join(os.path.dirname(__file__), "parallel_node.py")
+      path = os.path.join(os.path.dirname(__file__),"init_node.py")
       command = [sys.executable, "-u",  path, id_str()]
       self.p = Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
       self.t = Transact(self.p.stdout,self.p.stdin)
+      a=0
 
     else:
       qin, qout = Queue(), Queue()
-      self.p = ThreadPopen(parallel_slave.run, (TransactThread(qout, qin),False))
+      self.p = ThreadPopen(slave.run, (TransactThread(qout, qin),False))
       self.p.start()
       self.t = TransactThread(qin, qout)
 
 
-  def confirm(self,slave_id, path):
-    self.t.set(f'master {self.n_nodes}', self.n_nodes, path, slave_id)
+  def confirm(self,slave_id):
+    self.t.set(f'master {self.n_nodes}', self.n_nodes, self.t.fpath, slave_id)
     self.slave_id=slave_id
     self.p_id = self.receive()
-    self.send('init_transact', (slave_id, path, self.n_nodes))
-    pass
+    self.send('init_transact', (slave_id, self.t.fpath, self.n_nodes))
 
   def send(self,msg, obj):
     """Sends msg and obj to the slave"""
@@ -253,6 +256,7 @@ class Transact():
     self.slave_id = None
     self.time = time.time()
     self.f = None
+    self.fpath = makepath()
 
   def set(self,name, n_nodes, path, slave_id):
     self.name = name
@@ -262,8 +266,9 @@ class Transact():
     path = os.path.join(path,'debug')
     if not os.path.exists(path):
       os.mkdir(path)
-    path = os.path.join(path, f'{self.name}_{self.slave_id}_{n_nodes}.txt')
-    self.f = open(path, 'w',1)		
+    if False:#set ot True for debug
+      path = os.path.join(path, f'{self.name}_{self.slave_id}_{n_nodes}.txt')
+      self.f = open(path, 'w',1)		
 
   def send(self,msg):
     self.debug_output('send',msg)
@@ -285,15 +290,14 @@ class Transact():
     except EOFError as e:
       if e.args[0]=='Ran out of input':
         raise RuntimeError(
-                                  f"An error in {self.name} occured in sub-process {self.slave_id}." 
-                                        f"Check the output in 'slave_errors.txt' in your working directory or "
-                                        f"run without multiprocessing\n {datetime.datetime.now()}"
+                          f"An error in {self.name} occured in sub-process {self.slave_id}.\n" 
+                                f"Check the output in 'slave_errors.txt' in {self.fpath}\n"
+                                f"You may try to run without multiprocessing\n {datetime.datetime.now()}"
                                 )
       else:
         raise RuntimeError('EOFError:'+e.args[0])
 
   def debug_output(self, direction,msg):
-    return
     if self.f is None:
       return
     self.f.write(f'{direction}: {self.name}, {self.slave_id}\n{time.time()-self.time}:\n{str(msg)[:30]}\ntime:{time.time()}\n')	
@@ -320,7 +324,8 @@ class TransactThread(Transact):
     self.name = None
     self.slave_id = None
     self.time = time.time()
-    self.f = None		
+    self.f = None	
+    self.fpath = makepath()
 
   def set(self,name, n_nodes, path, slave_id):
     self.name = name
@@ -362,10 +367,10 @@ def read(file):
   f.close()
   return s
 
-def create_temp_files(cpu_count, fpath):
+def create_temp_files(cpu_count):
   number_of_files = 1
 
-  f = get_file(fpath)
+  f = get_file(TMP_PATH)
   try:#deleting old file
     folds = eval(read(f))
     for i in folds:

@@ -3,12 +3,8 @@
 
 #used for debugging
 
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-logl =  importfile(os.path.join(path,'loglikelihood.py'))
-cf =  importfile(os.path.join(path,'calculus_functions.py'))
 
+from . import functions as fu
 
 import numpy as np
 import time
@@ -106,14 +102,14 @@ def LL_calc(self,panel):
   AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
   (N,T,k)=X.shape
   #Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
-  u = panel.Y-cf.dot(X,self.args.args_d['beta'])
-  e = cf.dot(AMA_1AR,u)
+  u = panel.Y-fu.dot(X,self.args.args_d['beta'])
+  e = fu.dot(AMA_1AR,u)
   e_RE = (e+self.re_obj_i.RE(e, panel)+self.re_obj_t.RE(e, panel))*panel.included[3]
 
   e_REsq =(e_RE**2+(e_RE==0)*1e-18) 
   grp = self.variance_RE(panel,e_REsq)#experimental
 
-  W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
+  W_omega = fu.dot(panel.W_a, self.args.args_d['omega'])
 
   lnv_ARMA = self.garch(panel, GAR_1MA, e_RE)
 

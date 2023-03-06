@@ -2,13 +2,10 @@
 # -*- coding: utf-8 -*-
 
 #This module contains the argument class for the panel object
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-stat =  importfile(os.path.join(path,'stat_functions.py'))
-logl =  importfile(os.path.join(path,'loglikelihood.py'))
-re =  importfile(os.path.join(path,'random_effects.py'))
-cf =  importfile(os.path.join(path,'calculus_functions.py'))
+from ..output import stat_functions as stat
+from .. import likelihood as logl
+from .. import random_effects as re
+from .. import functions as fu
 
 import numpy as np
 
@@ -328,7 +325,7 @@ def set_GARCH(panel,initargs,u,m):
     e=u
   else:
     AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
-    e = cf.dot(AMA_1AR,u)*panel.included[3]		
+    e = fu.dot(AMA_1AR,u)*panel.included[3]		
   h=h_func(e, panel,initargs)
   if m>0:
     initargs['gamma'][0]=0

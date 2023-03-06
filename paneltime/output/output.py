@@ -2,11 +2,9 @@
 # -*- coding: utf-8 -*-
 
 #This module calculates statistics and saves it to a file
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-stat =  importfile(os.path.join(path,'stat_functions.py'))
-stat_dist =  importfile(os.path.join(path,'stat_dist.py'))
+
+from . import stat_functions as stat
+from . import stat_dist
 
 
 import numpy as np

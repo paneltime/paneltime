@@ -2,18 +2,12 @@
 # -*- coding: utf-8 -*-
 
 #This module contains statistical procedures
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-random_effects =  importfile(os.path.join(path,'random_effects.py'))
-cf =  importfile(os.path.join(path,'calculus_functions.py'))
-stat_dist =  importfile(os.path.join(path,'stat_dist.py'))
 
-
-import calculus_functions as cf
+from .. import random_effects
+from . import stat_dist
+from .. import functions as fu
 import numpy as np
-import random_effects
-import stat_dist
+
 
 
 def var_decomposition(XXNorm=None,X=None):
@@ -50,7 +44,7 @@ def square_and_norm(X):
   Sumsq=np.sqrt(np.sum(np.sum(X**2,0),0))
   Sumsq.resize((k,1))
   Sumsq=Sumsq*Sumsq.T
-  norm=cf.dot(X,X)/(Sumsq+1e-200)
+  norm=fu.dot(X,X)/(Sumsq+1e-200)
   return norm
 
 def singular_elim(panel,X):
@@ -187,7 +181,7 @@ def correl(X,panel=None, covar=False):
   else:
     N,k=X.shape
     mean=np.sum(X,0).reshape((1,k))/N
-  cov=cf.dot(X,X)/N
+  cov=fu.dot(X,X)/N
 
   cov=cov-(mean.T*mean)
 
@@ -253,15 +247,15 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
     k=k+1
   X=X*c
   Y=Y*c
-  XX=cf.dot(X,X)
-  XY=cf.dot(X,Y)
+  XX=fu.dot(X,X)
+  XY=fu.dot(X,Y)
   try:
     beta=np.linalg.solve(XX,XY)
   except np.linalg.LinAlgError:
     s=get_singular_list(panel,X)
     raise RuntimeError("The following variables caused singularity runtime and must be removed: "+s)
   if return_rsq or return_e or robust_se_lags:
-    e=(Y-cf.dot(X,beta))*c
+    e=(Y-fu.dot(X,beta))*c
     if return_rsq:
       v0=panel.var(e,included=c)
       v1=panel.var(Y,included=c)
@@ -301,7 +295,7 @@ def newey_west_wghts(L,XErr):
     a=0
   for i in range(1,min(L,T)):
     w=1-(i+1)/(L)
-    XX=cf.dot(XErr[:,i:],XErr[:,0:T-i])
+    XX=fu.dot(XErr[:,i:],XErr[:,0:T-i])
     S+=w*(XX+XX.T)
   return S
 
@@ -316,14 +310,14 @@ def robust_cluster_weights(panel,XErr,cluster_dim,whites):
     mean=random_effects.mean_time(panel,XErr,True)
     T,m,k=mean.shape
     mean=mean.reshape((T,k))
-  S=cf.dot(mean,mean)-whites
+  S=fu.dot(mean,mean)-whites
   return S
 
 
 def robust_se(panel,L,hessin,XErr,nw_only=True):
   """Returns the maximum robust standard errors considering all combinations of sums of different combinations
   of clusters and newy-west"""
-  w,W=sandwich_var(hessin,cf.dot(XErr,XErr))#whites
+  w,W=sandwich_var(hessin,fu.dot(XErr,XErr))#whites
   nw,NW=sandwich_var(hessin,newey_west_wghts(L,XErr))#newy-west
   if panel.N>1:
     c0,C0=sandwich_var(hessin,robust_cluster_weights(panel,XErr, 0, w))#cluster dim 1

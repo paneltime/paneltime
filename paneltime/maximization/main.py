@@ -1,13 +1,14 @@
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-stat =  importfile(os.path.join(path,'stat_functions.py'))
-logl =  importfile(os.path.join(path,'loglikelihood.py'))
-output =  importfile(os.path.join(path,'output.py'))
-callback =  importfile(os.path.join(path,'callback.py'))
-computation =  importfile(os.path.join(path,'computation.py'))
-dfpmax =  importfile(os.path.join(path,'dfpmax.py'))
-comm =  importfile(os.path.join(path,'communication.py'))
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from ..output import stat_functions as stat
+from .. import likelihood as logl
+
+from ..parallel import callback
+from . import computation
+from . import dfpmax
+from ..output import communication as comm
+from ..output import output
 
 
 import numpy as np
@@ -41,7 +42,7 @@ def maximize(panel, args, mp, t0, comm):
   tasks = []
   for i in range(len(a)):
     tasks.append(
-                  f'maximize.maximize_node(panel, {list(a[i])}, 0.001, inbox, outbox, slave_id, False, True)\n'
+                  f'maximization.maximize_node(panel, {list(a[i])}, 0.001, inbox, outbox, slave_id, False, True)\n'
                 )
   evalnodes = EvaluateNodes(mp, len(tasks), t0, panel)
   mp.exec(tasks, task_name)
@@ -189,7 +190,7 @@ def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0
   comput = computation.Computation(panel, gtol, TOLX, None, nummerical, diag_hess)
   callbk.callback(quit=False, conv=False, perc=0)
   res, ll = dfpmax.dfpmax(args,comput, callbk, panel, slave_id)
-  #debug =  importfile(os.path.join(path,'debug.py'))
+  #debug from . import debug
   #debug.save_reg_data(ll, panel)	
 
   H, G, g = res['H'], res['G'], res['g']

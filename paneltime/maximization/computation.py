@@ -1,22 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-stat =  importfile(os.path.join(path,'stat_functions.py'))
-stat_dist =  importfile(os.path.join(path,'stat_dist.py'))
-calculus =  importfile(os.path.join(path,'calculus.py'))
-constraints =  importfile(os.path.join(path,'constraints.py'))
 
+from ..output import stat_functions as stat
+from ..output import stat_dist
+from . import constraints
+from .. import likelihood as logl
 
-import calculus
-import calculus_ll as cll
 import numpy as np
-import constraints
-import loglikelihood as logl
 import time
-import stat_dist
-import stat_functions as stat
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
@@ -30,10 +21,10 @@ class Computation:
     if callback is None:
       callback = lambda **kwargs: None#function that does nothing
     self.callback = callback
-    self.gradient=calculus.gradient(panel, self.callback)
+    self.gradient=logl.gradient(panel, self.callback)
     self.gtol = gtol
     self.tolx = tolx
-    self.hessian=calculus.hessian(panel,self.gradient, self.callback)
+    self.hessian=logl.hessian(panel,self.gradient, self.callback)
     self.panel=panel
     self.constr=None
     self.CI=0
@@ -169,14 +160,14 @@ class Computation:
 
 
   def calc_gradient(self,ll):
-    dLL_lnv, DLL_e=cll.gradient(ll,self.panel)
+    dLL_lnv, DLL_e=logl.func_gradent(ll,self.panel)
     self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
     g, G = self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
     return g, G
 
 
   def calc_hessian(self, ll):
-    d2LL_de2, d2LL_dln_de, d2LL_dln2 = cll.hessian(ll,self.panel)
+    d2LL_de2, d2LL_dln_de, d2LL_dln2 = logl.func_hessian(ll,self.panel)
     self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
     H = self.hessian.get(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)	
     return H

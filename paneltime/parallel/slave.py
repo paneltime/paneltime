@@ -1,15 +1,14 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-callback =  importfile(os.path.join(path,'callback.py'))
+
+try:
+  from . import callback
+except:
+  import callback
 
 
 import sys
 import os
-import parallel
 import traceback
 import datetime
 import pickle
@@ -20,7 +19,7 @@ from threading import Thread
 import subprocess
 from queue import Queue
 from queue import Empty
-import callback
+
 
 
 class Slave:
@@ -171,9 +170,6 @@ def execute_task_(d, task):
     return eval(task, globals(), d)
   except SyntaxError as e:#else, it is assumed that the script only generates local variables for later use
     exec(task, globals(), d)
-
-
-
 
 def run(transact, print_to_file = True):
 

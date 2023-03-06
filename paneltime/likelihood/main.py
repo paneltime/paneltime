@@ -2,15 +2,13 @@
 # -*- coding: utf-8 -*-
 
 #contains the log likelihood object
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-stat_functions =  importfile(os.path.join(path,'stat_functions.py'))
-re =  importfile(os.path.join(path,'random_effects.py'))
-cf =  importfile(os.path.join(path,'calculus_functions.py'))
-cll =  importfile(os.path.join(path,'calculus_ll.py'))
-stat_dist =  importfile(os.path.join(path,'stat_dist.py'))
-model_parser =  importfile(os.path.join(path,'model_parser.py'))
+
+from ..output import stat_functions
+from .. import random_effects as re
+from .. import functions as fu
+from . import function
+from ..output import stat_dist
+from ..processing import model_parser
 
 
 import sys
@@ -77,7 +75,7 @@ class LL:
 
 
     #Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
-    u = panel.Y-cf.dot(X,self.args.args_d['beta'])
+    u = panel.Y-fu.dot(X,self.args.args_d['beta'])
     u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*incl
 
     egarch_add = 0.1
@@ -102,7 +100,7 @@ class LL:
       self.h_val, self.h_e_val, self.h_2e_val = np.log(e_REsq+egarch_add)*incl, 2*incl*e_RE/(e_REsq+egarch_add), incl*2/(e_REsq+egarch_add) - incl*2*e_RE**2/(e_REsq+egarch_add)**2
       self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 
-    W_omega = cf.dot(panel.W_a, self.args.args_d['omega'])
+    W_omega = fu.dot(panel.W_a, self.args.args_d['omega'])
 
     if False:#debug
       import debug
@@ -111,7 +109,7 @@ class LL:
 
     var = W_omega+var_ARMA
 
-    LL_full,v,v_inv,self.dvar_pos=cll.LL(panel,var,e_REsq, e_RE)
+    LL_full,v,v_inv,self.dvar_pos=function.LL(panel,var,e_REsq, e_RE)
     self.tobit(panel,LL_full)
     LL=np.sum(LL_full*incl)
     self.LL_all=np.sum(LL_full)
@@ -207,8 +205,8 @@ class LL:
     self.Y_st,   self.Y_st_long   = self.standardize_variable(panel,panel.Y,reverse_difference)
     self.X_st,   self.X_st_long   = self.standardize_variable(panel,panel.X,reverse_difference)
     self.XIV_st, self.XIV_st_long = self.standardize_variable(panel,panel.XIV,reverse_difference)
-    self.Y_pred_st=cf.dot(self.X_st,self.args.args_d['beta'])
-    self.Y_pred=cf.dot(panel.X,self.args.args_d['beta'])	
+    self.Y_pred_st=fu.dot(self.X_st,self.args.args_d['beta'])
+    self.Y_pred=fu.dot(panel.X,self.args.args_d['beta'])	
     self.e_norm_long=self.stretch_variable(panel,self.e_norm)
     self.Y_pred_st_long=self.stretch_variable(panel,self.Y_pred_st)
     self.Y_pred_long=np.dot(panel.input.X,self.args.args_d['beta'])
@@ -223,7 +221,7 @@ class LL:
     X=panel.arma_dot.dot(self.AMA_1AR,X,self)
     X=(X+self.re_obj_i.RE(X, panel,False)+self.re_obj_t.RE(X, panel,False))
     if (not panel.Ld_inv is None) and reverse_difference:
-      X=cf.dot(panel.Ld_inv,X)*panel.a[3]		
+      X=fu.dot(panel.Ld_inv,X)*panel.a[3]		
     if norm:
       X=X*self.v_inv05
     X_long=self.stretch_variable(panel,X)
@@ -340,7 +338,7 @@ def solve_mult(args,b,I):
     X_1=scipy.linalg.solve_banded((q,0), X, I)
     if np.any(np.isnan(X_1)):
       return None,None			
-    X_1b=cf.dot(X_1, b)
+    X_1b=fu.dot(X_1, b)
   except:
     return None,None
 

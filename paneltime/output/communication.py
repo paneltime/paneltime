@@ -13,7 +13,7 @@ except:
 from pydoc import importfile
 import os
 path = os.path.dirname(__file__)
-output =  importfile(os.path.join(path,'output.py'))
+from . import output
 
 import os
 import numpy as np
@@ -55,7 +55,7 @@ class web_output:
       if panel.options.web_open_tab.value:
         webbrowser.open(WEB_PAGE, new = 2)
     self.output_set = False
-    #import charts
+    #from . import charts
     #self.charts = charts.ProcessCharts(panel)
 
   def set_progress(self,perc, text, task):

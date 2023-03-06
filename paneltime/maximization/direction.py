@@ -1,14 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-stat =  importfile(os.path.join(path,'stat_functions.py'))
-
-
+from ..output import stat_functions as stat
 import numpy as np
-import stat_functions as stat
 
 
 def get(g, x, H, constr, f, hessin, ev_constr, simple=True):

@@ -1,7 +1,7 @@
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-logl =  importfile(os.path.join(path,'loglikelihood.py'))
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from .. import likelihood as logl
 
 import numpy as np
 

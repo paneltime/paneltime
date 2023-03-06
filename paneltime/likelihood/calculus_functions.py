@@ -3,6 +3,7 @@
 
 import numpy as np
 import time
+from .. import functions as fu
 
 
 
@@ -135,7 +136,7 @@ def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
     if x is None:
       return None
   elif len(L.shape)==2:
-    x=dot(L,d).reshape(N,T,1,m)
+    x=fu.dot(L,d).reshape(N,T,1,m)
   dLL=dLL.reshape((N,T,1,1))
   return np.sum(np.sum(dLL*x,1),0)#and sum it	
 
@@ -238,70 +239,3 @@ def dd_func_mult(d0,mult,d1):
   return x
 
 
-def dot(a,b,reduce_dims=True):
-  """Matrix multiplication. Returns the dot product of a*b where either a or be or both to be
-  arrays of matrices. Faster than mmult, less general and only used for special purpose.
-  Todo: generalize and merge"""
-
-
-  if len(a.shape)==3 and len(b.shape)==2:
-    x = np.array([np.dot(a[i],b) for i in range(a.shape[0])])
-  elif len(a.shape)==3 and len(b.shape)==3:
-    x = np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
-  elif len(a.shape)==2 and len(b.shape)==3:
-    x = np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
-  return x
-
-
-class arma_dot_obj:
-  def __init__(self):
-    pass
-
-  def dotroll(self,aband,k,sign,b,ll):
-    x = sign*self.fast_dot(aband, b)
-    w=[]
-    for i in range(k):
-      w.append(np.roll(np.array(x),i+1,1))
-      w[i][:,:i+1]=0
-    x=np.array(w)
-    x=np.moveaxis(x,0,2)
-    return x
-
-
-  def fast_dot(self, a, b):
-    a_, name = a
-    n = get_n(a_)
-    if n is None:
-      n = len(a_)
-
-    r = a_[0]*b
-    for i in range(1,n):
-      r[:,i:] += a_[i]*b[:,:-i]
-
-    return r
-
-
-  def dot(self,a,b,ll):
-    if len(a)>2:#then this is a proper matrix
-      (aband,k,sgn)=a
-      if k==0:
-        return None
-      return self.dotroll(aband, k, sgn, b, ll)
-    x = self.fast_dot(a, b)
-    return x
-
-
-def get_n(a):
-  minval = 0
-  a_1 = np.abs(a[1:])
-  max_a = np.max(a_1)
-  if np.min(np.abs(a_1)) >= minval:
-    return None
-  if max_a == 0:
-    return 1		
-  else:
-    nz = np.nonzero(a_1/max_a < minval)[0]
-    if len(nz)>0:
-      return nz[0]+1
-    else:
-      return None

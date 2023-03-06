@@ -2,13 +2,9 @@
 # -*- coding: utf-8 -*-
 
 #This module contains classes used in the regression
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-
-logl =  importfile(os.path.join(path,'loglikelihood.py'))
-cf =  importfile(os.path.join(path,'calculus_functions.py'))
-arguments =  importfile(os.path.join(path,'arguments.py'))
+from .. import likelihood as logl
+from . import arguments
+from .. import functions as fu
 
 import numpy as np
 import time
@@ -38,7 +34,7 @@ class panel:
     self.masking()
     self.lag_variables()
     self.final_defs()
-    self.arma_dot=cf.arma_dot_obj()
+    self.arma_dot=fu.ArmaDot()
 
 
   def initial_defs(self):
@@ -106,7 +102,7 @@ class panel:
     Ld=(self.I-L0)
     Ld_inv=np.tril(np.ones((T,T)))
     for i in range(1,d):
-      Ld=cf.dot(self.I-L0,Ld)
+      Ld=fu.dot(self.I-L0,Ld)
       Ld_inv=np.cumsum(Ld_inv,0)
     self.Ld_inv=Ld_inv
     #multiplication:
@@ -116,7 +112,7 @@ class panel:
       self.Z=self.lag_variable(self.Z, Ld, d, True)
 
   def lag_variable(self,X,Ld,d,recreate_intercept):
-    X_out=cf.dot(Ld,X)*self.a[3]
+    X_out=fu.dot(Ld,X)*self.a[3]
     if self.input.has_intercept and recreate_intercept:
       X_out[:,:,0]=1
     X_out[:,:d]=0
@@ -139,11 +135,11 @@ class panel:
     ll=logl.LL(self.args.args_init,self)
     ll.standardize(self)
     Z_st,Z_st_long=ll.standardize_variable(panel,self.Z)
-    ZZ=cf.dot(Z_st,Z_st)
+    ZZ=fu.dot(Z_st,Z_st)
     ZZInv=np.linalg.inv(ZZ)
-    ZX=cf.dot(Z_st,ll.X_st)
-    ZZInv_ZX=cf.dot(ZZInv, ZX)
-    self.XIV=cf.dot(self.Z, ZZInv_ZX)#using non-normalized first, since XIV should be unnormalized.	
+    ZX=fu.dot(Z_st,ll.X_st)
+    ZZInv_ZX=fu.dot(ZZInv, ZX)
+    self.XIV=fu.dot(self.Z, ZZInv_ZX)#using non-normalized first, since XIV should be unnormalized.	
 
   def subtract_means(self,X,Y,Z):
     subtract=self.options.subtract_means.value

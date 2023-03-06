@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from pydoc import importfile
-import os
 
-path = os.path.dirname(__file__)
-parallel = importfile(os.path.join(path,'parallel.py'))
-output = importfile(os.path.join(path,'output.py'))
-main = importfile(os.path.join(path,'main.py'))
-opt_module = importfile(os.path.join(path,'options.py'))
-loaddata = importfile(os.path.join(path,'loaddata.py'))
+
+from . import parallel
+from . import main
+from . import options as opt_module
+from . import output
+from .processing import loaddata
+
 
 import numpy as np
+import os
 import sys
 import time
 try:
@@ -29,19 +29,16 @@ CALLBACK_ACTIVE = True
 
 def prepare_parallel():
   global mp
-  import tempfile
   N_NODES = 10
   PARALLEL = True #change to false for debugging
 
   t0=time.time()
 
   #temporary debug output is saved here:
-  #path = os.getcwd().replace('\\', '/') #uncomment to save to active folder
-  path =tempfile.gettempdir()
 
-  mp = parallel.Parallel(N_NODES, path, PARALLEL, CALLBACK_ACTIVE)
+  mp = parallel.Parallel(N_NODES, PARALLEL, CALLBACK_ACTIVE)
 
-  mp.exec("import maximize\n", 'init')
+  mp.exec("from paneltime import maximization\n", 'init')
 
   print(f"parallel: {time.time()-t0}")
 

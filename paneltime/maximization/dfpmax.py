@@ -1,15 +1,12 @@
-from pydoc import importfile
-import os
-path = os.path.dirname(__file__)
-linesearch =  importfile(os.path.join(path,'linesearch.py'))
-callback =  importfile(os.path.join(path,'callback.py'))
-direction =  importfile(os.path.join(path,'direction.py'))
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from . import linesearch
+from ..parallel import callback
+from . import direction
 
 import numpy as np
 import time
-
-#import stat_functions as stat
-
 
 #This module finds the array of arguments that minimizes some function. The derivative 
 #of the function also needs to be supplied. 

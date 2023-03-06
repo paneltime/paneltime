@@ -4,8 +4,7 @@
 from pydoc import importfile
 import os
 path = os.path.dirname(__file__)
-stat =  importfile(os.path.join(path,'stat_functions.py'))
-cf =  importfile(os.path.join(path,'calculus_functions.py'))
+from ..output import stat_functions as stat
 
 
 import numpy as np
