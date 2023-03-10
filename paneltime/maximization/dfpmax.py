@@ -43,14 +43,14 @@ def dfpmax(x, comput, callback, panel, slave_id):
     ls = linesearch.LineSearch(x, comput, panel)
     ls.lnsrch(x, f, g, dx)	
 
-    dx = ls.x - x
+    dx_realized = ls.x - x
     incr = ls.f - f
     fdict[its] = ls.f
 
 
-    x, f, hessin, H, g, conv, se, det = comput.exec(dx, dx_norm,  hessin, H, ls.f, ls.x, ls.g, incr, ls.rev, ls.alam, its, ls.ll)
+    x, f, hessin, H, g, conv, se, det, anal = comput.exec(dx_realized,  hessin, H, ls.f, ls.x, ls.g, incr, ls.rev, ls.alam, its, ls.ll)
 
-    err = np.max(np.abs(dx)) < TOLX
+    err = (np.max(np.abs(dx_realized)) < TOLX) and its>5
 
     terminate = (conv>0) or err or its+1==MAXITER
 
@@ -66,7 +66,7 @@ def dfpmax(x, comput, callback, panel, slave_id):
       msg = "No convergence within %s iterations" %(MAXITER,)
 
 
-    cbhandler.assign(ls, msg, dx_norm, f, x, H, comput, g, hessin, dx, 
+    cbhandler.assign(ls, msg, dx_norm, f, x, H, comput, g, hessin, dx_realized, 
                                  incr, its, 'linesearch', terminate, 
                                                   conv, fdict, se, det)			
 

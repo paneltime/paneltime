@@ -7,7 +7,6 @@ from . import calculus_functions as cf
 from . import function
 import numpy as np
 import time
-import os
 
 class gradient:
 
@@ -118,7 +117,7 @@ class gradient:
     g=np.sum(G,(0,1))
     #For debugging:
     #print (g)
-    #import debug
+    #from .. import debug
     #gn=debug.grad_debug(ll,panel,0.00001)#debugging
     #if np.sum((g-gn)**2)>10000000:
     #	a=0
@@ -268,7 +267,7 @@ class hessian:
     self.callback(perc = 0.8, text = '', task = 'hessian')
     H=cf.concat_matrix(H)
     #for debugging:
-    #import debug
+    #from .. import debug
     #Hn=debug.hess_debug(ll,panel,g,0.00000001)#debugging
     #v=debug.hess_debug_detail(ll,panel,0.0000001,'grp','beta','beta',0,0)
     #print (time.perf_counter()-tic)

@@ -5,6 +5,7 @@ from ..output import stat_functions as stat
 from ..output import stat_dist
 from . import constraints
 from .. import likelihood as logl
+from . import direction
 
 import numpy as np
 import time
@@ -73,12 +74,13 @@ class Computation:
     self.weak_mc_dict=self.constr.weak_mc_dict
 
 
-  def exec(self, dx, dx_norm, hessin, H, f, x, g_old, incr, rev, alam, its, ll, calc = True):
+  def exec(self, dx_realized,hessin, H, f, x, g_old, incr, rev, alam, its, ll, calc = True):
     #Thhese setting may not hold for all circumstances, and should be tested properly:
     NUM_ITER = 5
     TOTP_TOL = 0.0001
 
     g, G = self.calc_gradient(ll)
+    dx, dx_norm, H_ = direction.get(g, x, H, self.constr, f, hessin, self.ev_constr, simple=False)
 
     pgain, totpgain = potential_gain(dx, g, H)
     self.totpgain = totpgain
@@ -110,9 +112,9 @@ class Computation:
         print(e)
 
       if abs(g_norm) < self.gtol:
-        return x, f, hessin, Ha, g, 1, se, det
+        return x, f, hessin, Ha, g, 1, se, det, True
       elif abs(totpgain)<TOTP_TOL:
-        return x, f, hessin, Ha, g, 2, se, det
+        return x, f, hessin, Ha, g, 2, se, det, True
 
     print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
 
@@ -125,12 +127,12 @@ class Computation:
     self.avg_incr = incr + self.avg_incr*0.7
     self.ev_constr = False#self.CI>1000
 
-    err = np.max(np.abs(dx)) < 100*TOLX
+    err = np.max(np.abs(dx_realized)) < 100*TOLX
 
-    calchess = err or ((self.CI>10000) and (self.num_hess_count>10) and abs(g_norm)>100*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
+    analytic_calc = err or ((self.CI>10000) and (self.num_hess_count>10) and abs(g_norm)>100*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
 
     if calc:
-      if calchess:
+      if analytic_calc:
         print('analytic')
         Ha = self.calc_hessian(ll)
         a = 0.5
@@ -143,7 +145,7 @@ class Computation:
       else:
         self.num_hess_count +=1
         try:
-          hessin=self.hessin_num(hessin, g-g_old, dx)
+          hessin=self.hessin_num(hessin, g-g_old, dx_realized)
           Hn = np.linalg.inv(hessin)
           H = Hn
         except:
@@ -155,7 +157,7 @@ class Computation:
 
 
 
-    return x, f, hessin, H, g, 0, se, det
+    return x, f, hessin, H, g, 0, se, det, analytic_calc
 
 
 
@@ -306,7 +308,9 @@ def potential_gain(dx, g, H):
   n=len(dx)
   rng=np.arange(len(dx))
   dxLL=dx*0
-  dxLL_full=(sum(g*dx)+0.5*np.dot(dx.reshape((1,n)),np.dot(H,dx.reshape((n,1)))))[0,0]
+  dxLL_full=(sum(g*dx)+0.5*np.dot(dx.reshape((1,n)),
+                                  np.dot(H,dx.reshape((n,1)))
+                                  ))[0,0]
   for i in range(len(dx)):
     dxi=dx*(rng!=i)
     dxLL[i]=dxLL_full-(sum(g*dxi)+0.5*np.dot(dxi.reshape((1,n)),np.dot(H,dxi.reshape((n,1)))))[0,0]

@@ -63,9 +63,7 @@ class LineSearch:
         print('The function returned None')
         self.f = f
       if (self.alam < alamin):   #Convergence on delta x. For zero finding,the calling program should verify the convergence.
-        self.x = x*1 
         self.check = 1
-        self.f = f
         self.msg = "Convergence on delta dx"
         return
       elif (self.f >= f+self.alf*self.alam*slope): 

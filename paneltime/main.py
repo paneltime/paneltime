@@ -33,10 +33,6 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
   if not exe_tab is None:
     if exe_tab.isrunning==False:return
   datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
-  if datainput.timevar is None:
-    print("No valid time variable defined. This is required")
-    return
-
   summary = doit(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
 
   return summary

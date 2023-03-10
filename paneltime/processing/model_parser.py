@@ -24,14 +24,24 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
   df[VAR_INTERCEPT_NAME]         = df[CONST_NAME]
   df[INSTRUMENT_INTERCEPT_NAME]  = df[CONST_NAME]
 
-  IDs     =get_names(IDs, 'IDs')
+  if IDs is None:
+    IDs = 'IDs'
+    df[IDs] = 1
+  if timevar is None:
+    timevar = 'timevar'
+    df[timevar] = np.arange(len(df))
+    
+  IDs     = get_names(IDs, 'IDs')
   timevar =get_names(timevar, 'timevar')
+
   IDs_num,     IDs      = handle_IDs(ip,df,IDs)
   timevar_num, timevar  = handle_time(ip,df,timevar)	
-  sort=[i for i in [IDs,timevar] if not i==[]]
+  sort= IDs_num + timevar
   if len(sort):
-    df=df.sort_values([IDs_num[0],timevar[0]])
-  pd_panel=df.groupby(IDs_num)
+    df=df.sort_values(sort)
+  pd_panel = df
+  if len(IDs_num)>0:
+    pd_panel=df.groupby(IDs_num)
 
   W=get_names(heteroscedasticity_factors,'heteroscedasticity_factors',True, VAR_INTERCEPT_NAME)
   Z=get_names(instruments,'instruments',True,INSTRUMENT_INTERCEPT_NAME)
@@ -39,9 +49,9 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
   try:
     Y,X=parse_model(model_string, settings)
   except:
-    RuntimeError("The model_string must be on the form Y~X1+X2+X3")	
-  if X==[] or Y==['']:
-    raise RuntimeError("No independent or dependent variables specified")		
+    raise RuntimeError("The model_string must be on the form Y~X1+X2+X3")	
+  if Y==['']:
+    raise RuntimeError("No dependent variable specified")		
 
   x = IDs_num+IDs+timevar+timevar_num+W+Z+Y+X
   x = list(dict.fromkeys(x))
@@ -122,15 +132,18 @@ class lag_object:
     return x
 
 def parse_model(model_string,settings):
+  split = None
   for i in ['~','=']:
     if i in model_string:
       split=i
       break
+  if split is None:#No dependent
+    return [model_string],[DEFAULT_INTERCEPT_NAME]
   Y,X=model_string.split(split)
   X=[i.strip() for i in X.split('+')]
   if X==['']:
-    X=[]
-  if settings.add_intercept.value:
+    X=[DEFAULT_INTERCEPT_NAME]
+  if settings.add_intercept.value and not (DEFAULT_INTERCEPT_NAME in X):
     X=[DEFAULT_INTERCEPT_NAME]+X
   return [Y],X
 

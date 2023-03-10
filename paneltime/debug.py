@@ -5,7 +5,7 @@
 
 
 from . import functions as fu
-
+from .likelihood import main as lgl
 import numpy as np
 import time
 import os
