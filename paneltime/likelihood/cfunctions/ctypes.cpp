@@ -47,7 +47,7 @@ void inverse(long n, double *x_args, long nx, double *b_args, long nb,
 	//fclose(fp);
 }
 	
- EXPORT int  armas(double *parameters, 
+EXPORT int  armas(double *parameters, 
 				double *lambda, double *rho, double *gamma, double *psi,
 				double *AMA_1, double *AMA_1AR, 
 				double *GAR_1, double *GAR_1MA, 
@@ -57,12 +57,12 @@ void inverse(long n, double *x_args, long nx, double *b_args, long nb,
 	double sum, esq;
 	long k,j,i;
 
-    long N = (int) parameters[0];
+	long N = (int) parameters[0];
 	long T = (int) parameters[1];
-    long nlm = (int) parameters[2];
-    long nrh = (int) parameters[3];
-    long ngm = (int) parameters[4];
-    long npsi = (int) parameters[5];
+	long nlm = (int) parameters[2];
+	long nrh = (int) parameters[3];
+	long ngm = (int) parameters[4];
+	long npsi = (int) parameters[5];
 	long egarch = (int) parameters[6];
 	long lost_obs = (int) parameters[7];
 	double egarch_add = parameters[8];
