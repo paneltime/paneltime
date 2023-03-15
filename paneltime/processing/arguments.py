@@ -19,6 +19,8 @@ class arguments:
     p, q, d, k, m=panel.pqdkm
     self.initial_user_defined = False
     self.categories=['beta','rho','lambda','gamma','psi','omega']
+    if panel.options.include_initvar.value:
+      self.categories+=['initvar']
     if panel.z_active:
       self.categories+=['z']
     self.mu_removed=True
@@ -51,7 +53,8 @@ class arguments:
         return
     if not panel.z_active and 'z' in self.user_constraints:
       self.user_constraints.pop('z')	
-
+    if panel.options.include_initvar.value  and 'initvar' in self.user_constraints:
+      self.user_constraints.pop('initvar')	
     for grp in self.user_constraints:
       try:
         self.user_constraints[grp] = np.array(self.user_constraints[grp]).flatten()
@@ -79,6 +82,8 @@ class arguments:
     args['gamma']=np.zeros(k)
     args['omega'][0][0]=0
     args['mu']=np.array([])
+    if panel.options.include_initvar.value:
+      args['initvar']=np.zeros(1)
     args['z']=np.array([])			
 
 
@@ -108,13 +113,20 @@ class arguments:
 
   def set_restricted_args(self,p, d, q, m, k, panel,omega,beta):
     args_restricted=self.initargs(p, d, q, m, k, panel)
-    args_restricted['beta'][0][0]=np.mean(panel.Y)
-    args_restricted['omega'][0][0]=np.log(panel.var(panel.Y))
-    self.args_restricted=self.create_args(args_restricted,panel)
-
     args_OLS=self.initargs(p, d, q, m, k, panel)	
+    
+    args_restricted['beta'][0][0]=np.mean(panel.Y)
     args_OLS['beta']=beta
-    args_OLS['omega'][0][0]=omega
+    
+    v = panel.var(panel.Y)
+    if panel.options.EGARCH.value==0:
+      args_restricted['omega'][0][0]= v
+      args_OLS['omega'][0][0]=omega
+    else:
+      args_restricted['omega'][0][0]=np.log(v)
+      args_OLS['omega'][0][0]=np.log(omega)
+      
+    self.args_restricted=self.create_args(args_restricted,panel)
     self.args_OLS=self.create_args(args_OLS,panel)
 
 
@@ -194,7 +206,13 @@ class arguments:
     names.extend(names_d['omega'])
 
     c.append(d['omega'])
-
+    if panel.options.include_initvar.value:
+      d['initvar'] = ['Initial variance']
+      captions.extend(d['initvar'])
+      names_d['initvar'] = d['initvar']
+      names.extend(names_d['initvar'])
+      c.append(d['initvar'])
+    
     if m>0:
       if panel.N>1 and not self.mu_removed:
         d['mu']=['mu (var.ID eff.)']
@@ -291,19 +309,11 @@ class arguments:
     beta,rho,lmbda,u=ARMA_regression(panel)
     v=panel.var(u)
     if panel.options.EGARCH.value==0:
-      omega0=panel.var(u)
-      omega1 = 0
+      initargs['omega'][0,0]=v
     else:
-      omega0=np.log(panel.var(u))
+      initargs['omega'][0,0]=np.log(v)
 
-    if panel.nW>1:
-      omega1 = panel.var(panel.W[:,:,1:2])
-      omega1 = omega0/omega1
-      a=0.00
-      initargs['omega'][1,0]=omega1*a
-      initargs['omega'][0,0]=omega0*(1-a)
-    else:
-      initargs['omega'][0,0]=omega0
+
     initargs['beta']=beta
 
     if default: #turns out calculating ARMA parameters serves no purpose, default is therefore allways true. These coefficients are easily found by linesearch for given regression coefficients. 
@@ -312,12 +322,14 @@ class arguments:
 
       if p > 0:
         initargs['rho'][0] = rho	
-
+      
+      if k > 0:
+        initargs['gamma'][0] = 0.95	      
 
     if panel.options.fixed_random_variance_eff.value==0:
       if v<1e-20:
         print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
-    return beta,omega0
+    return beta, v
 
 def set_GARCH(panel,initargs,u,m):
   matrices=logl.set_garch_arch(panel,initargs)

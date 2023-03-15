@@ -66,9 +66,10 @@ EXPORT int  armas(double *parameters,
 	long egarch = (int) parameters[6];
 	long lost_obs = (int) parameters[7];
 	double egarch_add = parameters[8];
+	double init_var = parameters[9];
 	long rw;
 
-
+	if(true){init_var = abs(init_var);};
 	inverse(T, lambda, nlm, rho, nrh, AMA_1, AMA_1AR);
 
 	inverse(T, gamma, ngm, psi, npsi, GAR_1, GAR_1MA);
@@ -95,7 +96,7 @@ EXPORT int  armas(double *parameters,
 			for(j=0;j<=i;j++){//time dimension, back tracking
 				sum += GAR_1MA[j]*h[k + (i-j)*N];
 			}
-			var[k + i*N] = sum;
+			var[k + i*N] = sum + GAR_1[i]*init_var ;
 		}
 	}
 

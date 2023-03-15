@@ -113,6 +113,9 @@ def regression_options():
 
   self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
                                                                          bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
+  self.arguments					= options_item(None, 				"A dict or string defining a dictionary in python syntax containing the initial arguments." 
+                                                                             "An example can be obtained by printing ll.args.args_d"
+                                                                                                                                        , [str,dict, list, np.ndarray], 'Initial arguments')	
 
   self.ARMA_constraint	        = options_item(1000.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
                                                            None,None,category='ARIMA-GARCH')	
@@ -129,9 +132,6 @@ def regression_options():
   self.multicoll_threshold_max    = options_item(1000,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
                                                        None,None)			
 
-  self.arguments					= options_item(None, 				"A dict or string defining a dictionary in python syntax containing the initial arguments." 
-                                                                             "An example can be obtained by printing ll.args.args_d"
-                                                                                                                                        , [str,dict, list, np.ndarray], 'Initial arguments')	
   self.parallel  					= options_item(True,			"If True, uses multiple cores for parallel computing",
                                                                               bool,'Multicore', [True,False],['Multicore','Single core'],category='General')
 
@@ -165,6 +165,8 @@ def regression_options():
                                                                                                                                         "the function must return the value and its computation in the following order:\n"
                                                                                                                                         "h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
                                                                                                                                         , str,"GARCH function",category='Regression')
+  self.include_initvar				= options_item(True,			"If True, includes an initaial variance term",
+                                                                         bool,'Include initial variance', [True,False],['Include','Do not include'],category='Regression')
 
   self.initial_arima_garch_params = options_item(0.1,			'The initial size of arima-garch parameters (all directions will be attempted', 
                                                        float, 'initial size of arima-garch parameters',

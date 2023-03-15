@@ -174,12 +174,9 @@ class Constraints(dict):
     pargs=self.panel_args
     p, q, d, k, m=self.pqdkm
 
-    if its<-4:
-      c = 0.5
-    else:
-      c=self.ARMA_constraint
+    c=self.ARMA_constraint
 
-    general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
+    general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',0,c),('psi',-c,c)]
     self.add_custom_constraints(panel, general_constraints, ll)
     self.add_custom_constraints(panel, pargs.user_constraints, ll)
 
@@ -197,7 +194,9 @@ class Constraints(dict):
     if init_arma_constr>0:
       self.add_custom_constraints(panel, c[init_arma_constr-1], ll)
 
-  def add_dynamic_constraints(self,computation, H, ll):
+  def add_dynamic_constraints(self,computation, H, ll, args = None):
+    if not args is None:
+      self.args = args
     k,k=H.shape
     self.weak_mc_dict=dict()
     include=np.array(k*[True])
@@ -292,7 +291,10 @@ class Constraints(dict):
           self.add(index ,assc,'collinear')
         else:
           self.add(assc,index,'collinear')
-
+  def print_constraints(self):
+    for i in self:
+      c=self[i]
+      print(f"constraint: {i}, associate:{c.assco_ix}, max:{c.max}, min:{c.min}, value:{c.value}")  
 
 def test_interval(interval,value):
   if not interval is None:

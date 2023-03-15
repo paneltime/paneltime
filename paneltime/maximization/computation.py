@@ -99,8 +99,8 @@ class Computation:
     det = np.linalg.det(H)
     se = [None]*len(H)	
     if its >NUM_ITER and ((abs(g_norm) < self.gtol) or ((abs(totpgain)<TOTP_TOL) and its>5000)) and self.init_arma==0:
-      Ha = self.calc_hessian(ll)
-      self.constr.add_dynamic_constraints(self, Ha, ll)
+      Ha = self.calc_hessian(ll)     
+      self.constr.add_dynamic_constraints(self, Ha, ll,ll.args)
       keep = [not i in self.constr.fixed.keys() for i in range(len(H))]
       Ha_keep = Ha[keep][:,keep]
       self.CI_anal = condition_index(Ha_keep)

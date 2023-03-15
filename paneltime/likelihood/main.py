@@ -71,8 +71,8 @@ class LL:
 
   def LL_calc(self,panel):
     X=panel.XIV
+    N, T, k = X.shape
     incl = panel.included[3]
-
 
     #Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
     u = panel.Y-fu.dot(X,self.args.args_d['beta'])
@@ -82,8 +82,7 @@ class LL:
     matrices=self.arma_calc(panel, u_RE, egarch_add)
     if matrices is None:
       return None		
-    AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var_ARMA, h=matrices	
-
+    AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var_ARMA, h=matrices
 
     #NOTE: self.h_val itself is set in ctypes.cpp/ctypes.c, and therefore has no effect on the LL. If you change self.h_val below, you need to 
     #change it in the c-scripts too. self.h_val is included below for later calulcations. 
@@ -103,7 +102,7 @@ class LL:
     W_omega = fu.dot(panel.W_a, self.args.args_d['omega'])
 
     if False:#debug
-      import debug
+      from .. import debug
       debug.test_c_armas(u_RE, var_ARMA, e_RE, panel, self)
       print(h[0,:20,0])
 
@@ -128,8 +127,6 @@ class LL:
     self.e_RE=e_RE
     self.e_REsq=e_REsq
     self.v_inv=v_inv
-
-
 
   def tobit(self,panel,LL):
     if sum(panel.tobit_active)==0:
@@ -278,9 +275,14 @@ def set_garch_arch(panel,args,u, egarch_add):
 
   lmbda = args['lambda']
   gmma = -args['gamma']
+  if not 'initvar' in args:
+    initvar = 0
+  else:
+    initvar = args['initvar'][0]
   parameters = np.array(( N , T , 
-                                len(lmbda), len(rho), len(gmma), len(psi), 
-                                                        panel.options.EGARCH.value, panel.tot_lost_obs, egarch_add))
+                  len(lmbda), len(rho), len(gmma), len(psi), 
+                  panel.options.EGARCH.value, panel.tot_lost_obs, 
+                  egarch_add, initvar))
 
   cfunct.armas(parameters.ctypes.data_as(CIPT), 
                      lmbda.ctypes.data_as(CDPT), rho.ctypes.data_as(CDPT),
