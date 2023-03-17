@@ -242,13 +242,75 @@ class LL:
     return h(e, z, panel)
 
   def arma_calc(self,panel, u, egarch_add):
-    matrices=set_garch_arch(panel,self.args.args_d, u, egarch_add)
+    matrices =set_garch_arch(panel,self.args.args_d, u, egarch_add)
     if matrices is None:
       return None		
-    self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, h=matrices
+    self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, self.h = matrices
     self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
-    return matrices	
+    return matrices
+  
+  def predict(self, variance_signals = None):
+    d = self.args.args_d
+    self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'])
+    u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], self.e[:,-1])#test
+    self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], variance_signals)
+    var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], variance_signals)#test
+    return {'predicted residual':self.u_pred, 'predicted variance':self.var_pred}
 
+    
+def pred_u(u, e, rho, lmbda, e_now = 0):
+  u_pred = e_now
+  u_pred += np.sum([
+    rho[i]*u[:,-i-1] for i in range(len(rho))
+    ], 1)
+  u_pred += np.sum([
+    lmbda[i]*e[:,-i-1] for i in range(len(lmbda))
+  ], 1)  
+  
+  return u_pred
+  
+def pred_var(h, var, psi, gamma, omega, W = None):
+  W = test_variance_signal(W, h, omega)
+  if W is None:
+    G = omega[0,0]
+  else:
+    G = np.sum([W*omega], 1)
+
+  a = np.sum([
+    psi[i]*h[:,-i-1] for i in range(len(psi))
+    ], 1)
+  b = np.sum([
+    gamma[i]*(var[:,-i-1]-G) for i in range(len(gamma))
+  ], 1)  
+  var_pred = G + a +b
+  return var_pred
+
+
+
+def test_variance_signal(W, h, omega):
+  if W is None:
+    return None
+  N,T,k= h.shape
+  if N==1:
+    W = W.flatten()
+    if len(W)!=len(omega):
+        raise RuntimeError("The variance signals needs to be a numpy array of numbers with "
+                           "the size equal to the HF-argument variables +1, and first variable must be 1")
+    return W.reshape((1,len(omega)))
+  else:
+    try:
+      NW,kW = W.shape
+      if NW!=N or kW!=k:
+        raise RuntimeError("Rows and columns in variance signals must correspond with"
+                           "the number of groups and the size equal to the number of "
+                           "HF-argument variables +1, respectively")
+    except:
+      raise RuntimeError("If there are more than one group, the variance signal must be a matrix with"
+                         "Rows and columns in variance signals must correspond with"
+                         "the number of groups and the size equal to the number of "
+                           "HF-argument variables +1, respectively"                       )      
+  return W
+  
 
 
 def set_garch_arch(panel,args,u, egarch_add):
@@ -259,19 +321,17 @@ def set_garch_arch(panel,args,u, egarch_add):
   psi=args['psi']
   psi=np.insert(args['psi'],0,0) 
 
-
   AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=(
           np.append([1],np.zeros(T-1)),
                 np.zeros(T),
                 np.append([1],np.zeros(T-1)),
                 np.zeros(T),
-                np.zeros(u.shape),
-                np.zeros(u.shape),
-                np.zeros(u.shape)
+                np.zeros((N,T,1)),
+                np.zeros((N,T,1)),
+                np.zeros((N,T,1))
         )
 
 
-  #c.arma_arrays(args['lambda'],rho,-args['gamma'],psi,T,AMA_1,AMA_1AR,GAR_1,GAR_1MA,u,e,var)	
 
   lmbda = args['lambda']
   gmma = -args['gamma']
@@ -302,9 +362,9 @@ def set_garch_arch(panel,args,u, egarch_add):
     r.append((locals()[i],i))
   for i in ['e', 'var', 'h']:
     r.append(locals()[i])
+
   return r
-
-
+  
 def set_garch_arch_scipy(panel,args):
   #after implementing ctypes, the scipy version might be dropped entirely
   p,q,d,k,m=panel.pqdkm

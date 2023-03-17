@@ -54,7 +54,7 @@ EXPORT int  armas(double *parameters,
 				double *u, double *e, double *var, double *h
 				) {
 				
-	double sum, esq;
+	double sum, esq ;
 	long k,j,i;
 
 	long N = (int) parameters[0];

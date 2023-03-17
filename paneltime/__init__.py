@@ -7,6 +7,7 @@ from . import main
 from . import options as opt_module
 from . import output
 from .processing import loaddata
+from . import debug
 
 
 import numpy as np

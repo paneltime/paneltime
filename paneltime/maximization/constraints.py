@@ -174,9 +174,13 @@ class Constraints(dict):
     pargs=self.panel_args
     p, q, d, k, m=self.pqdkm
 
-    c=self.ARMA_constraint
+    if its<-4:
+      c = 0.5
+    else:
+      c=self.ARMA_constraint
 
-    general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',0,c),('psi',-c,c)]
+
+    general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
     self.add_custom_constraints(panel, general_constraints, ll)
     self.add_custom_constraints(panel, pargs.user_constraints, ll)
 

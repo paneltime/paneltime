@@ -70,11 +70,12 @@ class output:
     d['sign_codes']=get_sign_codes(d['tsign'])
 
   def heading(self):
-    if self.comm.constr.CI is None:
-      CI ='None'
-    else:
-      CI = np.round(self.comm.constr.CI)
-    n_CI=len(self.comm.constr.mc_problems)
+    CI ='None'
+    n_CI = 'None'
+    if not self.comm.constr is None:
+      if not self.comm.constr.CI is None:
+        CI = np.round(self.comm.constr.CI)
+      n_CI=len(self.comm.constr.mc_problems)
 
 
     self.model_desc =  f"Model:\t{self.panel.input.Y_names[0]} = {' + '.join(self.panel.input.X_names)}\n"
@@ -100,7 +101,9 @@ class output:
     panel=self.panel
     comm=self.comm
     constr=comm.constr
-    weak_mc_dict=comm.constr.weak_mc_dict
+    weak_mc_dict={}
+    if not comm.constr is None:
+      weak_mc_dict=comm.constr.weak_mc_dict
     d=self.d
     if not self.dx_norm is None:
       d['dx_norm']=self.dx_norm

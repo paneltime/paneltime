@@ -42,9 +42,9 @@ class Computation:
     self.avg_incr = 0
     self.ev_constr = False
     self.diag_hess = diag_hess
-    self.CI_anal = 0
+    self.CI_anal = 2
     p, q, d, k, m = panel.pqdkm
-    self.init_arma = 2#((p>1)|(q>1)|(k>1)|(m>1))*2
+    self.init_arma = 0#((p>1)|(q>1)|(k>1)|(m>1))*2
     if panel.args.initial_user_defined:
       self.init_arma = 0
     self.init_arma_its = 0
@@ -56,6 +56,8 @@ class Computation:
     self.lmbda=lmbda
     self.has_reversed_directions=rev
     self.increment=increment
+    self.constr = None
+
     self.constr_old=self.constr
     self.constr = constraints.Constraints(self.panel,ll.args,its)
 
@@ -99,9 +101,11 @@ class Computation:
     det = np.linalg.det(H)
     se = [None]*len(H)	
     if its >NUM_ITER and ((abs(g_norm) < self.gtol) or ((abs(totpgain)<TOTP_TOL) and its>5000)) and self.init_arma==0:
-      Ha = self.calc_hessian(ll)     
-      self.constr.add_dynamic_constraints(self, Ha, ll,ll.args)
-      keep = [not i in self.constr.fixed.keys() for i in range(len(H))]
+      Ha = self.calc_hessian(ll)    
+      keep = [True]*len(H)
+      if not self.constr is None:      
+        self.constr.add_dynamic_constraints(self, Ha, ll,ll.args)
+        keep = [not i in self.constr.fixed.keys() for i in range(len(H))]
       Ha_keep = Ha[keep][:,keep]
       self.CI_anal = condition_index(Ha_keep)
       try:
@@ -130,7 +134,7 @@ class Computation:
     err = np.max(np.abs(dx_realized)) < 100*TOLX
 
     analytic_calc = err or ((self.CI>10000) and (self.num_hess_count>10) and abs(g_norm)>100*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
-
+    analytic_calc = analytic_calc and (self.panel.options.use_analytical.value>0)
     if calc:
       if analytic_calc:
         print('analytic')
@@ -259,6 +263,10 @@ class Computation:
     """Calculates the initial computation""" 
     ll = self.init_ll(p0)
     g, G = self.calc_gradient(ll)
+    if self.panel.options.use_analytical.value==2:
+      H = np.identity(len(g))
+      hessin = H
+      return p0, ll, ll.LL , g, hessin, H
     H = self.calc_hessian(ll)
     if self.diag_hess:
       d = np.diag(H)

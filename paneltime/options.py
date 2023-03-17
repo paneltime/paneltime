@@ -165,7 +165,7 @@ def regression_options():
                                                                                                                                         "the function must return the value and its computation in the following order:\n"
                                                                                                                                         "h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
                                                                                                                                         , str,"GARCH function",category='Regression')
-  self.include_initvar				= options_item(True,			"If True, includes an initaial variance term",
+  self.include_initvar				= options_item(False,			"If True, includes an initaial variance term",
                                                                          bool,'Include initial variance', [True,False],['Include','Do not include'],category='Regression')
 
   self.initial_arima_garch_params = options_item(0.1,			'The initial size of arima-garch parameters (all directions will be attempted', 
@@ -226,6 +226,9 @@ def regression_options():
                                                                                                                                         float,"Variance RE/FE normalization point in log function", "%s>0")		
   self.user_constraints			= options_item(None,			"You can add constraints as a dict or as a string in python dictonary syntax.\n",
                                                                     [str,dict], 'User constraints')
+
+  self.use_analytical		= options_item(2,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
+                                                                  ['No analytical','Analytical in iterations only','Analytical initially and in iterations'],category='Genereal')
 
   self.make_category_tree()
 

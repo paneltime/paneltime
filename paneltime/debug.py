@@ -66,7 +66,9 @@ def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
 
 def test_c_armas(u_RE, var_ARMA, e_RE, panel, ll):
   N,T,k = e_RE.shape
-  GAR_initvar = ll.GAR_1[0].reshape((1,T,1))*ll.args.args_d['initvar'][0]
+  GAR_initvar =0
+  if 'initvar' in ll.args.args_d:
+    GAR_initvar = ll.GAR_1[0].reshape((1,T,1))*ll.args.args_d['initvar'][0]
   var_ARMA2 = GAR_initvar + panel.arma_dot.dot(ll.GAR_1MA,ll.h_val,ll)
   e_RE2 = panel.arma_dot.dot(ll.AMA_1AR,u_RE,ll)	
   print(f"Testsums arma: c:{np.sum(var_ARMA**2)}, py:{np.sum(var_ARMA2**2)}")
@@ -133,18 +135,23 @@ def LL_calc(self,panel):
   return LL
 
 
-def save_reg_data(ll, panel, fname = 'repr.csv'):
+def save_reg_data(ll, panel, fname = 'repr.csv', heading=True):
   #saves data neccessary to reproduce 
   N,T,k = panel.X.shape
-  a = np.concatenate((panel.X, panel.Y, panel.W, ll.e, ll.var), 2)
+  heading =['X', 'Y', 'W', 'e','u', 'var', 'LL','AMA_1AR', 'GAR_1MA' , 'coefs_names', 'coefs']
+  a = np.concatenate((panel.X, panel.Y, panel.W, ll.e, ll.u, ll.var), 2)
   a = a.reshape((T, a.shape[2]))
   coefs = np.zeros((T,1))
-  coef_arr = ll.args.args_v
-  coefs[:len(coef_arr),0] = coef_arr
+  coef_names = np.array([['']]*T, dtype='<U20')
+  coef_names[:]=''
+  coefs[:len(ll.args.args_v),0] = ll.args.args_v
+  coef_names[:len(ll.args.args_v),0] = ll.args.names_v
   a = np.concatenate((a, 
                             ll.LL_full[0].reshape((T,1)),
                                                 ll.AMA_1AR[0].reshape((T,1))[::-1],
                                                 ll.GAR_1MA[0].reshape((T,1))[::-1],
+                                                coef_names,
                                                 coefs
                                                 ),1)
+  a = np.concatenate(([heading], a),0)
   np.savetxt(fname, a, fmt='%s', delimiter=';')	

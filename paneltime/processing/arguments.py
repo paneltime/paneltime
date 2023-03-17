@@ -324,7 +324,7 @@ class arguments:
         initargs['rho'][0] = rho	
       
       if k > 0:
-        initargs['gamma'][0] = 0.95	      
+        initargs['gamma'][0] = 0	      
 
     if panel.options.fixed_random_variance_eff.value==0:
       if v<1e-20:

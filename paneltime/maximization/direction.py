@@ -73,7 +73,7 @@ def solve_delete(constr,H, g, x, f, ev_constr):
     list(constr.keys())[0]
   except:
     dx, H = linalg_solve(H, g, f, x, ev_constr)
-    return dx
+    return dx, H
 
   H_orig = np.array(H)
   m=len(H)
