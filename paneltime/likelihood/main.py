@@ -261,12 +261,14 @@ class LL:
     
 def pred_u(u, e, rho, lmbda, e_now = 0):
   u_pred = e_now
-  u_pred += np.sum([
-    rho[i]*u[:,-i-1] for i in range(len(rho))
-    ], 1)
-  u_pred += np.sum([
-    lmbda[i]*e[:,-i-1] for i in range(len(lmbda))
-  ], 1)  
+  if len(rho):
+    u_pred += np.sum([
+      rho[i]*u[:,-i-1] for i in range(len(rho))
+      ], 1)
+  if len(lmda):
+    u_pred += np.sum([
+      lmbda[i]*e[:,-i-1] for i in range(len(lmbda))
+    ], 1)  
   
   return u_pred
   
@@ -281,13 +283,15 @@ def pred_var(h, var, psi, gamma, omega, W = None, W_next = None):
     G_next =0
   else:
     G_next = np.dot(W_next,omega)
-      
-  a = np.sum([
-    psi[i]*h[:,-i-1] for i in range(len(psi))
-    ], 1)
-  b = np.sum([
-    gamma[i]*(var[:,-i-1]-G) for i in range(len(gamma))
-  ], 1)  
+  a, b = 0, 0
+  if len(psi):
+    a = np.sum([
+      psi[i]*h[:,-i-1] for i in range(len(psi))
+      ], 1)
+  if len(gamma):
+    b = np.sum([
+      gamma[i]*(var[:,-i-1]-G) for i in range(len(gamma))
+    ], 1)  
   var_pred = G_next + a +b
   return var_pred
 
