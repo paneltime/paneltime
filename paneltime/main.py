@@ -21,9 +21,15 @@ import os
 import time
 
 N_NODES = 1
-warnings.filterwarnings('error')
-np.set_printoptions(suppress=True)
-np.set_printoptions(precision=8)
+
+try:
+  import IPython
+  if not 'IPKernelApp' in IPython.get_ipython().config:
+    raise RuntimeError()
+except:
+  warnings.filterwarnings('error')
+  np.set_printoptions(suppress=True)
+  np.set_printoptions(precision=8)
 
 
 def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,

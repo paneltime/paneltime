@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.2.12'
+version='1.2.16'
 
 from setuptools import setup, find_packages
 from codecs import open
@@ -48,7 +48,7 @@ setup(
 	extras_require={'linux':'gcc'},	
 
   package_data={
-      '': ['*.ico','cfunctions/likelihood/ctypes.dll', 'cfunctions/likelihood/ctypes.so'],
+      '': ['*.ico','likelihood/cfunctions/*'],
       },
   include_package_data=True,
 

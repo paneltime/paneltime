@@ -138,8 +138,11 @@ def LL_calc(self,panel):
 def save_reg_data(ll, panel, fname = 'repr.csv', heading=True):
   #saves data neccessary to reproduce 
   N,T,k = panel.X.shape
-  heading =['X', 'Y', 'W', 'e','u', 'var', 'LL','AMA_1AR', 'GAR_1MA' , 'coefs_names', 'coefs']
-  a = np.concatenate((panel.X, panel.Y, panel.W, ll.e, ll.u, ll.var), 2)
+  N,T,m = panel.W_a.shape
+  heading = [f'X{i}' for i in range(k)]
+  heading += [f'W{i}' for i in range(m)]
+  heading += ['Y', 'e','u', 'var', 'LL','AMA_1AR', 'GAR_1MA' , 'coefs_names', 'coefs']
+  a = np.concatenate((panel.X, panel.W_a, panel.Y, ll.e, ll.u, ll.var), 2)
   a = a.reshape((T, a.shape[2]))
   coefs = np.zeros((T,1))
   coef_names = np.array([['']]*T, dtype='<U20')

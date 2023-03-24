@@ -4,9 +4,12 @@ import shutil
 import os
 
 def main():
-	nukedir('dist')
-	nukedir('build')
-	nukedir('paneltime.egg-info')
+	try:
+		nukedir('dist')
+		nukedir('build')
+		nukedir('paneltime.egg-info')
+	except FileNotFoundError:
+		pass
 	os.system('python setup.py bdist_wheel sdist build')
 	
 	
@@ -18,7 +21,7 @@ def rm(fldr):
 
 def nukedir(dir):
 	if dir[-1] == os.sep: dir = dir[:-1]
-	if not os.path.isfile(dir):
+	if os.path.isfile(dir):
 		return
 	files = os.listdir(dir)
 	for file in files:
