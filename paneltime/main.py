@@ -54,7 +54,8 @@ class input_class:
       self.args=options.arguments.value
 
 def doit(datainput,options,mp,pqdkm,window,exe_tab, console_output):
-  print ("Creating panel")
+  if not options.supress_output:
+    print("Creating panel")
   pnl=panel.panel(datainput,options,pqdkm)			
 
   if not mp is None:

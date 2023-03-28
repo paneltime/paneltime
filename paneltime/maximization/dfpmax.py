@@ -75,7 +75,8 @@ def dfpmax(x, comput, callback, panel, slave_id):
         cause = msg
       else:
         cause = 'forced'
-      print(f"quit slave {slave_id}, time: {time.time()}, cause: {cause}, conv:{conv}")
+      if not panel.options.supress_output:
+        print(f"quit slave {slave_id}, time: {time.time()}, cause: {cause}, conv:{conv}")
       return cbhandler.callback.outbox, ls.ll
 
 class CallBackHandler:

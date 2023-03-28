@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 
 def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,instruments,settings,pool=(None,'mean')):
-  print ("Analyzing variables ...")
+  if not settings.supress_output:
+    print ("Analyzing variables ...")
   if not type(df)==pd.DataFrame:
     raise RuntimeError('The dataframe supplied is not a pandas dataframe. Only pandas dataframes are supported.')
   if CONST_NAME in df:

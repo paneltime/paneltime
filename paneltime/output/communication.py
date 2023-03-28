@@ -70,6 +70,8 @@ class web_output:
 
 
   def update(self,comput, its, ll, incr, dx_norm):
+    if self.panel.options.supress_output.value:
+      return
     self.output.update(comput,its, ll, incr, dx_norm)
     self.its=its
     self.reg_table=self.output.reg_table()
@@ -120,12 +122,16 @@ class console:
     self.comput = comput
 
   def update(self,comput, its,ll,incr, dx_norm):
+    if self.panel.options.supress_output.value:
+      return
     self.ll = ll
     self.incr = incr
     self.dx_norm = dx_norm
 
 
   def print_final(self, msg, fret, conv, t0, xsol, its, node):
+    if self.panel.options.supress_output.value:
+      return
     print(msg)
     if self.output_set:
       self.output.update(self.comput,its, self.ll, 0, self.dx_norm)
@@ -154,9 +160,13 @@ class tk_widget:
     self.output_set = True
 
   def update(self,comput, its, ll, incr, dx_norm):
+    if self.panel.options.supress_output.value:
+      return
     self.tab.update(self.panel, comput,its, ll, incr, dx_norm)
 
   def print_final(self, msg, fret, conv, t0, xsol, its, node):
+    if self.panel.options.supress_output.value:
+      return
     print(msg)
     print(f"LL={fret}  success={conv}  t={time.time()-t0} its: {its}")
     print(xsol)	

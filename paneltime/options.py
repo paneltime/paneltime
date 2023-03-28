@@ -210,6 +210,9 @@ def regression_options():
   self.subtract_means				= options_item(False,			"If True, subtracts the mean of all variables. This may be a remedy for multicollinearity if the mean is not of interest.",
                                                                           bool,'Subtract means', [True,False],['Subtracts the means','Do not subtract the means'],category='Regression')
 
+  self.supress_output				= options_item(False,			"If True, no output is printed.",
+                                                                          bool,'Supress output', [True,False],['Supresses output','Do not supress output'],category='Regression')
+
   self.tobit_limits				= options_item([None,None],		"Determines the limits in a tobit regression. "
                                                                         "Element 0 is lower limit and element1 is upper limit. "
                                                                                                                                         "If None, the limit is not active", 

@@ -119,8 +119,8 @@ class Computation:
         return x, f, hessin, Ha, g, 1, se, det, True
       elif abs(totpgain)<TOTP_TOL:
         return x, f, hessin, Ha, g, 2, se, det, True
-
-    print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
+    if not self.panel.options.supress_output.value:
+      print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
 
     if its>7 or abs(g_norm)<10*self.gtol:
       self.init_arma = 0
@@ -137,7 +137,6 @@ class Computation:
     analytic_calc = analytic_calc and (self.panel.options.use_analytical.value>0)
     if calc:
       if analytic_calc:
-        print('analytic')
         Ha = self.calc_hessian(ll)
         a = 0.5
         try:
