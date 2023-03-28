@@ -265,7 +265,7 @@ def pred_u(u, e, rho, lmbda, e_now = 0):
     u_pred += np.sum([
       rho[i]*u[:,-i-1] for i in range(len(rho))
       ], 1)
-  if len(lmda):
+  if len(lmbda):
     u_pred += np.sum([
       lmbda[i]*e[:,-i-1] for i in range(len(lmbda))
     ], 1)  
