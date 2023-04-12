@@ -180,7 +180,9 @@ def regression_options():
 
   self.min_group_df				= options_item(1, 				"The smallest permissible number of observations in each group. Must be at least 1", int, 'Minimum degrees of freedom', "%s>0",category='Regression')
 
-  self.minimum_iterations			= options_item(0, 				'Minimum number of iterations in maximization:',
+  self.max_iterations			= options_item(10000, 			"Maximum number of iterations", int, 'Maximum number of iterations', "%s>0",category='Regression')
+
+  self.minimum_iterations		= options_item(0, 				'Minimum number of iterations in maximization:',
                                                                       int,"Minimum iterations", "%s>-1")		
 
 
@@ -238,6 +240,7 @@ def regression_options():
   self.web_open_tab				= options_item(True, 			"True if web a new web browser tab should be opened when using web interface" 
                                                                         "Should a new tab be opemed?",  
                                                                                                                                         bool,'New web tab',[True,False],['Yes','No'])	
+
   return self
 
 

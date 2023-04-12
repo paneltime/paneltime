@@ -249,12 +249,12 @@ class LL:
     self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
     return matrices
   
-  def predict(self, variance_signals = None):#for testing, W_next = None):
+  def predict(self, W = None, W_next = None):
     d = self.args.args_d
     self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'])
     #u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], self.e[:,-1])#test
-    self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], variance_signals)
-    #var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], variance_signals, W_next)#test
+    self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], W, W_next)
+    #var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, W_next)#test
     
     return {'predicted residual':self.u_pred, 'predicted variance':self.var_pred}
 
@@ -270,7 +270,7 @@ def pred_u(u, e, rho, lmbda, e_now = 0):
       lmbda[i]*e[:,-i-1] for i in range(len(lmbda))
     ], 1)  
   
-  return u_pred
+  return u_pred[0,0]
   
 def pred_var(h, var, psi, gamma, omega, W = None, W_next = None):
   W = test_variance_signal(W, h, omega)
@@ -283,7 +283,7 @@ def pred_var(h, var, psi, gamma, omega, W = None, W_next = None):
     G_next =0
   else:
     G_next = np.dot(W_next,omega)
-  a, b = 0, 0
+  a, b = 0, 0 
   if len(psi):
     a = np.sum([
       psi[i]*h[:,-i-1] for i in range(len(psi))
@@ -293,7 +293,7 @@ def pred_var(h, var, psi, gamma, omega, W = None, W_next = None):
       gamma[i]*(var[:,-i-1]-G) for i in range(len(gamma))
     ], 1)  
   var_pred = G_next + a +b
-  return var_pred
+  return var_pred[0,0]
 
 
 

@@ -22,25 +22,21 @@ import time
 
 N_NODES = 1
 
-try:
-  import IPython
-  if not 'IPKernelApp' in IPython.get_ipython().config:
-    raise RuntimeError()
-except:
-  warnings.filterwarnings('error')
-  np.set_printoptions(suppress=True)
-  np.set_printoptions(precision=8)
+
+np.set_printoptions(suppress=True)
+np.set_printoptions(precision=8)
 
 
 def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,
             exe_tab,instruments, console_output, mp):
 
   """optimizes LL using the optimization procedure in the maximize module"""
+  warnings.filterwarnings('error')
   if not exe_tab is None:
     if exe_tab.isrunning==False:return
   datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
   summary = doit(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
-
+  warnings.filterwarnings('default')
   return summary
 
 class input_class:

@@ -7,7 +7,7 @@
 try:
   get_ipython()#fails if not in IPython environment
   import IPython
-except:
+except NameError as e:
   IPython = None
 
 from pydoc import importfile

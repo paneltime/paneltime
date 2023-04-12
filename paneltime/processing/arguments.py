@@ -369,18 +369,20 @@ def ARMA_process_calc(e,panel):
 
   rho = max(min(c[1]/c[0],0.99), -0.99)
 
-
+  
   lmbda = 0
-  try:
-    lmbda1 = (1 - 2*c[0]*rho + rho**2)/(2*(c[0]-rho))
-    lmbda2 = (( (rho**2 - 1)*(rho**2 - 1 + 4*c[0]**2 - 4*c[0]*rho) )**0.5) / (2*(c[0]-rho))
+  den = 2*(c[0]-rho)
+  rtexp = ( (rho**2 - 1)*(rho**2 - 1 + 4*c[0]**2 - 4*c[0]*rho) )
+  if den!=0 and rtexp>0:
+    lmbda1 = (1 - 2*c[0]*rho + rho**2)/den
+    lmbda2 = (rtexp**0.5) / den
 
     if abs(lmbda1+lmbda2)>abs(lmbda1-lmbda2):
       lmbda = max(min(lmbda1 - lmbda2,0.99), -0.99)
     else:
       lmbda = max(min(lmbda1 + lmbda2,0.99), -0.99)
-  except:
-    pass
+
+
 
   return rho,lmbda
 

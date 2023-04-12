@@ -100,7 +100,8 @@ class Computation:
 
     det = np.linalg.det(H)
     se = [None]*len(H)	
-    if its >NUM_ITER and ((abs(g_norm) < self.gtol) or ((abs(totpgain)<TOTP_TOL) and its>5000)) and self.init_arma==0:
+    if (its >NUM_ITER and ((abs(g_norm) < self.gtol) or ((abs(totpgain)<TOTP_TOL) and its>5000)) and self.init_arma==0
+        or its>=self.panel.options.max_iterations.value):
       Ha = self.calc_hessian(ll)    
       keep = [True]*len(H)
       if not self.constr is None:      
@@ -119,6 +120,8 @@ class Computation:
         return x, f, hessin, Ha, g, 1, se, det, True
       elif abs(totpgain)<TOTP_TOL:
         return x, f, hessin, Ha, g, 2, se, det, True
+      elif its>=self.panel.options.max_iterations.value:
+        return x, f, hessin, Ha, g, 3, se, det, True
     if not self.panel.options.supress_output.value:
       print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
 

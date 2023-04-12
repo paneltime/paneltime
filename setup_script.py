@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 import shutil
 import os
+import re
+import subprocess as sp
 
 def main():
 	try:
@@ -10,7 +12,38 @@ def main():
 		nukedir('paneltime.egg-info')
 	except FileNotFoundError:
 		pass
-	os.system('python setup.py bdist_wheel sdist build')
+	version = add_version()
+	print("Packaging paneltime version {version}")
+	r = sp.check_output('git pull')
+	if r != b'Already up to date.\n':
+		raise RuntimeError('Not up to date after git pull. Check that the up to date')
+	os.system('git add .')
+	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit: ")}"')
+	os.system('git push')
+	#os.system('python setup.py bdist_wheel sdist build')
+	
+	
+def add_version():
+	f = open('setup.py', 'r')
+	s = f.read()
+	m = re.search("(?<=version=')(.*)(?=')", s)
+	v = s[m.start(0):m.end(0)]
+	v = v.split('.')
+	v = v[0], v[1], str(int(v[2])+1)
+	version = '.'.join(v)
+	s = s[:m.start(0)] +  version + s[m.end(0):]
+	save('setup~.py', s)
+	save('setup.py',s)
+	os.remove('setup~.py')
+	save('paneltime/info.txt', f"Version='{version}'")
+	return version
+	
+def save(file, string):
+	f = open(file,'w')
+	f.write(string)
+	f.close()
+	
+	
 	
 	
 def rm(fldr):

@@ -60,6 +60,8 @@ def dfpmax(x, comput, callback, panel, slave_id):
       msg = "Convergence on zero gradient; local or global minimum identified"
     elif conv==2:
       msg = "Convergence on zero expected gain; local or global minimum identified given multicolinearity constraints"		
+    elif conv==3:
+      msg = "Reached the maximum number of iterations"		  
     elif err:
       msg = "Warning: Convergence on delta x; the gradient is incorrect or the tolerance is set too low"
     elif terminate:

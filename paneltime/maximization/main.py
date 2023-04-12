@@ -265,10 +265,25 @@ class Summary:
     if return_string:
       return t		
     print(t)
-
-
-
-
+    
+  def predict(self, signals=None):
+    #debug:
+    #self.ll.predict(self.panel.W_a[:,-2], self.panel.W_a[:,-1])
+    N,T,k = self.panel.W_a.shape
+    if signals is None:
+      pred = self.ll.predict(self.panel.W_a[:,-1], None)
+      return pred
+    if not hasattr(signals, '__iter__'):#assumed float
+      signals = np.array([signals])
+    else:
+      signals = np.array(signals)
+    if len(signals.shape)>1 or signals.shape[0] != k-1:
+      raise RuntimeError("Signals must be a float or a one dimensional vector with the same size as variables assigned to HF argument")
+    
+    signals = np.append([1],signals)
+    pred = self.ll.predict(self.panel.W_a[:,-1], signals.reshape((1,k)))
+    return pred
+    
 
 class Comm:
   def __init__(self, panel, args, mp, window, exe_tab, console_output, t0):
