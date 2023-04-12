@@ -20,7 +20,7 @@ def main():
 	os.system('git add .')
 	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit: ")}"')
 	os.system('git push')
-	#os.system('python setup.py bdist_wheel sdist build')
+	os.system('python setup.py bdist_wheel sdist build')
 	
 	
 def add_version():
@@ -35,7 +35,7 @@ def add_version():
 	save('setup~.py', s)
 	save('setup.py',s)
 	os.remove('setup~.py')
-	save('paneltime/info.txt', f"Version='{version}'")
+	save('paneltime/info.txt', f"version='{version}'")
 	return version
 	
 def save(file, string):
