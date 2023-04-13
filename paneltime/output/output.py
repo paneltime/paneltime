@@ -57,8 +57,12 @@ class output:
     d['se_robust'],d['se_st']=sandwich(comm,self.lags)
     d['se_robust_oposite'],d['se_st_oposite']=sandwich(comm,self.lags,oposite=True)
     if not (d['se_st_oposite'] is None):
-      d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
-      d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
+      try:
+        d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
+        d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
+      except Exception as e:
+        print(f"d:{d}")
+        raise e
     #d['se_robust_fullsize'],d['se_st_fullsize']=sandwich(comm,self.lags,resize=False)
     no_nan=np.isnan(d['se_robust'])==False
     valid=no_nan

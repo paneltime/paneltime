@@ -6,6 +6,7 @@ import re
 import subprocess as sp
 
 def main():
+
 	try:
 		nukedir('dist')
 		nukedir('build')
@@ -13,14 +14,15 @@ def main():
 	except FileNotFoundError:
 		pass
 	version = add_version()
-	print("Packaging paneltime version {version}")
+	print(f"Packaging paneltime version {version}")
 	r = sp.check_output('git pull')
 	if r != b'Already up to date.\n':
-		raise RuntimeError('Not up to date after git pull. Check that the up to date')
+		raise RuntimeError(f'Not up to date after git pull. Fix any conflicts and check that the repository is up to date\nPull output:\n{r})')
 	os.system('git add .')
 	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit: ")}"')
 	os.system('git push')
 	os.system('python setup.py bdist_wheel sdist build')
+	os.system("twine upload dist/*")
 	
 	
 def add_version():
