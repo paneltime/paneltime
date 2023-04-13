@@ -37,7 +37,7 @@ def add_version():
 	save('setup~.py', s)
 	save('setup.py',s)
 	os.remove('setup~.py')
-	save('paneltime/info.txt', f"version='{version}'")
+	save('paneltime/info.py', f"version='{version}'")
 	return version
 	
 def save(file, string):

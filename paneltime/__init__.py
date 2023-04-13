@@ -8,6 +8,7 @@ from . import options as opt_module
 from . import output
 from .processing import loaddata
 from . import debug
+from . import info
 
 
 import numpy as np
@@ -103,6 +104,7 @@ def load_SQL(conn,sql_string):
   #	raise e
   return dataframe
 
+version = info.version
 
 options=opt_module.regression_options()
 preferences=opt_module.application_preferences()

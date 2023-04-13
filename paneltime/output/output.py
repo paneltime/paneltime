@@ -266,17 +266,18 @@ def sandwich(comm,lags,oposite=False,resize=True):
   panel=comm.panel
   H,G,idx=reduce_size(comm,oposite,resize)
   lags=lags+panel.lost_obs
+  onlynans = np.array(len(idx)*[np.nan])
   try:
     hessin=np.linalg.inv(-H)
   except np.linalg.LinAlgError as e:
     print(e)
-    return None,None
+    return np.array(onlynans),np.array(onlynans)
   se_robust,se,V=stat.robust_se(panel,lags,hessin,G)
   se_robust,se,V=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True)
   if se_robust is None:
-    se_robust = np.array(len(idx)*[np.nan])
+    se_robust = np.array(onlynans)
   if se is None:
-    se = np.array(len(idx)*[np.nan])  
+    se = np.array(onlynans)
   return se_robust,se
 
 def reduce_size(comm,oposite,resize):
