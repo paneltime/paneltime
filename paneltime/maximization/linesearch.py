@@ -60,7 +60,7 @@ class LineSearch:
       if self.k > 0: 
         self.f, self.ll = self.func(self.x) 
       if self.f is None:
-        print('The function returned None')
+        self.msg = 'The function returned None'
         self.f = f
       if (self.alam < alamin):   #Convergence on delta x. For zero finding,the calling program should verify the convergence.
         self.check = 1
