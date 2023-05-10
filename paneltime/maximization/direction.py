@@ -100,7 +100,7 @@ def solve_delete(constr,H, g, x, f, ev_constr):
   except:
     dx, H = linalg_solve(H, g, f, x, ev_constr)
     return dx, H
-
+  H = make_hess_posdef(H)
   H_orig = np.array(H)
   m=len(H)
 
@@ -227,6 +227,7 @@ def ev_non_sing(H, ev_constr):
 
 def linalg_solve(H,g, f, x, ev_constr):
   try:
+    ev, p = ev_non_sing(H, ev_constr)
     return -np.linalg.solve(H, g), H
   except:
     pass
@@ -249,6 +250,12 @@ def linalg_solve(H,g, f, x, ev_constr):
 
 
   return dx, H
+
+def make_hess_posdef(H):
+  c, var_prop, ev, p = stat.var_decomposition(XXNorm=H)
+  ev = ((ev<0) - 1.0 * (ev>=0)) * ev
+  H = np.dot(p, np.dot(np.diag(ev), p.T))  
+  return H
 
 def linalg_solve_old(H,g):
   try:

@@ -187,6 +187,10 @@ class Constraints(dict):
     if len(minvarhits):
       self.add('gamma',None, 'Variance under threshold for an observation')
       self.add('psi',None, 'Variance under threshold for an observation')
+      if not ll is None:
+        for i in range(1,len(ll.args.args_d['omega'])):
+          self.add(f'omega{i}',None, 'Variance under threshold for an observation')
+          
     c = [
                   [(f'rho{i}', 0) for i in range(1,p)] +
                         [(f'lambda{i}', None) for i in range(1,q)] + 
@@ -301,10 +305,18 @@ class Constraints(dict):
           self.add(index ,assc,'collinear')
         else:
           self.add(assc,index,'collinear')
-  def print_constraints(self):
-    for i in self:
-      c=self[i]
-      print(f"constraint: {i}, associate:{c.assco_ix}, max:{c.max}, min:{c.min}, value:{c.value}")  
+          
+  def print_constraints(self, kind = None):
+    for desc, obj in [('All', self),
+                ('Fixed', self.fixed),
+                ('Intervals', self.intervals)]:
+      print(f"{desc} constraints:")
+      for i in obj:
+        c=obj[i]
+        try:
+          print(f"constraint: {i}, associate:{c.assco_ix}, max:{c.max}, min:{c.min}, value:{c.value}")  
+        except:
+          print(f"constraint: {i}, associate:{c.assco_ix}, max:{None}, min:{None}, value:{c.value}")  
 
 def test_interval(interval,value):
   if not interval is None:

@@ -46,7 +46,8 @@ class LineSearch:
       dx_alam, slope, self.rev, self.applied_constraints  = direction.new(g, x, H, self.comput.constr, f, dx, self.alam)
       self.x = x + dx_alam
       self.f, self.ll = self.func(self.x) 
-      if self.f != None: break
+      if self.f != None: 
+        break
     #*************************
     f2=0
     alam2 = self.alam
@@ -63,6 +64,9 @@ class LineSearch:
       if (self.alam < alamin):   #Convergence on delta x. For zero finding,the calling program should verify the convergence.
         self.msg = "Convergence on delta dx"
         self.conv = 2
+        self.f = f
+        self.x = x
+        self.alam = 0
         return
       elif (self.f >= f+self.alf*self.alam*slope): 
         self.msg = "Sufficient function increase"

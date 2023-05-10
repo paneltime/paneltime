@@ -52,7 +52,7 @@ class Computation:
 
 
 
-  def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll):
+  def set(self, its,increment,lmbda,rev, add_dyn_constr, H, ll, x):
     self.its=its
     self.lmbda=lmbda
     self.has_reversed_directions=rev
@@ -60,7 +60,7 @@ class Computation:
     self.constr = None
 
     self.constr_old=self.constr
-    self.constr = constraints.Constraints(self.panel,ll.args.args_v,its)
+    self.constr = constraints.Constraints(self.panel,x,its)
 
     if self.constr is None:
       self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
@@ -68,7 +68,8 @@ class Computation:
       return
 
     if self.panel.options.constraints_engine.value:
-      self.constr.add_static_constraints(self.panel, its, self.init_arma, ll,  np.nonzero(ll.var<ll.minvar)[0])	
+      self.constr.add_static_constraints(self.panel, its, self.init_arma, ll,  np.nonzero(ll.var<ll.minvar)[1])	
+
       self.constr.add_dynamic_constraints(self, H, ll)	
 
     self.CI=self.constr.CI
@@ -84,17 +85,20 @@ class Computation:
     NUM_ITER = 5
     TOTP_TOL = 0.0001
 
+
     g, G = self.calc_gradient(ll)
     dx, dx_norm, H_ = direction.get(g, x, H, self.constr, f, hessin, self.ev_constr, simple=False)
-
-    pgain, totpgain = potential_gain(dx, g, H)
-    self.totpgain = totpgain
-    max_pgain = abs(max(pgain))
-
+    
     a = np.ones(len(g))
     if not self.constr is None:
       a[list(self.constr.fixed.keys())] =0		
-      a[ls.applied_constraints] = 0
+      a[ls.applied_constraints] = 0    
+
+    pgain, totpgain = potential_gain(dx*a, g, H)
+    self.totpgain = totpgain
+    max_pgain = abs(max(pgain))
+
+
     g_norm =np.max(np.abs(g*a*x)/(abs(f)+1e-12) )
     gtol = self.gtol
     if sum(a)==1:
@@ -132,7 +136,7 @@ class Computation:
     if calc:
       if analytic_calc:
         H = self.calc_hessian(ll)
-        a = 1.0
+        a = 0.5
         try:
           hessin = np.linalg.inv(H)*a + (1-a)*hessin
         except:
@@ -150,7 +154,7 @@ class Computation:
 
     self.H, self.g, self.G = H, g, G
 
-    self.set(its, incr, alam, rev, True, H, ll)
+    self.set(its, incr, alam, rev, True, H, ll, x)
 
 
 

@@ -131,7 +131,7 @@ def regression_options():
   self.multicoll_threshold_report = options_item(30,				'Threshold for reporting multicoll problems', float, 'Multicollinearity threshold',
                                                        None,None)		
 
-  self.multicoll_threshold_max    = options_item(1000,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
+  self.multicoll_threshold_max    = options_item(100,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
                                                        None,None)			
 
   self.parallel  					= options_item(True,			"If True, uses multiple cores for parallel computing",
