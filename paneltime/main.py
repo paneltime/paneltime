@@ -31,12 +31,13 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
             exe_tab,instruments, console_output, mp):
 
   """optimizes LL using the optimization procedure in the maximize module"""
-  warnings.filterwarnings('error')
-  if not exe_tab is None:
-    if exe_tab.isrunning==False:return
-  datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
-  summary = doit(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
-  warnings.filterwarnings('default')
+  with warnings.catch_warnings():
+    warnings.simplefilter('error')
+    if not exe_tab is None:
+      if exe_tab.isrunning==False:return
+    datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
+    summary = doit(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
+
   return summary
 
 class input_class:
@@ -85,9 +86,11 @@ def indentify_dataset(glob,source):
 
 
 
-def identify_global(globals,name):
+def identify_global(globals,name,attr):
   try:
     variable=globals[name]
   except:
     variable=None	
+  if not hasattr(variable, attr):
+    return None
   return variable

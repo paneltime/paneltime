@@ -29,9 +29,9 @@ mp = None
 CALLBACK_ACTIVE = True
 
 
-def prepare_parallel():
+def enable_parallel():
   global mp
-  N_NODES = 10
+  N_NODES = 1
   PARALLEL = True #change to false for debugging
 
   t0=time.time()
@@ -57,8 +57,8 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
 	console_output: if True, GUI output is turned off (GUI output is experimental)
 	"""
 
-  window=main.identify_global(inspect.stack()[1][0].f_globals,'window')
-  exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab')
+  window=main.identify_global(inspect.stack()[1][0].f_globals,'window', 'geometry')
+  exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab', 'isrunning')
 
   r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,instruments, console_output, mp)
 

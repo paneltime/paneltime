@@ -51,7 +51,7 @@ EXPORT int  armas(double *parameters,
 				double *lambda, double *rho, double *gamma, double *psi,
 				double *AMA_1, double *AMA_1AR, 
 				double *GAR_1, double *GAR_1MA, 
-				double *u, double *e, double *var, double *h
+				double *u, double *e, double *var, double *h, double *W
 				) {
 				
 	double sum, esq ;
@@ -65,11 +65,9 @@ EXPORT int  armas(double *parameters,
 	long npsi = (int) parameters[5];
 	long egarch = (int) parameters[6];
 	long lost_obs = (int) parameters[7];
-	double egarch_add = parameters[8];
-	double init_var = parameters[9];
+	double h_add = parameters[8];
 	long rw;
 
-	if(true){init_var = abs(init_var);};
 	inverse(T, lambda, nlm, rho, nrh, AMA_1, AMA_1AR);
 
 	inverse(T, gamma, ngm, psi, npsi, GAR_1, GAR_1MA);
@@ -87,16 +85,16 @@ EXPORT int  armas(double *parameters,
 			//GARCH:
 			if(i>=lost_obs){
 				h[k + i*N] = sum*sum;
+				h[k + i*N] += h_add;
 				if(egarch){
-					h[k + i*N] += egarch_add;
 					h[k + i*N] = log((h[k + i*N]) + (h[k + i*N]==0)*1e-18);
 				}
 			}
 			sum =0;
 			for(j=0;j<=i;j++){//time dimension, back tracking
-				sum += GAR_1MA[j]*h[k + (i-j)*N];
+				sum += GAR_1[j] * W[k + (i-j)*N] + GAR_1MA[j]*h[k + (i-j)*N];
 			}
-			var[k + i*N] = sum + GAR_1[i]*init_var ;
+			var[k + i*N] = sum;
 		}
 	}
 

@@ -61,6 +61,8 @@ class options_item:
       return self.valid_test(value, self.permissible_values[i])
 
   def valid_test(self,value,permissible):
+    if permissible is None:
+      return True
     if type(permissible)==list or type(permissible)==tuple:
       try:
         if not type(value)==list or type(value)==tuple:
@@ -136,7 +138,7 @@ def regression_options():
                                                                               bool,'Multicore', [True,False],['Multicore','Single core'],category='General')
 
   #self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
-  self.EGARCH	            = options_item(True,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
+  self.EGARCH	            = options_item(False,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
                                                       [True,False],['Direct GARCH','Usual GARCH'],category='ARIMA-GARCH')	
 
 
@@ -181,6 +183,8 @@ def regression_options():
   self.min_group_df				= options_item(1, 				"The smallest permissible number of observations in each group. Must be at least 1", int, 'Minimum degrees of freedom', "%s>0",category='Regression')
 
   self.max_iterations			= options_item(10000, 			"Maximum number of iterations", int, 'Maximum number of iterations', "%s>0",category='Regression')
+  
+  self.max_increments			= options_item(0, 			"Maximum increment before maximization is ended", float, 'Maximum increments', "%s>0",category='Regression')
 
   self.minimum_iterations		= options_item(0, 				'Minimum number of iterations in maximization:',
                                                                       int,"Minimum iterations", "%s>-1")		
@@ -232,7 +236,7 @@ def regression_options():
   self.user_constraints			= options_item(None,			"You can add constraints as a dict or as a string in python dictonary syntax.\n",
                                                                     [str,dict], 'User constraints')
 
-  self.use_analytical		= options_item(2,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
+  self.use_analytical		= options_item(1,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
                                                                   ['No analytical','Analytical in iterations only','Analytical initially and in iterations'],category='Genereal')
 
   self.make_category_tree()

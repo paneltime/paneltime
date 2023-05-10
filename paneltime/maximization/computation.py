@@ -44,10 +44,11 @@ class Computation:
     self.diag_hess = diag_hess
     self.CI_anal = 2
     p, q, d, k, m = panel.pqdkm
-    self.init_arma = 0#((p>1)|(q>1)|(k>1)|(m>1))*2
+    self.init_arma = ((k>=1)|(m>=1))*2
     if panel.args.initial_user_defined:
       self.init_arma = 0
     self.init_arma_its = 0
+
 
 
 
@@ -59,7 +60,7 @@ class Computation:
     self.constr = None
 
     self.constr_old=self.constr
-    self.constr = constraints.Constraints(self.panel,ll.args,its)
+    self.constr = constraints.Constraints(self.panel,ll.args.args_v,its)
 
     if self.constr is None:
       self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
@@ -67,7 +68,7 @@ class Computation:
       return
 
     if self.panel.options.constraints_engine.value:
-      self.constr.add_static_constraints(self.panel, its, self.init_arma, ll)	
+      self.constr.add_static_constraints(self.panel, its, self.init_arma, ll,  np.nonzero(ll.var<ll.minvar)[0])	
       self.constr.add_dynamic_constraints(self, H, ll)	
 
     self.CI=self.constr.CI
@@ -76,8 +77,10 @@ class Computation:
     self.weak_mc_dict=self.constr.weak_mc_dict
 
 
-  def exec(self, dx_realized,hessin, H, f, x, g_old, incr, rev, alam, its, ll, calc = True):
+  def exec(self, dx_realized,hessin, H, incr, its, ls, calc = True):
+    f, x, g_old, rev, alam,ll = ls.f, ls.x, ls.g, ls.rev, ls.alam, ls.ll
     #Thhese setting may not hold for all circumstances, and should be tested properly:
+    p, q, d, k, m = self.panel.pqdkm
     NUM_ITER = 5
     TOTP_TOL = 0.0001
 
@@ -91,8 +94,11 @@ class Computation:
     a = np.ones(len(g))
     if not self.constr is None:
       a[list(self.constr.fixed.keys())] =0		
+      a[ls.applied_constraints] = 0
     g_norm =np.max(np.abs(g*a*x)/(abs(f)+1e-12) )
-
+    gtol = self.gtol
+    if sum(a)==1:
+      gtol = 1e-10
     self.rec.append(str(i) for i in [totpgain, max_pgain, incr, g_norm])
     CI=0
     if not self.CI is None:
@@ -100,35 +106,20 @@ class Computation:
 
     det = np.linalg.det(H)
     se = [None]*len(H)	
-    if (its >NUM_ITER and ((abs(g_norm) < self.gtol) or ((abs(totpgain)<TOTP_TOL) and its>5000)) and self.init_arma==0
-        or its>=self.panel.options.max_iterations.value):
-      Ha = self.calc_hessian(ll)    
-      keep = [True]*len(H)
-      if not self.constr is None:      
-        self.constr.add_dynamic_constraints(self, Ha, ll,ll.args)
-        keep = [not i in self.constr.fixed.keys() for i in range(len(H))]
-      Ha_keep = Ha[keep][:,keep]
-      self.CI_anal = condition_index(Ha_keep)
-      try:
-        det = np.linalg.det(Ha_keep)
-        hessin[keep][:,keep] = np.linalg.inv(Ha_keep)
-        se = stat.robust_se(self.panel, 100, hessin, G)[0]				
-      except Exception as e:
-        print(e)
 
-      if abs(g_norm) < self.gtol:
-        return x, f, hessin, Ha, g, 1, se, det, True
-      elif abs(totpgain)<TOTP_TOL:
-        return x, f, hessin, Ha, g, 2, se, det, True
-      elif its>=self.panel.options.max_iterations.value:
-        return x, f, hessin, Ha, g, 3, se, det, True
+    if (ls.conv == 3) or (its >NUM_ITER and ((abs(g_norm) < gtol) or (abs(totpgain)<TOTP_TOL))
+        or its>=self.panel.options.max_iterations.value):
+      if self.init_arma>0:
+        self.init_arma = 0
+      else:
+        return self.handle_convergence(ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G)
     if not self.panel.options.supress_output.value:
       print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
 
-    if its>7 or abs(g_norm)<10*self.gtol:
+    if its>10 or (its<3 and incr<1):
       self.init_arma = 0
-    elif (its>3 or abs(g_norm)<100*self.gtol) and not self.panel.args.initial_user_defined:
-      self.init_arma = 1		
+    elif its>3 and self.init_arma>1:
+      self.init_arma = 1	
 
 
     self.avg_incr = incr + self.avg_incr*0.7
@@ -136,14 +127,14 @@ class Computation:
 
     err = np.max(np.abs(dx_realized)) < 100*TOLX
 
-    analytic_calc = err or ((self.CI>10000) and (self.num_hess_count>10) and abs(g_norm)>100*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
+    analytic_calc = (err and self.num_hess_count>4) or ((self.CI>10000) and (self.num_hess_count>5) and abs(g_norm)>10*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
     analytic_calc = analytic_calc and (self.panel.options.use_analytical.value>0)
     if calc:
       if analytic_calc:
-        Ha = self.calc_hessian(ll)
-        a = 0.5
+        H = self.calc_hessian(ll)
+        a = 1.0
         try:
-          hessin = np.linalg.inv(Ha)*a + (1-a)*hessin
+          hessin = np.linalg.inv(H)*a + (1-a)*hessin
         except:
           pass
         self.num_hess_count = 0
@@ -165,8 +156,32 @@ class Computation:
 
     return x, f, hessin, H, g, 0, se, det, analytic_calc
 
+  def handle_convergence(self, ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G):
+    Ha = self.calc_hessian(ll)    
+    keep = [True]*len(H)
+    if not self.constr is None:      
+      self.constr.add_dynamic_constraints(self, Ha, ll,ll.args.args_v)
+      keep = [not i in self.constr.fixed.keys() for i in range(len(H))]
+    Ha_keep = Ha[keep][:,keep]
+    self.CI_anal = condition_index(Ha_keep)
+    try:
+      det = np.linalg.det(Ha_keep)
+      hessin[keep][:,keep] = np.linalg.inv(Ha_keep)
+      se = stat.robust_se(self.panel, 100, hessin, G)[0]				
+    except Exception as e:
+      print(e)
 
-
+    if abs(g_norm) < self.gtol:
+      return x, f, hessin, Ha, g, 1, se, det, True
+    elif abs(totpgain)<TOTP_TOL:
+      return x, f, hessin, Ha, g, 2, se, det, True
+    elif its>=self.panel.options.max_iterations.value:
+      return x, f, hessin, Ha, g, 3, se, det, True
+    elif (ls.conv == 2) :
+      return x, f, hessin, Ha, g, 4, se, det, True  
+    elif (ls.conv == 3) :
+      return x, f, hessin, Ha, g, 4, se, det, True      
+    
   def calc_gradient(self,ll):
     dLL_lnv, DLL_e=logl.func_gradent(ll,self.panel)
     self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
@@ -266,7 +281,7 @@ class Computation:
     ll = self.init_ll(p0)
     g, G = self.calc_gradient(ll)
     if self.panel.options.use_analytical.value==2:
-      H = np.identity(len(g))
+      H = -np.identity(len(g))
       hessin = H
       return p0, ll, ll.LL , g, hessin, H
     H = self.calc_hessian(ll)

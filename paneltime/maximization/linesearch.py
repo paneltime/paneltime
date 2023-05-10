@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .. import likelihood as logl
-
+from . import direction
 import numpy as np
 
 STPMX=100.0 
@@ -15,28 +15,24 @@ class LineSearch:
     self.stpmax = STPMX * max((abs(np.sum(x**2)	))**0.5,len(x))
     self.comput = comput
     self.panel = panel
+    self.applied_constraints = []
 
-  def lnsrch(self, x, f, g, dx):
+  def lnsrch(self, x, f, g, H, dx):
 
     #(x, f, g, dx) 
 
-    self.check=0
+    self.conv=0
     self.g = g
     self.msg = ""
     n=len(x)
-    self.rev = False
+  
     if f is None:
       raise RuntimeError('f cannot be None')
 
     summ=np.sum(dx**2)**0.5
     if summ > self.stpmax:
       dx = dx*self.stpmax/summ 
-    slope=np.sum(g*dx)					#Scale if attempted step is too big.
-    if slope <= 0.0:
-      self.msg = "Roundoff problem"
-      dx=-dx
-      slope=np.sum(g*dx)
-      self.rev = True
+
     test=0.0 															#Compute lambda min.
     for i in range(0,n): 
       temp=abs(dx[i])/max(abs(x[i]),1.0) 
@@ -47,7 +43,8 @@ class LineSearch:
 
     for i in range(1000):#Setting alam so that the largest step is valid. Set func to return None when input is invalid
       self.alam = 0.5**i*self.step #Always try full Newton step first.
-      self.x = x + self.alam * dx
+      dx_alam, slope, self.rev, self.applied_constraints  = direction.new(g, x, H, self.comput.constr, f, dx, self.alam)
+      self.x = x + dx_alam
       self.f, self.ll = self.func(self.x) 
       if self.f != None: break
     #*************************
@@ -56,20 +53,22 @@ class LineSearch:
     alamstart = self.alam#***********CUSTOMIZATION
     max_iter = 1000
     for self.k in range (0,max_iter):			#Start of iteration loop.
-      self.x = x + self.alam * dx			
+      dx_alam, slope, self.rev, self.applied_constraints  = direction.new(g, x, H, self.comput.constr, f, dx, self.alam)
+      self.x = x + dx_alam
       if self.k > 0: 
         self.f, self.ll = self.func(self.x) 
       if self.f is None:
         self.msg = 'The function returned None'
         self.f = f
       if (self.alam < alamin):   #Convergence on delta x. For zero finding,the calling program should verify the convergence.
-        self.check = 1
         self.msg = "Convergence on delta dx"
+        self.conv = 2
         return
       elif (self.f >= f+self.alf*self.alam*slope): 
         self.msg = "Sufficient function increase"
         #print(f'LL single:{self.ll.LL}')
         #self.ll = self.ll2
+        self.conv = 1
         return							#Sufficient function increase
       else:  															#Backtrack.
         if (self.alam == alamstart):#***********CUSTOMIZATION  alam == 1.0
@@ -96,8 +95,9 @@ class LineSearch:
       self.alam = max(tmplam, 0.1*self.alam)								#lambda>=0.1*lambda1
       if alamstart<1.0:#*************CUSTOMIZATION
         self.alam = min((self.alam, alamstart*0.9**self.k))
-
-      self.msg = f"No function increase after {max_iter} iterations"
+      
+    self.msg = f"No function increase after {max_iter} iterations"
+    self.conv = 3
 
   def func(self,x):	
     ll = logl.LL(x, self.panel, self.comput.constr)

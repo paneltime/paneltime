@@ -38,13 +38,13 @@ class gradient:
       groupeffect=ll.dvarRE*dvRE_dx*panel.a[3]
 
 
-    dvar_sigma_G=None
+    dvar_sigma=None
     if self.panel.pqdkm[4]>0 and not dRE is None: 			#eqs. 33-34
       ((N,T,k))=dRE.shape
       x=cf.prod((ll.h_e_val,dRE))	
-      dvar_sigma_G=self.panel.arma_dot.dot(ll.GAR_1MA,x,ll)
-    dvar_e=cf.add((dvar_sigma_G,groupeffect),True)
-    return dvar_e,dvar_sigma_G,dvRE_dx,d_input
+      dvar_sigma=self.panel.arma_dot.dot(ll.GAR_1MA,x,ll)
+    dvar_e=cf.add((dvar_sigma,groupeffect),True)
+    return dvar_e,dvar_sigma,dvRE_dx,d_input
 
 
   def get(self,ll,DLL_e=None,dLL_var=None,return_G=False):
@@ -55,7 +55,7 @@ class gradient:
     panel=self.panel
     incl=self.panel.included[3]
     re_obj_i,re_obj_t=ll.re_obj_i,ll.re_obj_t
-    u, e_RE,u_RE,h_e_val,var_ARMA,h_val,v=ll.u, ll.e_RE,ll.u_RE,ll.h_e_val,ll.var_ARMA,ll.h_val,ll.v
+    u, e_RE,u_RE,h_e_val,var,h_val,v=ll.u, ll.e_RE,ll.u_RE,ll.h_e_val,ll.var,ll.h_val,ll.v
     p,q,d,k,m=panel.pqdkm
     nW=panel.nW
     if DLL_e is None:
@@ -80,22 +80,22 @@ class gradient:
 
     #GARCH:
 
-    self.dvar_omega=panel.W_a
+    self.dvar_omega=self.panel.arma_dot.dot(ll.GAR_1,panel.W_a,ll)
+    self.dvar_initvar = None
     if 'initvar' in ll.args.args_d:
-      if False:#panel.options.EGARCH.value:	
-        self.dvar_initvar = ll.GAR_1[0].reshape((1,panel.max_T,1))
-      else:
-        self.dvar_initvar = ll.GAR_1[0].reshape((1,panel.max_T,1))*np.sign(ll.args.args_d['initvar'][0])
-    else:
-      self.dvar_initvar = None
+      self.dvar_initvar = ll.GAR_1[0].reshape((1,panel.max_T,1))
+      if not panel.options.EGARCH.value and ll.args.args_d['initvar'][0]<0:	
+        self.dvar_initvar = -self.dvar_initvar
+      
     (dvar_gamma, dvar_psi, dvar_mu, dvar_z_G, dvar_z)=(None,None,None,None,None)
+    
     if panel.N>1:
       dvar_mu=cf.prod((ll.dvarRE_mu,incl))
     else:
       dvar_mu=None	
 
     if m>0:
-      dvar_gamma=self.arima_grad(k,var_ARMA,ll,1,ll.GAR_1)
+      dvar_gamma=self.arima_grad(k,var,ll,1,ll.GAR_1)
       dvar_psi=self.arima_grad(m,h_val,ll,1,ll.GAR_1)
       if not ll.h_z_val is None:
         dvar_z_G=fu.dot(ll.GAR_1MA,ll.h_z_val)
@@ -124,9 +124,9 @@ class gradient:
     G=cf.concat_marray((dLL_beta,dLL_rho,dLL_lambda,dLL_gamma,dLL_psi,dLL_omega, dLL_initvar,dLL_mu,dLL_z))
     g=np.sum(G,(0,1))
     #For debugging:
-    #print (g)
     #from .. import debug
-    #gn=debug.grad_debug(ll,panel,0.00001)#debugging
+    #print(debug.grad_debug(ll,panel,0.00001))
+    #print(g)
     #if np.sum((g-gn)**2)>10000000:
     #	a=0
     #print(gn)
@@ -134,7 +134,7 @@ class gradient:
     #dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
 
     self.callback(perc = 0.08, text = '', task = 'gradient')
-
+    
 
 
     if return_G:
@@ -173,6 +173,7 @@ class hessian:
     d2var_gamma_lambda		=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_sigma_lambda_G,	g.dLL_var)
     d2var_gamma_beta			=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_sigma_beta_G,		g.dLL_var)
     d2var_gamma_initvar 	= cf.dd_func_lags(panel,ll,GARK, 	g.dvar_initvar,					g.dLL_var)
+    d2var_gamma_omega 		= cf.dd_func_lags(panel,ll,GARK, 	g.dvar_omega,					g.dLL_var)
     d2var_gamma_z					=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_z_G,							g.dLL_var)
     
     self.callback(perc = 0.2, text = '', task = 'hessian')
@@ -250,7 +251,7 @@ class hessian:
 
     D2LL_gamma2						=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		g.dvar_gamma,		None, 					T(d2var_gamma2))
     D2LL_gamma_psi				=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dvar_gamma, 		g.dvar_psi,			None, 					d2var_gamma_psi)
-    D2LL_gamma_omega			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		g.dvar_omega,		None, 					None)
+    D2LL_gamma_omega			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		g.dvar_omega,		None, 					d2var_gamma_omega)
     D2LL_gamma_initvar		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma,		 	g.dvar_initvar,	None, 					d2var_gamma_initvar)
     D2LL_gamma_mu					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		dvar_mu,				None, 					None)
     D2LL_gamma_z					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		dvar_z,					None, 					d2var_gamma_z)

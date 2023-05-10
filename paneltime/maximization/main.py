@@ -31,18 +31,18 @@ def maximize(panel, args, mp, t0, comm):
 
   task_name = 'maximization'
 
-  a = get_directions(panel, args)
-  #a = a[6:8]
+
   if mp is None or panel.args.initial_user_defined:
     node = 5
-    d = maximize_node(panel, args.args_v, 0.001, {}, {}, 0, False, True)
+    d = maximize_node(panel, args.args_v, 0.001, {}, {}, 0, False, False)
     d['node'] = node
     return d
 
   tasks = []
+  a = get_directions(panel, args, mp.cpu_count)
   for i in range(len(a)):
     tasks.append(
-                  f'maximization.maximize_node(panel, {list(a[i])}, 0.001, inbox, outbox, slave_id, False, True)\n'
+                  f'maximization.maximize_node(panel, {list(a[i])}, 0.000001, inbox, outbox, slave_id, False, True)\n'
                 )
   evalnodes = EvaluateNodes(mp, len(tasks), t0, panel)
   mp.exec(tasks, task_name)
@@ -110,7 +110,7 @@ class EvaluateNodes:
   def finish(self, cb, f):
     conv = get_cb_property(cb, 'conv', 0)>0
     det  =  get_cb_property(cb, 'det',None, False)	
-    convdet = conv*det!=0
+    convdet = conv[0]*det[0]!=0
     if np.any(convdet):
       conv = convdet		
     if np.any(conv):
@@ -171,7 +171,9 @@ class EvaluateNodes:
     fl.close()	
 
 
-def get_directions(panel, args):
+def get_directions(panel, args, n):
+  if n == 1:
+    return [args.args_v]
   d = args.positions
   size = panel.options.initial_arima_garch_params.value
   pos = [d[k][0] for k in ['rho', 'lambda'] if len(d[k])]
@@ -294,10 +296,10 @@ class Comm:
     self.channel = comm.get_channel(window,exe_tab,self.panel,console_output)
     d = maximize(panel, args, mp, t0, self)
 
-    self.get(d, False)
+    self.get(d)
 
 
-  def get(self, d, prnt = True):
+  def get(self, d):
     if not 'g' in d:
       return False
     (self.f, self.its, self.incr, self.x, self.perc,self.task, 
@@ -307,9 +309,9 @@ class Comm:
                          d['H'], d['G'], d['g'], d['alam'], d['rev'], d['msg'], d['conv'], d['constr'], d['terminate'], d['node'])
 
     self.ll = logl.LL(self.x, self.panel, self.constr)
-    self.print_to_channel(self.msg, self.its, self.incr, self.ll, self.perc , self.task, self.dx_norm, prnt)
+    self.print_to_channel(self.msg, self.its, self.incr, self.ll, self.perc , self.task, self.dx_norm)
 
-  def print_to_channel(self, msg, its, incr, ll, perc , task, dx_norm, prnt):
+  def print_to_channel(self, msg, its, incr, ll, perc , task, dx_norm):
     self.channel.set_output_obj(ll, self, dx_norm)
     self.channel.set_progress(perc ,msg ,task=task)
     self.channel.update(self,its,ll,incr, dx_norm)
@@ -318,7 +320,7 @@ class Comm:
       det = np.linalg.det(self.H)
     except:
       det = 'NA'
-    if prnt and self.f!=self.current_max:
+    if (not self.panel.options.supress_output.value) and self.f!=self.current_max:
       print(f"node: {self.node}, its: {self.its},  LL:{self.f}")
     self.current_max = self.f
 

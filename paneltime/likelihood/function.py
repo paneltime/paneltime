@@ -3,18 +3,15 @@
 import numpy as np
 MIN_DEN = 0
 
-def LL(panel,var,e_REsq, e_RE):
+def LL(panel,var,e_REsq, e_RE, minvar, maxvar):
   incl=panel.included[3]
 
   LL_const=-0.5*np.log(2*np.pi)
   if panel.options.EGARCH.value==0:
-    MIN_LNV = 1e-30
-    MAX_LNV = 1e+30
-
     a,k=panel.options.GARCH_assist.value, panel.options.kurtosis_adj.value
 
-    dvar_pos=(var<MAX_LNV)*(var>MIN_LNV)
-    var = incl*np.maximum(np.minimum(var,MAX_LNV),MIN_LNV)
+    dvar_pos=(var<maxvar)*(var>minvar) 
+    var = incl*np.maximum(np.minimum(var,maxvar),minvar)
     v=var	
     v_inv = incl/(var + MIN_DEN + (incl==0))	
 
@@ -23,11 +20,8 @@ def LL(panel,var,e_REsq, e_RE):
                                                                 + (k/3)* e_REsq**2*v_inv**2
                                                                 )
   else:
-    MIN_LNV = -100
-    MAX_LNV = 100
-
-    dvar_pos=(var < MAX_LNV) * (var > MIN_LNV)
-    var = np.maximum(np.minimum(var, MAX_LNV), MIN_LNV)
+    dvar_pos=(var < maxvar) * (var > minvar)
+    var = np.maximum(np.minimum(var, maxvar), minvar)
     v = np.exp(var)*incl
     v_inv = np.exp(-var)*incl		
     LL_full = LL_const-0.5*(var+(e_REsq)*v_inv)

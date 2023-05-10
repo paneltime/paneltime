@@ -48,6 +48,7 @@ class Constraints(dict):
     self.collinears={}
     self.weak_mc_dict={}
     self.args=args
+    self.args[0]
     self.panel_args=panel.args
     self.CI=None
     self.its=its
@@ -89,7 +90,7 @@ class Constraints(dict):
       if len(self.fixed)==len(args.caption_v)-1:#can't lock all variables
         return False
       if value is None:
-        value=self.args.args_v[index]
+        value=self.args[index]
       if index in self.intervals:
         c=self[index]
         if not (c.min<value<c.max):
@@ -170,7 +171,7 @@ class Constraints(dict):
           return False
     return True
 
-  def add_static_constraints(self, panel, its, init_arma_constr, ll=None):
+  def add_static_constraints(self, panel, its, init_arma_constr, ll=None, minvarhits = []):
     pargs=self.panel_args
     p, q, d, k, m=self.pqdkm
 
@@ -183,24 +184,28 @@ class Constraints(dict):
     general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
     self.add_custom_constraints(panel, general_constraints, ll)
     self.add_custom_constraints(panel, pargs.user_constraints, ll)
-
+    if len(minvarhits):
+      self.add('gamma',None, 'Variance under threshold for an observation')
+      self.add('psi',None, 'Variance under threshold for an observation')
     c = [
                   [(f'rho{i}', 0) for i in range(1,p)] +
-                        [(f'lambda{i}', 0) for i in range(1,q)] + 
-                        [(f'gamma{i}', 0) for i in range(1,k)] +
-                        [(f'psi{i}', 0) for i in range(1,m)],
+                        [(f'lambda{i}', None) for i in range(1,q)] + 
+                        [(f'gamma{i}', None) for i in range(1,k)] +
+                        [(f'psi{i}', None) for i in range(1,m)],
 
-                        [(f'rho{i}', 0) for i in range(0,p)] +
-                        [(f'lambda{i}', 0) for i in range(0,q)] + 
-                        [(f'gamma{i}', 0) for i in range(0,k)] +
-                        [(f'psi{i}', 0) for i in range(0,m)]			
+                        [(f'rho{i}', None) for i in range(0,p)] +
+                        [(f'lambda{i}', None) for i in range(0,q)] + 
+                        [(f'gamma{i}', None) for i in range(0,k)] +
+                        [(f'psi{i}', None) for i in range(0,m)]			
                 ]
     if init_arma_constr>0:
       self.add_custom_constraints(panel, c[init_arma_constr-1], ll)
+    a=0
 
   def add_dynamic_constraints(self,computation, H, ll, args = None):
     if not args is None:
       self.args = args
+      self.args[0]
     k,k=H.shape
     self.weak_mc_dict=dict()
     include=np.array(k*[True])
@@ -262,10 +267,11 @@ class Constraints(dict):
     for grp in constraints:
       for i in range(len(panel.args.caption_d[grp])):
         name = panel.args.caption_d[grp][i]
-        c=constraints[grp][i]
-        if type(c)==list:
+        c=constraints[grp]
+        try:
+          iter(c)
           self.add(name,None,cause, c,replace,args=args)
-        else:
+        except TypeError as e:
           self.add(name,None,cause, [c,None],replace,args=args)
 
   def add_mc_constraint(self, computation):
@@ -344,13 +350,14 @@ def decomposition(H,include=None):
 
 def multicoll_problems(computation,H,include,mc_problems):
   c_index, var_prop, includemap = decomposition(H, include)
+  MAX_VAR_PROP_FRACTION = 0.4
   if c_index is None:
     return False,False
   mc_list=[]
   largest_ci=None
   limit = computation.panel.options.multicoll_threshold_report.value
   for cix in range(1,len(c_index)):
-    if (np.sum(var_prop[-cix]>0.5)>1) and (c_index[-cix]>limit):
+    if (np.sum(var_prop[-cix]>MAX_VAR_PROP_FRACTION)>1) and (c_index[-cix]>limit):
       if largest_ci is None:
         largest_ci=c_index[-cix]
       var_prop_ix=np.argsort(var_prop[-cix])[::-1]
@@ -363,14 +370,14 @@ def multicoll_problems(computation,H,include,mc_problems):
   return c_index[-1],mc_list
 
 def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
-  for i in range(1,len(var_prop_ix)):
-    if var_prop_val[i]<0.5:
-      return True
-    index=var_prop_ix[i]
-    index=includemap[index]
-    mc_problems.append([index,assc,cond_index])
-    mc_list.append(index)
-    return False
+  i = 1
+  if var_prop_val[i]<0.5:
+    return True
+  index=var_prop_ix[i]
+  index=includemap[index]
+  mc_problems.append([index,assc,cond_index])
+  mc_list.append(index)
+  return False
 
 def get_no_check(computation):
   no_check=computation.panel.options.do_not_constrain.value

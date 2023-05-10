@@ -4,8 +4,11 @@ import numpy as np
 
 def save_csv(fname, array, sep = ','):
   f = open(fname, 'wt')
-  for line in array:
-    f.write(sep.join(line))
+  try:
+    for line in array:
+      f.write(sep.join(line))
+  except TypeError as e:
+    np.savetxt(fname,array,fmt='%s', delimiter=sep)
   f.close()
 
 

@@ -32,6 +32,38 @@ class arguments:
     self.set_init_args(panel,initargs)
     self.get_user_constraints(panel)
 
+  def initvar_asignment(self, initargs, v, panel, rho , lmbda, beta, default):
+    
+    p, q, d, k, m=panel.pqdkm
+    
+    if panel.options.EGARCH.value==0:
+      initargs['omega'][0]=v
+    else:
+      initargs['omega'][0]=np.log(v)
+      
+    if panel.options.include_initvar.value:
+      initargs['initvar'][0] = v
+    if k>0:
+      initargs['omega'][0] = initargs['omega'][0]*0.05
+      
+
+    initargs['beta']=beta
+
+    if default: #turns out calculating ARMA parameters serves no purpose, default is therefore allways true. These coefficients are easily found by linesearch for given regression coefficients. 
+      if q > 0:
+        initargs['lambda'][0] = lmbda
+
+      if p > 0:
+        initargs['rho'][0] = rho	
+      
+      if k > 0:
+        initargs['gamma'][0] = 0.5
+        
+      if m > 0:
+        initargs['psi'][0] = 0.5      
+
+
+
 
   def get_user_constraints(self,panel):
     e="User contraints must be a dict of dicts or a string evaluating to that, on the form of ll.args.dict_string. User constraints not applied"
@@ -47,7 +79,7 @@ class arguments:
         print(f"Syntax error: {e}")
         self.user_constraints={}
         return			
-      except:
+      except Exception as e:
         print(e)
         self.user_constraints={}
         return
@@ -55,19 +87,24 @@ class arguments:
       self.user_constraints.pop('z')	
     if panel.options.include_initvar.value  and 'initvar' in self.user_constraints:
       self.user_constraints.pop('initvar')	
-    for grp in self.user_constraints:
+    for grp in list(self.user_constraints.keys()):
       try:
         self.user_constraints[grp] = np.array(self.user_constraints[grp]).flatten()
-        test = 1.0 * self.user_constraints[grp]
+        test = None
+        if not self.user_constraints[grp][0] is None:
+          test = 1.0 * self.user_constraints[grp][0]
+        if not self.user_constraints[grp][1] is None:
+          test = 1.0 * self.user_constraints[grp][1]  
+        if test is None:
+          print(f'Failed to apply user constraints for {grp}')
       except:
         print(f'Failed to apply user constraints for {grp}')
-        self.user_constraints.pop('grp')
+        self.user_constraints.pop(grp)
 
     for grp in self.user_constraints:
       if not grp in self.caption_d:
         print(f"Constraint on {grp} not applied, {grp} not in arguments")
-      if len(self.caption_d[grp]) < len(self.user_constraints[grp]):
-        print(f"Not all constraints on {grp} applied, more constraints than arguments for {grp}")
+
 
 
 
@@ -293,10 +330,13 @@ class arguments:
 
   def set_init_regression(self, initargs,panel, default):
     usrargs =  panel.options.arguments.value
+    beta,rho,lmbda,u=ARMA_regression(panel)
+    self.init_var = panel.var(u) 
+    
     if not usrargs is None:
       if type(usrargs)==str:
         try:
-          usrargs = eval(usrargs.replace(" array"," np.array"))
+          usrargs = eval(usrargs.replace(" array"," np.array").replace(', dtype=float64',''))
         except NameError as e:
           if str(e)=="name 'array' is not defined":
             usrargs = eval(usrargs.replace("array"," np.array"))
@@ -304,32 +344,17 @@ class arguments:
       for c in args.args_d:
         initargs[c] = args.args_d[c]
       self.initial_user_defined = True
-      return initargs['beta'], initargs['omega'][0,0]
-    p, q, d, k, m=panel.pqdkm
-    beta,rho,lmbda,u=ARMA_regression(panel)
-    v=panel.var(u)
-    if panel.options.EGARCH.value==0:
-      initargs['omega'][0,0]=v
-    else:
-      initargs['omega'][0,0]=np.log(v)
-
-
-    initargs['beta']=beta
-
-    if default: #turns out calculating ARMA parameters serves no purpose, default is therefore allways true. These coefficients are easily found by linesearch for given regression coefficients. 
-      if q > 0:
-        initargs['lambda'][0] = lmbda
-
-      if p > 0:
-        initargs['rho'][0] = rho	
       
-      if k > 0:
-        initargs['gamma'][0] = 0	      
+      
+      return initargs['beta'], initargs['omega'][0,0]
 
     if panel.options.fixed_random_variance_eff.value==0:
-      if v<1e-20:
+      if self.init_var<1e-20:
         print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
-    return beta, v
+        
+    self.initvar_asignment(initargs, self.init_var, panel, rho, lmbda, beta, default)
+    
+    return beta, self.init_var
 
 def set_GARCH(panel,initargs,u,m):
   matrices=logl.set_garch_arch(panel,initargs)

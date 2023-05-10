@@ -64,14 +64,10 @@ def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
     ddL=(f1.__dict__[llname]-f0.__dict__[llname])/d
   return ddL
 
-def test_c_armas(u_RE, var_ARMA, e_RE, panel, ll):
-  N,T,k = e_RE.shape
-  GAR_initvar =0
-  if 'initvar' in ll.args.args_d:
-    GAR_initvar = ll.GAR_1[0].reshape((1,T,1))*ll.args.args_d['initvar'][0]
-  var_ARMA2 = GAR_initvar + panel.arma_dot.dot(ll.GAR_1MA,ll.h_val,ll)
+def test_c_armas(u_RE, var, e_RE, panel, ll, G):
+  var2 = panel.arma_dot.dot(ll.GAR_1, G,ll) + panel.arma_dot.dot(ll.GAR_1MA, ll.h_val,ll)
   e_RE2 = panel.arma_dot.dot(ll.AMA_1AR,u_RE,ll)	
-  print(f"Testsums arma: c:{np.sum(var_ARMA**2)}, py:{np.sum(var_ARMA2**2)}")
+  print(f"Testsums arma: c:{np.sum(var**2)}, py:{np.sum(var2**2)}")
   print(f"Testsums e: c:{np.sum(e_RE**2)}, py:{np.sum(e_RE2**2)}")
 
 
@@ -141,7 +137,7 @@ def save_reg_data(ll, panel, fname = 'repr.csv', heading=True):
   N,T,m = panel.W_a.shape
   heading = [f'X{i}' for i in range(k)]
   heading += [f'W{i}' for i in range(m)]
-  heading += ['Y', 'e','u', 'var', 'LL','AMA_1AR', 'GAR_1MA' , 'coefs_names', 'coefs']
+  heading += ['Y', 'e','u', 'var', 'LL','AMA_1AR', 'GAR_1MA' , 'GAR_1', 'coefs_names', 'coefs']
   a = np.concatenate((panel.X, panel.W_a, panel.Y, ll.e, ll.u, ll.var), 2)
   a = a.reshape((T, a.shape[2]))
   coefs = np.zeros((T,1))
@@ -153,6 +149,7 @@ def save_reg_data(ll, panel, fname = 'repr.csv', heading=True):
                             ll.LL_full[0].reshape((T,1)),
                                                 ll.AMA_1AR[0].reshape((T,1))[::-1],
                                                 ll.GAR_1MA[0].reshape((T,1))[::-1],
+                                                ll.GAR_1[0].reshape((T,1))[::-1],
                                                 coef_names,
                                                 coefs
                                                 ),1)

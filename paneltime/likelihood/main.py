@@ -73,57 +73,71 @@ class LL:
     X=panel.XIV
     N, T, k = X.shape
     incl = panel.included[3]
-
+    self.set_var_bounds(panel)
+    
+    G = fu.dot(panel.W_a, self.args.args_d['omega'])
+    if 'initvar' in self.args.args_d:
+      G[0,0,0] += abs(self.args.args_d['initvar'][0])
+    else:
+      G[0,0,0] += panel.args.init_var
+    
     #Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
     u = panel.Y-fu.dot(X,self.args.args_d['beta'])
     u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*incl
 
-    egarch_add = 0.1
-    matrices=self.arma_calc(panel, u_RE, egarch_add)
+    matrices=self.arma_calc(panel, u_RE, self.h_add, G)
     if matrices is None:
       return None		
-    AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var_ARMA, h=matrices
+    AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var, h=matrices
 
-    #NOTE: self.h_val itself is set in ctypes.cpp/ctypes.c, and therefore has no effect on the LL. If you change self.h_val below, you need to 
-    #change it in the c-scripts too. self.h_val is included below for later calulcations. 
+    #NOTE: self.h_val itself is also set in ctypes.cpp/ctypes.c. If you change self.h_val below, you need to 
+    #change it in the c-scripts too. self.h_val must be calcualted below as well for later calulcations. 
     if panel.options.EGARCH.value==0:
       e_REsq =(e_RE**2+(e_RE==0)*1e-18) 
       nd =1
-      self.h_val, self.h_e_val, self.h_2e_val = e_RE**2*incl, nd*2*e_RE*incl, nd*2*incl
+      self.h_val, self.h_e_val, self.h_2e_val = (e_RE**2+self.h_add)*incl, nd*2*e_RE*incl, nd*2*incl
       self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
     else:
       minesq = 1e-20
       e_REsq =np.maximum(e_RE**2,minesq)
       nd = e_RE**2>minesq		
 
-      self.h_val, self.h_e_val, self.h_2e_val = np.log(e_REsq+egarch_add)*incl, 2*incl*e_RE/(e_REsq+egarch_add), incl*2/(e_REsq+egarch_add) - incl*2*e_RE**2/(e_REsq+egarch_add)**2
+      self.h_val, self.h_e_val, self.h_2e_val = np.log(e_REsq+self.h_add)*incl, 2*incl*e_RE/(e_REsq+self.h_add), incl*2/(e_REsq+self.h_add) - incl*2*e_RE**2/(e_REsq+self.h_add)**2
       self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 
-    W_omega = fu.dot(panel.W_a, self.args.args_d['omega'])
 
     if False:#debug
       from .. import debug
-      debug.test_c_armas(u_RE, var_ARMA, e_RE, panel, self)
-      print(h[0,:20,0])
+      if np.any(h!=self.h_val):
+        print('the h calculated in the c function and the self.h_val calcualted here do not match')
+      debug.test_c_armas(u_RE, var, e_RE, panel, self, G)
 
-    var = W_omega+var_ARMA
-
-    LL_full,v,v_inv,self.dvar_pos=function.LL(panel,var,e_REsq, e_RE)
+    LL_full,v,v_inv,self.dvar_pos=function.LL(panel,var,e_REsq, e_RE, self.minvar, self.maxvar)
     self.tobit(panel,LL_full)
     LL=np.sum(LL_full*incl)
     self.LL_all=np.sum(LL_full)
-    self.add_variables(panel,matrices, u, u_RE, var_ARMA, var, v, W_omega,e_RE,e_REsq,v_inv,LL_full)
+    self.add_variables(panel,matrices, u, u_RE, var, v, G,e_RE,e_REsq,v_inv,LL_full)
     if abs(LL)>1e+100: 
       return None				
     return LL
 
-  def add_variables(self,panel,matrices,u, u_RE,var_ARMA,var,v,W_omega,e_RE,e_REsq,v_inv,LL_full):
+  def set_var_bounds(self, panel):
+    if panel.options.EGARCH.value==0:
+      self.minvar = 0.01*panel.args.init_var
+      self.maxvar = 1000*panel.args.init_var
+      self.h_add = panel.args.init_var
+    else:
+      self.minvar = -100
+      self.maxvar = 100
+      self.h_add = 0.1
+      
+  def add_variables(self,panel,matrices,u, u_RE,var,v,G,e_RE,e_REsq,v_inv,LL_full):
     self.v_inv05=v_inv**0.5
     self.e_norm=e_RE*self.v_inv05	
     self.e_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
-    self.u, self.u_RE, self.var_ARMA        = u,  u_RE,   var_ARMA
+    self.u, self.u_RE      = u,  u_RE
     self.var,  self.v,    self.LL_full = var,       v,    LL_full
-    self.W_omega=W_omega
+    self.G=G
     self.e_RE=e_RE
     self.e_REsq=e_REsq
     self.v_inv=v_inv
@@ -241,25 +255,27 @@ class LL:
   def h(self,panel,e,z):
     return h(e, z, panel)
 
-  def arma_calc(self,panel, u, egarch_add):
-    matrices =set_garch_arch(panel,self.args.args_d, u, egarch_add)
+  def arma_calc(self,panel, u, h_add, G):
+    matrices =set_garch_arch(panel,self.args.args_d, u, h_add, G)
     if matrices is None:
       return None		
     self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, self.h = matrices
     self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
     return matrices
   
-  def predict(self, W = None, W_next = None):
+  def predict(self, W, W_next = None):
     d = self.args.args_d
     self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'])
-    #u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], self.e[:,-1])#test
-    self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], W, W_next)
-    #var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, W_next)#test
+    u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], self.e[:,-1])#test
+    self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], W_next, self.minvar, self.maxvar)
+    var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar)#test
     
     return {'predicted residual':self.u_pred, 'predicted variance':self.var_pred}
 
     
 def pred_u(u, e, rho, lmbda, e_now = 0):
+  if len(lmbda)==0 and len(rho)==0:
+    return 0
   u_pred = e_now
   if len(rho):
     u_pred += np.sum([
@@ -272,28 +288,26 @@ def pred_u(u, e, rho, lmbda, e_now = 0):
   
   return u_pred[0,0]
   
-def pred_var(h, var, psi, gamma, omega, W = None, W_next = None):
+def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar):
   W = test_variance_signal(W, h, omega)
-  W_next = test_variance_signal(W_next, h, omega)
   if W is None:
-    G = omega[0,0]
+    G =omega[0,0]
   else:
     G = np.dot(W,omega)
-  if W_next is None:
-    G_next =0
-  else:
-    G_next = np.dot(W_next,omega)
   a, b = 0, 0 
   if len(psi):
-    a = np.sum([
+    a = sum([
       psi[i]*h[:,-i-1] for i in range(len(psi))
-      ], 1)
+      ])
   if len(gamma):
-    b = np.sum([
-      gamma[i]*(var[:,-i-1]-G) for i in range(len(gamma))
-    ], 1)  
-  var_pred = G_next + a +b
-  return var_pred[0,0]
+    b = sum([
+      gamma[i]*(var[:,-i-1]) for i in range(len(gamma))
+    ])  
+    
+  var_pred = G + a +b
+  var_pred = max(min((var_pred[0,0], maxvar)), minvar)
+
+  return var_pred
 
 
 
@@ -323,7 +337,7 @@ def test_variance_signal(W, h, omega):
   
 
 
-def set_garch_arch(panel,args,u, egarch_add):
+def set_garch_arch(panel,args,u, h_add, G):
   """Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
   the diagonal band"""
   N, T, _ = u.shape
@@ -345,14 +359,11 @@ def set_garch_arch(panel,args,u, egarch_add):
 
   lmbda = args['lambda']
   gmma = -args['gamma']
-  if not 'initvar' in args:
-    initvar = 0
-  else:
-    initvar = args['initvar'][0]
+  
   parameters = np.array(( N , T , 
                   len(lmbda), len(rho), len(gmma), len(psi), 
                   panel.options.EGARCH.value, panel.tot_lost_obs, 
-                  egarch_add, initvar))
+                  h_add))
 
   cfunct.armas(parameters.ctypes.data_as(CIPT), 
                      lmbda.ctypes.data_as(CDPT), rho.ctypes.data_as(CDPT),
@@ -362,7 +373,8 @@ def set_garch_arch(panel,args,u, egarch_add):
                                                   u.ctypes.data_as(CDPT), 
                                                   e.ctypes.data_as(CDPT), 
                                                   var.ctypes.data_as(CDPT),
-                                                  h.ctypes.data_as(CDPT)
+                                                  h.ctypes.data_as(CDPT),
+                                                  G.ctypes.data_as(CDPT)
                                                   )		
 
 

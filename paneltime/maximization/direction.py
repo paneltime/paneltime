@@ -10,12 +10,38 @@ def get(g, x, H, constr, f, hessin, ev_constr, simple=True):
   if simple or (H is None):
     dx = -(np.dot(hessin,g.reshape(n,1))).flatten()
   else:
+    #dx = -(np.dot(hessin,g.reshape(n,1))).flatten()
     #dx, H =solve(self.H, self.g, args.args_v, self.constr, f)
-    dx, H = solve_delete(constr, H, g, x, f, ev_constr)	
+    dx, H, applied_constraints = solve_delete(constr, H, g, x, f, ev_constr)	
   dx_norm = normalize(dx, x)
 
   return dx, dx_norm, H
 
+def new(g, x, H, constr, f,dx, alam):
+  n = len(x)
+  dx, slope, rev = slope_check(g, dx)
+  if constr is None:
+    return dx*alam, slope, rev, []
+  elif len(constr.intervals)==0:
+    return dx*alam, slope, rev, []
+  elif constr.within(x + dx):
+    return dx*alam, slope, rev, []
+
+  dxalam, H, applied_constraints = solve_delete(constr, H, g*alam, x, f, None)	
+  if np.sum(g*dxalam)<0.0:
+    dxalam, H, applied_constraints = solve_delete(constr, H, -g*alam, x, f, None)	
+    slope = np.sum(g*dx)
+    rev = True
+  return dxalam, slope, rev, applied_constraints
+
+def slope_check(g, dx):
+  rev = False
+  slope=np.sum(g*dx)					#Scale if attempted step is too big.
+  if slope <= 0.0:
+    dx=-dx
+    slope=np.sum(g*dx)
+    rev = True  
+  return dx, slope, rev
 
 
 def solve(H, g, x, constr, f, ev_constr):
@@ -94,22 +120,21 @@ def solve_delete(constr,H, g, x, f, ev_constr):
 
   for i in range(k):
     H[n+i,n+i]=1
-
+  
   dx, H = linalg_solve(H, g, f, x, ev_constr)
   xi_full=np.zeros(m)
   OK=False
   keys=list(constr.intervals.keys())
-  for r in range(50):		
-    for j in range(k):
-      key=keys[j]
-      dx, H =kuhn_tucker_del(constr,key,j,n, H, g, x, f,dx,delmap, ev_constr)
+  applied_constraints=[]
+  for j in range(k):
+    key=keys[j]
+    dx, H =kuhn_tucker_del(constr,key,j,n, H, g, x, f,dx,delmap, ev_constr)
+    applied_constraints.append(key)
     xi_full[idx]=dx[:n]
     OK=constr.within(x+xi_full,False)
     if OK: 
       break
-    if r==k+3:
-      #print('Unable to set constraints in computation calculation')
-      break
+
   xi_full=np.zeros(m)
   xi_full[idx]=dx[:n]
   H_full = np.zeros((m,m))
@@ -117,7 +142,7 @@ def solve_delete(constr,H, g, x, f, ev_constr):
   nz = np.nonzero(idx*idx.T)
   H_full[nz] = H[np.nonzero(np.ones((n,n)))]
   H_full[H_full==0] = H_orig[H_full==0]
-  return xi_full, H_full
+  return xi_full, H_full, applied_constraints
 
 
 def kuhn_tucker_del(constr,key,j,n,H,g,x, f, dx,delmap, ev_constr,recalc=True):
@@ -125,11 +150,11 @@ def kuhn_tucker_del(constr,key,j,n,H,g,x, f, dx,delmap, ev_constr,recalc=True):
   c=constr.intervals[key]
   i=delmap[key]
   if not c.value is None:
-    q=-(c.value-x[i])
-  elif x[i]+dx[i]<c.min:
-    q=-(c.min-x[i])
-  elif x[i]+dx[i]>c.max:
-    q=-(c.max-x[i])
+    q=-(c.value-x[key])
+  elif x[key]+dx[i]<c.min:
+    q=-(c.min-x[key])
+  elif x[key]+dx[i]>c.max:
+    q=-(c.max-x[key])
   if q!=None:
     H[i,n+j]=1
     H[n+j,i]=1
@@ -201,7 +226,11 @@ def ev_non_sing(H, ev_constr):
   return ev, p
 
 def linalg_solve(H,g, f, x, ev_constr):
-
+  try:
+    return -np.linalg.solve(H, g), H
+  except:
+    pass
+  #Needs to evaluate this attempt to create a nicer H
   ev, p = ev_non_sing(H, ev_constr)
   a = np.dot(p, p.T)
   b = np.dot(p.T, p)
