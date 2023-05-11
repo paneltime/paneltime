@@ -40,12 +40,13 @@ def dfpmax(x, comput, callback, panel, slave_id):
 
 
     dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, comput.ev_constr, simple=False)
-    ls = linesearch.LineSearch(x, comput, panel)
+    ls = linesearch.LineSearch(x, comput, panel, ll)
     ls.lnsrch(x, f, g, H, dx)	
 
     dx_realized = ls.x - x
     incr = ls.f - f
     fdict[its] = ls.f
+    ll = ls.ll
 
 
     x, f, hessin, H, g, conv, se, det, anal = comput.exec(dx_realized,  hessin, H, incr, its, ls)

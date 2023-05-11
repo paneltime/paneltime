@@ -8,7 +8,7 @@ import numpy as np
 STPMX=100.0 
 import time
 class LineSearch:
-  def __init__(self, x, comput, panel, step = 1):
+  def __init__(self, x, comput, panel, ll_old, step = 1):
     self.alf = 1.0e-3     #Ensures sufficient decrease in function value.
     self.tolx = 1.0e-14  #Convergence criterion on fx.		
     self.step = step
@@ -16,12 +16,14 @@ class LineSearch:
     self.comput = comput
     self.panel = panel
     self.applied_constraints = []
+    self.ll_old = ll_old
 
   def lnsrch(self, x, f, g, H, dx):
 
     #(x, f, g, dx) 
 
     self.conv=0
+    self.rev = False
     self.g = g
     self.msg = ""
     n=len(x)
@@ -32,7 +34,10 @@ class LineSearch:
     summ=np.sum(dx**2)**0.5
     if summ > self.stpmax:
       dx = dx*self.stpmax/summ 
-
+    if np.all(dx==0):
+      self.default(f, x, 0,  "dx is zero", 4)  
+      return      
+      
     test=0.0 															#Compute lambda min.
     for i in range(0,n): 
       temp=abs(dx[i])/max(abs(x[i]),1.0) 
@@ -62,11 +67,7 @@ class LineSearch:
         self.msg = 'The function returned None'
         self.f = f
       if (self.alam < alamin):   #Convergence on delta x. For zero finding,the calling program should verify the convergence.
-        self.msg = "Convergence on delta dx"
-        self.conv = 2
-        self.f = f
-        self.x = x
-        self.alam = 0
+        self.default(f, x, 0, "Convergence on delta dx", 2)
         return
       elif (self.f >= f+self.alf*self.alam*slope): 
         self.msg = "Sufficient function increase"
@@ -111,3 +112,10 @@ class LineSearch:
       return None, None
     return ll.LL, ll
 
+  def default(self, f, x, alam, msg, conv):
+    self.msg = msg
+    self.conv = conv
+    self.f = f
+    self.x = x
+    self.alam = alam
+    self.ll = self.ll_old
