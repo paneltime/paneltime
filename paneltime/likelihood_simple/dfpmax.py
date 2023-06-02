@@ -5,6 +5,7 @@ from . import linesearch
 from ..parallel import callback
 from . import direction
 from . import computation
+from . import main as logl
 
 import numpy as np
 import time
@@ -21,7 +22,7 @@ EPS=3.0e-16
 TOLX=(4*EPS) 
 GTOL = 1e-5
 
-def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id, ll):
+def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id):
   """Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
   Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
   its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -30,7 +31,8 @@ def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id, ll):
   function). The routine lnsrch is called to perform approximate line minimizations.
   fargs are fixed arguments that ar not subject to optimization. ("Nummerical Recipes for C") """
 
-
+  ll = logl.LL(x, panel, constraints=comput.constr)
+  
   its, msg = 0, ''
   MAXITER = 10000
 
@@ -120,5 +122,4 @@ class CallBackHandler:
     if not self.callback.inbox['quit']:
       return
     self.quit = True
-
 

@@ -24,6 +24,8 @@ def dot(a,b,reduce_dims=True):
     x = np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
   elif len(a.shape)==2 and len(b.shape)==3:
     x = np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
+  elif len(a.shape)==2 and len(b.shape)==2:
+    x = np.dot(a,b)
   return x
 
 

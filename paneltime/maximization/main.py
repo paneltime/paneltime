@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+
+
 from ..output import stat_functions as stat
 from .. import likelihood as logl
-
-from ..parallel import callback
-from . import computation
-from . import dfpmax
 from ..output import communication as comm
 from ..output import output
+from . import init
 
 
 import numpy as np
@@ -186,12 +185,7 @@ def get_directions(panel, args, n):
 
 def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0 , nummerical = False, diag_hess = False):
 
-  #have to  completely redesign callback, so that it takes only a dict as argument
-  args = np.array(args)
-  callbk = callback.CallBack(inbox, outbox)
-  comput = computation.Computation(panel, gtol, TOLX, None, nummerical, diag_hess)
-  callbk.callback(quit=False, conv=False, perc=0)
-  res, ll = dfpmax.dfpmax(args,comput, callbk, panel, slave_id)
+  res, ll = init.maximize(args, inbox, outbox, panel, gtol, TOLX, nummerical, diag_hess, slave_id)
   #debug from . import debug
   #debug.save_reg_data(ll, panel)	
 
@@ -203,8 +197,6 @@ def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0
   res['var_RE'] = panel.var(ll.e_RE)
   res['var_u'] = panel.var(ll.u)
   return res
-
-
 
 
 
