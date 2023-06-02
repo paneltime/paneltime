@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from . import main as logl
+from .. import likelihood as logl
 from . import direction
 import numpy as np
 

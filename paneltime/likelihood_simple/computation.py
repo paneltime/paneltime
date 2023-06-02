@@ -4,13 +4,11 @@
 from ..output import stat_functions as stat
 from ..output import stat_dist
 from . import constraints
-from . import main as logl
+from .. import likelihood as logl
 from . import direction
-from . import calculus
-from . import function
 
 import numpy as np
-import time
+
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
@@ -24,9 +22,10 @@ class Computation:
     if callback is None:
       callback = lambda **kwargs: None#function that does nothing
     self.callback = callback
-    self.gradient=calculus.gradient(panel, self.callback)
+    self.gradient=logl.gradient(panel, self.callback)
     self.gtol = gtol
     self.tolx = tolx
+    self.hessian=logl.hessian(panel,self.gradient, self.callback)
     self.panel=panel
     self.constr=None
     self.CI=0
@@ -83,7 +82,7 @@ class Computation:
   def exec(self, dx_realized,hessin, H, incr, its, ls, calc = True):
     f, x, g_old, rev, alam,ll = ls.f, ls.x, ls.g, ls.rev, ls.alam, ls.ll
     #Thhese setting may not hold for all circumstances, and should be tested properly:
-    p, q, d, k, m = self.panel.pqdkm
+
     NUM_ITER = 5
     TOTP_TOL = 0.0001
 
@@ -161,11 +160,11 @@ class Computation:
 
 
     return x, f, hessin, H, g, 0, se, det, analytic_calc
-
+  
   def set_constr(self, args):
     self.constr = constraints.Constraints(self.panel, args)
-    self.constr.add_static_constraints(self.panel, 0, self.init_arma)	 
-    
+    self.constr.add_static_constraints(self.panel, 0, self.init_arma)	    
+
   def handle_convergence(self, ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G):
     Ha = self.calc_hessian(ll)    
     keep = [True]*len(H)
@@ -193,12 +192,17 @@ class Computation:
       return x, f, hessin, Ha, g, 4, se, det, True      
     
   def calc_gradient(self,ll):
-    dLL_lnv, DLL_e=function.gradient(ll,self.panel)
+    dLL_lnv, DLL_e=logl.func_gradent(ll,self.panel)
     self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
-    g, G = self.gradient.get(ll,DLL_e,dLL_lnv)
+    g, G = self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
     return g, G
 
 
+  def calc_hessian(self, ll):
+    d2LL_de2, d2LL_dln_de, d2LL_dln2 = logl.func_hessian(ll,self.panel)
+    self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
+    H = self.hessian.get(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)	
+    return H
 
   def LL_gradient_tobit(self,ll,DLL_e,dLL_lnv):
     g=[1,-1]
@@ -258,12 +262,19 @@ class Computation:
     return hessin
 
 
+
 def det_managed(H):
   try:
     return np.linalg.det(H)
   except:
     return 1e+100
 
+def inv_hess(hessian):
+  try:
+    h=-np.linalg.inv(hessian)
+  except:
+    return None	
+  return h
 
 def condition_index(H):
   n = len(H)
