@@ -23,7 +23,7 @@ class Computation:
       callback = lambda **kwargs: None#function that does nothing
     self.callback = callback
     self.gradient=logl.gradient(panel, self.callback)
-    self.gtol = gtol
+    self.gtol = panel.options.tolerance.value
     self.tolx = tolx
     self.hessian=logl.hessian(panel,self.gradient, self.callback)
     self.panel=panel
@@ -124,7 +124,7 @@ class Computation:
     analytic_calc = (err and self.num_hess_count>4) or ((self.CI>10000) and (self.num_hess_count>5) and abs(g_norm)>10*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
     analytic_calc = analytic_calc and (self.panel.options.use_analytical.value>0)
     if calc:
-      if analytic_calc and False:
+      if analytic_calc:
         H = self.calc_hessian(ll)
         a = 0.5
         try:
