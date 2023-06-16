@@ -56,8 +56,8 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 
   x = IDs_num+IDs+timevar+timevar_num+W+Z+Y+X
   x = list(dict.fromkeys(x))
-  df,ip.max_lags=eval_variables(x, df, pd_panel)
-  df=df[x]
+  df = pd.DataFrame(df[x])
+  df,ip.max_lags=eval_variables(df, pd_panel)
   n=len(df)
   df=df.dropna()
   ip.lost_na_obs=(n-len(df))-ip.max_lags
@@ -85,7 +85,11 @@ def pool_func(df,pool):
 def check_var(df,x,inputtype,add_intercept,numeric):
   if len(x)==0:
     return None,None
-  dfx=df[x]
+  try:
+    dfx=df[x]
+  except KeyError as e:
+    x = [i.replace(' ', '_') for i in x]
+    dfx=df[x]
   if not numeric:
     return dfx,None
   const_found=False
@@ -108,13 +112,17 @@ def check_var(df,x,inputtype,add_intercept,numeric):
       const_found=True
   return dfx,const_found
 
-def eval_variables(x,df,pd_panel):
+def eval_variables(df,pd_panel):
   lag_obj=lag_object(pd_panel)
   d={'D':lag_obj.diff,'L':lag_obj.lag,'np':np}	
   for i in df.keys():
     d[i]=df[i]
-  for i in x:
-    df[i]=eval(i,d)
+  for i in df.columns:
+    try:
+      df[i]=eval(i,d)
+    except SyntaxError as e:
+      print(f"Cannot interpret {i} as an expression, so all spaces will be removed and replaced with underscore")
+      df = df.rename(columns = {i:i.replace(' ', '_')})
   return df,lag_obj.max_lags
 
 class lag_object:

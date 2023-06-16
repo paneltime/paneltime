@@ -65,16 +65,15 @@ class web_output:
     "sets the outputobject in the output" 
     if self.output_set:
       return		
-    self.output=output.output(ll,self.panel, comput, dx_norm)
+    self.output=output.Output(ll,self.panel, dx_norm)
     self.output_set = True
 
 
   def update(self,comput, its, ll, incr, dx_norm):
     if self.panel.options.supress_output.value:
       return
-    self.output.update(comput,its, ll, incr, dx_norm)
-    self.its=its
-    self.reg_table=self.output.reg_table()
+    self.output.update(its, ll, incr, dx_norm)
+    self.reg_table = output.RegTableObj(self.panel, ll, comput.g, comput.H, comput.G, comput.constr, dx_norm) 
     tbl,llength=self.reg_table.table(4,'(','HTML',True,
                                                  show_direction=True,
                                                            show_constraints=True)		
@@ -97,10 +96,10 @@ class web_output:
     self.f.close()
 
 
-  def print_final(self, msg, fret, conv, t0, xsol, its, node):
-    print(msg)
-    print(f"LL={fret}  success={conv}  t={time.time()-t0}  its: {its}   node: {node}")
-    print(xsol)	
+  def print_final(self, comm, t0):
+    print(comm.msg)
+    print(f"LL={comm.f}  success={comm.conv}  t={time.time()-t0}  its: {comm.its}   node: {comm.node}")
+    print(summary.x)	
 
 class console:
   def __init__(self,panel):
@@ -117,11 +116,10 @@ class console:
   def set_output_obj(self,ll, comput, dx_norm):
     if self.output_set:
       return
-    self.output=output.output(ll,self.panel, comput, dx_norm)
+    self.output=output.Output(ll,self.panel, dx_norm)
     self.output_set = True
-    self.comput = comput
 
-  def update(self,comput, its,ll,incr, dx_norm):
+  def update(self, compute, its,ll,incr, dx_norm):
     if self.panel.options.supress_output.value:
       return
     self.ll = ll
@@ -129,20 +127,25 @@ class console:
     self.dx_norm = dx_norm
 
 
-  def print_final(self, msg, fret, conv, t0, xsol, its, node):
+  def print_final(self, comm, t0):
     if self.panel.options.supress_output.value:
       return
-    print(msg)
+    print(comm.msg)
     if self.output_set:
-      self.output.update(self.comput,its, self.ll, 0, self.dx_norm)
-      self.its=its
-      self.reg_table=self.output.reg_table()	
+      self.output.update(comm.its, comm.ll, 0, comm.dx_norm)
+      self.reg_table=output.RegTableObj(comm.panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm)
       tbl,llength=self.reg_table.table(5,'(','CONSOLE',False,
-                                                         show_direction=False,
-                                                                   show_constraints=False)	
+                                        show_direction=False,
+                                        show_constraints=False, 
+                                        show_confidence = True)	
+      
+      print('\n' + self.output.statistics(t0))
+      #print(self.output.model_desc)
       print(tbl)
+      print(self.output.diagnostics(comm.constr))
+      print(self.output.df_accounting(self.panel))
     else:
-      print(f"LL={fret}  success={conv}  t={time.time()-t0}  its: {its}   node: {node}")
+      print(f"LL={summary.log_likelihood}  success={summary.converged}  t={summary.time}  its: {summary.its}   node: {node}")
       print(xsol)		
 
 class tk_widget:
@@ -164,12 +167,12 @@ class tk_widget:
       return
     self.tab.update(self.panel, comput,its, ll, incr, dx_norm)
 
-  def print_final(self, msg, fret, conv, t0, xsol, its, node):
+  def print_final(self, comm, node):
     if self.panel.options.supress_output.value:
       return
-    print(msg)
-    print(f"LL={fret}  success={conv}  t={time.time()-t0} its: {its}")
-    print(xsol)	
+    print(comm.msg)
+    print(f"LL={comm.log_likelihood}  success={comm.converged}  t={comm.time} its: {comm.its}")
+    print(comm.x)	
 
 def get_web_page(LL, args, comput,tbl,auto_update):
   au_str=''

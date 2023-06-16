@@ -9,6 +9,7 @@ FILE *fp = fopen("coutput.txt","w"); */
 #include <cmath>
 
 
+
 #if defined(_MSC_VER)
 	//  Microsoft 
 	#define EXPORT extern "C" __declspec(dllexport)
@@ -51,7 +52,7 @@ EXPORT int  armas(double *parameters,
 				double *lambda, double *rho, double *gamma, double *psi,
 				double *AMA_1, double *AMA_1AR, 
 				double *GAR_1, double *GAR_1MA, 
-				double *u, double *e, double *var, double *h, double *W
+				double *u, double *e, double *var, double *h, double *W, double *T_array
 				) {
 				
 	double sum, esq ;
@@ -75,26 +76,26 @@ EXPORT int  armas(double *parameters,
 
 	for(k=0;k<N;k++){//individual dimension
 
-		for(i=0;i<T;i++){//time dimension
+		for(i=0;i<(int) T_array[k];i++){//time dimension
 			//ARMA:
 			sum = 0;
 			for(j=0;j<=i;j++){//time dimesion, back tracking
-				sum += AMA_1AR[j]*u[k + (i-j)*N];
+				sum += AMA_1AR[j]*u[(i-j) + k*T];
 				}
-			e[k + i*N] = sum;
+			e[i + k*T] = sum;
 			//GARCH:
 			if(i>=lost_obs){
-				h[k + i*N] = sum*sum;
-				h[k + i*N] += h_add;
+				h[i + k*T] = sum*sum;
+				h[i + k*T] += h_add;
 				if(egarch){
-					h[k + i*N] = log((h[k + i*N]) + (h[k + i*N]==0)*1e-18);
+					h[i + k*T] = log((h[i + k*T]) + (h[i + k*T]==0)*1e-18);
 				}
 			}
 			sum =0;
 			for(j=0;j<=i;j++){//time dimension, back tracking
-				sum += GAR_1[j] * W[k + (i-j)*N] + GAR_1MA[j]*h[k + (i-j)*N];
+				sum += GAR_1[j] * W[(i-j) + k*T] + GAR_1MA[j]*h[(i-j) + k*T];
 			}
-			var[k + i*N] = sum;
+			var[i + k*T] = sum;
 		}
 	}
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pydoc import importfile
+
 import os
 path = os.path.dirname(__file__)
 from ..output import stat_functions as stat
@@ -39,7 +39,7 @@ class Constraint:
 class Constraints(dict):
 
   """Stores the constraints of the LL maximization"""	
-  def __init__(self,panel,args,its=0):
+  def __init__(self,panel,args):
     dict.__init__(self)
     self.categories={}
     self.fixed={}
@@ -51,7 +51,6 @@ class Constraints(dict):
     self.args[0]
     self.panel_args=panel.args
     self.CI=None
-    self.its=its
     self.pqdkm=panel.pqdkm
     self.m_zero=panel.m_zero
     self.ARMA_constraint=panel.options.ARMA_constraint.value
@@ -65,10 +64,6 @@ class Constraints(dict):
     for i in index:
       self.add_item(i,assco,cause, interval ,replace,value,args)
 
-  def clear(self,cause=None):
-    for c in list(self.keys()):
-      if self[c].cause==cause or cause is None:
-        self.delete(c)	
 
   def add_item(self,index,assco,cause,interval,replace,value,args):
     """Adds a constraint. 'index' is the position
@@ -121,35 +116,6 @@ class Constraints(dict):
       self.collinears[index]=assco
     return True
 
-  def delete(self,index):
-    if not index in self:
-      return False
-    self.pop(index)
-    if index in self.intervals:
-      self.intervals.pop(index)
-    if index in self.fixed:
-      self.fixed.pop(index)		
-    eq,category,j=self.panel_args.positions_map[index]
-    c=self.categories[category]
-    if len(c)==1:
-      self.categories.pop(category)
-    else:
-      i=np.nonzero(np.array(c)==index)[0][0]
-      c.pop(i)
-    a=self.associates
-    for i in a:
-      if index in a[i]:
-        if len(a[i])==1:
-          a.pop(i)
-          break
-        else:
-          j=np.nonzero(np.array(a[i])==index)[0][0]
-          a[i].pop(j)
-    if index in self.collinears:
-      self.collinears.pop(index)
-    return True
-
-
   def set_fixed(self,x):
     """Sets all elements of x that has fixed constraints to the constraint value"""
     for i in self.fixed:
@@ -171,7 +137,7 @@ class Constraints(dict):
           return False
     return True
 
-  def add_static_constraints(self, panel, its, init_arma_constr, ll=None, minvarhits = []):
+  def add_static_constraints(self, panel, its, ll=None, minvarhits = []):
     pargs=self.panel_args
     p, q, d, k, m=self.pqdkm
 
@@ -191,32 +157,45 @@ class Constraints(dict):
         for i in range(1,len(ll.args.args_d['omega'])):
           self.add(f'omega{i}',None, 'Variance under threshold for an observation')
           
-    c = [
-                  [(f'rho{i}', 0) for i in range(1,p)] +
-                        [(f'lambda{i}', None) for i in range(1,q)] + 
-                        [(f'gamma{i}', None) for i in range(1,k)] +
-                        [(f'psi{i}', None) for i in range(1,m)],
-
-                        [(f'rho{i}', None) for i in range(0,p)] +
-                        [(f'lambda{i}', None) for i in range(0,q)] + 
-                        [(f'gamma{i}', None) for i in range(0,k)] +
-                        [(f'psi{i}', None) for i in range(0,m)]			
-                ]
-    if init_arma_constr>0:
-      self.add_custom_constraints(panel, c[init_arma_constr-1], ll)
+    c = [(0, 0, 0, 0), 
+         (0, 0, 0, 0),
+         (1, 0, 0, 0), 
+         (0, 1, 0, 0),
+         (0, 0, 1, 0),
+         (0, 0, 0, 1), 
+         (0, 0, 1, 1), 
+         (1, 1, 0, 0), 
+         (1, 1, 1, 1), 
+                 
+        ]
+    if its<len(c):
+      constr = self.get_init_constr(*c[its])
+      self.add_custom_constraints(panel, constr, ll)
     a=0
+    
+      
+      
+  def get_init_constr(self, p0,q0,k0,m0):
+    p, q, d, k, m = self.pqdkm
+    constr_list = ([(f'rho{i}', None) for i in range(p0,p)] +
+                   [(f'lambda{i}', None) for i in range(q0,q)] + 
+                   [(f'gamma{i}', None) for i in range(k0,k)] +
+                   [(f'psi{i}', None) for i in range(m0,m)])
+    return constr_list
+    
+    
 
-  def add_dynamic_constraints(self,computation, H, ll, args = None):
+  def add_dynamic_constraints(self,panel, H, ll, args = None):
     if not args is None:
       self.args = args
       self.args[0]
     k,k=H.shape
     self.weak_mc_dict=dict()
     include=np.array(k*[True])
-    include[list(computation.constr.fixed)]=False
+    include[list(self.fixed)]=False
     self.mc_problems=[]#list of [index,associate,condition index]
-    self.CI=constraint_multicoll(k, computation, include, self.mc_problems, H)
-    self.add_mc_constraint(computation)
+    self.CI=constraint_multicoll(k, panel, include, self.mc_problems, H)
+    self.add_mc_constraint(panel)
 
   def add_custom_constraints(self,panel, constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
     """Adds custom range constraints\n\n
@@ -278,19 +257,19 @@ class Constraints(dict):
         except TypeError as e:
           self.add(name,None,cause, [c,None],replace,args=args)
 
-  def add_mc_constraint(self, computation):
+  def add_mc_constraint(self, panel):
     """Adds constraints for severe MC problems"""
-    old = computation.constr_old
+
     if len(self.mc_problems)==0:
       return
 
-    no_check=get_no_check(computation)
+    no_check=get_no_check(panel)
     a=[i[0] for i in self.mc_problems]
     if no_check in a:
       mc=self.mc_problems[a.index(no_check)]
       mc[0],mc[1]=mc[1],mc[0]
-    mc_limit = computation.panel.options.multicoll_threshold_report.value
-    coll_max_limit = computation.panel.options.multicoll_threshold_max.value
+    mc_limit = panel.options.multicoll_threshold_report.value
+    coll_max_limit = panel.options.multicoll_threshold_max.value
     for index,assc,cond_index in self.mc_problems:
       cond = not ((index in self.associates) or (index in self.collinears))and (not index==no_check)
       # same condition, but possible have a laxer condition for weak_mc_dict. 
@@ -299,12 +278,6 @@ class Constraints(dict):
       if cond and cond_index > coll_max_limit :#adding restrictions:
         self.add(assc,index,'collinear')
         return
-        if old is None:
-          self.add(assc,index,'collinear')
-        elif assc in old.collinears:
-          self.add(index ,assc,'collinear')
-        else:
-          self.add(assc,index,'collinear')
           
   def print_constraints(self, kind = None):
     for desc, obj in [('All', self),
@@ -328,22 +301,6 @@ def test_interval(interval,value):
       interval=None	
   return interval,value
 
-def append_to_ID(ID,intlist):
-  inID=False
-  for i in intlist:
-    if i in ID:
-      inID=True
-      break
-  if inID:
-    for j in intlist:
-      if not j in ID:
-        ID.append(j)
-    return True
-  else:
-    return False
-
-
-
 def normalize(H,include):
   C=-H[include][:,include]
   d=np.maximum(np.diag(C).reshape((len(C),1)),1e-30)**0.5
@@ -360,14 +317,14 @@ def decomposition(H,include=None):
   return c_index, var_prop,includemap
 
 
-def multicoll_problems(computation,H,include,mc_problems):
+def multicoll_problems(panel,H,include,mc_problems):
   c_index, var_prop, includemap = decomposition(H, include)
   MAX_VAR_PROP_FRACTION = 0.4
   if c_index is None:
     return False,False
   mc_list=[]
   largest_ci=None
-  limit = computation.panel.options.multicoll_threshold_report.value
+  limit = panel.options.multicoll_threshold_report.value
   for cix in range(1,len(c_index)):
     if (np.sum(var_prop[-cix]>MAX_VAR_PROP_FRACTION)>1) and (c_index[-cix]>limit):
       if largest_ci is None:
@@ -376,12 +333,12 @@ def multicoll_problems(computation,H,include,mc_problems):
       var_prop_val=var_prop[-cix][var_prop_ix]
       j=var_prop_ix[0]
       j=includemap[j]
-      done=var_prop_check(computation,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix],mc_list)
+      done=var_prop_check(var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix],mc_list)
       if done:
         break
   return c_index[-1],mc_list
 
-def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
+def var_prop_check(var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
   i = 1
   if var_prop_val[i]<0.5:
     return True
@@ -391,18 +348,18 @@ def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_probl
   mc_list.append(index)
   return False
 
-def get_no_check(computation):
-  no_check=computation.panel.options.do_not_constrain.value
-  X_names=computation.panel.input.X_names
+def get_no_check(panel):
+  no_check = panel.options.do_not_constrain.value
+  X_names = panel.input.X_names
   if not no_check is None:
     if no_check in X_names:
       return X_names.index(no_check)
     print("A variable was set for the 'Do not constraint' option (do_not_constrain), but it is not among the x-variables")
 
-def constraint_multicoll(k,computation,include,mc_problems, H):
+def constraint_multicoll(k,panel,include,mc_problems, H):
   CI_max=0
   for i in range(k-1):
-    CI,mc_list=multicoll_problems(computation, H,include,mc_problems)
+    CI,mc_list=multicoll_problems(panel, H,include,mc_problems)
     CI_max=max((CI_max,CI))
     if len(mc_list)==0:
       break

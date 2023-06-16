@@ -9,27 +9,11 @@ from .. import functions as fu
 from . import function
 from ..output import stat_dist
 from ..processing import model_parser
+from . import arma
 
-
-import sys
-from pathlib import Path
-import os
-import numpy.ctypeslib as npct
-import ctypes as ct
-p = os.path.join(Path(__file__).parent.absolute(),'cfunctions')
-if os.name=='nt':
-  cfunct = npct.load_library('ctypes.dll',p)
-else:
-  cfunct = npct.load_library('ctypes.so',p)
 import numpy as np
 import traceback
 import time
-
-
-
-CDPT = ct.POINTER(ct.c_double) 
-CIPT = ct.POINTER(ct.c_uint) 
-
 
 
 class LL:
@@ -56,7 +40,7 @@ class LL:
     self.args=panel.args.create_args(args,panel,constraints)
     self.h_err=""
     self.LL=None
-    #self.LL=self.LL_calc(panel)
+    self.LL=self.LL_calc(panel)
     try:
       self.LL=self.LL_calc(panel)
       if np.isnan(self.LL):
@@ -77,9 +61,9 @@ class LL:
     
     G = fu.dot(panel.W_a, self.args.args_d['omega'])
     if 'initvar' in self.args.args_d:
-      G[0,0,0] += abs(self.args.args_d['initvar'][0])
+      G[0,0,0] = abs(self.args.args_d['initvar'][0])
     else:
-      G[0,0,0] += panel.args.init_var
+      G[0,0,0] = panel.args.init_var
     
     #Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
     u = panel.Y-fu.dot(X,self.args.args_d['beta'])
@@ -105,7 +89,7 @@ class LL:
       self.h_val, self.h_e_val, self.h_2e_val = np.log(e_REsq+self.h_add)*incl, 2*incl*e_RE/(e_REsq+self.h_add), incl*2/(e_REsq+self.h_add) - incl*2*e_RE**2/(e_REsq+self.h_add)**2
       self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 
-
+    self.variance_RE(panel,e_REsq)
     if False:#debug
       from .. import debug
       if np.any(h!=self.h_val):
@@ -134,7 +118,7 @@ class LL:
   def add_variables(self,panel,matrices,u, u_RE,var,v,G,e_RE,e_REsq,v_inv,LL_full):
     self.v_inv05=v_inv**0.5
     self.e_norm=e_RE*self.v_inv05	
-    self.e_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
+    self.e_RE_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
     self.u, self.u_RE      = u,  u_RE
     self.var,  self.v,    self.LL_full = var,       v,    LL_full
     self.G=G
@@ -160,6 +144,7 @@ class LL:
     self.vRE,self.varRE,self.dvarRE=panel.zeros[3],panel.zeros[3],panel.zeros[3]
     self.ddvarRE,self.dvarRE_mu,self.ddvarRE_mu_vRE=panel.zeros[3],None,None
     self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
+    return
     if panel.options.fixed_random_variance_eff.value==0:
       return panel.zeros[3]
     if panel.N==0:
@@ -213,18 +198,21 @@ class LL:
     else:
       m=panel.mean(panel.Y)	
     #e_norm=self.standardize_variable(panel,self.u,reverse_difference)
+    self.Y_long = panel.input.Y
+    self.X_long = panel.input.X
     self.Y_st,   self.Y_st_long   = self.standardize_variable(panel,panel.Y,reverse_difference)
     self.X_st,   self.X_st_long   = self.standardize_variable(panel,panel.X,reverse_difference)
     self.XIV_st, self.XIV_st_long = self.standardize_variable(panel,panel.XIV,reverse_difference)
     self.Y_pred_st=fu.dot(self.X_st,self.args.args_d['beta'])
     self.Y_pred=fu.dot(panel.X,self.args.args_d['beta'])	
-    self.e_norm_long=self.stretch_variable(panel,self.e_norm)
+    self.e_RE_norm_centered_long=self.stretch_variable(panel,self.e_RE_norm_centered)
     self.Y_pred_st_long=self.stretch_variable(panel,self.Y_pred_st)
     self.Y_pred_long=np.dot(panel.input.X,self.args.args_d['beta'])
-    self.e_long=panel.input.Y-self.Y_pred_long
+    self.u_long=np.array(panel.input.Y-self.Y_pred_long)
+    
 
-    Rsq, Rsqadj, LL_ratio,LL_ratio_OLS=stat_functions.goodness_of_fit(self, False, panel)
-    Rsq2, Rsqadj2, LL_ratio2,LL_ratio_OLS2=stat_functions.goodness_of_fit(self, True, panel)
+    Rsq, Rsqadj, LL_ratio,LL_ratio_OLS, F, F_p=stat_functions.goodness_of_fit(self, False, panel)
+    Rsq2, Rsqadj2, LL_ratio2,LL_ratio_OLS2, F2, F_p2=stat_functions.goodness_of_fit(self, True, panel)
     a=0
 
 
@@ -256,7 +244,7 @@ class LL:
     return h(e, z, panel)
 
   def arma_calc(self,panel, u, h_add, G):
-    matrices =set_garch_arch(panel,self.args.args_d, u, h_add, G)
+    matrices = arma.set_garch_arch(panel,self.args.args_d, u, h_add, G)
     if matrices is None:
       return None		
     self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, self.h = matrices
@@ -266,11 +254,14 @@ class LL:
   def predict(self, W, W_next = None):
     d = self.args.args_d
     self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'])
-    u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], self.e[:,-1])#test
+    #u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], self.e[:,-1])#test
     self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], W_next, self.minvar, self.maxvar)
-    var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar)#test
+    #var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar)#test
+    if not hasattr(self,'Y_pred'):
+      self.standardize()
     
-    return {'predicted residual':self.u_pred, 'predicted variance':self.var_pred}
+    return {'predicted residual':self.u_pred, 'predicted variance':self.var_pred, 
+            'in-sample predicted Y': self.Y_pred_long, 'in-sample predicted variance': self.v}
 
     
 def pred_u(u, e, rho, lmbda, e_now = 0):
@@ -278,14 +269,15 @@ def pred_u(u, e, rho, lmbda, e_now = 0):
     return 0
   u_pred = e_now
   if len(rho):
-    u_pred += np.sum([
+    u_pred += sum([
       rho[i]*u[:,-i-1] for i in range(len(rho))
-      ], 1)
+      ])
   if len(lmbda):
-    u_pred += np.sum([
+    u_pred += sum([
       lmbda[i]*e[:,-i-1] for i in range(len(lmbda))
-    ], 1)  
-  
+    ])  
+  if len(u_pred)==1:
+    u_pred = u_pred[0,0]
   return u_pred[0,0]
   
 def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar):
@@ -305,8 +297,9 @@ def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar):
     ])  
     
   var_pred = G + a +b
-  var_pred = max(min((var_pred[0,0], maxvar)), minvar)
-
+  var_pred = np.maximum(np.minimum(var_pred, maxvar), minvar)
+  if len(var_pred)==1:
+    var_pred = var_pred[0,0]  
   return var_pred
 
 
@@ -337,96 +330,7 @@ def test_variance_signal(W, h, omega):
   
 
 
-def set_garch_arch(panel,args,u, h_add, G):
-  """Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
-  the diagonal band"""
-  N, T, _ = u.shape
-  rho=np.insert(-args['rho'],0,1)
-  psi=args['psi']
-  psi=np.insert(args['psi'],0,0) 
 
-  AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=(
-          np.append([1],np.zeros(T-1)),
-                np.zeros(T),
-                np.append([1],np.zeros(T-1)),
-                np.zeros(T),
-                np.zeros((N,T,1)),
-                np.zeros((N,T,1)),
-                np.zeros((N,T,1))
-        )
-
-
-
-  lmbda = args['lambda']
-  gmma = -args['gamma']
-  
-  parameters = np.array(( N , T , 
-                  len(lmbda), len(rho), len(gmma), len(psi), 
-                  panel.options.EGARCH.value, panel.tot_lost_obs, 
-                  h_add))
-
-  cfunct.armas(parameters.ctypes.data_as(CIPT), 
-                     lmbda.ctypes.data_as(CDPT), rho.ctypes.data_as(CDPT),
-                                                  gmma.ctypes.data_as(CDPT), psi.ctypes.data_as(CDPT),
-                                                  AMA_1.ctypes.data_as(CDPT), AMA_1AR.ctypes.data_as(CDPT),
-                                                  GAR_1.ctypes.data_as(CDPT), GAR_1MA.ctypes.data_as(CDPT),
-                                                  u.ctypes.data_as(CDPT), 
-                                                  e.ctypes.data_as(CDPT), 
-                                                  var.ctypes.data_as(CDPT),
-                                                  h.ctypes.data_as(CDPT),
-                                                  G.ctypes.data_as(CDPT)
-                                                  )		
-
-
-  r=[]
-  #Creating nympy arrays with name properties. 
-  for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:
-    r.append((locals()[i],i))
-  for i in ['e', 'var', 'h']:
-    r.append(locals()[i])
-
-  return r
-  
-def set_garch_arch_scipy(panel,args):
-  #after implementing ctypes, the scipy version might be dropped entirely
-  p,q,d,k,m=panel.pqdkm
-  nW,n=panel.nW,panel.max_T
-
-  AAR=-lag_matr(-panel.I,args['rho'])
-  AMA_1AR,AMA_1=solve_mult(args['lambda'], AAR, panel.I)
-  if AMA_1AR is None:
-    return
-  GMA=lag_matr(panel.I*0,args['psi'])
-  GAR_1MA,GAR_1=solve_mult(-args['gamma'], GMA, panel.I)
-  if GAR_1MA is None:
-    return
-  r=[]
-  for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:
-    r.append((locals()[i],i))
-  return r
-
-def solve_mult(args,b,I):
-  """Solves X*a=b for a where X is a banded matrix with 1  and args along
-  the diagonal band"""
-  import scipy
-  n=len(b)
-  q=len(args)
-  X=np.zeros((q+1,n))
-  X[0,:]=1
-  X2=np.zeros((n,n))
-  w=np.zeros(n)
-  r=np.arange(n)	
-  for i in range(q):
-    X[i+1,:n-i-1]=args[i]
-  try:
-    X_1=scipy.linalg.solve_banded((q,0), X, I)
-    if np.any(np.isnan(X_1)):
-      return None,None			
-    X_1b=fu.dot(X_1, b)
-  except:
-    return None,None
-
-  return X_1b,X_1
 
 
 def add_to_matrices(X_1,X_1b,a,ab,r):

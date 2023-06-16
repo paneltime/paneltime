@@ -15,8 +15,8 @@ def dd_func_lags_mult(panel,ll,g,AMAL,vname1,vname2,transpose=False, u_gradient=
 
 def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient):
   #de_xi is "N x T x m", de_zeta is "N x T x k" and L is "T x T"
-  de_xi=g.__dict__['de_'+vname1]
-  de_zeta=g.__dict__['de_'+vname2]
+  de_xi=g.__dict__['de_'+vname1+'_RE']
+  de_zeta=g.__dict__['de_'+vname2+'_RE']
   de2_zeta_xi_RE=None
   if de_xi is None or de_zeta is None:
     return None,None
@@ -79,10 +79,10 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_variance,u_gradient):
   #GARCH: 
   incl=panel.included[4]
-  if (g.__dict__['de_'+vname1] is None) or (g.__dict__['de_'+vname2] is None):
+  if (g.__dict__['de_'+vname1+'_RE'] is None) or (g.__dict__['de_'+vname2+'_RE'] is None):
     return None, None	
-  (N,T,m)=g.__dict__['de_'+vname1].shape
-  (N,T,k)=g.__dict__['de_'+vname2].shape
+  (N,T,m)=g.__dict__['de_'+vname1+'_RE'].shape
+  (N,T,k)=g.__dict__['de_'+vname2+'_RE'].shape
   DLL_e=g.DLL_e.reshape(N,T,1,1)
 
   d2LL_d2e_zeta_xi_RE=None
@@ -92,8 +92,8 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 
   RE_suffix=''
 
-  de_xi_RE=g.__dict__['de_'+vname1+RE_suffix]
-  de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]	
+  de_xi_RE=g.__dict__['de_'+vname1+'_RE'+RE_suffix]
+  de_zeta_RE=g.__dict__['de_'+vname2+'_RE'+RE_suffix]	
 
 
   dLL_var=g.dLL_var.reshape(N,T,1,1)
@@ -105,7 +105,7 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
   d2var_zeta_xi_h=None
   if panel.pqdkm[4]>0:
     if u_gradient:
-      de_zeta_RE=g.__dict__['de_'+vname2+RE_suffix]
+      de_zeta_RE=g.__dict__['de_'+vname2+'_RE'+RE_suffix]
     h_e_de2_zeta_xi =  ll.h_e_val.reshape(N,T,1,1)  * de2_zeta_xi_RE
     h_2e_dezeta_dexi = ll.h_2e_val.reshape(N,T,1,1) * de_xi_RE.reshape((N,T,m,1)) * de_zeta_RE.reshape((N,T,1,k))
 

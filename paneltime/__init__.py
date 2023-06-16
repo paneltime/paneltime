@@ -5,9 +5,6 @@
 from . import parallel
 from . import main
 from . import options as opt_module
-from . import output
-from .processing import loaddata
-from . import debug
 from . import info
 
 
@@ -15,10 +12,6 @@ import numpy as np
 import os
 import sys
 import time
-try:
-  import matplotlib
-except:
-  matplotlib = None
 import pandas as pd
 
 import inspect
@@ -64,45 +57,6 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
 
   return r
 
-def load_json(fname):
-
-  if False:#detects previously loaded dataset in the environment
-    dataframe=main.indentify_dataset(globals(),fname)
-    if (not dataframe==False) and (not dataframe is None):
-      return dataframe	
-  try:
-    dataframe=main.loaddata.load_json(fname)
-  except FileNotFoundError:
-    raise RuntimeError("File %s not found" %(fname))
-  return dataframe
-
-
-def load(fname,sep=None):
-
-  """Loads data from file <fname>, asuming column separator <sep>.\n
-	Returns a dataframe (a dictionary of numpy column matrices).\n
-	If sep is not supplied, the method will attemt to find it."""
-  if False:#detects previously loaded dataset in the environment
-    dataframe=main.indentify_dataset(globals(),fname)
-    if (not dataframe==False) and (not dataframe is None):
-      return dataframe	
-  try:
-    dataframe=main.loaddata.load(fname,sep)
-  except FileNotFoundError:
-    raise RuntimeError("File %s not found" %(fname))
-  return dataframe
-
-def load_SQL(conn,sql_string):
-
-  """Loads data from an SQL server, using sql_string as query"""
-  if False:#detects previously loaded dataset in the environment
-    dataframe=main.indentify_dataset(globals(),sql_string)
-    if (not dataframe==False) and (not dataframe is None):
-      return dataframe
-  dataframe=main.loaddata.load_SQL(sql_string,conn)
-  #except RuntimeError as e:
-  #	raise e
-  return dataframe
 
 version = info.version
 

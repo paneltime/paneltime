@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pydoc import importfile
+
 import os
 path = os.path.dirname(__file__)
 from ..output import stat_functions as stat
@@ -171,7 +171,7 @@ class Constraints(dict):
           return False
     return True
 
-  def add_static_constraints(self, panel, its, init_arma_constr, ll=None, minvarhits = []):
+  def add_static_constraints(self, panel, its, ll=None, minvarhits = []):
     pargs=self.panel_args
     p, q, d, k, m=self.pqdkm
 
@@ -191,20 +191,32 @@ class Constraints(dict):
         for i in range(1,len(ll.args.args_d['omega'])):
           self.add(f'omega{i}',None, 'Variance under threshold for an observation')
           
-    c = [
-                  [(f'rho{i}', 0) for i in range(1,p)] +
-                        [(f'lambda{i}', None) for i in range(1,q)] + 
-                        [(f'gamma{i}', None) for i in range(1,k)] +
-                        [(f'psi{i}', None) for i in range(1,m)],
-
-                        [(f'rho{i}', None) for i in range(0,p)] +
-                        [(f'lambda{i}', None) for i in range(0,q)] + 
-                        [(f'gamma{i}', None) for i in range(0,k)] +
-                        [(f'psi{i}', None) for i in range(0,m)]			
-                ]
-    if init_arma_constr>0:
-      self.add_custom_constraints(panel, c[init_arma_constr-1], ll)
+    c = [(0, 0, 0, 0), 
+         (1, 0, 0, 0), 
+         (0, 1, 0, 0),
+         (0, 0, 1, 0),
+         (0, 0, 0, 1), 
+         (0, 0, 1, 1), 
+         (1, 1, 0, 0), 
+         (1, 1, 1, 1), 
+                 
+        ]
+    if its<len(c):
+      constr = self.get_init_constr(*c[its])
+      self.add_custom_constraints(panel, constr, ll)
     a=0
+    
+      
+      
+  def get_init_constr(self, p0,q0,k0,m0):
+    p, q, d, k, m = self.pqdkm
+    constr_list = ([(f'rho{i}', None) for i in range(p0,p)] +
+                   [(f'lambda{i}', None) for i in range(q0,q)] + 
+                   [(f'gamma{i}', None) for i in range(k0,k)] +
+                   [(f'psi{i}', None) for i in range(m0,m)])
+    return constr_list
+    
+    
 
   def add_dynamic_constraints(self,computation, H, ll, args = None):
     if not args is None:
@@ -341,8 +353,6 @@ def append_to_ID(ID,intlist):
     return True
   else:
     return False
-
-
 
 def normalize(H,include):
   C=-H[include][:,include]

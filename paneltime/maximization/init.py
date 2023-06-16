@@ -4,7 +4,7 @@
 from . import dfpmax
 from . import computation
 from ..likelihood_simple import dfpmax as dfpmax_smpl
-from ..likelihood_simple import computation as computation_smpl
+
 
 from .. import likelihood as logl
 import numpy as np
@@ -17,14 +17,14 @@ def maximize(args, inbox, outbox, panel, gtol, tolx, nummerical, diag_hess, slav
   args = np.array(args)
   callbk = callback.CallBack(inbox, outbox)
   comput = computation.Computation(args, panel, gtol, tolx, None, nummerical, diag_hess)
-  comput_smpl = computation_smpl.Computation(args, panel, gtol, tolx, None, nummerical, diag_hess)
+  
 
   callbk.callback(quit=False, conv=False, perc=0)
   initval = InitialValues(panel, comput)
   
   x, ll, f, g, hessin, H = initval.calc_init_dir(args)
-  #res, ll = dfpmax.dfpmax(x, f, g, hessin, H, comput, callbk, panel, slave_id, ll)
-  res, ll = dfpmax_smpl.dfpmax(x, f, g, hessin, H, comput_smpl, callbk, panel, slave_id)
+  res, ll = dfpmax.dfpmax(x, f, g, hessin, H, comput, callbk, panel, slave_id, ll)
+  #msg, conv, args_c = dfpmax_smpl.dfpmax(x, f, g, hessin, H, panel, slave_id)
 
   return res, ll
 

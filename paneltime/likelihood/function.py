@@ -51,7 +51,6 @@ def gradient(ll,panel):
     dLL_var=-0.5*(incl-(ll.e_REsq*ll.v_inv)*incl)	
   dLL_var*=ll.dvar_pos*incl	
   DLL_e*=incl
-
   return dLL_var, DLL_e
 
 def hessian(ll,panel):

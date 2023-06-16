@@ -391,8 +391,11 @@ def ARMA_regression(panel):
 
 def ARMA_process_calc(e,panel):
   c=stat.correlogram(panel,e,2,center=True)[1:]
-
-  rho = max(min(c[1]/c[0],0.99), -0.99)
+  if abs(c[0])<0.1:
+    return 0,0
+  
+  rho = 0.5*(c[0] + c[1]/c[0])
+  rho = max(min(rho,0.99), -0.99)
 
   
   lmbda = 0

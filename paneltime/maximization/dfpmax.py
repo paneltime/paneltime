@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from . import linesearch
-from ..parallel import callback
 from . import direction
-from . import computation
 
 import numpy as np
 import time
@@ -39,7 +37,7 @@ def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id, ll):
   for its in range(MAXITER):  	#Main loop over the iterations.
 
 
-    dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, comput.ev_constr, simple=False)
+    dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
     ls = linesearch.LineSearch(x, comput, panel, ll)
     ls.lnsrch(x, f, g, H, dx)	
 

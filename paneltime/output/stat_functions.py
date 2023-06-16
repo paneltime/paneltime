@@ -6,6 +6,7 @@
 from .. import random_effects
 from . import stat_dist
 from .. import functions as fu
+import mpmath as mp
 import numpy as np
 
 
@@ -113,23 +114,35 @@ def goodness_of_fit(ll,standarized,panel):
   else:
     s_res=panel.var(ll.u)
     s_tot=panel.var(panel.Y)		
+  k = panel.input.X.shape[1]-panel.input.has_intercept
+  F = (
+        ((s_tot-s_res)/k)
+        /
+        (s_res/(panel.NT-k))
+        )
+  F_p = 1-stat_dist.fcdf(F, k, panel.NT-k)
+  
   r_unexpl=s_res/s_tot
   Rsq=1-r_unexpl
   Rsqadj=1-r_unexpl*(panel.NT-1)/(panel.NT-panel.args.n_args-1)
   panel.args.create_null_ll(panel)
   LL_ratio_OLS=2*(ll.LL-panel.args.LL_OLS)
   LL_ratio=2*(ll.LL-panel.args.LL_null)
-  return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS
+  return Rsq, Rsqadj, LL_ratio,LL_ratio_OLS, F, F_p
 
 
 def DurbinWatson(panel,ll):
-  """returns the probability that err_vec are not auto correlated""" 
+  """returns a statistic describing how much atocorrelation there is""" 
   X=ll.XIV_st
   N,T,k=X.shape	
-  e=ll.e_norm_centered
+  e=ll.e_RE_norm_centered
   c=panel.included[3][:,:-1]
   DW=np.sum((c*(e[:,1:]-e[:,:-1]))**2)/np.sum((e*panel.included[3])**2)
-  return DW
+  
+  e=ll.u_long
+  DW_no_panel=np.sum(((e[1:]-e[:-1]))**2)/np.sum((e)**2)
+  
+  return DW, DW_no_panel
 
 def correlogram(panel,e,lags,center=False):
   N,T,k=e.shape	
@@ -310,7 +323,7 @@ def robust_cluster_weights(panel,XErr,cluster_dim,whites):
     mean=random_effects.mean_time(panel,XErr,True)
     T,m,k=mean.shape
     mean=mean.reshape((T,k))
-  S=fu.dot(mean,mean)-whites
+  S=fu.dot(mean.T,mean)-whites
   return S
 
 
@@ -354,7 +367,7 @@ def sandwich_var(hessin,V):
 
 def breusch_godfrey_test(panel,ll, lags):
   """returns the probability that err_vec are not auto correlated""" 
-  e=ll.e_norm_centered
+  e=ll.e_RE_norm_centered
   X=ll.XIV_st
   N,T,k=X.shape
   X_u=X[:,lags:T]
@@ -375,19 +388,47 @@ def breusch_godfrey_test(panel,ll, lags):
 def JB_normality_test(e,panel):
   """Jarque-Bera test for normality. 
   returns the probability that a set of residuals are drawn from a normal distribution"""
-  e=e[panel.included[3]]
-  a=np.argsort(np.abs(e))[::-1]
 
-  ec=e[a][int(0.001*len(e)):]
-
-  df=len(ec)
-  ec=ec-np.mean(ec)
-  s=(np.sum(ec**2)/df)**0.5
-  mu3=np.sum(ec**3)/df
-  mu4=np.sum(ec**4)/df
+  df=len(e)
+  mu1 = np.mean(e)
+  e=e-mu1
+  s=(np.sum(e**2)/df)**0.5
+  mu3=np.sum(e**3)/df
+  mu4=np.sum(e**4)/df
   S=mu3/s**3
-  C=mu4/s**4
-  JB=df*((S**2)+0.25*(C-3)**2)/6.0
+  K=mu4/s**4
+  JB=df*((S**2)+0.25*(K-3)**2)/6.0
   p=1.0-stat_dist.chisq(JB,2)
-  return p
+   
+  omn, omn_sign = Omnibus(S, K-3, df)
+  
+  return p, JB, S , K, omn, omn_sign
 
+
+def Omnibus(g1, g2, n):
+  "D'Agostino's K^2"
+  #https://en.wikipedia.org/wiki/D%27Agostino%27s_K-squared_test
+  
+  mu2 = 6*(n-2)/((n+1)*(n+3))
+  gamma2 = 36*(n-7)*(n**2 + 2*n - 5)/( (n-2)*(n+5)*(n+7)*(n+9) )
+
+  W = ((2*gamma2+4)**0.5-1)**0.5
+  delta = 1/np.log(W)**0.5
+  alpha = (2/(W**2-1))**0.5
+  
+  Z1 = delta*float(mp.asinh(g1/(alpha*mu2**0.5)))
+  
+  mu1 = -6/(n+1)
+  mu2 = 24*n*(n-1)*(n-3)/( (n+1)**2*(n+3)*(n+5) )
+  gamma1  = 6*(n**2-5*n+2)
+  gamma1 *= ( 6*(n+3)*(n+5)/(n*(n-2)*(n-3)) )**0.5
+  gamma1 = gamma1/((n+7)*(n+9))
+  
+  A = 6 + (8/gamma1)*((2/gamma1)+(1+4/gamma1**2)**0.5)
+  
+  Z2 = (9*A/2)**0.5*(1-(2/(9*A)) - ((1-2/A)/(1+ ((g2-mu1)/mu2**0.5)*(2/(A-4)**0.5) ) )**(1/3) )
+  
+  Omnibus = Z1**2 + Z2**2
+  sign = 1-stat_dist.chisq(Omnibus, 2)
+  return Omnibus, sign
+  

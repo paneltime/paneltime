@@ -25,7 +25,8 @@ def dot(a,b,reduce_dims=True):
   elif len(a.shape)==2 and len(b.shape)==3:
     x = np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
   elif len(a.shape)==2 and len(b.shape)==2:
-    x = np.dot(a,b)
+    if a.shape[1] == b.shape[0]:
+      x = np.dot(a,b)
   return x
 
 

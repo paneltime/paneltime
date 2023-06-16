@@ -36,8 +36,8 @@ class ProcessCharts():
   def histogram(self,f):
     N,T,k=self.panel.X.shape
     fgr,axs = self.subplot
-    n=self.ll.e_norm_centered.shape[2]
-    e=self.ll.e_norm_centered[self.panel.included[2]].flatten()
+    n=self.ll.e_RE_norm_centered.shape[2]
+    e=self.ll.e_RE_norm_centered[self.panel.included[2]].flatten()
     N=e.shape[0]
     e=e.reshape((N,1))
 
@@ -56,7 +56,7 @@ class ProcessCharts():
   def correlogram(self,f):
     fgr,axs=self.subplot
     lags=20
-    rho=stat.correlogram(self.panel, self.ll.e_norm_centered,lags)
+    rho=stat.correlogram(self.panel, self.ll.e_RE_norm_centered,lags)
     x=np.arange(lags+1)
     axs.bar(x,rho,color='grey', width=0.5,label='correlogram')
     name='Correlogram - residuals'
@@ -67,7 +67,7 @@ class ProcessCharts():
     N,T,k=self.panel.X.shape
     fgr,axs=self.subplot
     lags=20
-    e2=self.ll.e_norm_centered**2
+    e2=self.ll.e_RE_norm_centered**2
     e2=(e2-self.panel.mean(e2))*self.panel.included[3]
     rho=stat.correlogram(self.panel, e2,lags)
     x=np.arange(lags+1)

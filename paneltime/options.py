@@ -115,6 +115,7 @@ def regression_options():
 
   self.add_intercept				= options_item(True,			"If True, adds intercept if not all ready in the data",
                                                                          bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
+  
   self.arguments					= options_item(None, 				"A dict or string defining a dictionary in python syntax containing the initial arguments." 
                                                                              "An example can be obtained by printing ll.args.args_d"
                                                                                                                                         , [str,dict, list, np.ndarray], 'Initial arguments')	

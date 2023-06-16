@@ -40,13 +40,10 @@ class Computation:
     self.nummerical = nummerical
     self.quit = False
     self.avg_incr = 0
-    self.ev_constr = False
+
     self.diag_hess = diag_hess
     self.CI_anal = 2
     p, q, d, k, m = panel.pqdkm
-    self.init_arma = ((k>=1)|(m>=1))*2
-    if panel.args.initial_user_defined:
-      self.init_arma = 0
     self.init_arma_its = 0
     self.set_constr(args)
 
@@ -69,7 +66,7 @@ class Computation:
       return
 
     if self.panel.options.constraints_engine.value:
-      self.constr.add_static_constraints(self.panel, its, self.init_arma, ll,  np.nonzero(ll.var<ll.minvar)[1])	
+      self.constr.add_static_constraints(self.panel, its, ll,  np.nonzero(ll.var<ll.minvar)[1])	
 
       self.constr.add_dynamic_constraints(self, H, ll)	
 
@@ -84,11 +81,11 @@ class Computation:
     #Thhese setting may not hold for all circumstances, and should be tested properly:
 
     NUM_ITER = 5
-    TOTP_TOL = 0.0001
+    TOTP_TOL = 1e-15
 
 
     g, G = self.calc_gradient(ll)
-    dx, dx_norm, H_ = direction.get(g, x, H, self.constr, f, hessin, self.ev_constr, simple=False)
+    dx, dx_norm, H_ = direction.get(g, x, H, self.constr, f, hessin, simple=False)
     
     a = np.ones(len(g))
     if not self.constr is None:
@@ -114,17 +111,9 @@ class Computation:
 
     if (ls.conv == 3) or (its >NUM_ITER and ((abs(g_norm) < gtol) or (abs(totpgain)<TOTP_TOL))
         or its>=self.panel.options.max_iterations.value):
-      if self.init_arma>0:
-        self.init_arma = 0
-      else:
-        return self.handle_convergence(ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G)
+      return self.handle_convergence(ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G)
     if not self.panel.options.supress_output.value:
-      print(f"its:{its}, f:{f}, init_reg:{self.init_arma},gnorm: {abs(g_norm)}")
-
-    if its>10 or (its<3 and incr<1):
-      self.init_arma = 0
-    elif its>3 and self.init_arma>1:
-      self.init_arma = 1	
+      print(f"its:{its}, f:{f}, gnorm: {abs(g_norm)}")
 
 
     self.avg_incr = incr + self.avg_incr*0.7
@@ -163,7 +152,7 @@ class Computation:
   
   def set_constr(self, args):
     self.constr = constraints.Constraints(self.panel, args)
-    self.constr.add_static_constraints(self.panel, 0, self.init_arma)	    
+    self.constr.add_static_constraints(self.panel, 0)	    
 
   def handle_convergence(self, ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G):
     Ha = self.calc_hessian(ll)    

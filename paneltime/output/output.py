@@ -5,60 +5,303 @@
 
 from . import stat_functions as stat
 from . import stat_dist
-
+import textwrap
 
 import numpy as np
 import time
+from datetime import datetime
 
 STANDARD_LENGTH=8
 
 
 
-class output:
-  def __init__(self,ll,panel,comm, dx_norm):
+class Output:
+  def __init__(self,ll,panel, dx_norm):
     self.ll=ll
-    self.comm=comm
     self.panel=panel
-    self.lags=self.panel.options.robustcov_lags_statistics.value[1]
-    self.n_variables=self.panel.args.n_args
+    
     self.incr=0
     self.dx_norm = dx_norm
-    self.d={'names':np.array(self.panel.args.caption_v),
-                        'count':range(self.n_variables),
-                                'args':self.ll.args.args_v}
-    self.update(comm, 0, ll, self.incr, dx_norm)
-    self.heading()
 
-  def update(self,comm, its, ll,incr, dx_norm):
-    self.comm=comm
+    
+    self.define_table_size()
+    self.statistics_decimals = 3 
+    self.update(0, ll, self.incr, dx_norm)
+    self.describe()
+
+  def describe(self):
+    s =  f"{self.panel.input.Y_names[0]} = {' + '.join(self.panel.input.X_names)}"
+    s = textwrap.TextWrapper(width=self.stat_totlen).fill(s) + '\n'   
+    if len(self.panel.input.Z_names[1:]):
+      s += f"Instruments:\t{', '.join(self.panel.input.Z_names[1:])}\n"     
+    s = "Regression model:\n" + s 
+    self.model_desc = s
+
+  def update(self,its, ll,incr, dx_norm):
     self.iterations=its
     self.ll=ll
     self.dx_norm = dx_norm
     self.incr=incr
-    self.d['args']=ll.args.args_v
-    self.constraints_printout()
-    self.t_stats()
-    self.heading()
+    self.stats = Statistics(self.ll,self.panel) 
+    
 
-  def statistics(self):
-    return Statistics(self.ll,self.panel)
+  
+  def get_model(self):
+    p, q, d, k, m = self.panel.pqdkm
+    s = ""
+    if d>0:
+      s+=f"ARIMA{(p, d, q)}"
+    elif (p*q):
+      s+=f"ARMA{(p,q)}"
+    elif (p==0)&(q>0):
+      s+=f"MA{q}"
+    elif (p>0)&(q==0):
+      s+=f"AR{p}"
+
+    if (k*m):
+      if s!='': s += '-'
+      s += f"GARCH{(k,m)}"
+    t = self.panel.options.fixed_random_time_eff.value
+    i = self.panel.options.fixed_random_group_eff.value
+    if t+i:
+      if s!='': s += ' '      
+      if (t==2)&(i==2):
+        s += '2-way RE'
+      elif (t==1)&(i==1):
+        s += '2-way FE'  
+      elif (t==2)|(i==2):
+        s += 'FE'  
+      elif (t==1)|(i==1):
+        s += 'RE'     
+        
+    if s == '':
+      s = 'OLS'
+      method = 'Least Squares'
+    else:
+      method = 'Maximum Likelihood'
+    
+    return s, method
 
   def reg_table(self):
     return RegTableObj(self)
 
-  def t_stats(self):
-    d=self.d
-    comm=self.comm
-    panel=self.panel
 
+    
+  def statistics(self, start_time):
+    s = self.stats
+    panel = self.panel
+    heading = 'Statistics:'
+    model, method = self.get_model()
+    n,T,k=self.panel.X.shape
+    rob = panel.options.robustcov_lags_statistics.value[1]>0
+    run_time = np.round(time.time()-start_time)
+
+
+
+    
+    c0 =(
+        ('Dep. Variable:',panel.input.Y_names[0]), 
+        ('Model:',model), 
+        ('Method:',method), 
+        ('Date:',datetime.now().strftime('%a, %d %b %Y')), 
+        ('Time:',datetime.now().strftime('%H:%M:%S')), 
+        ('Run time:', run_time), 
+        ('Observations count:',panel.NT), 
+        ('Df Residuals:',s.df), 
+        ('Df Model:',k-1), 
+        ('Covariance Type:', rob)
+    )   
+    
+    c1 =(
+        ('R-squared:',s.Rsq), 
+        ('Adj R-squared:',s.Rsqadj), 
+        ('F-statistic:',s.F), 
+        ('Prob (F-statistic):',s.F_p), 
+        ('Log-Likelihood:',self.ll.LL), 
+        ('AIC:', 2*k - 2*self.ll.LL), 
+        ('BIC:', panel.NT*k - 2*self.ll.LL), 
+        ('Panel groups:', n), 
+        ('Panel dates:', T), 
+        ('', '')
+    )    
+
+    tbl = [(c0[i],c1[i]) for i in range(len(c0))]
+    return heading + '\n' + self.parse_tbl(tbl)  
+  
+  
+  def diagnostics(self, constr):
+
+    s = self.stats
+    heading = 'Diagnostics:'
+    CI, n_CI = self.get_CI(constr)
+    c0 =(
+        ('Omnibus:',s.Omnibus_st),
+        ('Prob(Omnibus):',s.Omnibus_st),
+        ('Skew:',s.skewness_st),
+        ('Kurtosis:',s.kurtosis),
+        ('', ''),
+        ('', ''),
+        ('ADF statistic:',s.ADF_stat),
+        ('','')
+    )   
+    
+    c1 =(
+        ('Durbin-Watson:',s.DW),
+        ('Jarque-Bera (JB):',s.JB_st),
+        ('Prob(JB):',s.JB_prob_st),
+        ('Cond. No.:',CI),
+        ('Cond. var count.:', n_CI),
+        ('', ''),
+        ('ADF crit.val 1%:',s.c1),
+        ('ADF crit.val 5%:',s.c5),
+    )     
+    
+    tbl = [(c0[i],c1[i]) for i in range(len(c0))]
+    return heading + '\n' + self.parse_tbl(tbl)  
+  
+  def df_accounting(self,panel):
+
+    N,T,k=self.panel.X.shape
+    heading = 'Df accounting:'
+    samsum = [
+      ('SAMPLE SIZE SUMMARY:',''),
+      ('Original sample size:',panel.orig_size),
+      ('Sample size after removals:',panel.NT_before_loss),
+      ('Degrees of freedom:',panel.df),
+      ('Number of variables:',k),
+      ('Number of groups:',N),
+      ('Number of dates (maximum):',T)
+    ]    
+    
+    grpremv = [
+         ('GROUP REMOVAL:',''),
+         ('Lost observations:',''), 
+         ('A) ARIMA/GARCH:', panel.lost_obs), 
+         ('B) min obs (user preferences):',panel.options.min_group_df.value),
+         ('Required observations (A+B):',panel.lost_obs+panel.options.min_group_df.value),
+         
+         ('Groups removed:',''),
+         ('A) total # of groups:',len(panel.idincl)),
+         ('B) # of groups removed:',sum(panel.idincl==False)), 
+         ('# of groups remaining (A-B):',sum(panel.idincl==True)), 
+         ('# of observations removed:',panel.input.X.shape[0]-panel.NT_before_loss)
+         ]    
+    
+
+    
+    df = [('DEGREES OF FREEDOM:',''), 
+         ('A) sample size:', panel.NT_before_loss), 
+         ('B) lost to GARCH/ARIMA:',panel.tot_lost_obs),
+         ('C) lost to FE/RE:', panel.number_of_RE_coef),
+         ('D) coefficients in regr:',panel.args.n_args), 
+         ('Degrees of freedom (A-B-C-D):',panel.df)
+         ]    
+    
+    tbl = [
+      (samsum[0], None), 
+      (samsum[1], samsum[4]), 
+      (samsum[2], samsum[5]), 
+      (samsum[3], samsum[6]),
+      (None, None), 
+      (grpremv[0], df[0]),
+      (grpremv[1], df[1]),
+      (grpremv[2], df[2]),
+      (grpremv[3], df[3]),
+      (grpremv[4], df[4]),
+      (None, df[5]),
+      (grpremv[5], None),
+      (grpremv[6], None),
+      (grpremv[7], None),
+      (grpremv[8], None),
+      (grpremv[9], None)
+    
+    ]
+    
+    return heading+'\n' + self.parse_tbl(tbl)
+    
+  def define_table_size(self):
+    "Defines the columns and width of the statistics tables"
+    self.stat_left_col = max((16 + len(self.panel.input.Y_names[0]), 27))
+    self.stat_right_col = 40
+    self.stat_totlen = self.stat_left_col + self.stat_right_col + 2     
+    
+
+  def parse_tbl(self,tbl):  
+    c =[self.stat_left_col, self.stat_right_col]  
+    fmt = self.format_tbl_itm
+
+    for i in range(len(tbl)):
+      for j in [0,1]:
+        itm = tbl[i][j]
+        if itm is None:
+          itm = ['', '']
+        l = sum([len(str(itm[k])) for k in [0,1]]) + 2
+        if l > c[j]: c[j] = l
+          
+    line = "="*(sum(c)+2) + '\n'  
+    s = line
+    for i in range(len(tbl)):
+      for j in [0,1]:
+        if tbl[i][j] is None:
+          s += fmt('', '', c[j])
+        else:
+          s += fmt(tbl[i][j][0], tbl[i][j][1], c[j])
+        if j==0:
+          s += '  '
+        else:
+          s += '\n'
+    s += line
+    
+    return s
+ 
+    
+  def format_tbl_itm(self, description, value, length):
+    try:
+      value = str(np.round(value, self.statistics_decimals))
+    except:
+      value = str(value)
+    return "{:<{}}{}".format(description, length - len(value), value) 
+
+  def get_CI(self, constr):
+    CI ='None'
+    n_CI = 'None'
+    if not constr is None:
+      if not constr.CI is None:
+        CI = np.round(constr.CI)
+      n_CI=len(constr.mc_problems)
+    return CI, n_CI
+
+
+
+
+class RegTableObj(dict):
+  def __init__(self, panel, ll, g, H, G, constr, dx_norm):
+    dict.__init__(self)
+    
+    self.Y_names = panel.input.Y_names
+    self.X_names = panel.input.X_names
+    self.args = ll.args.dict_string
+    self.n_variables = panel.args.n_args
+    self.lags = panel.options.robustcov_lags_statistics.value[1]
+    self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{ll.err_msg}"	
+    self.dx_norm = dx_norm
+    self.t_stats(panel, ll, H, G, g, constr)
+    self.constraints_formatting(panel, constr)    
+    
+  def t_stats(self, panel, ll, H, G, g, constr):
+    self.d={'names':np.array(panel.args.caption_v),
+            'count':range(self.n_variables),
+            'args':ll.args.args_v}
+    d = self.d
+  
     T=len(d['names'])
-    if comm.H is None:
+    if H is None:
       return
-    d['se_robust'],d['se_st']=sandwich(comm,self.lags)
-    d['se_robust_oposite'],d['se_st_oposite']=sandwich(comm,self.lags,oposite=True)
+    d['se_robust'],d['se_st']=sandwich(H, G, g, constr, panel, self.lags)
+    d['se_robust_oposite'],d['se_st_oposite']=sandwich(H, G, g, constr, panel, self.lags,oposite=True)
     d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
     d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
-    #d['se_robust_fullsize'],d['se_st_fullsize']=sandwich(comm,self.lags,resize=False)
+
     no_nan=np.isnan(d['se_robust'])==False
     valid=no_nan
     valid[no_nan]=(d['se_robust'][no_nan]>0)
@@ -67,42 +310,14 @@ class output:
     d['tstat'][valid]=d['args'][valid]/d['se_robust'][valid]
     d['tsign'][valid]=(1-stat_dist.tcdf(np.abs(d['tstat'][valid]),panel.df))#Two sided tests
     d['sign_codes']=get_sign_codes(d['tsign'])
-
-  def heading(self):
-    CI ='None'
-    n_CI = 'None'
-    if not self.comm.constr is None:
-      if not self.comm.constr.CI is None:
-        CI = np.round(self.comm.constr.CI)
-      n_CI=len(self.comm.constr.mc_problems)
-
-
-    self.model_desc =  f"Model:\t{self.panel.input.Y_names[0]} = {' + '.join(self.panel.input.X_names)}\n"
-    instr='None'
-    if not self.panel.input.Z_names is None:
-      self.model_desc += f"Instruments:\t{', '.join(self.panel.input.Z_names[1:])}\n" 
-
-    n,T,k=self.panel.X.shape
-    run_time = np.round(time.time()-self.comm.start_time)
-
-    s = (
-                  f"LL:\t{self.ll.LL        }\tIteration:\t{self.iterations        }\tPanel observations:\t{self.panel.NT_before_loss }\n"
-                f"Increment:\t{self.incr  }\tCollinearity - max(cond.idx):\t{CI  }\tPanel dates:\t{T                                }\n"
-                f"Time elapsed:\t{run_time}\tCollinearity - # variables:\t{n_CI  }\tPanel groups:\t{n                               }\n"
-
-
-                )
-
-    self.output_stats=s
-
-
-  def constraints_printout(self):
-    panel=self.panel
-    comm=self.comm
-    constr=comm.constr
+    z = stat_dist.tinv025(panel.df)
+    d['conf_low'] = d['args'] -z*d['se_robust']
+    d['conf_high'] = d['args'] -z*d['se_robust']
+    
+  def constraints_formatting(self, panel, constr):
     weak_mc_dict={}
-    if not comm.constr is None:
-      weak_mc_dict=comm.constr.weak_mc_dict
+    if not constr is None:
+      weak_mc_dict = constr.weak_mc_dict
     d=self.d
     if not self.dx_norm is None:
       d['dx_norm']=self.dx_norm
@@ -125,23 +340,10 @@ class output:
 
     for i in weak_mc_dict:#adding associates of non-severe multicollinearity
       d['multicoll'][i]='|'
-      d['assco'][i]=panel.args.caption_v[weak_mc_dict[i][0]]	
+      d['assco'][i]=panel.args.caption_v[weak_mc_dict[i][0]]	  
 
-
-class RegTableObj(dict):
-  def __init__(self,output):
-    dict.__init__(self)
-    self.d=output.d
-    self.Y_names=output.panel.input.Y_names
-    self.X_names=output.panel.input.X_names
-    self.args=output.ll.args.dict_string
-    self.n_variables=output.n_variables
-    self.output_stats = output.output_stats
-    self.model_desc = output.model_desc
-    self.footer=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
-
-  def table(self,n_digits = 3,brackets = '(',fmt = 'NORMAL',stacked = True, show_direction = False, show_constraints = True):
-    include_cols,llength=self.get_cols(stacked, show_direction, show_constraints)
+  def table(self,n_digits = 3,brackets = '(',fmt = 'NORMAL',stacked = True, show_direction = False, show_constraints = True, show_confidence = False):
+    include_cols,llength=self.get_cols(stacked, show_direction, show_constraints, show_confidence)
     if fmt=='INTERNAL':
       self.X=None
       return str(self.args),None
@@ -152,8 +354,6 @@ class RegTableObj(dict):
     self.X=self.output_matrix(n_digits,brackets)
     s=format_table(self.X, include_cols,fmt,
                                "Paneltime GARCH-ARIMA panel regression",
-                                           self.model_desc, 
-                                           self.output_stats,
                                            self.footer)
     return s,llength
 
@@ -210,8 +410,9 @@ class RegTableObj(dict):
 
 
   def get_cols(self,stacked,
-                     show_direction,
-                                show_constraints):
+                  show_direction,
+                  show_constraints, 
+                  show_confidence):
     "prints a single regression"
     dx_col=[]
     llength=9
@@ -222,12 +423,15 @@ class RegTableObj(dict):
     mcoll_col=[]
     if show_constraints:
       mcoll_col=[ 'multicoll','assco','set_to', 'cause']
+    conf_coll = []
+    if show_confidence:
+      conf_coll = ['conf_low','conf_high']
     else:
       llength-=2		
     if stacked:
-      cols=['count','names', ['args','se_robust', 'sign_codes']] + dx_col + ['tstat', 'tsign'] + mcoll_col
+      cols=['count','names', ['args','se_robust', 'sign_codes']] +conf_coll + dx_col + ['tstat', 'tsign'] + mcoll_col
     else:
-      cols=['count','names', 'args','se_robust', 'sign_codes'] + dx_col + ['tstat', 'tsign'] + mcoll_col		
+      cols=['count','names', 'args','se_robust', 'sign_codes'] +conf_coll + dx_col + ['tstat', 'tsign'] + mcoll_col		
     return cols,llength
 
 
@@ -262,9 +466,8 @@ class column:
       else:
         return np.array([str(i).ljust(self.length)[:self.length] for i in self.input])
 
-def sandwich(comm,lags,oposite=False,resize=True):
-  panel=comm.panel
-  H,G,idx=reduce_size(comm,oposite,resize)
+def sandwich(H, G, g, constr, panel,lags,oposite=False,resize=True):
+  H,G,idx=reduce_size(H, G, g, constr,oposite,resize)
   lags=lags+panel.lost_obs
   onlynans = np.array(len(idx)*[np.nan])
   try:
@@ -280,32 +483,30 @@ def sandwich(comm,lags,oposite=False,resize=True):
     se = np.array(onlynans)
   return se_robust,se
 
-def reduce_size(comm,oposite,resize):
+def reduce_size(H, G, g, constr, oposite,resize):
   #this looks unneccessary complicated
-  if comm.constr is None:
-    return comm.H, comm.G, np.ones(len(comm.g),dtype=bool)
-  H=comm.H
-  G=comm.G
+  if constr is None:
+    return H, G, np.ones(len(g),dtype=bool)
   if (G is None) or (H is None):
     return
   m=len(H)
   if not resize:
     return H,G,np.ones(m,dtype=bool)
-  weak_mc_dict=comm.constr.weak_mc_dict.keys()
-  constr=list(comm.constr.fixed.keys())	
+  weak_mc_dict=constr.weak_mc_dict.keys()
+  c = list(constr.fixed.keys())	
   if oposite:
-    weak_mc_dict=[comm.constr.weak_mc_dict[i][0] for i in comm.constr.weak_mc_dict]
-    constr=[]
-    for i in comm.constr.fixed:
-      if not comm.constr.fixed[i].assco_ix is None:
-        constr.append(comm.constr.fixed[i].assco_ix)
+    weak_mc_dict=[constr.weak_mc_dict[i][0] for i in constr.weak_mc_dict]
+    c = []
+    for i in constr.fixed:
+      if not constr.fixed[i].assco_ix is None:
+        c.append(constr.fixed[i].assco_ix)
   if False:#not sure why this is here
     for i in weak_mc_dict:
-      if not i in constr:
-        constr.append(i)
+      if not i in c:
+        c.append(i)
   idx=np.ones(m,dtype=bool)
-  if len(constr)>0:#removing fixed constraints from the matrix
-    idx[constr]=False
+  if len(c)>0:#removing fixed constraints from the matrix
+    idx[c]=False
     H=H[idx][:,idx]
     G=G[:,:,idx]
   return H,G,idx
@@ -366,93 +567,17 @@ class Statistics:
     ll.standardize(panel)
     self.df=panel.df
     self.N,self.T,self.k=panel.X.shape
-    self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True,panel)	
-    self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,False,panel)	
+    self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS_st, self.F_st, self.F_p_st=stat.goodness_of_fit(ll,True,panel)	
+    self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS, self.F, self.F_p=stat.goodness_of_fit(ll,False,panel)	
     self.no_ac_prob,self.rhos,self.RSqAC=stat.breusch_godfrey_test(panel,ll,10)
-    self.DW=stat.DurbinWatson(panel,ll)
-    self.norm_prob=stat.JB_normality_test(ll.e_norm,panel)
+    self.DW, self.DW_no_panel=stat.DurbinWatson(panel,ll)
+    self.JB_prob, self.JB, self.skewness, self.kurtosis, self.Omnibus, self.Omnibus_pval = stat.JB_normality_test(ll.u_long,panel)
+    self.JB_prob_st, self.JB_st, self.skewness_st, self.kurtosis_st, self.Omnibus_st,  self.Omnibus_pval_st = stat.JB_normality_test(ll.e_RE_norm_centered_long,panel)
     self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
-    self.df_str=self.gen_df_str(panel)	
     self.instruments=panel.input.Z_names[1:]
     self.pqdkm=panel.pqdkm
 
-  def gen_df_str(self,panel):
-    summary=f"""
-                  SAMPLE SIZE SUMMARY:
-\tOriginal sample size\t\t:\t{panel.orig_size}
-\tSample size after filtering\t\t:\t{panel.NT_before_loss}
-\tDegrees of freedom\t\t:\t{panel.df}
-\tNumber of IDs\t\t:\t{self.N:,}
-\tNumber of dates (maximum)\t\t:\t{self.T}\n"""		
 
-    group_rmv=f"""
-                  REMOVED GROUPS BECAUSE OF TOO FEW OBSERVATIONS:
-\tObservations per group lost because of
-\tA)\tARIMA/GARCH\t:\t{panel.lost_obs}
-\tB)\tMin # of obs in user preferences:\t:\t{panel.options.min_group_df.value}
-\tMin # observations required (A+B)\t\t:\t{panel.lost_obs+panel.options.min_group_df.value}\n
-\tGroups removed
-\tA)\tTotal # of groups\t:\t{len(panel.idincl)}
-\tB)\t# of groups removed\t:\t{sum(panel.idincl==False)}
-\t# of groups remaining (A-B)\t\t:\t{sum(panel.idincl==True)}
-
-\t# of observations removed\t\t:\t{panel.input.X.shape[0]-panel.NT_before_loss}\n"""
-
-
-    s=f"""
-{summary}
-{group_rmv}
-                  DEGREES OF FREEDOM:
-\tA)\tSample size\t:\t{panel.NT_before_loss}
-\tB)\tObservations lost to
-\t\tGARCH/ARIMA\t:\t{panel.tot_lost_obs}	
-\tRandom/Fixed Effects in
-\tC)\tMean process\t:\t{panel.number_of_RE_coef}
-\tD)\tVariance process\t:\t{panel.number_of_RE_coef_in_variance}
-\tE)\tNumber of coefficients in
-\t\tRegression\t:\t{panel.args.n_args:,}
-\tDegrees of freedom (A-B-C-D-E)\t\t:\t{panel.df}\n\n"""
-    return s
-
-  def gen_mod_fit(self,n_digits = 3):
-    return f"""	
-\tLL-ratio\t\t:\t{round(self.LL_ratio,n_digits)}
-\tR-squared (from observed data)\t\t:\t{round(self.Rsq*100,2)}%
-\tAdjusted R-squared (from observed data)\t\t:\t{round(self.Rsqadj*100,2)}%
-\tR-squared (from normalized data)\t\t:\t{round(self.Rsq_st*100,2)}%
-\tAdjusted R-squared (from normalized data)\t\t:\t{round(self.Rsqadj_st*100,2)}%
-
-\t("Normalized data" means that the data is adjusted with the estimated ARIMA-GARCH parameters and random/fixed effects.)
-
-\tDurbin-Watson statistic:\t\t:\t{round(self.DW,2)}
-\tBreusch-Godfrey test\t\t:\t{round(self.no_ac_prob*100,n_digits)}% \t(significance, probability of no auto correlation)
-\tJarque–Bera test for normality\t\t:\t{round(self.norm_prob*100,n_digits)}% \t(significance, probability of normality)\n
-"""		
-
-
-  def adf_str(self,n_digits = 3):
-
-    if not self.ADF_stat=='NA':
-      if self.ADF_stat<self.c1:
-        self.ADF_res="Unit root rejected at 1%"
-      elif self.ADF_stat<self.c5:
-        self.ADF_res="Unit root rejected at 5%"
-      else:
-        self.ADF_res="Unit root not rejected"		
-      adf=f"""
-\tAugmented Dicky-Fuller (ADF)        
-\t\tTest statistic\t:\t{round(self.ADF_stat,n_digits)}
-\t\t1% critical value\t:\t{round(self.c1,n_digits)}
-\t\t5% critical value\t:\t{round(self.c5,n_digits)}
-\t\tResult\t:\t\t{self.ADF_res}
-                          """
-    else:
-      adf="Unable to calculate ADF"
-    if self.df<1:
-      s+="""
-\tWARNING: All your degrees of freedom (df) has been consumed, so statistics cannot be computed.
-\tyou can increase df by for example turning off random/fixed effects """
-    return adf
 
 
 def get_tab_stops(X,f):
@@ -477,29 +602,31 @@ def get_tab_stops(X,f):
 l=STANDARD_LENGTH
 #python variable name,	length,		is string,  display name,		neg. values,	justification	next tab space		round digits (None=no rounding,-1=set by user)
 pr=[
-  ['count',		2,			False,		'',					False,			'right', 		2,					None],
-                ['names',		None,		True,		'Variable names:',	False,			'right', 		2, 					None],
-                ['args',		None,		False,		'Coef:',			True,			'right', 		2, 					-1],
-                ['se_robust',	None,		False,		'rob.SE',			True,			'right', 		3, 					-1],
+                ['count',		2,			False,		'',					False,			'right', 		2,					None],
+                ['names',		None,		True,		'Variable names',	False,			'right', 		2, 					None],
+                ['args',		None,		False,		'coef',			True,			'right', 		2, 					-1],
+                ['se_robust',	None,		False,		'std err',			True,			'right', 		3, 					-1],
                 ['sign_codes',	5,			True,		'',					False,			'left', 		2, 					-1],
-                ['dx_norm',		None,		False,		'direction:',		True,			'right', 		2, 					None],
-                ['tstat',		2,			False,		't-stat.:',			True,			'right', 		2, 					2],
-                ['tsign',		None,		False,		'p-value:',			False,			'right', 		2, 					3],
+                ['dx_norm',		None,		False,		'direction',		True,			'right', 		2, 					None],
+                ['tstat',		2,			False,		't',			True,			'right', 		2, 					2],
+                ['tsign',		None,		False,		'P>|t|',			False,			'right', 		2, 					3],
+                ['conf_low',		None,		False,		'[0.025',			False,			'right', 		2, 					3],
+                ['conf_high',		None,		False,		'0.975]',			False,			'right', 		2, 					3],
                 ['multicoll',	1,			True,		'',					False,			'left', 		2, 					None],
                 ['assco',		20,			True,		'collinear with',	False,			'center', 		2, 					None],
                 ['set_to',		6,			True,		'set to',			False,			'center', 		2, 					None],
                 ['cause',		50,			True,		'cause',			False,			'right', 		2, 					None]]		
 
 
-def format_table(X,cols,fmt,heading, mod, stats,tail):
+def format_table(X,cols,fmt,heading,tail):
   if fmt=='NORMAL':
-    return mod + stats+format_normal(X,[1],cols)+tail
+    return format_normal(X,[1],cols)+tail
   if fmt=='LATEX':
-    return mod + stats+format_latex(X,cols,heading)+tail
+    return format_latex(X,cols,heading)+tail
   if fmt=='HTML':
-    return format_html(X,cols,heading,stats, mod)+tail	
+    return format_html(X,cols,heading, mod)+tail	
   if fmt=='CONSOLE':
-    return mod + stats+format_console(X)+tail
+    return format_console(X)+tail
 
 
 def format_normal(X,add_rows=[],cols=[]):
@@ -534,7 +661,12 @@ def format_console(X):
         p+=f'{X[i][j]}'.ljust(colwith[j]+dcol)
       else:
         p+=f'{X[i][j]}'.rjust(colwith[j]+dcol)
-
+  p = p.split('\n')
+  n = len(p[1])
+  p[0] = '='*n
+  p = p[:2] + ['-'*n] + p[2:] + ['='*n]
+  p = '\n'.join(p)
+  p = 'Regression results:\n' + p
   return p	
 
 def format_latex(X,cols,heading):
@@ -591,6 +723,7 @@ class join_table(dict):
         self.names_category_list[0].insert(k,i)
         k+=1
     self.caption_v=[itm for s in self.names_category_list for itm in s]#flattening
+    self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
 
   def update(self,ll,stats,desc,panel):
     if not desc in self:
@@ -624,8 +757,8 @@ class join_table(dict):
       X[3+n][1]='Adjusted R-squared'	
     for i in range(k):
       self.make_column(i,keys[i],X,stacked, brackets,digits,caption)
-    s=format_normal(X,[1,(1+stacked*2)*n+1,(1+stacked*2)*n+4])
-    s+=f"\n\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n"
+    s = format_normal(X,[1,(1+stacked*2)*n+1,(1+stacked*2)*n+4])
+    s += self.footer
     max_mod=0
     models=[]
     for i in range(len(keys)):

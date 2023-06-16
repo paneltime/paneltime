@@ -4,14 +4,12 @@
 #contains the log likelihood object
 
 from ..output import stat_functions
-from .. import random_effects as re
 from .. import functions as fu
 from . import function
 from ..output import stat_dist
 from ..processing import model_parser
 
 
-import sys
 from pathlib import Path
 import os
 import numpy.ctypeslib as npct
@@ -43,15 +41,6 @@ class LL:
     self.err_msg=''
     self.errmsg_h=''
 
-    #checking settings. If the FE/RE is done on the data before LL
-    gfre=panel.options.fixed_random_group_eff.value
-    tfre=panel.options.fixed_random_time_eff.value
-    vfre=panel.options.fixed_random_variance_eff.value
-
-    self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
-    self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
-    self.re_obj_i_v=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre*vfre)
-    self.re_obj_t_v=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre*vfre)
 
     self.args=panel.args.create_args(args,panel,constraints)
     self.h_err=""
@@ -83,26 +72,26 @@ class LL:
     
     #Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
     u = panel.Y-fu.dot(X,self.args.args_d['beta'])
-    u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*incl
 
-    matrices=self.arma_calc(panel, u_RE, self.h_add, G)
+
+    matrices=self.arma_calc(panel, u*incl, self.h_add, G)
     if matrices is None:
       return None		
-    AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var, h=matrices
+    AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=matrices
 
     #NOTE: self.h_val itself is also set in ctypes.cpp/ctypes.c. If you change self.h_val below, you need to 
     #change it in the c-scripts too. self.h_val must be calcualted below as well for later calulcations. 
     if panel.options.EGARCH.value==0:
-      e_REsq =(e_RE**2+(e_RE==0)*1e-18) 
+      e_sq =(e**2+(e==0)*1e-18) 
       nd =1
-      self.h_val, self.h_e_val, self.h_2e_val = (e_RE**2+self.h_add)*incl, nd*2*e_RE*incl, nd*2*incl
+      self.h_val, self.h_e_val, self.h_2e_val = (e**2+self.h_add)*incl, nd*2*e*incl, nd*2*incl
       self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
     else:
       minesq = 1e-20
-      e_REsq =np.maximum(e_RE**2,minesq)
-      nd = e_RE**2>minesq		
+      e_sq =np.maximum(e**2,minesq)
+      nd = e**2>minesq		
 
-      self.h_val, self.h_e_val, self.h_2e_val = np.log(e_REsq+self.h_add)*incl, 2*incl*e_RE/(e_REsq+self.h_add), incl*2/(e_REsq+self.h_add) - incl*2*e_RE**2/(e_REsq+self.h_add)**2
+      self.h_val, self.h_e_val, self.h_2e_val = np.log(e_sq+self.h_add)*incl, 2*incl*e/(e_sq+self.h_add), incl*2/(e_sq+self.h_add) - incl*2*e**2/(e_sq+self.h_add)**2
       self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 
 
@@ -110,13 +99,13 @@ class LL:
       from .. import debug
       if np.any(h!=self.h_val):
         print('the h calculated in the c function and the self.h_val calcualted here do not match')
-      debug.test_c_armas(u_RE, var, e_RE, panel, self, G)
+      debug.test_c_armas(u, var, e, panel, self, G)
 
-    LL_full,v,v_inv,self.dvar_pos=function.LL(panel,var,e_REsq, e_RE, self.minvar, self.maxvar)
+    LL_full,v,v_inv,self.dvar_pos=function.LL(panel,var,e_sq, e, self.minvar, self.maxvar)
     self.tobit(panel,LL_full)
     LL=np.sum(LL_full*incl)
     self.LL_all=np.sum(LL_full)
-    self.add_variables(panel,matrices, u, u_RE, var, v, G,e_RE,e_REsq,v_inv,LL_full)
+    self.add_variables(panel,matrices, u, var, v, G,e,e_sq,v_inv,LL_full)
     if abs(LL)>1e+100: 
       return None				
     return LL
@@ -131,15 +120,15 @@ class LL:
       self.maxvar = 100
       self.h_add = 0.1
       
-  def add_variables(self,panel,matrices,u, u_RE,var,v,G,e_RE,e_REsq,v_inv,LL_full):
+  def add_variables(self,panel,matrices,u, var,v,G,e,e_sq,v_inv,LL_full):
     self.v_inv05=v_inv**0.5
-    self.e_norm=e_RE*self.v_inv05	
-    self.e_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
-    self.u, self.u_RE      = u,  u_RE
+    self.e_norm=e*self.v_inv05	
+    self.e_RE_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
+    self.u     = u
     self.var,  self.v,    self.LL_full = var,       v,    LL_full
     self.G=G
-    self.e_RE=e_RE
-    self.e_REsq=e_REsq
+    self.e=e
+    self.e_sq=e_sq
     self.v_inv=v_inv
 
   def tobit(self,panel,LL):
@@ -152,51 +141,6 @@ class LL:
         I=panel.tobit_I[i]
         self.F[i]= stat_dist.norm(g[i]*self.e_norm[I])
         LL[I]=np.log(self.F[i])
-
-
-  def variance_RE(self,panel,e_REsq):
-    """Calculates random/fixed effects for variance."""
-    #not in use, expermental. Should be applied to normalize before ARIMA/GARCH
-    self.vRE,self.varRE,self.dvarRE=panel.zeros[3],panel.zeros[3],panel.zeros[3]
-    self.ddvarRE,self.dvarRE_mu,self.ddvarRE_mu_vRE=panel.zeros[3],None,None
-    self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
-    if panel.options.fixed_random_variance_eff.value==0:
-      return panel.zeros[3]
-    if panel.N==0:
-      return None
-
-    meane2=panel.mean(e_REsq)
-    self.varRE_input=(e_REsq-meane2)*panel.included[3]
-
-    mine2=0
-    mu=panel.options.variance_RE_norm.value
-    self.vRE_i=self.re_obj_i_v.RE(self.varRE_input, panel)
-    self.vRE_t=self.re_obj_t_v.RE(self.varRE_input, panel)
-    self.meane2=meane2
-    vRE=meane2*panel.included[3]-self.vRE_i-self.vRE_t
-    self.vRE=vRE
-    small=vRE<=mine2
-    big=small==False
-    vREbig=vRE[big]
-    vREsmall=vRE[small]
-
-    varREbig=np.log(vREbig+mu)
-    varREsmall=(np.log(mine2+mu)+((vREsmall-mine2)/(mine2+mu)))
-    varRE,dvarRE,ddvarRE=np.zeros(vRE.shape),np.zeros(vRE.shape),np.zeros(vRE.shape)
-
-    varRE[big]=varREbig
-    varRE[small]=varREsmall
-    self.varRE=varRE*panel.included[3]
-
-    dvarRE[big]=1/(vREbig+mu)
-    dvarRE[small]=1/(mine2+mu)
-    self.dvarRE=dvarRE*panel.included[3]
-
-    ddvarRE[big]=-1/(vREbig+mu)**2
-    self.ddvarRE=ddvarRE*panel.included[3]
-
-    return self.varRE
-
 
 
   def standardize(self,panel,reverse_difference=False):
@@ -221,7 +165,7 @@ class LL:
     self.e_norm_long=self.stretch_variable(panel,self.e_norm)
     self.Y_pred_st_long=self.stretch_variable(panel,self.Y_pred_st)
     self.Y_pred_long=np.dot(panel.input.X,self.args.args_d['beta'])
-    self.e_long=panel.input.Y-self.Y_pred_long
+    self.u_long=panel.input.Y-self.Y_pred_long
 
     Rsq, Rsqadj, LL_ratio,LL_ratio_OLS=stat_functions.goodness_of_fit(self, False, panel)
     Rsq2, Rsqadj2, LL_ratio2,LL_ratio_OLS2=stat_functions.goodness_of_fit(self, True, panel)
@@ -230,7 +174,6 @@ class LL:
 
   def standardize_variable(self,panel,X,norm=False,reverse_difference=False):
     X=panel.arma_dot.dot(self.AMA_1AR,X,self)
-    X=(X+self.re_obj_i.RE(X, panel,False)+self.re_obj_t.RE(X, panel,False))
     if (not panel.Ld_inv is None) and reverse_difference:
       X=fu.dot(panel.Ld_inv,X)*panel.a[3]		
     if norm:

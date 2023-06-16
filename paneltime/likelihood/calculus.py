@@ -19,7 +19,7 @@ class gradient:
       return None
     (N,T,m)=x.shape
     x=self.panel.arma_dot.dotroll(pre,k,sign,x,ll)
-    x.resize(N,T,k)
+    x = x.reshape(N,T,k)
     extr_value=1e+100
     if np.max(np.abs(x))>extr_value:
       x[np.abs(x)>extr_value]=np.sign(x[np.abs(x)>extr_value])*extr_value
@@ -131,8 +131,7 @@ class gradient:
     #	a=0
     #print(gn)
     #a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
-    #dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)
-
+    #dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)  
     self.callback(perc = 0.08, text = '', task = 'gradient')
     
 
@@ -184,12 +183,12 @@ class hessian:
     d2var_psi_z						=	cf.dd_func_lags(panel,ll,GARM, 	ll.h_z_val,								g.dLL_var)
 
     AMAq=(ll.AMA_1,q,-1)
-    d2var_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda_RE',	'lambda_RE', transpose=True)
-    d2var_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda_RE',	'rho_RE' )
-    d2var_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda_RE',	'beta_RE')
+    d2var_lambda2,		d2e_lambda2		=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'lambda', transpose=True)
+    d2var_lambda_rho,	d2e_lambda_rho	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'rho' )
+    d2var_lambda_beta,	d2e_lambda_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAq,	'lambda',	'beta')
 
     AMAp=(ll.AMA_1,p,-1)
-    d2var_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho_RE',		'beta_RE', u_gradient=True)
+    d2var_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 
     self.callback(perc = 0.4, text = '', task = 'hessian')
 
@@ -207,8 +206,8 @@ class hessian:
     d2var_z_lambda			=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_lambda_RE)),g.dLL_var) 
     d2var_z_beta			=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_beta_RE)),	g.dLL_var) 
 
-    d2var_rho2,	d2e_rho2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'rho_RE',		'rho_RE' )
-    d2var_beta2,d2e_beta2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'beta_RE',		'beta_RE')
+    d2var_rho2,	d2e_rho2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'rho',		'rho' )
+    d2var_beta2,d2e_beta2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'beta',		'beta')
 
 
 

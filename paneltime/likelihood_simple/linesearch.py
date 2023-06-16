@@ -1,24 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from .. import likelihood as logl
+from .. import likelihood_simple as logl
 from . import direction
 import numpy as np
 
 STPMX=100.0 
 import time
 class LineSearch:
-  def __init__(self, x, comput, panel, ll_old, step = 1):
+  def __init__(self, x, panel, ll_old, step = 1):
     self.alf = 1.0e-3     #Ensures sufficient decrease in function value.
     self.tolx = 1.0e-14  #Convergence criterion on fx.		
     self.step = step
     self.stpmax = STPMX * max((abs(np.sum(x**2)	))**0.5,len(x))
-    self.comput = comput
     self.panel = panel
     self.applied_constraints = []
     self.ll_old = ll_old
 
-  def lnsrch(self, x, f, g, H, dx):
+  def lnsrch(self, x, f, g, H, dx, constr):
 
     #(x, f, g, dx) 
 
@@ -48,9 +47,9 @@ class LineSearch:
 
     for i in range(1000):#Setting alam so that the largest step is valid. Set func to return None when input is invalid
       self.alam = 0.5**i*self.step #Always try full Newton step first.
-      dx_alam, slope, self.rev, self.applied_constraints  = direction.new(g, x, H, self.comput.constr, f, dx, self.alam)
+      dx_alam, slope, self.rev, self.applied_constraints = direction.new(g, x, H, constr, f, dx, self.alam)
       self.x = x + dx_alam
-      self.f, self.ll = self.func(self.x) 
+      self.f, self.ll = self.func(self.x, constr) 
       if self.f != None: 
         break
     #*************************
@@ -59,10 +58,10 @@ class LineSearch:
     alamstart = self.alam#***********CUSTOMIZATION
     max_iter = 1000
     for self.k in range (0,max_iter):			#Start of iteration loop.
-      dx_alam, slope, self.rev, self.applied_constraints  = direction.new(g, x, H, self.comput.constr, f, dx, self.alam)
+      dx_alam, slope, self.rev, self.applied_constraints  = direction.new(g, x, H, constr, f, dx, self.alam)
       self.x = x + dx_alam
       if self.k > 0: 
-        self.f, self.ll = self.func(self.x) 
+        self.f, self.ll = self.func(self.x, constr) 
       if self.f is None:
         self.msg = 'The function returned None'
         self.f = f
@@ -104,8 +103,8 @@ class LineSearch:
     self.msg = f"No function increase after {max_iter} iterations"
     self.conv = 3
 
-  def func(self,x):	
-    ll = logl.LL(x, self.panel, self.comput.constr)
+  def func(self,x, constr):	
+    ll = logl.LL(x, self.panel, constr)
     if ll is None:
       return None, None
     elif ll.LL is None:
