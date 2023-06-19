@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.2.31'
+version='1.2.33'
 
 from setuptools import setup, find_packages
 from codecs import open

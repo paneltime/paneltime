@@ -54,10 +54,14 @@ def chisq(x, k):
   if x<0:
     return 0
   c = mp.gammainc(0.5*k, 0, 0.5*x)/mp.gamma(0.5*k)
+  if mp.im(c)!=0:
+    return None  
   return float(c)
 
 def fcdf(x, k1, k2):
   f = mp.betainc(0.5*k1, 0.5*k2, x1 = 0, x2 = k1*x/(k1*x+k2), regularized = True)
+  if mp.im(f)!=0:
+    return None
   return float(f)
 
 def test_functions():

@@ -184,7 +184,7 @@ class Constraints(dict):
     general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
     self.add_custom_constraints(panel, general_constraints, ll)
     self.add_custom_constraints(panel, pargs.user_constraints, ll)
-    if len(minvarhits):
+    if len(minvarhits) and False:
       self.add('gamma',None, 'Variance under threshold for an observation')
       self.add('psi',None, 'Variance under threshold for an observation')
       if not ll is None:

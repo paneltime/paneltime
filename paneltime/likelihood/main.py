@@ -40,7 +40,7 @@ class LL:
     self.args=panel.args.create_args(args,panel,constraints)
     self.h_err=""
     self.LL=None
-    self.LL=self.LL_calc(panel)
+    #self.LL=self.LL_calc(panel)
     try:
       self.LL=self.LL_calc(panel)
       if np.isnan(self.LL):
@@ -210,9 +210,6 @@ class LL:
     self.Y_pred_long=np.dot(panel.input.X,self.args.args_d['beta'])
     self.u_long=np.array(panel.input.Y-self.Y_pred_long)
     
-
-    Rsq, Rsqadj, LL_ratio,LL_ratio_OLS, F, F_p=stat_functions.goodness_of_fit(self, False, panel)
-    Rsq2, Rsqadj2, LL_ratio2,LL_ratio_OLS2, F2, F_p2=stat_functions.goodness_of_fit(self, True, panel)
     a=0
 
 
@@ -278,7 +275,7 @@ def pred_u(u, e, rho, lmbda, e_now = 0):
     ])  
   if len(u_pred)==1:
     u_pred = u_pred[0,0]
-  return u_pred[0,0]
+  return u_pred
   
 def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar):
   W = test_variance_signal(W, h, omega)

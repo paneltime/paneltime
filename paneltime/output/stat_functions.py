@@ -114,13 +114,16 @@ def goodness_of_fit(ll,standarized,panel):
   else:
     s_res=panel.var(ll.u)
     s_tot=panel.var(panel.Y)		
-  k = panel.input.X.shape[1]-panel.input.has_intercept
+  k = max(panel.input.X.shape[1]-panel.input.has_intercept, 1)
   F = (
         ((s_tot-s_res)/k)
         /
         (s_res/(panel.NT-k))
         )
-  F_p = 1-stat_dist.fcdf(F, k, panel.NT-k)
+  p = stat_dist.fcdf(F, k, panel.NT-k)
+  F_p = None
+  if not p is None:
+    F_p = 1-stat_dist.fcdf(F, k, panel.NT-k)
   
   r_unexpl=s_res/s_tot
   Rsq=1-r_unexpl
@@ -425,8 +428,11 @@ def Omnibus(g1, g2, n):
   gamma1 = gamma1/((n+7)*(n+9))
   
   A = 6 + (8/gamma1)*((2/gamma1)+(1+4/gamma1**2)**0.5)
-  
-  Z2 = (9*A/2)**0.5*(1-(2/(9*A)) - ((1-2/A)/(1+ ((g2-mu1)/mu2**0.5)*(2/(A-4)**0.5) ) )**(1/3) )
+  try:
+    Z2 = (9*A/2)**0.5*(1-(2/(9*A)) - ((1-2/A)/(1+ ((g2-mu1)/mu2**0.5)*(2/(A-4)**0.5) ) )**(1/3) )
+  except:
+    return None, None
+    
   
   Omnibus = Z1**2 + Z2**2
   sign = 1-stat_dist.chisq(Omnibus, 2)
