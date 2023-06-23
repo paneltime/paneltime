@@ -96,10 +96,11 @@ class web_output:
     self.f.close()
 
 
-  def print_final(self, comm, t0):
-    print(comm.msg)
-    print(f"LL={comm.f}  success={comm.conv}  t={time.time()-t0}  its: {comm.its}   node: {comm.node}")
-    print(summary.x)	
+  def print_final(self, comm, t0,  statistics = True, diagnostics = True, df_accounting = True):
+    s = comm.msg
+    s += f"\nLL={comm.f}  success={comm.conv}  t={time.time()-t0}  its: {comm.its}   node: {comm.node}\n"
+    s += comm.x
+    return s
 
 class console:
   def __init__(self,panel):
@@ -127,10 +128,8 @@ class console:
     self.dx_norm = dx_norm
 
 
-  def print_final(self, comm, t0):
-    if self.panel.options.supress_output.value:
-      return
-    print(comm.msg)
+  def print_final(self, comm, t0, statistics = True, diagnostics = True, df_accounting = True):
+    s = comm.msg + '\n'
     if self.output_set:
       self.output.update(comm.its, comm.ll, 0, comm.dx_norm)
       self.reg_table=output.RegTableObj(comm.panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm)
@@ -138,15 +137,19 @@ class console:
                                         show_direction=False,
                                         show_constraints=False, 
                                         show_confidence = True)	
-      
-      print('\n' + self.output.statistics(t0))
+      if statistics:
+        s += self.output.statistics(t0) +'\n'
       #print(self.output.model_desc)
-      print(tbl)
-      print(self.output.diagnostics(comm.constr))
-      print(self.output.df_accounting(self.panel))
+      s += '\n'+ tbl
+      if diagnostics:
+        s += self.output.diagnostics(comm.constr)+'\n'
+      if df_accounting:
+        s +=  self.output.df_accounting(self.panel)+'\n'
     else:
-      print(f"LL={summary.log_likelihood}  success={summary.converged}  t={summary.time}  its: {summary.its}   node: {node}")
-      print(xsol)		
+      s += f"LL={comm.f}  success={comm.conv}  t={comm.time}  its: {comm.its}   node: {comm.node}"+'\n'
+      s +=  comm.x+'\n'
+      
+    return s
 
 class tk_widget:
   def __init__(self,window,exe_tab,panel):
@@ -167,12 +170,11 @@ class tk_widget:
       return
     self.tab.update(self.panel, comput,its, ll, incr, dx_norm)
 
-  def print_final(self, comm, node):
-    if self.panel.options.supress_output.value:
-      return
-    print(comm.msg)
-    print(f"LL={comm.log_likelihood}  success={comm.converged}  t={comm.time} its: {comm.its}")
-    print(comm.x)	
+  def print_final(self, comm, t0,  statistics = True, diagnostics = True, df_accounting = True):
+    s = comm.msg
+    s += f"\nLL={comm.f}  success={comm.conv}  t={time.time()-t0}  its: {comm.its}   node: {comm.node}\n"
+    s += comm.x
+    return s
 
 def get_web_page(LL, args, comput,tbl,auto_update):
   au_str=''

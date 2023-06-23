@@ -204,8 +204,6 @@ def run(panel, args, mp, window, exe_tab, console_output):
   t0=time.time()
   comm  = Comm(panel, args, mp, window, exe_tab, console_output, t0)
   summary = Summary(comm, panel, t0)
-  comm.channel.print_final(comm, t0)
-  
 
   return summary
 
@@ -238,8 +236,12 @@ class Summary:
     self.its = comm.its
     self.dx_norm = comm.dx_norm
     self.msg = comm.msg
+    self.comm = comm
+    self.t0 = t0
 
-
+  def __str__(self, statistics = True, diagnostics = True, df_accounting = True):
+    return self.comm.channel.print_final(self.comm, self.t0,  statistics, diagnostics, df_accounting)
+    
 
   def results(self, return_string = False):
     t = self.table.table()[0]
