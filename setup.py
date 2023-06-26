@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.2.34'
+version='1.2.35'
 
 from setuptools import setup, find_packages
 from codecs import open
@@ -44,7 +44,7 @@ setup(
 
   packages=find_packages(exclude=['contrib', 'docs', 'tests']),
 
-  install_requires=['numpy >= 1.11','pymysql', 'pandas', 'psutil', 'mpmath'],
+  install_requires=['numpy >= 1.11','pymysql', 'pandas',  'mpmath'],
 	extras_require={'linux':'gcc'},	
 
   package_data={
