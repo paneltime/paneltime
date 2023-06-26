@@ -19,7 +19,6 @@ import tempfile
 import random
 import string
 import hashlib
-import psutil
 import signal
 import numpy as np
 import __main__
@@ -44,7 +43,7 @@ class Parallel():
     self.kill_warned = False
     self.is_parallel = run_parallel
     #directely in the simplest way, without any layers or multiprocessing (for debugging).
-    self.kill_orphans()
+
     self.dict_file = create_temp_files(self.cpu_count)
     self.slaves=[Slave(run_parallel, n) for i in range(n)]
     self.final_results = {}
@@ -166,12 +165,7 @@ Slave PIDs: %s"""  %(n, self.master_pid,', '.join(self.pids))
       i.p.kill()
       i.p.cleanup()
 
-  def kill_orphans(self):
-    for proc in psutil.process_iter():
-      try:
-        self.kill_orphan(proc)
-      except psutil.NoSuchProcess:
-        pass
+
 
 
   def kill_orphan(self, proc):
