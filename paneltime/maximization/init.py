@@ -3,7 +3,7 @@
 
 from . import dfpmax
 from . import computation
-from ..likelihood_simple import dfpmax as dfpmax_smpl
+#from ..likelihood_simple import dfpmax as dfpmax_smpl
 
 
 from .. import likelihood as logl
