@@ -3,6 +3,7 @@
 
 from ..output import stat_functions as stat
 import numpy as np
+import itertools
 
 
 def get(g, x, H, constr, f, hessin, simple=True):
@@ -57,25 +58,9 @@ def solve(constr,H, g, x, f):
   H_orig = np.array(H)
   m=len(H)
 
-  idx=np.ones(m,dtype=bool)
-  delmap=np.arange(m)
-  if len(list(constr.fixed.keys()))>0:#removing fixed constraints from the matrix
-    idx[list(constr.fixed.keys())]=False
-    H=H[idx][:,idx]
-    g=g[idx]
-    delmap-=np.cumsum(idx==False)
-    delmap[idx==False]=m#if for some odd reason, the deleted variables are referenced later, an out-of-bounds error will be thrown
-  n=len(H)
-  keys=list(constr.intervals.keys())
+  n, g, H, delmap, keys, dx, idx = add_constraints(constr, H, g)
   k=len(keys)
-  H=np.concatenate((H,np.zeros((n,k))),1)
-  H=np.concatenate((H,np.zeros((k,n+k))),0)
-  g=np.append(g,np.zeros(k))
 
-  for i in range(k):
-    H[n+i,n+i]=1
-  
-  dx = -np.linalg.solve(H, g)
   xi_full=np.zeros(m)
   OK=False
   
@@ -96,7 +81,49 @@ def solve(constr,H, g, x, f):
   H_full[H_full==0] = H_orig[H_full==0]
   return xi_full, H_full, applied_constraints
 
+def add_constraints(constr, H, g):
+  #testing the direction in case H is singular (should be handled by constr, but 
+  #sometimes it isn't), and removing randomly until H is not singular
+  
+  idx=np.ones(len(g),dtype=bool)
+  idx[list(constr.fixed.keys())]=False
+  for i in np.array(list(itertools.product([False, True], repeat=sum(idx)))):
+    idx_new = np.array(idx)
+    idx_active = np.array(idx[idx])
+    idx_active[i] = False
+    idx_new[idx] = idx_active
+    n, g_new, H_new, delmap, keys =  remove_and_enlarge(constr, H, g, idx_new)
+    try:
+      dx = -np.linalg.solve(H_new, g_new)
+      break
+    except np.linalg.LinAlgError as e:
+      if e.args[0] != 'Singular matrix':
+        raise np.linalg.LinAlgError(e)
+  return n, g_new, H_new, delmap, keys, dx, idx_new
+  
+  
+def remove_and_enlarge(constr, H, g, idx):
+  m = len(g)
+  delmap=np.arange(m) 
+  if not np.all(idx==True):#removing fixed constraints from the matrix
+    
+    H=H[idx][:,idx]
+    g=g[idx]
+    delmap-=np.cumsum(idx==False)
+    delmap[idx==False]=m#if for some odd reason, the deleted variables are referenced later, an out-of-bounds error will be thrown  
+    
+  n=len(H)
+  keys=list(constr.intervals.keys())
+  k=len(keys)
+  H=np.concatenate((H,np.zeros((n,k))),1)
+  H=np.concatenate((H,np.zeros((k,n+k))),0)
+  g=np.append(g,np.zeros(k))
+  
+  for i in range(k):
+    H[n+i,n+i]=1
 
+  return n, g, H, delmap, keys
+  
 def kuhn_tucker(constr,key,j,n,H,g,x, f, dx,delmap, OK,recalc=True):
   q=None
   c=constr.intervals[key]

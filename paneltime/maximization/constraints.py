@@ -57,6 +57,16 @@ class Constraints(dict):
     self.ARMA_constraint=panel.options.ARMA_constraint.value
     self.H_correl_problem=False
     self.mc_problems=[]	
+    self.constr_matrix = [(0, 0, 0, 0), 
+         (1, 0, 0, 0), 
+         (0, 1, 0, 0),
+         (0, 0, 1, 0),
+         (0, 0, 0, 1), 
+         (0, 0, 1, 1), 
+         (1, 1, 0, 0), 
+         (1, 1, 1, 1), 
+                 
+        ]    
 
   def add(self,name,assco,cause,interval=None,replace=True,value=None,args=None):
     #(self,index,assco,cause,interval=None,replace=True,value=None)
@@ -191,16 +201,8 @@ class Constraints(dict):
         for i in range(1,len(ll.args.args_d['omega'])):
           self.add(f'omega{i}',None, 'Variance under threshold for an observation')
           
-    c = [(0, 0, 0, 0), 
-         (1, 0, 0, 0), 
-         (0, 1, 0, 0),
-         (0, 0, 1, 0),
-         (0, 0, 0, 1), 
-         (0, 0, 1, 1), 
-         (1, 1, 0, 0), 
-         (1, 1, 1, 1), 
-                 
-        ]
+
+    c = self.constr_matrix
     if its<len(c):
       constr = self.get_init_constr(*c[its])
       self.add_custom_constraints(panel, constr, ll)

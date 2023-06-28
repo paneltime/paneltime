@@ -19,6 +19,7 @@ import numpy as np
 import warnings
 import os
 import time
+import pandas as pd
 
 N_NODES = 1
 
@@ -31,6 +32,7 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
             exe_tab,instruments, console_output, mp):
 
   """optimizes LL using the optimization procedure in the maximize module"""
+  dataframe = dataframe.copy()
   with warnings.catch_warnings():
     warnings.simplefilter('error')
     if not exe_tab is None:

@@ -251,7 +251,7 @@ class LL:
   def predict(self, W, W_next = None):
     d = self.args.args_d
     self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'])
-    #u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], self.e[:,-1])#test
+    u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], 0)#test
     self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], W_next, self.minvar, self.maxvar)
     #var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar)#test
     if not hasattr(self,'Y_pred'):

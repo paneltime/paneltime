@@ -80,7 +80,7 @@ class Computation:
     f, x, g_old, rev, alam,ll = ls.f, ls.x, ls.g, ls.rev, ls.alam, ls.ll
     #Thhese setting may not hold for all circumstances, and should be tested properly:
 
-    NUM_ITER = 5
+    
     TOTP_TOL = 1e-15
 
 
@@ -109,12 +109,11 @@ class Computation:
     det = np.linalg.det(H)
     se = [None]*len(H)	
 
-    if (ls.conv == 3) or (its >NUM_ITER and ((abs(g_norm) < gtol) or (abs(totpgain)<TOTP_TOL))
+    if (ls.conv == 3) or ( (its >len(self.constr.constr_matrix)+2) and ((abs(g_norm) < gtol) or (abs(totpgain)<TOTP_TOL) or (max(np.abs(dx_norm*a))<gtol*0.1))
         or its>=self.panel.options.max_iterations.value):
-      return self.handle_convergence(ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G)
+      return self.handle_convergence(ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G, dx_norm, a, gtol)
     if not self.panel.options.supress_output.value:
       print(f"its:{its}, f:{f}, gnorm: {abs(g_norm)}")
-
 
     self.avg_incr = incr + self.avg_incr*0.7
     self.ev_constr = False#self.CI>1000
@@ -154,7 +153,7 @@ class Computation:
     self.constr = constraints.Constraints(self.panel, args)
     self.constr.add_static_constraints(self.panel, 0)	    
 
-  def handle_convergence(self, ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G):
+  def handle_convergence(self, ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G, dx_norm, a, gtol):
     Ha = self.calc_hessian(ll)    
     keep = [True]*len(H)
     if not self.constr is None:      
@@ -177,8 +176,9 @@ class Computation:
       return x, f, hessin, Ha, g, 3, se, det, True
     elif (ls.conv == 2) :
       return x, f, hessin, Ha, g, 4, se, det, True  
-    elif (ls.conv == 3) :
-      return x, f, hessin, Ha, g, 4, se, det, True      
+    elif (max(np.abs(dx_norm*a))<gtol*0.1):
+      return x, f, hessin, Ha, g, 5, se, det, True  
+ 
     
   def calc_gradient(self,ll):
     dLL_lnv, DLL_e=logl.func_gradent(ll,self.panel)

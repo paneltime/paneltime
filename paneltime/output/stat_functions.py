@@ -373,6 +373,8 @@ def breusch_godfrey_test(panel,ll, lags):
   e=ll.e_RE_norm_centered
   X=ll.XIV_st
   N,T,k=X.shape
+  if 2*lags>T-5:
+    lags = int(0.5*max((0,T-5)) )
   X_u=X[:,lags:T]
   u=e[:,lags:T]
   c=panel.included[3][:,lags:T]
