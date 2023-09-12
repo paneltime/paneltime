@@ -2,7 +2,12 @@
 # -*- coding: utf-8 -*-
 
 #This module contains classes used in the regression
-from .. import likelihood as logl
+from .. import system_settings
+if system_settings.cython:
+  from .. import likelihood_cython as logl
+else:
+  from .. import likelihood as logl
+
 from . import arguments
 from .. import functions as fu
 

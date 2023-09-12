@@ -49,7 +49,7 @@ def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id, ll):
 
     x, f, hessin, H, g, conv, se, det, anal = comput.exec(dx_realized,  hessin, H, incr, its, ls)
 
-    err = (np.max(np.abs(dx_realized)) < TOLX) and its>5
+    err = (np.max(np.abs(dx_realized)) < TOLX) and (its >len(comput.constr.constr_matrix)+2)
 
     terminate = (conv>0) or err or its+1==MAXITER
 

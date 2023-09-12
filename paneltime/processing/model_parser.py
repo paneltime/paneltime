@@ -56,7 +56,10 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 
   x = IDs_num+IDs+timevar+timevar_num+W+Z+Y+X
   x = list(dict.fromkeys(x))
-  df = pd.DataFrame(df[x])
+  try:
+    df = pd.DataFrame(df[x])
+  except KeyError:
+    df_test(x, df)
   df,ip.max_lags=eval_variables(df, pd_panel)
   n=len(df)
   df=df.dropna()
@@ -72,7 +75,12 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
   ip.dataframe=df
   ip.has_intercept=const['X']
 
-
+def df_test(x, df):
+  not_in = []
+  for i in x:
+    if not i in df:
+      not_in.append(i)
+  raise RuntimeError(f"These names are in the model, but not in the data frame:{', '.join(not_in) }")  
 
 def pool_func(df,pool):
   x,operation=pool

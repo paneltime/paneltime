@@ -312,7 +312,7 @@ class RegTableObj(dict):
     d['sign_codes']=get_sign_codes(d['tsign'])
     z = stat_dist.tinv025(panel.df)
     d['conf_low'] = d['args'] -z*d['se_robust']
-    d['conf_high'] = d['args'] -z*d['se_robust']
+    d['conf_high'] = d['args'] +z*d['se_robust']
     
   def constraints_formatting(self, panel, constr):
     weak_mc_dict={}

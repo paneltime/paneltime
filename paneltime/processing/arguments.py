@@ -3,7 +3,12 @@
 
 #This module contains the argument class for the panel object
 from ..output import stat_functions as stat
-from .. import likelihood as logl
+from .. import system_settings
+if system_settings.cython:
+  from .. import likelihood_cython as logl
+else:
+  from .. import likelihood as logl
+
 from .. import random_effects as re
 from .. import functions as fu
 

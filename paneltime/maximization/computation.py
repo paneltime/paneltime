@@ -4,7 +4,12 @@
 from ..output import stat_functions as stat
 from ..output import stat_dist
 from . import constraints
-from .. import likelihood as logl
+from .. import system_settings
+if system_settings.cython:
+  from .. import likelihood_cython as logl
+else:
+  from .. import likelihood as logl
+
 from . import direction
 
 import numpy as np
@@ -22,7 +27,7 @@ class Computation:
     if callback is None:
       callback = lambda **kwargs: None#function that does nothing
     self.callback = callback
-    self.gradient=logl.gradient(panel, self.callback)
+    self.gradient=logl.calculus.gradient(panel, self.callback)
     self.gtol = panel.options.tolerance.value
     self.tolx = tolx
     self.hessian=logl.hessian(panel,self.gradient, self.callback)
@@ -109,7 +114,7 @@ class Computation:
     det = np.linalg.det(H)
     se = [None]*len(H)	
 
-    if (ls.conv == 3) or ( (its >len(self.constr.constr_matrix)+2) and ((abs(g_norm) < gtol) or (abs(totpgain)<TOTP_TOL) or (max(np.abs(dx_norm*a))<gtol*0.1))
+    if (ls.conv == 3) or ( (its >len(self.constr.constr_matrix)+2) and ((abs(g_norm) < gtol) or (abs(totpgain)<TOTP_TOL))# or (max(np.abs(dx_norm*a))<gtol*0.1))
         or its>=self.panel.options.max_iterations.value):
       return self.handle_convergence(ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G, dx_norm, a, gtol)
     if not self.panel.options.supress_output.value:
@@ -120,7 +125,8 @@ class Computation:
 
     err = np.max(np.abs(dx_realized)) < 100*TOLX
 
-    analytic_calc = (err and self.num_hess_count>4) or ((self.CI>10000) and (self.num_hess_count>5) and abs(g_norm)>10*self.gtol)#or (self.num_hess_count> and its <30) #or ((self.CI>10000) and (self.num_hess_count>1))
+    analytic_calc = (self.num_hess_count>6) or ((self.CI>10000) and (self.num_hess_count>5) and abs(g_norm)>10*self.gtol)
+    analytic_calc = analytic_calc or (np.max(np.abs(dx_realized)) < 4*TOLX)
     analytic_calc = analytic_calc and (self.panel.options.use_analytical.value>0)
     if calc:
       if analytic_calc:
@@ -176,8 +182,8 @@ class Computation:
       return x, f, hessin, Ha, g, 3, se, det, True
     elif (ls.conv == 2) :
       return x, f, hessin, Ha, g, 4, se, det, True  
-    elif (max(np.abs(dx_norm*a))<gtol*0.1):
-      return x, f, hessin, Ha, g, 5, se, det, True  
+    #elif (max(np.abs(dx_norm*a))<gtol*0.1):
+    #  return x, f, hessin, Ha, g, 5, se, det, True  
  
     
   def calc_gradient(self,ll):

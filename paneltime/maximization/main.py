@@ -4,7 +4,12 @@
 
 
 from ..output import stat_functions as stat
-from .. import likelihood as logl
+from .. import system_settings
+if system_settings.cython:
+  from .. import likelihood_cython as logl
+else:
+  from .. import likelihood as logl
+
 from ..output import communication as comm
 from ..output import output
 from . import init
