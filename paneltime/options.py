@@ -226,7 +226,7 @@ def regression_options():
                                                                                                                                         [float,type(None)], 'Tobit-model limits', 
                                                                                                                                         descr_for_input_boxes=['lower limit','upper limit'])
 
-  self.tolerance					= options_item(0.001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
+  self.tolerance					= options_item(0.01, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
                                                                              "is smaller than the tolerance, the procedure is "
                                                                                                                                         "determined to have converged.",
                                                                                                                                         float,"Tolerance", "%s>0")	

@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.2.40'
+version='1.2.41'
 
 from setuptools import setup, find_packages
 from codecs import open
