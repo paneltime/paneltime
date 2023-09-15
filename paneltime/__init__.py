@@ -57,7 +57,7 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
   return r
 
 
-version = info.version
+__version__ = info.version
 
 options=opt_module.regression_options()
 preferences=opt_module.application_preferences()
