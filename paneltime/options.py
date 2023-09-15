@@ -231,7 +231,7 @@ def regression_options():
                                                                                                                                         "Tolerance in maximum likelihood",
                                                                                                                                         float,"Tolerance", "%s>0")	
   
-  self.ARMA_round					= options_item(9, 		"Number og digits to round elements in the ARMA matrices by. Small differences in these values can "
+  self.ARMA_round					= options_item(16, 		"Number og digits to round elements in the ARMA matrices by. Small differences in these values can "
                                                 "change the optimization path and makes the estimate less robust"
                                                                                                                                         "Number of significant digits in ARMA",
                                                                                                                                         int,"# of signficant digits", "%s>0")	  
