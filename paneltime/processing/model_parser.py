@@ -9,6 +9,8 @@ NUMERIC_TAG="_numeric"
 
 import numpy as np
 import pandas as pd
+import builtins
+import keyword
 
 def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,instruments,settings,pool=(None,'mean')):
   if not settings.supress_output:
@@ -129,8 +131,9 @@ def eval_variables(df,pd_panel):
     try:
       df[i]=eval(i,d)
     except SyntaxError as e:
-      print(f"Cannot interpret {i} as an expression, so all spaces will be removed and replaced with underscore")
-      df = df.rename(columns = {i:i.replace(' ', '_')})
+      if not i in (dir(builtins) + keyword.kwlist):
+        print(f"Cannot interpret {i} as an expression, so all spaces will be removed and replaced with underscore")
+        df = df.rename(columns = {i:i.replace(' ', '_')})
   return df,lag_obj.max_lags
 
 class lag_object:

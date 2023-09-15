@@ -226,10 +226,15 @@ def regression_options():
                                                                                                                                         [float,type(None)], 'Tobit-model limits', 
                                                                                                                                         descr_for_input_boxes=['lower limit','upper limit'])
 
-  self.tolerance					= options_item(0.01, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
+  self.tolerance					= options_item(0.001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
                                                                              "is smaller than the tolerance, the procedure is "
-                                                                                                                                        "determined to have converged.",
+                                                                                                                                        "Tolerance in maximum likelihood",
                                                                                                                                         float,"Tolerance", "%s>0")	
+  
+  self.ARMA_round					= options_item(9, 		"Number og digits to round elements in the ARMA matrices by. Small differences in these values can "
+                                                "change the optimization path and makes the estimate less robust"
+                                                                                                                                        "Number of significant digits in ARMA",
+                                                                                                                                        int,"# of signficant digits", "%s>0")	  
 
   self.variance_RE_norm			= options_item(0.000005, 		"This parameter determines at which point the log function involved in the variance RE/FE calculations, "
                                                                     "will be extrapolate by a linear function for smaller values",

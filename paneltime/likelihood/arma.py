@@ -8,6 +8,8 @@ import os
 import numpy.ctypeslib as npct
 import ctypes as ct
 p = os.path.join(Path(__file__).parent.absolute(),'cfunctions')
+
+
 if os.name=='nt':
   cfunct = npct.load_library('ctypes.dll',p)
 else:
@@ -23,14 +25,15 @@ def set_garch_arch(panel,args,u, h_add, G):
   """Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
   the diagonal band"""
   N, T, _ = u.shape
-  rho=np.insert(-args['rho'],0,1)
-  psi=args['psi']
-  psi=np.insert(args['psi'],0,0) 
+  rho = round( np.insert(-args['rho'],0,1), panel)
+  psi = args['psi']
+  psi = round( np.insert(args['psi'],0,0), panel)
 
 
 
-  lmbda = args['lambda']
-  gmma = -args['gamma']
+  lmbda = round( args['lambda'], panel)
+  gmma =  round( -args['gamma'], panel)
+  
   
   parameters = np.array(( N , T , 
                   len(lmbda), len(rho), len(gmma), len(psi), 
@@ -190,3 +193,21 @@ def solve_mult(args,b,I):
     return None,None
 
   return X_1b,X_1
+
+
+
+def round(arr, panel):
+  #There may be small differences in calculation between different systems. 
+  #For consistency, the inverted matrixes are slightly rounded
+  n_digits = panel.options.ARMA_round.value
+  zeros = arr==0
+  arrz = arr + zeros
+  s = np.sign(arr)
+  digits = np.array(np.log10(np.abs(arrz)), dtype=int)-(arr<1)
+  pow = (n_digits-digits)
+  #items smaller in magnitude than e-300 are set to zero:
+  arrz = arrz*(pow<300)
+  pow = pow*(pow<300)
+  a = np.array(arrz*10.0**(pow)+s*0.5,dtype=np.int64)
+  a = a*(zeros==False) 
+  return a*10.0**(-pow)

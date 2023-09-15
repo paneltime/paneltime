@@ -243,7 +243,14 @@ class LL:
   def arma_calc(self,panel, u, h_add, G):
     matrices = arma.set_garch_arch(panel,self.args.args_d, u, h_add, G)
     if matrices is None:
-      return None		
+      return None		    
+    matrices = list(matrices)
+    for i, m in enumerate(matrices):
+      if type(m)==tuple:
+        m = list(m)
+        m[0] = round(m[0], panel)
+        matrices[i] = tuple(m)
+
     self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, self.h = matrices
     self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
     return matrices
@@ -361,3 +368,20 @@ def copy_array_dict(d):
   for i in d:
     r[i]=np.array(d[i])
   return r
+
+
+def round(arr, panel):
+  #There may be small differences in calculation between different systems. 
+  #For consistency, the inverted matrixes are slightly rounded
+  n_digits = panel.options.ARMA_round.value
+  zeros = arr==0
+  arrz = arr + zeros
+  s = np.sign(arr)
+  digits = np.array(np.log10(np.abs(arrz)), dtype=int)-(arr<1)
+  pow = (n_digits-digits)
+  #items smaller in magnitude than e-300 are set to zero:
+  arrz = arrz*(pow<300)
+  pow = pow*(pow<300)
+  a = np.array(arrz*10.0**(pow)+s*0.5,dtype=np.int64)
+  a = a*(zeros==False) 
+  return a*10.0**(-pow)
