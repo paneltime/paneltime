@@ -38,7 +38,7 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
     if not exe_tab is None:
       if exe_tab.isrunning==False:return
     datainput=input_class(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
-    summary = doit(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
+    summary = run(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
 
   return summary
 
@@ -52,7 +52,7 @@ class input_class:
     if options.arguments.value!="":
       self.args=options.arguments.value
 
-def doit(datainput,options,mp,pqdkm,window,exe_tab, console_output):
+def run(datainput,options,mp,pqdkm,window,exe_tab, console_output):
   if not options.supress_output:
     print("Creating panel")
   pnl=panel.panel(datainput,options,pqdkm)			

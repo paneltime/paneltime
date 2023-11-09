@@ -42,9 +42,6 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
   sort= IDs_num + timevar
   if len(sort):
     df=df.sort_values(sort)
-  pd_panel = df
-  if len(IDs_num)>0:
-    pd_panel=df.groupby(IDs_num)
 
   W=get_names(heteroscedasticity_factors,'heteroscedasticity_factors',True, VAR_INTERCEPT_NAME)
   Z=get_names(instruments,'instruments',True,INSTRUMENT_INTERCEPT_NAME)
@@ -58,14 +55,9 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 
   x = IDs_num+IDs+timevar+timevar_num+W+Z+Y+X
   x = list(dict.fromkeys(x))
-  try:
-    df = pd.DataFrame(df[x])
-  except KeyError:
-    df_test(x, df)
-  df,ip.max_lags=eval_variables(df, pd_panel)
-  n=len(df)
-  df=df.dropna()
-  ip.lost_na_obs=(n-len(df))-ip.max_lags
+  df, ip.lost_na_obs, ip.max_lags, ip.orig_n = eval_variables(df, x, IDs_num)
+
+
   const={}
   for x,add_intercept,num in [
           ('IDs_num',False,True),('timevar_num',False,True),
@@ -77,12 +69,7 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
   ip.dataframe=df
   ip.has_intercept=const['X']
 
-def df_test(x, df):
-  not_in = []
-  for i in x:
-    if not i in df:
-      not_in.append(i)
-  raise RuntimeError(f"These names are in the model, but not in the data frame:{', '.join(not_in) }")  
+
 
 def pool_func(df,pool):
   x,operation=pool
@@ -122,19 +109,35 @@ def check_var(df,x,inputtype,add_intercept,numeric):
       const_found=True
   return dfx,const_found
 
-def eval_variables(df,pd_panel):
+def eval_variables(df, x,IDs_num):
+  pd_panel = df
+  if len(IDs_num)>0:
+    pd_panel=df.groupby(IDs_num)
   lag_obj=lag_object(pd_panel)
   d={'D':lag_obj.diff,'L':lag_obj.lag,'np':np}	
-  for i in df.keys():
+  for i in df.keys():#Adding columns to name space
     d[i]=df[i]
-  for i in df.columns:
-    try:
+  for i in x:
+    if not i in df:
       df[i]=eval(i,d)
-    except SyntaxError as e:
-      if not i in (dir(builtins) + keyword.kwlist):
-        print(f"Cannot interpret {i} as an expression, so all spaces will be removed and replaced with underscore")
-        df = df.rename(columns = {i:i.replace(' ', '_')})
-  return df,lag_obj.max_lags
+  try:#just to make sure everytning is ok
+    df = pd.DataFrame(df[x])
+  except KeyError:
+    df_test(x, df)
+  
+  n=len(df)
+  df=df.dropna()
+  lost_na_obs=(n-len(df))-lag_obj.max_lags
+
+  return df, lost_na_obs, lag_obj.max_lags, n
+
+def df_test(x, df):
+  not_in = []
+  for i in x:
+    if not i in df:
+      not_in.append(i)
+  raise RuntimeError(f"These names are in the model, but not in the data frame:{', '.join(not_in) }")  
+
 
 class lag_object:
   def __init__(self,panel):
@@ -160,7 +163,8 @@ def parse_model(model_string,settings):
   if split is None:#No dependent
     return [model_string],[DEFAULT_INTERCEPT_NAME]
   Y,X=model_string.split(split)
-  X=[i.strip() for i in X.split('+')]
+  X = X.replace('\+','~') # "+' needs an escape character in order to be interpreted as + and not another regressor. ~ is avialable sinc it has all ready 
+  X=[i.strip().replace('~','+') for i in X.split('+')]
   if X==['']:
     X=[DEFAULT_INTERCEPT_NAME]
   if settings.add_intercept.value and not (DEFAULT_INTERCEPT_NAME in X):

@@ -8,6 +8,9 @@ import numpy as np
 mp.mp.dps = 50
 
 def tcdf(x, df):
+  "Cumulative distribution function of the t-distribution"
+  if df<1:
+    return 0
   try:
     len(x)
   except:
@@ -51,11 +54,11 @@ def norm(x,mu=0,s=1, cdf = True):
 
 def chisq(x, k):
   "cdf of chi-square distribution of x for k degrees of freedom"
-  if x<0:
+  if x<=0 or k<=0:
     return 0
   c = mp.gammainc(0.5*k, 0, 0.5*x)/mp.gamma(0.5*k)
   if mp.im(c)!=0:
-    return None  
+    return 0  
   return float(c)
 
 def fcdf(x, k1, k2):

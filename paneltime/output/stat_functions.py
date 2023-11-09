@@ -97,6 +97,10 @@ def adf_test(panel,ll,p):
   if not np.all(keep[0:3]):
     return 'NA','NA','NA'
   beta,se_robust,se=OLS(panel,X[:,:,keep],dy,robust_se_lags=10,c=date_var)
+  if se_robust[0][0] is None:
+    return None, None, None
+  if se_robust[2]<=0:
+    return None, None, None
   adf_stat=beta[2]/se_robust[2]
   critval=adf_crit_values(panel.NT,True)
   res=np.append(adf_stat,critval)
@@ -108,6 +112,8 @@ def roll(x,shift, dim):
   return b
 
 def goodness_of_fit(ll,standarized,panel):
+  if (panel.NT-panel.args.n_args-1)<=0:
+    return 0, 0, None,None, None, None
   if standarized:
     s_res=panel.var(ll.e_RE)
     s_tot=panel.var(ll.Y_st)
@@ -158,7 +164,9 @@ def correlogram(panel,e,lags,center=False):
     a=panel.T_i-i-1>0
     incl=(a*panel.included[3])[:,i:,:]
     df=np.sum(incl)
-    rho[i]=np.sum(incl*e[:,i:]*e[:,0:-i])/(v*df)
+    if df>0:
+      rho[i]=np.sum(incl*e[:,i:]*e[:,0:-i])/(v*df)
+    rho[i] = 0
   return rho #The probability of no AC given H0 of AC.
 
 
@@ -247,7 +255,10 @@ def correl_2dim(X,Y=None,covar=False):
 
 def get_singular_list(panel,XX):
   a,b=singular_elim(panel,XX)
-  names=np.array(panel.input.X_names)[a==False]
+  if len(panel.args.names_v)!=len(XX):
+    names = [None]*len(XX)
+  else:
+    names=np.array(panel.args.names_v)[a==False]
   idx=np.array(range(len(a)))[a==False]
   s=', '.join([f"{names[i]}" for i in range(len(idx))])	
   return s
@@ -269,7 +280,16 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
     beta=np.linalg.solve(XX,XY)
   except np.linalg.LinAlgError:
     s=get_singular_list(panel,X)
-    raise RuntimeError("The following variables caused singularity runtime and must be removed: "+s)
+    print("The following variables caused singularity runtime and must be removed: "+s)
+    beta = np.zeros(k).reshape( (k,1))
+    if return_rsq:
+      return beta, 0
+    elif return_e:
+      beta,Y
+    elif robust_se_lags:
+      nonarr = np.array([None]*k).reshape((k,1))
+      return beta,nonarr,nonarr
+    return beta
   if return_rsq or return_e or robust_se_lags:
     e=(Y-fu.dot(X,beta))*c
     if return_rsq:
@@ -384,7 +404,10 @@ def breusch_godfrey_test(panel,ll, lags):
   T=(panel.NT-k-1-lags)
   BGStat=T*Rsq
   rho=Beta[k:]
-  ProbNoAC=1.0-stat_dist.chisq(BGStat,lags)
+  if T>1:
+    ProbNoAC=1.0-stat_dist.chisq(BGStat,lags)
+  else:
+    ProbNoAC=1.0
   return ProbNoAC, rho, Rsq #The probability of no AC given H0 of AC.
 
 
@@ -418,6 +441,7 @@ def Omnibus(g1, g2, n):
   gamma2 = 36*(n-7)*(n**2 + 2*n - 5)/( (n-2)*(n+5)*(n+7)*(n+9) )
 
   W = ((2*gamma2+4)**0.5-1)**0.5
+  if W<=1: return None, None
   delta = 1/np.log(W)**0.5
   alpha = (2/(W**2-1))**0.5
   

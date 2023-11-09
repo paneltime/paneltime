@@ -25,7 +25,7 @@ def maximize(args, inbox, outbox, panel, gtol, tolx, nummerical, diag_hess, slav
   callbk.callback(quit=False, conv=False, perc=0)
   initval = InitialValues(panel, comput)
   
-  x, ll, f, g, hessin, H = initval.calc_init_dir(args)
+  x, ll, f, g, hessin, H = initval.calc_init_dir(args, panel)
   res, ll = dfpmax.dfpmax(x, f, g, hessin, H, comput, callbk, panel, slave_id, ll)
   #msg, conv, args_c = dfpmax_smpl.dfpmax(x, f, g, hessin, H, panel, slave_id)
 
@@ -60,7 +60,7 @@ class InitialValues:
         print("default OLS-arguments worked")
     return ll
   
-  def calc_init_dir(self, p0, full = False, diag_hess = False):
+  def calc_init_dir(self, p0, panel, diag_hess = False):
     """Calculates the initial computation""" 
     ll = self.init_ll(p0)
     g, G = self.comput.calc_gradient(ll)
@@ -75,5 +75,8 @@ class InitialValues:
       H = np.diag(d)
       hessin = np.diag(1/d)
     else:
-      hessin = np.linalg.inv(H)
+      try:
+        hessin = np.linalg.inv(H)
+      except np.linalg.LinAlgError:
+        hessin = -np.identity(len(g))*panel.args.init_var
     return p0, ll, ll.LL , g, hessin, H

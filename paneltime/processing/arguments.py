@@ -233,7 +233,8 @@ class arguments:
     captions=list(panel.input.X.keys())#copy variable names
     d['beta']=list(captions)
     c=[list(captions)]
-    names = [f'x{i}' for i in range(panel.n_beta)]
+    names = panel.input.X_names
+    #names = [f'x{i}' for i in range(panel.n_beta)]
     names_d['beta'] = list(names)
     add_names(p,'rho%s    AR    p','rho',d,c,captions, names, names_d)
     add_names(q,'lambda%s MA    q','lambda',d,c,captions, names, names_d)

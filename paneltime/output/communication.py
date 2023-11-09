@@ -73,7 +73,7 @@ class web_output:
     if self.panel.options.supress_output.value:
       return
     self.output.update(its, ll, incr, dx_norm)
-    self.reg_table = output.RegTableObj(self.panel, ll, comput.g, comput.H, comput.G, comput.constr, dx_norm) 
+    self.reg_table = output.RegTableObj(self.panel, ll, comput.g, comput.H, comput.G, comput.constr, dx_norm, self.output.model_desc) 
     tbl,llength=self.reg_table.table(4,'(','HTML',True,
                                                  show_direction=True,
                                                            show_constraints=True)		
@@ -132,7 +132,7 @@ class console:
     s = comm.msg + '\n'
     if self.output_set:
       self.output.update(comm.its, comm.ll, 0, comm.dx_norm)
-      self.reg_table=output.RegTableObj(comm.panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm)
+      self.reg_table=output.RegTableObj(comm.panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm, self.output.model_desc)
       tbl,llength=self.reg_table.table(5,'(','CONSOLE',False,
                                         show_direction=False,
                                         show_constraints=False, 

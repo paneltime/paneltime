@@ -16,6 +16,7 @@ STANDARD_LENGTH=8
 
 
 class Output:
+  #This class handles auxilliary statistics (regression info, diagnostics, df accounting)
   def __init__(self,ll,panel, dx_norm):
     self.ll=ll
     self.panel=panel
@@ -81,11 +82,6 @@ class Output:
       method = 'Maximum Likelihood'
     
     return s, method
-
-  def reg_table(self):
-    return RegTableObj(self)
-
-
     
   def statistics(self, start_time):
     s = self.stats
@@ -275,7 +271,8 @@ class Output:
 
 
 class RegTableObj(dict):
-  def __init__(self, panel, ll, g, H, G, constr, dx_norm):
+  #This class handles the regression table itself
+  def __init__(self, panel, ll, g, H, G, constr, dx_norm, model_desc):
     dict.__init__(self)
     
     self.Y_names = panel.input.Y_names
@@ -287,6 +284,8 @@ class RegTableObj(dict):
     self.dx_norm = dx_norm
     self.t_stats(panel, ll, H, G, g, constr)
     self.constraints_formatting(panel, constr)    
+    self.model_desc = model_desc
+    
     
   def t_stats(self, panel, ll, H, G, g, constr):
     self.d={'names':np.array(panel.args.caption_v),
@@ -354,7 +353,7 @@ class RegTableObj(dict):
     self.X=self.output_matrix(n_digits,brackets)
     s=format_table(self.X, include_cols,fmt,
                                "Paneltime GARCH-ARIMA panel regression",
-                                           self.footer)
+                                           self.footer, self.model_desc)
     return s,llength
 
 
@@ -618,7 +617,7 @@ pr=[
                 ['cause',		50,			True,		'cause',			False,			'right', 		2, 					None]]		
 
 
-def format_table(X,cols,fmt,heading,tail):
+def format_table(X,cols,fmt,heading,tail, mod):
   if fmt=='NORMAL':
     return format_normal(X,[1],cols)+tail
   if fmt=='LATEX':
@@ -723,7 +722,7 @@ class join_table(dict):
         self.names_category_list[0].insert(k,i)
         k+=1
     self.caption_v=[itm for s in self.names_category_list for itm in s]#flattening
-    self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{output.ll.err_msg}"	
+    self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear"	
 
   def update(self,ll,stats,desc,panel):
     if not desc in self:

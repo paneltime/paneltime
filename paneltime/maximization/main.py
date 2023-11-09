@@ -215,13 +215,26 @@ def run(panel, args, mp, window, exe_tab, console_output):
 
 class Summary:
   def __init__(self, comm, panel, t0):
+    self.output = comm.channel.output
+
+    #coefficient statistics:
+    self.coef_params = comm.ll.args.args_v
+    self.coef_names = comm.ll.args.caption_v
+    self.coef_se, self.coef_se_robust = output.sandwich(comm.H, comm.G, comm.g, comm.constr, panel, 100)
+    self.table = output.RegTableObj(panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm, self.output.model_desc)
+    self.coef_tstat = self.table.d['tstat']
+    self.coef_tsign = self.table.d['tsign']
+    self.coef_codes = self.table.d['sign_codes']
+    self.coef_025 = self.table.d['conf_low'] 
+    self.coef_0975 = self.table.d['conf_high']
+
+
+    #other statistics:
     self.time = time.time() - t0
     self.panel = panel
     self.ll = comm.ll
     self.log_likelihood = comm.ll.LL
-    self.coef_params = comm.ll.args.args_v
-    self.coef_names = comm.ll.args.caption_v
-    
+
     self.converged = comm.conv
     self.hessian = comm.H
     self.gradient_vector = comm.g
@@ -234,10 +247,11 @@ class Summary:
     N, T , k = panel.X.shape
     self.count_ids = N
     self.count_dates = T
-    self.output = comm.channel.output
-    self.coef_se, self.coef_se_robust = output.sandwich(comm.H, comm.G, comm.g, comm.constr, panel, 100)
-    self.table = output.RegTableObj(panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm)
+    
+
     self.statistics = output.Statistics(comm.ll, panel)
+    self.CI , self.CI_n = self.output.get_CI(comm.constr)
+
     self.its = comm.its
     self.dx_norm = comm.dx_norm
     self.msg = comm.msg

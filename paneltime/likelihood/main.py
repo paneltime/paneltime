@@ -293,8 +293,12 @@ def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar):
     
   var_pred = G + a +b
   var_pred = np.maximum(np.minimum(var_pred, maxvar), minvar)
-  if len(var_pred)==1:
-    var_pred = var_pred[0,0]  
+  try:
+    if len(var_pred)==1:
+      var_pred = var_pred[0,0]  
+  except TypeError:
+    #var_pred is not iterable, which is expected with GARCH(0,0)
+    pass
   return var_pred
 
 
