@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from . import likelihood_cython as logl
 from . import parallel
 from . import main
 from . import options as opt_module

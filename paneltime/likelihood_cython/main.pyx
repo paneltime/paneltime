@@ -40,7 +40,7 @@ class LL:
     self.args=panel.args.create_args(args,panel,constraints)
     self.h_err=""
     self.LL=None
-    self.LL=self.LL_calc(panel)
+    #self.LL=self.LL_calc(panel)
     try:
       self.LL=self.LL_calc(panel)
       if np.isnan(self.LL):
@@ -239,8 +239,6 @@ class LL:
 
   def arma_calc(self,panel, u, h_add, G):
     matrices = arma.set_garch_arch(panel,self.args.args_d, u, h_add, G)
-    if matrices is None:
-      return None		
     self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, self.h = matrices
     self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
     return matrices
@@ -292,8 +290,12 @@ def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar):
     
   var_pred = G + a +b
   var_pred = np.maximum(np.minimum(var_pred, maxvar), minvar)
-  if len(var_pred)==1:
-    var_pred = var_pred[0,0]  
+  try:
+    if len(var_pred)==1:
+      var_pred = var_pred[0,0]  
+  except TypeError:
+    #var_pred is not iterable, which is expected with GARCH(0,0)
+    pass
   return var_pred
 
 
@@ -325,31 +327,6 @@ def test_variance_signal(W, h, omega):
 
 
 
-
-
-def add_to_matrices(X_1,X_1b,a,ab,r):
-  for i in range(0,len(a)):	
-    if i>0:
-      d=(r[i:],r[:-i])
-      X_1[d]=a[i]
-    else:
-      d=(r,r)
-    X_1b[d]=ab[i]	
-  return X_1,X_1b
-
-def lag_matr(L,args):
-  k=len(args)
-  if k==0:
-    return L
-  L=1*L
-  r=np.arange(len(L))
-  for i in range(k):
-    d=(r[i+1:],r[:-i-1])
-    if i==0:
-      d=(r,r)
-    L[d]=args[i]
-
-  return L
 
 
 

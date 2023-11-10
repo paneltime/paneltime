@@ -5,7 +5,7 @@
     "distutils": {
         "name": "function",
         "sources": [
-            "function.pyx"
+            "paneltime/likelihood_cython/function.pyx"
         ]
     },
     "module_name": "function"
@@ -1350,7 +1350,7 @@ static const char *__pyx_filename;
 /* #### Code section: filename_table ### */
 
 static const char *__pyx_f[] = {
-  "function.pyx",
+  "paneltime\\\\likelihood_cython\\\\function.pyx",
 };
 /* #### Code section: utility_code_proto_before_types ### */
 /* #### Code section: numeric_typedefs ### */
@@ -1988,12 +1988,12 @@ static const char __pyx_k_included[] = "included";
 static const char __pyx_k_d2LL_dln2[] = "d2LL_dln2";
 static const char __pyx_k_d2LL_dln_de[] = "d2LL_dln_de";
 static const char __pyx_k_GARCH_assist[] = "GARCH_assist";
-static const char __pyx_k_function_pyx[] = "function.pyx";
 static const char __pyx_k_initializing[] = "_initializing";
 static const char __pyx_k_is_coroutine[] = "_is_coroutine";
 static const char __pyx_k_kurtosis_adj[] = "kurtosis_adj";
 static const char __pyx_k_asyncio_coroutines[] = "asyncio.coroutines";
 static const char __pyx_k_cline_in_traceback[] = "cline_in_traceback";
+static const char __pyx_k_paneltime_likelihood_cython_func[] = "paneltime\\likelihood_cython\\function.pyx";
 /* #### Code section: decls ### */
 static PyObject *__pyx_pf_8function_LL(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_panel, PyObject *__pyx_v_var, PyObject *__pyx_v_e_REsq, CYTHON_UNUSED PyObject *__pyx_v_e_RE, PyObject *__pyx_v_minvar, PyObject *__pyx_v_maxvar); /* proto */
 static PyObject *__pyx_pf_8function_2gradient(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_ll, PyObject *__pyx_v_panel); /* proto */
@@ -2049,7 +2049,6 @@ typedef struct {
   PyObject *__pyx_n_s_e_REsq;
   PyObject *__pyx_n_s_exp;
   PyObject *__pyx_n_s_function;
-  PyObject *__pyx_kp_s_function_pyx;
   PyObject *__pyx_n_s_gradient;
   PyObject *__pyx_n_s_hessian;
   PyObject *__pyx_n_s_import;
@@ -2071,6 +2070,7 @@ typedef struct {
   PyObject *__pyx_n_s_numpy;
   PyObject *__pyx_n_s_options;
   PyObject *__pyx_n_s_panel;
+  PyObject *__pyx_kp_s_paneltime_likelihood_cython_func;
   PyObject *__pyx_n_s_pi;
   PyObject *__pyx_n_s_sign;
   PyObject *__pyx_n_s_spec;
@@ -2160,7 +2160,6 @@ static int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_n_s_e_REsq);
   Py_CLEAR(clear_module_state->__pyx_n_s_exp);
   Py_CLEAR(clear_module_state->__pyx_n_s_function);
-  Py_CLEAR(clear_module_state->__pyx_kp_s_function_pyx);
   Py_CLEAR(clear_module_state->__pyx_n_s_gradient);
   Py_CLEAR(clear_module_state->__pyx_n_s_hessian);
   Py_CLEAR(clear_module_state->__pyx_n_s_import);
@@ -2182,6 +2181,7 @@ static int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_n_s_numpy);
   Py_CLEAR(clear_module_state->__pyx_n_s_options);
   Py_CLEAR(clear_module_state->__pyx_n_s_panel);
+  Py_CLEAR(clear_module_state->__pyx_kp_s_paneltime_likelihood_cython_func);
   Py_CLEAR(clear_module_state->__pyx_n_s_pi);
   Py_CLEAR(clear_module_state->__pyx_n_s_sign);
   Py_CLEAR(clear_module_state->__pyx_n_s_spec);
@@ -2249,7 +2249,6 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
   Py_VISIT(traverse_module_state->__pyx_n_s_e_REsq);
   Py_VISIT(traverse_module_state->__pyx_n_s_exp);
   Py_VISIT(traverse_module_state->__pyx_n_s_function);
-  Py_VISIT(traverse_module_state->__pyx_kp_s_function_pyx);
   Py_VISIT(traverse_module_state->__pyx_n_s_gradient);
   Py_VISIT(traverse_module_state->__pyx_n_s_hessian);
   Py_VISIT(traverse_module_state->__pyx_n_s_import);
@@ -2271,6 +2270,7 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
   Py_VISIT(traverse_module_state->__pyx_n_s_numpy);
   Py_VISIT(traverse_module_state->__pyx_n_s_options);
   Py_VISIT(traverse_module_state->__pyx_n_s_panel);
+  Py_VISIT(traverse_module_state->__pyx_kp_s_paneltime_likelihood_cython_func);
   Py_VISIT(traverse_module_state->__pyx_n_s_pi);
   Py_VISIT(traverse_module_state->__pyx_n_s_sign);
   Py_VISIT(traverse_module_state->__pyx_n_s_spec);
@@ -2348,7 +2348,6 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_n_s_e_REsq __pyx_mstate_global->__pyx_n_s_e_REsq
 #define __pyx_n_s_exp __pyx_mstate_global->__pyx_n_s_exp
 #define __pyx_n_s_function __pyx_mstate_global->__pyx_n_s_function
-#define __pyx_kp_s_function_pyx __pyx_mstate_global->__pyx_kp_s_function_pyx
 #define __pyx_n_s_gradient __pyx_mstate_global->__pyx_n_s_gradient
 #define __pyx_n_s_hessian __pyx_mstate_global->__pyx_n_s_hessian
 #define __pyx_n_s_import __pyx_mstate_global->__pyx_n_s_import
@@ -2370,6 +2369,7 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_n_s_numpy __pyx_mstate_global->__pyx_n_s_numpy
 #define __pyx_n_s_options __pyx_mstate_global->__pyx_n_s_options
 #define __pyx_n_s_panel __pyx_mstate_global->__pyx_n_s_panel
+#define __pyx_kp_s_paneltime_likelihood_cython_func __pyx_mstate_global->__pyx_kp_s_paneltime_likelihood_cython_func
 #define __pyx_n_s_pi __pyx_mstate_global->__pyx_n_s_pi
 #define __pyx_n_s_sign __pyx_mstate_global->__pyx_n_s_sign
 #define __pyx_n_s_spec __pyx_mstate_global->__pyx_n_s_spec
@@ -4685,7 +4685,6 @@ static int __Pyx_CreateStringTabAndInitStrings(void) {
     {&__pyx_n_s_e_REsq, __pyx_k_e_REsq, sizeof(__pyx_k_e_REsq), 0, 0, 1, 1},
     {&__pyx_n_s_exp, __pyx_k_exp, sizeof(__pyx_k_exp), 0, 0, 1, 1},
     {&__pyx_n_s_function, __pyx_k_function, sizeof(__pyx_k_function), 0, 0, 1, 1},
-    {&__pyx_kp_s_function_pyx, __pyx_k_function_pyx, sizeof(__pyx_k_function_pyx), 0, 0, 1, 0},
     {&__pyx_n_s_gradient, __pyx_k_gradient, sizeof(__pyx_k_gradient), 0, 0, 1, 1},
     {&__pyx_n_s_hessian, __pyx_k_hessian, sizeof(__pyx_k_hessian), 0, 0, 1, 1},
     {&__pyx_n_s_import, __pyx_k_import, sizeof(__pyx_k_import), 0, 0, 1, 1},
@@ -4707,6 +4706,7 @@ static int __Pyx_CreateStringTabAndInitStrings(void) {
     {&__pyx_n_s_numpy, __pyx_k_numpy, sizeof(__pyx_k_numpy), 0, 0, 1, 1},
     {&__pyx_n_s_options, __pyx_k_options, sizeof(__pyx_k_options), 0, 0, 1, 1},
     {&__pyx_n_s_panel, __pyx_k_panel, sizeof(__pyx_k_panel), 0, 0, 1, 1},
+    {&__pyx_kp_s_paneltime_likelihood_cython_func, __pyx_k_paneltime_likelihood_cython_func, sizeof(__pyx_k_paneltime_likelihood_cython_func), 0, 0, 1, 0},
     {&__pyx_n_s_pi, __pyx_k_pi, sizeof(__pyx_k_pi), 0, 0, 1, 1},
     {&__pyx_n_s_sign, __pyx_k_sign, sizeof(__pyx_k_sign), 0, 0, 1, 1},
     {&__pyx_n_s_spec, __pyx_k_spec, sizeof(__pyx_k_spec), 0, 0, 1, 1},
@@ -4739,7 +4739,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__2 = PyTuple_Pack(14, __pyx_n_s_panel, __pyx_n_s_var, __pyx_n_s_e_REsq, __pyx_n_s_e_RE, __pyx_n_s_minvar, __pyx_n_s_maxvar, __pyx_n_s_incl, __pyx_n_s_LL_const, __pyx_n_s_a, __pyx_n_s_k, __pyx_n_s_dvar_pos, __pyx_n_s_v, __pyx_n_s_v_inv, __pyx_n_s_LL_full); if (unlikely(!__pyx_tuple__2)) __PYX_ERR(0, 6, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__2);
   __Pyx_GIVEREF(__pyx_tuple__2);
-  __pyx_codeobj__3 = (PyObject*)__Pyx_PyCode_New(6, 0, 0, 14, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__2, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_function_pyx, __pyx_n_s_LL, 6, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__3)) __PYX_ERR(0, 6, __pyx_L1_error)
+  __pyx_codeobj__3 = (PyObject*)__Pyx_PyCode_New(6, 0, 0, 14, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__2, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_func, __pyx_n_s_LL, 6, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__3)) __PYX_ERR(0, 6, __pyx_L1_error)
 
   /* "function.pyx":31
  * 
@@ -4751,7 +4751,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__4 = PyTuple_Pack(11, __pyx_n_s_ll, __pyx_n_s_panel, __pyx_n_s_incl, __pyx_n_s_a, __pyx_n_s_k, __pyx_n_s_var, __pyx_n_s_e_REsq, __pyx_n_s_e_RE, __pyx_n_s_v_inv, __pyx_n_s_DLL_e, __pyx_n_s_dLL_var); if (unlikely(!__pyx_tuple__4)) __PYX_ERR(0, 31, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__4);
   __Pyx_GIVEREF(__pyx_tuple__4);
-  __pyx_codeobj__5 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 11, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__4, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_function_pyx, __pyx_n_s_gradient, 31, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__5)) __PYX_ERR(0, 31, __pyx_L1_error)
+  __pyx_codeobj__5 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 11, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__4, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_func, __pyx_n_s_gradient, 31, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__5)) __PYX_ERR(0, 31, __pyx_L1_error)
 
   /* "function.pyx":56
  *   return dLL_var, DLL_e
@@ -4763,7 +4763,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__6 = PyTuple_Pack(12, __pyx_n_s_ll, __pyx_n_s_panel, __pyx_n_s_incl, __pyx_n_s_var, __pyx_n_s_e_REsq, __pyx_n_s_e_RE, __pyx_n_s_v_inv, __pyx_n_s_a, __pyx_n_s_k, __pyx_n_s_d2LL_de2, __pyx_n_s_d2LL_dln_de, __pyx_n_s_d2LL_dln2); if (unlikely(!__pyx_tuple__6)) __PYX_ERR(0, 56, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__6);
   __Pyx_GIVEREF(__pyx_tuple__6);
-  __pyx_codeobj__7 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 12, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__6, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_function_pyx, __pyx_n_s_hessian, 56, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__7)) __PYX_ERR(0, 56, __pyx_L1_error)
+  __pyx_codeobj__7 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 12, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__6, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_func, __pyx_n_s_hessian, 56, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__7)) __PYX_ERR(0, 56, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;

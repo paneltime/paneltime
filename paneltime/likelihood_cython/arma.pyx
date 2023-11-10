@@ -24,6 +24,9 @@ CIPT = ct.POINTER(ct.c_uint)
 def set_garch_arch(panel,args,u, h_add, G):
   """Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
   the diagonal band"""
+
+
+
   N, T, _ = u.shape
   rho = round( np.insert(-args['rho'],0,1), panel)
   psi = args['psi']
@@ -41,8 +44,28 @@ def set_garch_arch(panel,args,u, h_add, G):
                   h_add))
   if True:
     AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_c(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
-  else:
-    AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_python(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
+    AMA_12,AMA_1AR2,GAR_12,GAR_1MA2, e2, var2, h2 = inv_python(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
+    if not np.all(AMA_12==AMA_1):
+      print('a')
+      print(np.max(np.abs(AMA_12-AMA_1)))
+    if not np.all(AMA_1AR2==AMA_1AR):
+      print('b')
+      print(np.max(np.abs(AMA_1AR2-AMA_1AR)))
+    if not np.all(GAR_12==GAR_1):
+      print('c')
+      print(np.max(np.abs(GAR_12-GAR_1)))
+    if not np.all(GAR_1MA2==GAR_1MA):
+      print('d')
+      print(np.max(np.abs(GAR_1MA2-GAR_1MA)))
+    if not np.all(e2==e):
+      print('e')
+      print(np.max(np.abs(e2-e)))
+    if not np.all(var2==var):
+      print('f')
+      print(np.max(np.abs(var2-var)))
+    if not np.all(h2==h):
+      print('g')
+      print(np.max(np.abs(h2-h)))
 
   r=[]
   #Creating nympy arrays with name properties. 
@@ -189,7 +212,7 @@ def solve_mult(args,b,I):
     X_1=scipy.linalg.solve_banded((q,0), X, I)
     if np.any(np.isnan(X_1)):
       return None,None			
-    X_1b=fu.dot(X_1, b)
+    X_1b = dot(X_1, b)
   except:
     return None,None
 
@@ -212,8 +235,8 @@ def round(arr, panel):
   a = np.array(arrz*10.0**(pow)+s*0.5,dtype=np.int64)
   a = a*(zeros==False) 
   return a*10.0**(-pow)
-
-
+  
+  
 
 def dot(a,b,reduce_dims=True):
   """Matrix multiplication. Returns the dot product of a*b where either a or be or both to be
@@ -231,8 +254,7 @@ def dot(a,b,reduce_dims=True):
     if a.shape[1] == b.shape[0]:
       x = np.dot(a,b)
   return x
-
-
+  
 def lag_matr(L,args):
   k=len(args)
   if k==0:

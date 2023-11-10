@@ -1,15 +1,25 @@
 from setuptools import setup, Extension
 from Cython.Build import cythonize
-import numpy as np
+import os
+import sys
 
-# List of Cython files to compile
-cython_modules = ["cfunctions.pyx", "calculus.pyx" ,"calculus_functions.pyx", "function.pyx", "main.pyx"]
+def find_cython_files():
+    """Recursively finds all .pyx files in the given directory."""
+    cython_files = []
+    for root, dirs, files in os.walk('.'):
+        for file in files:
+            if file.endswith(".pyx"):
+                cython_files.append(file)
+    return cython_files
 
-# Define the list of Extension objects for each Cython file
+if len(sys.argv) == 1:
+    sys.argv.append("build_ext")
+    sys.argv.append("--inplace")
+    
+cython_modules = find_cython_files()
+
+cython_modules = ['arma.pyx']
 extensions = [Extension(name=module[:-4], sources=[module]) for module in cython_modules]
-
 setup(
-    ext_modules = cythonize(extensions), 
-    include_dirs=[np.get_include()]
+    ext_modules=cythonize(extensions)
 )
-

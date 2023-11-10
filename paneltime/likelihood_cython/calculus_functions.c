@@ -5,7 +5,7 @@
     "distutils": {
         "name": "calculus_functions",
         "sources": [
-            "calculus_functions.pyx"
+            "paneltime/likelihood_cython/calculus_functions.pyx"
         ]
     },
     "module_name": "calculus_functions"
@@ -1350,7 +1350,7 @@ static const char *__pyx_filename;
 /* #### Code section: filename_table ### */
 
 static const char *__pyx_f[] = {
-  "calculus_functions.pyx",
+  "paneltime\\\\likelihood_cython\\\\calculus_functions.pyx",
 };
 /* #### Code section: utility_code_proto_before_types ### */
 /* #### Code section: numeric_typedefs ### */
@@ -2165,10 +2165,10 @@ static const char __pyx_k_d2LL_d2var_zeta_xi[] = "d2LL_d2var_zeta_xi";
 static const char __pyx_k_d2LL_d2e_zeta_xi_RE[] = "d2LL_d2e_zeta_xi_RE";
 static const char __pyx_k_dd_func_re_variance[] = "dd_func_re_variance";
 static const char __pyx_k_Not_enough_dimensions[] = "Not enough dimensions";
-static const char __pyx_k_calculus_functions_pyx[] = "calculus_functions.pyx";
 static const char __pyx_k_fixed_random_group_eff[] = "fixed_random_group_eff";
 static const char __pyx_k_dd_func_lags_mult_arima[] = "dd_func_lags_mult_arima";
 static const char __pyx_k_overflow_encountered_in_multiply[] = "overflow encountered in multiply";
+static const char __pyx_k_paneltime_likelihood_cython_calc[] = "paneltime\\likelihood_cython\\calculus_functions.pyx";
 /* #### Code section: decls ### */
 static PyObject *__pyx_pf_18calculus_functions_dd_func_lags_mult(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_panel, PyObject *__pyx_v_ll, PyObject *__pyx_v_g, PyObject *__pyx_v_AMAL, PyObject *__pyx_v_vname1, PyObject *__pyx_v_vname2, PyObject *__pyx_v_transpose, PyObject *__pyx_v_u_gradient); /* proto */
 static PyObject *__pyx_pf_18calculus_functions_2dd_func_lags_mult_arima(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_panel, PyObject *__pyx_v_ll, PyObject *__pyx_v_g, PyObject *__pyx_v_AMAL, PyObject *__pyx_v_vname1, PyObject *__pyx_v_vname2, PyObject *__pyx_v_transpose, PyObject *__pyx_v_u_gradient); /* proto */
@@ -2238,7 +2238,6 @@ typedef struct {
   PyObject *__pyx_n_s_asyncio_coroutines;
   PyObject *__pyx_n_s_block_matrix;
   PyObject *__pyx_n_s_calculus_functions;
-  PyObject *__pyx_kp_s_calculus_functions_pyx;
   PyObject *__pyx_n_s_class_getitem;
   PyObject *__pyx_n_s_cline_in_traceback;
   PyObject *__pyx_n_s_concat_marray;
@@ -2334,6 +2333,7 @@ typedef struct {
   PyObject *__pyx_n_s_options;
   PyObject *__pyx_kp_s_overflow_encountered_in_multiply;
   PyObject *__pyx_n_s_panel;
+  PyObject *__pyx_kp_s_paneltime_likelihood_cython_calc;
   PyObject *__pyx_n_s_pqdkm;
   PyObject *__pyx_n_s_prod;
   PyObject *__pyx_n_s_r;
@@ -2461,7 +2461,6 @@ static int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_n_s_asyncio_coroutines);
   Py_CLEAR(clear_module_state->__pyx_n_s_block_matrix);
   Py_CLEAR(clear_module_state->__pyx_n_s_calculus_functions);
-  Py_CLEAR(clear_module_state->__pyx_kp_s_calculus_functions_pyx);
   Py_CLEAR(clear_module_state->__pyx_n_s_class_getitem);
   Py_CLEAR(clear_module_state->__pyx_n_s_cline_in_traceback);
   Py_CLEAR(clear_module_state->__pyx_n_s_concat_marray);
@@ -2557,6 +2556,7 @@ static int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_n_s_options);
   Py_CLEAR(clear_module_state->__pyx_kp_s_overflow_encountered_in_multiply);
   Py_CLEAR(clear_module_state->__pyx_n_s_panel);
+  Py_CLEAR(clear_module_state->__pyx_kp_s_paneltime_likelihood_cython_calc);
   Py_CLEAR(clear_module_state->__pyx_n_s_pqdkm);
   Py_CLEAR(clear_module_state->__pyx_n_s_prod);
   Py_CLEAR(clear_module_state->__pyx_n_s_r);
@@ -2662,7 +2662,6 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
   Py_VISIT(traverse_module_state->__pyx_n_s_asyncio_coroutines);
   Py_VISIT(traverse_module_state->__pyx_n_s_block_matrix);
   Py_VISIT(traverse_module_state->__pyx_n_s_calculus_functions);
-  Py_VISIT(traverse_module_state->__pyx_kp_s_calculus_functions_pyx);
   Py_VISIT(traverse_module_state->__pyx_n_s_class_getitem);
   Py_VISIT(traverse_module_state->__pyx_n_s_cline_in_traceback);
   Py_VISIT(traverse_module_state->__pyx_n_s_concat_marray);
@@ -2758,6 +2757,7 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
   Py_VISIT(traverse_module_state->__pyx_n_s_options);
   Py_VISIT(traverse_module_state->__pyx_kp_s_overflow_encountered_in_multiply);
   Py_VISIT(traverse_module_state->__pyx_n_s_panel);
+  Py_VISIT(traverse_module_state->__pyx_kp_s_paneltime_likelihood_cython_calc);
   Py_VISIT(traverse_module_state->__pyx_n_s_pqdkm);
   Py_VISIT(traverse_module_state->__pyx_n_s_prod);
   Py_VISIT(traverse_module_state->__pyx_n_s_r);
@@ -2873,7 +2873,6 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_n_s_asyncio_coroutines __pyx_mstate_global->__pyx_n_s_asyncio_coroutines
 #define __pyx_n_s_block_matrix __pyx_mstate_global->__pyx_n_s_block_matrix
 #define __pyx_n_s_calculus_functions __pyx_mstate_global->__pyx_n_s_calculus_functions
-#define __pyx_kp_s_calculus_functions_pyx __pyx_mstate_global->__pyx_kp_s_calculus_functions_pyx
 #define __pyx_n_s_class_getitem __pyx_mstate_global->__pyx_n_s_class_getitem
 #define __pyx_n_s_cline_in_traceback __pyx_mstate_global->__pyx_n_s_cline_in_traceback
 #define __pyx_n_s_concat_marray __pyx_mstate_global->__pyx_n_s_concat_marray
@@ -2969,6 +2968,7 @@ static int __pyx_m_traverse(PyObject *m, visitproc visit, void *arg) {
 #define __pyx_n_s_options __pyx_mstate_global->__pyx_n_s_options
 #define __pyx_kp_s_overflow_encountered_in_multiply __pyx_mstate_global->__pyx_kp_s_overflow_encountered_in_multiply
 #define __pyx_n_s_panel __pyx_mstate_global->__pyx_n_s_panel
+#define __pyx_kp_s_paneltime_likelihood_cython_calc __pyx_mstate_global->__pyx_kp_s_paneltime_likelihood_cython_calc
 #define __pyx_n_s_pqdkm __pyx_mstate_global->__pyx_n_s_pqdkm
 #define __pyx_n_s_prod __pyx_mstate_global->__pyx_n_s_prod
 #define __pyx_n_s_r __pyx_mstate_global->__pyx_n_s_r
@@ -10397,7 +10397,6 @@ static int __Pyx_CreateStringTabAndInitStrings(void) {
     {&__pyx_n_s_asyncio_coroutines, __pyx_k_asyncio_coroutines, sizeof(__pyx_k_asyncio_coroutines), 0, 0, 1, 1},
     {&__pyx_n_s_block_matrix, __pyx_k_block_matrix, sizeof(__pyx_k_block_matrix), 0, 0, 1, 1},
     {&__pyx_n_s_calculus_functions, __pyx_k_calculus_functions, sizeof(__pyx_k_calculus_functions), 0, 0, 1, 1},
-    {&__pyx_kp_s_calculus_functions_pyx, __pyx_k_calculus_functions_pyx, sizeof(__pyx_k_calculus_functions_pyx), 0, 0, 1, 0},
     {&__pyx_n_s_class_getitem, __pyx_k_class_getitem, sizeof(__pyx_k_class_getitem), 0, 0, 1, 1},
     {&__pyx_n_s_cline_in_traceback, __pyx_k_cline_in_traceback, sizeof(__pyx_k_cline_in_traceback), 0, 0, 1, 1},
     {&__pyx_n_s_concat_marray, __pyx_k_concat_marray, sizeof(__pyx_k_concat_marray), 0, 0, 1, 1},
@@ -10493,6 +10492,7 @@ static int __Pyx_CreateStringTabAndInitStrings(void) {
     {&__pyx_n_s_options, __pyx_k_options, sizeof(__pyx_k_options), 0, 0, 1, 1},
     {&__pyx_kp_s_overflow_encountered_in_multiply, __pyx_k_overflow_encountered_in_multiply, sizeof(__pyx_k_overflow_encountered_in_multiply), 0, 0, 1, 0},
     {&__pyx_n_s_panel, __pyx_k_panel, sizeof(__pyx_k_panel), 0, 0, 1, 1},
+    {&__pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_k_paneltime_likelihood_cython_calc, sizeof(__pyx_k_paneltime_likelihood_cython_calc), 0, 0, 1, 0},
     {&__pyx_n_s_pqdkm, __pyx_k_pqdkm, sizeof(__pyx_k_pqdkm), 0, 0, 1, 1},
     {&__pyx_n_s_prod, __pyx_k_prod, sizeof(__pyx_k_prod), 0, 0, 1, 1},
     {&__pyx_n_s_r, __pyx_k_r, sizeof(__pyx_k_r), 0, 0, 1, 1},
@@ -10587,7 +10587,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__8 = PyTuple_Pack(13, __pyx_n_s_panel, __pyx_n_s_ll, __pyx_n_s_g, __pyx_n_s_AMAL, __pyx_n_s_vname1, __pyx_n_s_vname2, __pyx_n_s_transpose, __pyx_n_s_u_gradient, __pyx_n_s_de2_zeta_xi_RE, __pyx_n_s_de2_zeta_xi, __pyx_n_s_dd_re_variance, __pyx_n_s_d2LL_d2var_zeta_xi, __pyx_n_s_d2LL_d2e_zeta_xi_RE); if (unlikely(!__pyx_tuple__8)) __PYX_ERR(0, 9, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__8);
   __Pyx_GIVEREF(__pyx_tuple__8);
-  __pyx_codeobj__9 = (PyObject*)__Pyx_PyCode_New(8, 0, 0, 13, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__8, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_dd_func_lags_mult, 9, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__9)) __PYX_ERR(0, 9, __pyx_L1_error)
+  __pyx_codeobj__9 = (PyObject*)__Pyx_PyCode_New(8, 0, 0, 13, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__8, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_dd_func_lags_mult, 9, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__9)) __PYX_ERR(0, 9, __pyx_L1_error)
   __pyx_tuple__10 = PyTuple_Pack(2, ((PyObject *)Py_False), ((PyObject *)Py_False)); if (unlikely(!__pyx_tuple__10)) __PYX_ERR(0, 9, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__10);
   __Pyx_GIVEREF(__pyx_tuple__10);
@@ -10602,7 +10602,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__11 = PyTuple_Pack(16, __pyx_n_s_panel, __pyx_n_s_ll, __pyx_n_s_g, __pyx_n_s_AMAL, __pyx_n_s_vname1, __pyx_n_s_vname2, __pyx_n_s_transpose, __pyx_n_s_u_gradient, __pyx_n_s_de_xi, __pyx_n_s_de_zeta, __pyx_n_s_de2_zeta_xi_RE, __pyx_n_s_N, __pyx_n_s_T, __pyx_n_s_m, __pyx_n_s_k, __pyx_n_s_de2_zeta_xi); if (unlikely(!__pyx_tuple__11)) __PYX_ERR(0, 16, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__11);
   __Pyx_GIVEREF(__pyx_tuple__11);
-  __pyx_codeobj__12 = (PyObject*)__Pyx_PyCode_New(8, 0, 0, 16, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__11, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_dd_func_lags_mult_arima, 16, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__12)) __PYX_ERR(0, 16, __pyx_L1_error)
+  __pyx_codeobj__12 = (PyObject*)__Pyx_PyCode_New(8, 0, 0, 16, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__11, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_dd_func_lags_mult_arima, 16, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__12)) __PYX_ERR(0, 16, __pyx_L1_error)
 
   /* "calculus_functions.pyx":41
  * 
@@ -10614,7 +10614,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__13 = PyTuple_Pack(27, __pyx_n_s_panel, __pyx_n_s_ll, __pyx_n_s_g, __pyx_n_s_vname1, __pyx_n_s_vname2, __pyx_n_s_de2_zeta_xi_RE, __pyx_n_s_u_gradient, __pyx_n_s_de_xi_RE, __pyx_n_s_de_zeta_RE, __pyx_n_s_N, __pyx_n_s_T, __pyx_n_s_m, __pyx_n_s_k, __pyx_n_s_de_xi_RE_r, __pyx_n_s_de_zeta_RE_r, __pyx_n_s_incl, __pyx_n_s_dvRE_xi, __pyx_n_s_dvRE_zeta, __pyx_n_s_d_xi_input, __pyx_n_s_d_zeta_input, __pyx_n_s_dd_e_RE_sq, __pyx_n_s_ddmeane2, __pyx_n_s_dd_input, __pyx_n_s_ddvRE_d_xi_zeta, __pyx_n_s_dvarRE, __pyx_n_s_ddvarRE, __pyx_n_s_dd_re_variance); if (unlikely(!__pyx_tuple__13)) __PYX_ERR(0, 41, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__13);
   __Pyx_GIVEREF(__pyx_tuple__13);
-  __pyx_codeobj__14 = (PyObject*)__Pyx_PyCode_New(7, 0, 0, 27, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__13, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_dd_func_re_variance, 41, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__14)) __PYX_ERR(0, 41, __pyx_L1_error)
+  __pyx_codeobj__14 = (PyObject*)__Pyx_PyCode_New(7, 0, 0, 27, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__13, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_dd_func_re_variance, 41, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__14)) __PYX_ERR(0, 41, __pyx_L1_error)
 
   /* "calculus_functions.pyx":79
  * 
@@ -10626,7 +10626,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__15 = PyTuple_Pack(26, __pyx_n_s_panel, __pyx_n_s_ll, __pyx_n_s_g, __pyx_n_s_vname1, __pyx_n_s_vname2, __pyx_n_s_de2_zeta_xi_RE, __pyx_n_s_de2_zeta_xi, __pyx_n_s_dd_re_variance, __pyx_n_s_u_gradient, __pyx_n_s_incl, __pyx_n_s_N, __pyx_n_s_T, __pyx_n_s_m, __pyx_n_s_k, __pyx_n_s_DLL_e, __pyx_n_s_d2LL_d2e_zeta_xi_RE, __pyx_n_s_RE_suffix, __pyx_n_s_de_xi_RE, __pyx_n_s_de_zeta_RE, __pyx_n_s_dLL_var, __pyx_n_s_d2var_zeta_xi, __pyx_n_s_d2LL_d2var_zeta_xi, __pyx_n_s_d_omega_e, __pyx_n_s_d2var_zeta_xi_h, __pyx_n_s_h_e_de2_zeta_xi, __pyx_n_s_h_2e_dezeta_dexi); if (unlikely(!__pyx_tuple__15)) __PYX_ERR(0, 79, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__15);
   __Pyx_GIVEREF(__pyx_tuple__15);
-  __pyx_codeobj__16 = (PyObject*)__Pyx_PyCode_New(9, 0, 0, 26, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__15, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_dd_func_garch, 79, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__16)) __PYX_ERR(0, 79, __pyx_L1_error)
+  __pyx_codeobj__16 = (PyObject*)__Pyx_PyCode_New(9, 0, 0, 26, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__15, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_dd_func_garch, 79, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__16)) __PYX_ERR(0, 79, __pyx_L1_error)
 
   /* "calculus_functions.pyx":122
  *   return d2LL_d2var_zeta_xi,d2LL_d2e_zeta_xi_RE
@@ -10638,7 +10638,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__17 = PyTuple_Pack(10, __pyx_n_s_panel, __pyx_n_s_ll, __pyx_n_s_L, __pyx_n_s_d_2, __pyx_n_s_dLL, __pyx_n_s_transpose, __pyx_n_s_N, __pyx_n_s_T, __pyx_n_s_m, __pyx_n_s_x); if (unlikely(!__pyx_tuple__17)) __PYX_ERR(0, 122, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__17);
   __Pyx_GIVEREF(__pyx_tuple__17);
-  __pyx_codeobj__18 = (PyObject*)__Pyx_PyCode_New(6, 0, 0, 10, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__17, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_dd_func_lags, 122, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__18)) __PYX_ERR(0, 122, __pyx_L1_error)
+  __pyx_codeobj__18 = (PyObject*)__Pyx_PyCode_New(6, 0, 0, 10, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__17, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_dd_func_lags, 122, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__18)) __PYX_ERR(0, 122, __pyx_L1_error)
   __pyx_tuple__19 = PyTuple_Pack(1, ((PyObject *)Py_False)); if (unlikely(!__pyx_tuple__19)) __PYX_ERR(0, 122, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__19);
   __Pyx_GIVEREF(__pyx_tuple__19);
@@ -10653,7 +10653,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__20 = PyTuple_Pack(4, __pyx_n_s_iterable, __pyx_n_s_ignore, __pyx_n_s_x, __pyx_n_s_i); if (unlikely(!__pyx_tuple__20)) __PYX_ERR(0, 143, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__20);
   __Pyx_GIVEREF(__pyx_tuple__20);
-  __pyx_codeobj__21 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 4, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__20, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_add, 143, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__21)) __PYX_ERR(0, 143, __pyx_L1_error)
+  __pyx_codeobj__21 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 4, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__20, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_add, 143, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__21)) __PYX_ERR(0, 143, __pyx_L1_error)
   __pyx_tuple__22 = PyTuple_Pack(1, ((PyObject *)Py_False)); if (unlikely(!__pyx_tuple__22)) __PYX_ERR(0, 143, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__22);
   __Pyx_GIVEREF(__pyx_tuple__22);
@@ -10665,7 +10665,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
  *   """Takes the product sum of iterable. If ignore=True all elements except those that are None are multiplied.
  *   If ignore=False, None is returned if any element is None. """
  */
-  __pyx_codeobj__23 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 4, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__20, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_prod, 157, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__23)) __PYX_ERR(0, 157, __pyx_L1_error)
+  __pyx_codeobj__23 = (PyObject*)__Pyx_PyCode_New(2, 0, 0, 4, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__20, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_prod, 157, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__23)) __PYX_ERR(0, 157, __pyx_L1_error)
   __pyx_tuple__24 = PyTuple_Pack(1, ((PyObject *)Py_False)); if (unlikely(!__pyx_tuple__24)) __PYX_ERR(0, 157, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__24);
   __Pyx_GIVEREF(__pyx_tuple__24);
@@ -10680,7 +10680,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__25 = PyTuple_Pack(2, __pyx_n_s_nparray, __pyx_n_s_s); if (unlikely(!__pyx_tuple__25)) __PYX_ERR(0, 172, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__25);
   __Pyx_GIVEREF(__pyx_tuple__25);
-  __pyx_codeobj__26 = (PyObject*)__Pyx_PyCode_New(1, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__25, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_sumNT, 172, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__26)) __PYX_ERR(0, 172, __pyx_L1_error)
+  __pyx_codeobj__26 = (PyObject*)__Pyx_PyCode_New(1, 0, 0, 2, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__25, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_sumNT, 172, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__26)) __PYX_ERR(0, 172, __pyx_L1_error)
 
   /* "calculus_functions.pyx":182
  * 
@@ -10692,7 +10692,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__27 = PyTuple_Pack(6, __pyx_n_s_block_matrix, __pyx_n_s_m, __pyx_n_s_i, __pyx_n_s_r, __pyx_n_s_C, __pyx_n_s_j); if (unlikely(!__pyx_tuple__27)) __PYX_ERR(0, 182, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__27);
   __Pyx_GIVEREF(__pyx_tuple__27);
-  __pyx_codeobj__28 = (PyObject*)__Pyx_PyCode_New(1, 0, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__27, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_concat_matrix, 182, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__28)) __PYX_ERR(0, 182, __pyx_L1_error)
+  __pyx_codeobj__28 = (PyObject*)__Pyx_PyCode_New(1, 0, 0, 6, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__27, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_concat_matrix, 182, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__28)) __PYX_ERR(0, 182, __pyx_L1_error)
 
   /* "calculus_functions.pyx":195
  *   return m
@@ -10704,7 +10704,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__29 = PyTuple_Pack(3, __pyx_n_s_matrix_array, __pyx_n_s_arr, __pyx_n_s_i); if (unlikely(!__pyx_tuple__29)) __PYX_ERR(0, 195, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__29);
   __Pyx_GIVEREF(__pyx_tuple__29);
-  __pyx_codeobj__30 = (PyObject*)__Pyx_PyCode_New(1, 0, 0, 3, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__29, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_concat_marray, 195, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__30)) __PYX_ERR(0, 195, __pyx_L1_error)
+  __pyx_codeobj__30 = (PyObject*)__Pyx_PyCode_New(1, 0, 0, 3, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__29, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_concat_marray, 195, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__30)) __PYX_ERR(0, 195, __pyx_L1_error)
 
   /* "calculus_functions.pyx":203
  *   return arr
@@ -10716,7 +10716,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__31 = PyTuple_Pack(10, __pyx_n_s_d2LL_de2, __pyx_n_s_d2LL_dln_de, __pyx_n_s_d2LL_dln2, __pyx_n_s_de_dh, __pyx_n_s_de_dg, __pyx_n_s_dln_dh, __pyx_n_s_dln_dg, __pyx_n_s_dLL_de2_dh_dg, __pyx_n_s_dLL_dln2_dh_dg, __pyx_n_s_a); if (unlikely(!__pyx_tuple__31)) __PYX_ERR(0, 203, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__31);
   __Pyx_GIVEREF(__pyx_tuple__31);
-  __pyx_codeobj__32 = (PyObject*)__Pyx_PyCode_New(9, 0, 0, 10, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__31, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_dd_func, 203, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__32)) __PYX_ERR(0, 203, __pyx_L1_error)
+  __pyx_codeobj__32 = (PyObject*)__Pyx_PyCode_New(9, 0, 0, 10, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__31, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_dd_func, 203, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__32)) __PYX_ERR(0, 203, __pyx_L1_error)
 
   /* "calculus_functions.pyx":216
  *   return add(a,True)
@@ -10728,7 +10728,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__33 = PyTuple_Pack(9, __pyx_n_s_d0, __pyx_n_s_mult, __pyx_n_s_d1, __pyx_n_s_N, __pyx_n_s_T, __pyx_n_s_k, __pyx_n_s_m, __pyx_n_s_x, __pyx_n_s_e); if (unlikely(!__pyx_tuple__33)) __PYX_ERR(0, 216, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__33);
   __Pyx_GIVEREF(__pyx_tuple__33);
-  __pyx_codeobj__34 = (PyObject*)__Pyx_PyCode_New(3, 0, 0, 9, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__33, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_calculus_functions_pyx, __pyx_n_s_dd_func_mult, 216, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__34)) __PYX_ERR(0, 216, __pyx_L1_error)
+  __pyx_codeobj__34 = (PyObject*)__Pyx_PyCode_New(3, 0, 0, 9, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__33, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_paneltime_likelihood_cython_calc, __pyx_n_s_dd_func_mult, 216, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__34)) __PYX_ERR(0, 216, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;

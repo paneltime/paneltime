@@ -237,9 +237,6 @@ class LL:
     return copy_array_dict(self.args.args_d)
 
 
-  def h(self,panel,e,z):
-    return h(e, z, panel)
-
   def arma_calc(self,panel, u, h_add, G):
     matrices = arma.set_garch_arch(panel,self.args.args_d, u, h_add, G)
     self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, self.h = matrices
@@ -331,30 +328,6 @@ def test_variance_signal(W, h, omega):
 
 
 
-
-def add_to_matrices(X_1,X_1b,a,ab,r):
-  for i in range(0,len(a)):	
-    if i>0:
-      d=(r[i:],r[:-i])
-      X_1[d]=a[i]
-    else:
-      d=(r,r)
-    X_1b[d]=ab[i]	
-  return X_1,X_1b
-
-def lag_matr(L,args):
-  k=len(args)
-  if k==0:
-    return L
-  L=1*L
-  r=np.arange(len(L))
-  for i in range(k):
-    d=(r[i+1:],r[:-i-1])
-    if i==0:
-      d=(r,r)
-    L[d]=args[i]
-
-  return L
 
 
 
