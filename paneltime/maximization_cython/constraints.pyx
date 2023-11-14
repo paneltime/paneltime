@@ -391,7 +391,7 @@ def multicoll_problems(computation,H,incl,mc_problems):
       done=var_prop_check(computation,var_prop_ix, var_prop_val, includemap,j,mc_problems,c_index[-cix],mc_list)
       if done:
         break
-  return c_index[-1],mc_list
+  return c_index[len(c_index)-1],mc_list
 
 def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
   i = 1

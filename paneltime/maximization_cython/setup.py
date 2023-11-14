@@ -24,7 +24,7 @@ wd = os.getcwd()
 os.chdir(os.path.dirname(__file__))
 cython_modules = find_cython_files()
 
-
+#delete_pyds()
 #cython_modules = ['arma.pyx', 'main.pyx']
 extensions = [Extension(name=module[:-4], 
                         sources=[module], 

@@ -6,6 +6,7 @@ from . import parallel
 from . import main
 from . import options as opt_module
 from . import info
+from . import system_settings as stn
 
 
 import numpy as np
@@ -32,8 +33,12 @@ def enable_parallel():
   #temporary debug output is saved here:
 
   mp = parallel.Parallel(N_NODES, PARALLEL, CALLBACK_ACTIVE)
-
-  mp.exec("from paneltime import maximization\n", 'init')
+  
+  if stn.cython:
+    mp.exec("from paneltime import maximization as maximization\n", 'init')
+  else:
+    mp.exec("from paneltime import maximization_cython\n", 'init')
+    
 
   print(f"parallel: {time.time()-t0}")
 

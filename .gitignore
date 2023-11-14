@@ -3,6 +3,8 @@
 *.pyc'
 *.exp
 *.lib
+*.c
+*.html
 *.obj
 .vs/
 .vscode/

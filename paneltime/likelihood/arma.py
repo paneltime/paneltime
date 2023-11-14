@@ -55,16 +55,17 @@ def set_garch_arch(panel,args,u, h_add, G):
   return r
 
 def inv_c(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr):
-  AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=(
-          np.append([1],np.zeros(T-1)),
-                np.zeros(T),
-                np.append([1],np.zeros(T-1)),
-                np.zeros(T),
-                np.zeros((N,T,1)),
-                np.zeros((N,T,1)),
-                np.zeros((N,T,1))
-        )
 
+  AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=(
+  np.append([1],np.zeros(T-1)),
+        np.zeros(T),
+        np.append([1],np.zeros(T-1)),
+        np.zeros(T),
+        np.zeros((N,T,1)),
+        np.zeros((N,T,1)),
+        np.zeros((N,T,1))
+    )
+ 
   T_arr = np.array(T_arr.flatten(),dtype = float)
   cfunct.armas(parameters.ctypes.data_as(CIPT), 
                      lmbda.ctypes.data_as(CDPT), rho.ctypes.data_as(CDPT),
@@ -79,7 +80,8 @@ def inv_c(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr):
                                                   T_arr.ctypes.data_as(CIPT)
                                                   )		
   return AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h
-  
+
+
 def inv_python(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr):
   AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=(
       np.append([1],np.zeros(T-1)),
@@ -246,3 +248,8 @@ def lag_matr(L,args):
     L[d]=args[i]
 
   return L
+
+
+AMA_1 = AMA_1AR = GAR_1 = GAR_1MA = e = var = h = None
+T_ = N_ = None
+

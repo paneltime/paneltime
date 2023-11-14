@@ -48,9 +48,6 @@ class ArmaDot:
   def fast_dot(self, a, b):
     a_, name = a
     n = get_n(a_)
-    if n is None:
-      n = len(a_)
-
     r = a_[0]*b
     for i in range(1,n):
       r[:,i:] += a_[i]*b[:,:-i]
@@ -69,11 +66,13 @@ class ArmaDot:
 
 
 def get_n(a):
+  #Obtains the smallest number of elements calculated that is needed for sufficient accuracy. 
+  return len(a)
   minval = 0
   a_1 = np.abs(a[1:])
   max_a = np.max(a_1)
   if np.min(np.abs(a_1)) >= minval:
-    return None
+    return len(a)
   if max_a == 0:
     return 1		
   else:
@@ -81,4 +80,4 @@ def get_n(a):
     if len(nz)>0:
       return nz[0]+1
     else:
-      return None
+      return len(a)

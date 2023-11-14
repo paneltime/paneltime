@@ -1,6 +1,6 @@
 /* File : ctypes.cpp */
 
-/*Use "cl /LD /O2 /fp:fast ctypes.cpp" to compile for windows */
+/*Use "cl /LD /Ox /Ot /Oi /GL /LTCG /fp:fast ctypes.cpp" to compile for windows */
 /*Linux suggestion (check): gcc -O3 and march=native */
 /*Linux: g++ -shared -o ctypes.so -fPIC ctypes.cpp*/
 /*#include <cstdio>
@@ -73,24 +73,17 @@ EXPORT int  armas(double *parameters,
 
 	inverse(T, gamma, ngm, psi, npsi, GAR_1, GAR_1MA);
 	
+	//******************** BEFORE LOST OBS ******************//
 
 	for(k=0;k<N;k++){//individual dimension
 
-		for(i=0;i<(int) T_array[k];i++){//time dimension
+		for(i=0;i<lost_obs;i++){//time dimension
 			//ARMA:
 			sum = 0;
 			for(j=0;j<=i;j++){//time dimesion, back tracking
 				sum += AMA_1AR[j]*u[(i-j) + k*T];
 				}
 			e[i + k*T] = sum;
-			//GARCH:
-			if(i>=lost_obs){
-				h[i + k*T] = sum*sum;
-				h[i + k*T] += h_add;
-				if(egarch){
-					h[i + k*T] = log((h[i + k*T]) + (h[i + k*T]==0)*1e-18);
-				}
-			}
 			sum =0;
 			for(j=0;j<=i;j++){//time dimension, back tracking
 				sum += GAR_1[j] * W[(i-j) + k*T] + GAR_1MA[j]*h[(i-j) + k*T];
@@ -98,8 +91,59 @@ EXPORT int  armas(double *parameters,
 			var[i + k*T] = sum;
 		}
 	}
+	
+	//******************** AFTER LOST OBS ******************//
+	
+	//**   EGARCH ESTIMATION:   */
+	if(egarch){
+		
+		for(k=0;k<N;k++){//individual dimension
+	
+			for(i=lost_obs;i<(int) T_array[k];i++){//time dimension
+				//ARMA:
+				sum = 0;
+				for(j=0;j<=i;j++){//time dimesion, back tracking
+					sum += AMA_1AR[j]*u[(i-j) + k*T];
+					}
+				e[i + k*T] = sum;
+				//GARCH:
+				h[i + k*T] = sum*sum;
+				h[i + k*T] += h_add;
+				
+				//EGARCH:
+				h[i + k*T] = log((h[i + k*T]) + (h[i + k*T]==0)*1e-18);
+				
+				sum =0;
+				for(j=0;j<=i;j++){//time dimension, back tracking
+					sum += GAR_1[j] * W[(i-j) + k*T] + GAR_1MA[j]*h[(i-j) + k*T];
+				}
+				var[i + k*T] = sum;
+			}
+		}
+	
+	//**  NOT EGARCH ESTIMATION:   */
+	}else{
+		
+		for(k=0;k<N;k++){//individual dimension
+			for(i=lost_obs;i<(int) T_array[k];i++){//time dimension
+				//ARMA:
+				sum = 0;
+				for(j=0;j<=i;j++){//time dimesion, back tracking
+					sum += AMA_1AR[j]*u[(i-j) + k*T];
+					}
+				e[i + k*T] = sum;
+				//GARCH:
+				h[i + k*T] = sum*sum;
+				h[i + k*T] += h_add;
 
-
-    return 0;
+				sum =0;
+				for(j=0;j<=i;j++){//time dimension, back tracking
+					sum += GAR_1[j] * W[(i-j) + k*T] + GAR_1MA[j]*h[(i-j) + k*T];
+				}
+				var[i + k*T] = sum;
+			}
+		}
+	}
+	return 0;
 }
 	

@@ -38,17 +38,7 @@ def maximize(panel, args, mp, t0, comm):
 
   if mp is None or panel.args.initial_user_defined:
     node = 5
-    
-    import cProfile
-    profiler = cProfile.Profile()
-    profiler.enable()
-    
     d = maximize_node(panel, args.args_v, 0.001, {}, {}, 0, False, False)
-    
-    profiler.disable()
-    profiler.print_stats(sort='cumulative')
-    
-    
     d['node'] = node
     return d
 

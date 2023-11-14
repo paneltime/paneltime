@@ -6,8 +6,10 @@
 from pathlib import Path
 import os
 import numpy.ctypeslib as npct
+cimport cython
 import ctypes as ct
 p = os.path.join(Path(__file__).parent.absolute(),'cfunctions')
+
 
 
 if os.name=='nt':
@@ -28,6 +30,7 @@ def set_garch_arch(panel,args,u, h_add, G):
 
 
   N, T, _ = u.shape
+
   rho = round( np.insert(-args['rho'],0,1), panel)
   psi = args['psi']
   psi = round( np.insert(args['psi'],0,0), panel)
@@ -44,28 +47,9 @@ def set_garch_arch(panel,args,u, h_add, G):
                   h_add))
   if True:
     AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_c(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
-    AMA_12,AMA_1AR2,GAR_12,GAR_1MA2, e2, var2, h2 = inv_python(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
-    if not np.all(AMA_12==AMA_1):
-      print('a')
-      print(np.max(np.abs(AMA_12-AMA_1)))
-    if not np.all(AMA_1AR2==AMA_1AR):
-      print('b')
-      print(np.max(np.abs(AMA_1AR2-AMA_1AR)))
-    if not np.all(GAR_12==GAR_1):
-      print('c')
-      print(np.max(np.abs(GAR_12-GAR_1)))
-    if not np.all(GAR_1MA2==GAR_1MA):
-      print('d')
-      print(np.max(np.abs(GAR_1MA2-GAR_1MA)))
-    if not np.all(e2==e):
-      print('e')
-      print(np.max(np.abs(e2-e)))
-    if not np.all(var2==var):
-      print('f')
-      print(np.max(np.abs(var2-var)))
-    if not np.all(h2==h):
-      print('g')
-      print(np.max(np.abs(h2-h)))
+  else:
+    AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_python(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
+
 
   r=[]
   #Creating nympy arrays with name properties. 
@@ -78,6 +62,7 @@ def set_garch_arch(panel,args,u, h_add, G):
   return r
 
 def inv_c(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr):
+  #todo: declaire these staticly initially, so new memory doesnt need to be allocaed
   AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=(
           np.append([1],np.zeros(T-1)),
                 np.zeros(T),
@@ -104,30 +89,19 @@ def inv_c(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr):
   return AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h
   
 def inv_python(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr):
-  AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=(
-      np.append([1],np.zeros(T-1)),
-            np.zeros(T),
-            np.append([1],np.zeros(T-1)),
-            np.zeros(T),
-            np.zeros(N*T),
-            np.zeros(N*T),
-            np.zeros(N*T)
-    )
+
 
   u = u.reshape(N*T)
   G = G.reshape(N*T)
-  armas(parameters,lmbda, rho,gmma, psi,
-         AMA_1, AMA_1AR,GAR_1, GAR_1MA,u, e, 
-         var,h,G, T_arr.flatten())		
+  AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = armas(parameters,lmbda, rho,gmma, psi,
+         u, G, T_arr.flatten())		
   
-  e, var, h, u, G=(e.reshape((N,T,1)),
-            var.reshape((N,T,1)),
-            h.reshape((N,T,1)), 
-            u.reshape((N,T,1)), 
-            G.reshape((N,T,1)))  
+  e, var, h, u, G=[np.asarray(i).reshape((N,T,1)) for i in (e, var, h, u, G)]
+  AMA_1,AMA_1AR,GAR_1,GAR_1MA = [np.asarray(i) for i in (AMA_1,AMA_1AR,GAR_1,GAR_1MA)]
   return AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h
 
 def inverse(n, x_args, nx, b_args, nb, a, ab):
+
   a[0] = 1.0
   ab[0] = b_args[0]
 
@@ -143,16 +117,29 @@ def inverse(n, x_args, nx, b_args, nb, a, ab):
 
   return a, ab
 
-def armas(parameters, lambda_, rho, gamma, psi, AMA_1, AMA_1AR, GAR_1, GAR_1MA, u, e, var, h, W, T_arr):
-  N = int(parameters[0])
-  T = int(parameters[1])
-  nlm = int(parameters[2])
-  nrh = int(parameters[3])
-  ngm = int(parameters[4])
-  npsi = int(parameters[5])
-  egarch = int(parameters[6])
-  lost_obs = int(parameters[7])
-  h_add = parameters[8]
+def armas(parameters, lambda_, rho, gamma, psi, u, W, T_arr):
+  cdef int N = int(parameters[0])
+  cdef int T = int(parameters[1])
+  cdef int nlm = int(parameters[2])
+  cdef int nrh = int(parameters[3])
+  cdef int ngm = int(parameters[4])
+  cdef int npsi = int(parameters[5])
+  cdef int egarch = int(parameters[6])
+  cdef int lost_obs = int(parameters[7])
+  cdef double h_add = parameters[8]
+  
+  AMA_1 = np.zeros(T)
+  AMA_1AR = np.zeros(T)
+  GAR_1 = np.zeros(T)
+  GAR_1MA = np.zeros(T)
+
+  AMA_1[0] = 1.0
+  GAR_1[0] = 1.0
+  
+  e = np.zeros(T*N)
+  var = np.zeros(T*N)
+  h = np.zeros(T*N)
+  
 
   inverse(T, lambda_, nlm, rho, nrh, AMA_1, AMA_1AR)
   inverse(T, gamma, ngm, psi, npsi, GAR_1, GAR_1MA)
@@ -174,7 +161,7 @@ def armas(parameters, lambda_, rho, gamma, psi, AMA_1, AMA_1AR, GAR_1, GAR_1MA, 
         sum_var += GAR_1[j] * W[(i-j) + k*T] + GAR_1MA[j]*h[(i-j) + k*T]
       var[i + k*T] = sum_var
 
-  return 0
+  return AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h
 
   
 def set_garch_arch_scipy(panel,args):
