@@ -4,11 +4,7 @@
 from ..output import stat_functions as stat
 from ..output import stat_dist
 from . import constraints
-from .. import system_settings
-if system_settings.cython:
-  from .. import likelihood_cython as logl
-else:
-  from .. import likelihood as logl
+from .. import likelihood as logl
 
 from . import direction
 

@@ -11,11 +11,7 @@
 
 from .processing import panel
 from .processing import model_parser
-from . import system_settings as stn
-if stn.cython:
-  from . import maximization_cython as maximization
-else:
-  from . import maximization
+from . import maximization
 
 
 import sys

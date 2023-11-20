@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from . import likelihood_cython as logl
+from . import likelihood as logl
 from . import parallel
 from . import main
 from . import options as opt_module
 from . import info
-from . import system_settings as stn
+
 
 
 import numpy as np
@@ -20,12 +20,12 @@ import inspect
 
 mp = None
 
-CALLBACK_ACTIVE = True
+CALLBACK_ACTIVE = False
 
 
 def enable_parallel():
   global mp
-  N_NODES = 1
+  N_NODES = 10
   PARALLEL = True #change to false for debugging
 
   t0=time.time()
@@ -34,11 +34,8 @@ def enable_parallel():
 
   mp = parallel.Parallel(N_NODES, PARALLEL, CALLBACK_ACTIVE)
   
-  if stn.cython:
-    mp.exec("from paneltime import maximization as maximization\n", 'init')
-  else:
-    mp.exec("from paneltime import maximization_cython\n", 'init')
-    
+  mp.exec("from paneltime import maximization as maximization\n", 'init')
+
 
   print(f"parallel: {time.time()-t0}")
 
@@ -54,7 +51,9 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
 	instruments: list with names of instruments
 	console_output: if True, GUI output is turned off (GUI output is experimental)
 	"""
-
+  if options.parallel.value:
+    enable_parallel()
+  
   window=main.identify_global(inspect.stack()[1][0].f_globals,'window', 'geometry')
   exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab', 'isrunning')
 

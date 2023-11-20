@@ -199,20 +199,22 @@ class re_obj:
     return dFE
 
 def mean_time(panel,x,mean_dates=False):
-  n_dates=panel.n_dates
-  dmap=panel.date_map
+  
+  dmap_all=panel.dmap_all
   date_count,s=get_subshapes(panel,x,False)
   incl=panel.included[len(s)]
   x=x*incl
   sum_x_dates=np.zeros(s)
-  for i in range(n_dates):
-    sum_x_dates[i]=np.sum(x[dmap[i]],0)		
+
+  N,T,k = x.shape
+
+  sum_x_dates = np.sum(x[dmap_all],1).reshape((panel.n_dates,1,k))
+
   mean_x_dates=sum_x_dates/date_count
   if mean_dates:
     return mean_x_dates
   mean_x=np.zeros(x.shape)
-  for i in range(n_dates):
-    mean_x[dmap[i]]=mean_x_dates[i]	
+  mean_x[dmap_all]=mean_x_dates	
   mean_x_all=np.sum(sum_x_dates,0)/panel.NT
   return mean_x,mean_x_all,incl
 

@@ -4,11 +4,7 @@
 from . import dfpmax
 from . import computation
 #from ..likelihood_simple import dfpmax as dfpmax_smpl
-from .. import system_settings
-if system_settings.cython:
-  from .. import likelihood_cython as logl
-else:
-  from .. import likelihood as logl
+from .. import likelihood as logl
 
 import numpy as np
 from ..parallel import callback

@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from .. import system_settings
-if system_settings.cython:
-  from .. import likelihood_cython as logl
-else:
-  from .. import likelihood as logl
+from .. import likelihood as logl
 
 from . import direction
 import numpy as np

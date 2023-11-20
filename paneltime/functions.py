@@ -1,6 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
+import ctypes as ct
+import os
+from pathlib import Path
+import numpy.ctypeslib as npct
+
+p = os.path.join(Path(__file__).parent.absolute(),'likelihood')
+p = os.path.join(p,'cfunctions')
+
+
+if os.name=='nt':
+  cfunct = npct.load_library('ctypes.dll',p)
+else:
+  cfunct = npct.load_library('ctypes.so',p)
+import numpy as np
+
+
+CDPT = ct.POINTER(ct.c_double) 
+CIPT = ct.POINTER(ct.c_uint) 
+
 
 def save_csv(fname, array, sep = ','):
   f = open(fname, 'wt')
@@ -17,13 +36,19 @@ def dot(a,b,reduce_dims=True):
   arrays of matrices. Faster than mmult, less general and only used for special purpose.
   Todo: generalize and merge"""
 
-
-  if len(a.shape)==3 and len(b.shape)==2:
-    x = np.array([np.dot(a[i],b) for i in range(a.shape[0])])
+  
+  
+  
+  if len(a.shape)==3 and len(b.shape)==2:  
+    k,m = b.shape 
+    N,T,k = a.shape    
+    x = np.dot(a.reshape((N*T,k)),b).reshape((N,T,m))
+    #x = np.array([np.dot(a[i],b) for i in range(a.shape[0])])
   elif len(a.shape)==3 and len(b.shape)==3:
-    x = np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)
-  elif len(a.shape)==2 and len(b.shape)==3:
-    x = np.array([np.dot(a,b[i]) for i in range(b.shape[0])])
+    N,T,m = b.shape 
+    N,T,k = a.shape
+    x = np.dot(a.reshape((N*T,k)).T,b.reshape((N*T,m)))
+    #x = np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)   
   elif len(a.shape)==2 and len(b.shape)==2:
     if a.shape[1] == b.shape[0]:
       x = np.dot(a,b)
@@ -31,8 +56,10 @@ def dot(a,b,reduce_dims=True):
 
 
 class ArmaDot:
-  def __init__(self):
-    pass
+  def __init__(self,panel):
+    self.N,self.T,self.k = panel.X.shape
+    self.mem = {}
+
 
   def dotroll(self,aband,k,sign,b,ll):
     x = sign*self.fast_dot(aband, b)
@@ -44,15 +71,12 @@ class ArmaDot:
     x=np.moveaxis(x,0,2)
     return x
 
-
+  
   def fast_dot(self, a, b):
-    a_, name = a
-    n = get_n(a_)
-    r = a_[0]*b
-    for i in range(1,n):
-      r[:,i:] += a_[i]*b[:,:-i]
-
+    a, name = a
+    r = fast_dot_c(a,b)
     return r
+
 
 
   def dot(self,a,b,ll):
@@ -65,19 +89,32 @@ class ArmaDot:
     return x
 
 
-def get_n(a):
-  #Obtains the smallest number of elements calculated that is needed for sufficient accuracy. 
-  return len(a)
-  minval = 0
-  a_1 = np.abs(a[1:])
-  max_a = np.max(a_1)
-  if np.min(np.abs(a_1)) >= minval:
-    return len(a)
-  if max_a == 0:
-    return 1		
-  else:
-    nz = np.nonzero(a_1/max_a < minval)[0]
-    if len(nz)>0:
-      return nz[0]+1
-    else:
-      return len(a)
+def fast_dot_p(a, b):
+  r = a[0]*b
+  for i in range(1,len(a)):     
+    r[:,i:] += a[i]*b[:,:-i]  
+  return r
+
+
+def fast_dot_c(a,b):
+  r = a[0]*b
+  s0 =b.shape
+  b = b.swapaxes(1,len(s0)-1)
+  r = r.swapaxes(1,len(s0)-1)
+  s1 = b.shape
+  
+  r = r.flatten()
+  b = b.flatten()
+  cols = int(np.prod(s1[:-1]))
+  cfunct.fast_dot(r.ctypes.data_as(CIPT), 
+              a.ctypes.data_as(CDPT),
+              b.ctypes.data_as(CDPT), len(a), cols)
+
+  r = r.reshape(s1)
+  r = r.swapaxes(1,len(s0)-1)
+  
+  return r
+              
+
+  
+

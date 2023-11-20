@@ -4,11 +4,7 @@
 
 
 from ..output import stat_functions as stat
-from .. import system_settings
-if system_settings.cython:
-  from .. import likelihood_cython as logl
-else:
-  from .. import likelihood as logl
+from .. import likelihood as logl
 
 from ..output import communication as comm
 from ..output import output
@@ -34,21 +30,13 @@ TEST_ITER = 30
 def maximize(panel, args, mp, t0, comm):
 
   task_name = 'maximization'
-
+  
+  gtol = panel.options.tolerance.value
 
   if mp is None or panel.args.initial_user_defined:
     node = 5
     
-    import cProfile
-    profiler = cProfile.Profile()
-    profiler.enable()
-    
-    d = maximize_node(panel, args.args_v, 0.001, {}, {}, 0, False, False)
-    
-    profiler.disable()
-    profiler.print_stats(sort='cumulative')
-    
-    
+    d = maximize_node(panel, args.args_v, gtol, {}, {}, 0, False, False)    
     d['node'] = node
     return d
 
@@ -56,7 +44,7 @@ def maximize(panel, args, mp, t0, comm):
   a = get_directions(panel, args, mp.cpu_count)
   for i in range(len(a)):
     tasks.append(
-                  f'maximization.maximize_node(panel, {list(a[i])}, 0.000001, inbox, outbox, slave_id, False, True)\n'
+                  f'maximization.maximize_node(panel, {list(a[i])}, {gtol}, inbox, outbox, slave_id, False, True)\n'
                 )
   evalnodes = EvaluateNodes(mp, len(tasks), t0, panel)
   mp.exec(tasks, task_name)
@@ -89,7 +77,7 @@ def get_cb_property(cb, kw, nonevalue = None, ndarray = True):
 def get_final_res(mp, tasks, task_name):
   res = mp.collect(task_name)[:len(tasks)]
   f = get_cb_property(res, 'f', -1e+300)
-  maxidx = f.index(max(f))
+  maxidx = list(f).index(max(f))
   return maxidx, maxidx
 
 class EvaluateNodes:
@@ -123,8 +111,8 @@ class EvaluateNodes:
 
   def finish(self, cb, f):
     conv = get_cb_property(cb, 'conv', 0)>0
-    det  =  get_cb_property(cb, 'det',None, False)	
-    convdet = conv[0]*det[0]!=0
+    det  =  get_cb_property(cb, 'det',None, False)	#det is the determinant of the hessian
+    convdet = conv*(np.abs(det)<1e-30)
     if np.any(convdet):
       conv = convdet		
     if np.any(conv):
@@ -199,8 +187,18 @@ def get_directions(panel, args, n):
 
 
 def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0 , nummerical = False, diag_hess = False):
-
+  
+  
+  import cProfile
+  profiler = cProfile.Profile()
+  profiler.enable()
+  
   res, ll = init.maximize(args, inbox, outbox, panel, gtol, TOLX, nummerical, diag_hess, slave_id)
+  
+  profiler.disable()
+  profiler.print_stats(sort='cumulative')
+  
+  
   #debug from . import debug
   #debug.save_reg_data(ll, panel)	
 

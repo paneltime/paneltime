@@ -2,11 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #This module contains classes used in the regression
-from .. import system_settings
-if system_settings.cython:
-  from .. import likelihood_cython as logl
-else:
-  from .. import likelihood as logl
+from .. import likelihood as logl
 
 from . import arguments
 from .. import functions as fu
@@ -39,7 +35,7 @@ class panel:
     self.masking()
     self.lag_variables()
     self.final_defs()
-    self.arma_dot=fu.ArmaDot()
+    self.arma_dot=fu.ArmaDot(self)
 
 
   def initial_defs(self):
@@ -311,40 +307,10 @@ class panel:
     self.date_count=np.array(tcnt).reshape(n,1,1)
     self.date_map=t_map_tuple
 
-
-  def get_time_map2(self,timevar, N,T_count, idincl,sel):
-    if timevar is None:
-      return None
-    unq,ix=np.unique(timevar,return_inverse=True)
-    n_dates=len(unq)
-    t=arrayize(np.array(ix).reshape((n_dates,1)), N,self.max_T,T_count, idincl,sel,int)#maps N,T -> unique date
-    N,T,k=t.shape
-
-
-    t_map=[[] for i in range(n_dates)]#all possible unique dates
-    for i in range(len(tid)):
-      t_map[tid[i]].append(t[i,1:])#appends group and day sequence
-    t_map_tuple=[]
-    tcnt=[]
-    self.date_count_mtrx=np.zeros((N,T,1))
-    for i in range(len(t_map)):
-      a=np.array(t_map[i]).T#group and day sequence for unique date i
-      if len(a):
-        m=(tuple(a[0]),tuple(a[1]))#group and day sequence reference tuple
-        n_t=len(a[0])#number of groups at this unique date
-        t_map_tuple.append(m)	#group and day sequence reference tuple, for each unique date
-        tcnt.append(n_t) #count of groups at each date
-        self.date_count_mtrx[m]=n_t#timeseries matrix of the group count
-
-
-    #A full random effects calculation is infeasible because of complexity and computing costs. 
-    #A quazi random effects weighting is used. It  is more conservative than the full
-    #RE weight theta=1-sd_pooled/(sd_pooled+sd_within/T)**0.5
-    #If the weights are too generous, the RE adjustment may add in stead of reducing noise. 
-    n=len(tcnt)
-    self.n_dates=n
-    self.date_count=np.array(tcnt).reshape(n,1,1)
-    self.date_map=t_map_tuple
+    self.dmap_all =(
+    [t_map_tuple[i][0] for i in range(self.n_dates)],
+    [t_map_tuple[i][1] for i in range(self.n_dates)]
+    )    
 
 
   def define_h_func(self):

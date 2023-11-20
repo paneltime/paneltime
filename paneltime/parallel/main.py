@@ -212,7 +212,7 @@ class Slave():
 
     else:
       qin, qout = Queue(), Queue()
-      self.p = ThreadPopen(slave.run, (TransactThread(qout, qin),False))
+      self.p = ThreadPopen(slave.run, (TransactThread(qout, qin),True))
       self.p.start()
       self.t = TransactThread(qin, qout)
 

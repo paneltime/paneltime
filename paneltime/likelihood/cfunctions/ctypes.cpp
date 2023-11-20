@@ -7,6 +7,7 @@
 FILE *fp = fopen("coutput.txt","w"); */
 
 #include <cmath>
+#include <cstdio>
 
 
 
@@ -147,3 +148,32 @@ EXPORT int  armas(double *parameters,
 	return 0;
 }
 	
+	
+void print(double *r) {
+		int i;
+		for (i = 0; i < 10; i++) {
+				printf("%.2f ", r[i]);
+		}
+		printf("\n"); // Print a newline character at the end
+		fflush(stdout);
+}
+
+
+
+EXPORT int  fast_dot(double *r, double *a, double *b, long n, long m) {
+
+	int i, j, k;
+	for(i=1;i<n;i++){//individual dimension
+		for(j=0;j<m;j++){
+			for(k=0;k<n-i;k++){
+				r[i+k + j*n] += a[i]*b[k + j*n];
+			}
+		}
+	}
+	return 0;
+}
+
+
+
+
+
