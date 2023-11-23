@@ -4,6 +4,7 @@
 #calculates the arma matrices for GARCH and ARIMA
 
 from pathlib import Path
+import numpy as np
 import os
 import numpy.ctypeslib as npct
 import ctypes as ct
@@ -12,9 +13,11 @@ p = os.path.join(Path(__file__).parent.absolute(),'cfunctions')
 
 if os.name=='nt':
   cfunct = npct.load_library('ctypes.dll',p)
+elif os.name == 'posix':
+  cfunct = npct.load_library('ctypes.dylib',p)
 else:
-  cfunct = npct.load_library('ctypes.so',p)
-import numpy as np
+  cfunct = npct.ßload_library('ctypes.so',p)
+
 
 
 CDPT = ct.POINTER(ct.c_double) 

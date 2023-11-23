@@ -12,9 +12,11 @@ p = os.path.join(p,'cfunctions')
 
 if os.name=='nt':
   cfunct = npct.load_library('ctypes.dll',p)
+elif os.name == 'posix':
+  cfunct = npct.load_library('ctypes.dylib',p)
 else:
   cfunct = npct.load_library('ctypes.so',p)
-import numpy as np
+
 
 
 CDPT = ct.POINTER(ct.c_double) 

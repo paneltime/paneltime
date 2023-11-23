@@ -22,35 +22,10 @@ def main():
 		
 	wd = os.getcwd()
 	
-	pythonfile = 'python'
-	if '37' in sys.argv:
-		pythonfile = '"C:\\Program Files\\Python37\\python.exe"'
-	if '38' in sys.argv:
-		pythonfile = '"C:\\Program Files\\Python38\\python.exe"'
-	if '311' in sys.argv:
-		pythonfile = '"C:\\Program Files\\Python311\\python.exe"'
-	
-	os.system(f'{pythonfile} {os.path.join(wd, "setup.py")} bdist_wheel sdist build')
-	
-	copy_pyd_files()
 	
 	if push:
 		os.system("twine upload dist/*")
 	
-
-def copy_pyd_files():
-	# Search for .pyd files in the build directory
-	pyd_files = glob.glob(os.path.join('build', '**', '*.pyd'), recursive=True)
-	
-	#copy to assoscated dir
-	for f in pyd_files:
-		name = os.path.basename(f).split('.')[0] + '.pyx'
-		for root, dirs, files in os.walk('paneltime'):
-			if name in files:
-				# Copy .pyd file to the .pyx file's directory
-				shutil.copy(f, root)
-				print(f"Copied {f} to {root}")
-
 
 
 def gitpush(version):
