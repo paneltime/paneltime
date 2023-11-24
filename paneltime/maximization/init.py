@@ -7,25 +7,18 @@ from . import computation
 from .. import likelihood as logl
 
 import numpy as np
-from ..parallel import callback
-
-
 
 
 def maximize(args, inbox, outbox, panel, gtol, tolx, nummerical, diag_hess, slave_id):
   args = np.array(args)
-  callbk = callback.CallBack(inbox, outbox)
-  comput = computation.Computation(args, panel, gtol, tolx, None, nummerical, diag_hess)
-  
+  comput = computation.Computation(args, panel, gtol, tolx, nummerical, diag_hess)
 
-  callbk.callback(quit=False, conv=False, perc=0)
   initval = InitialValues(panel, comput)
   
   x, ll, f, g, hessin, H = initval.calc_init_dir(args, panel)
-  res, ll = dfpmax.dfpmax(x, f, g, hessin, H, comput, callbk, panel, slave_id, ll)
-  #msg, conv, args_c = dfpmax_smpl.dfpmax(x, f, g, hessin, H, panel, slave_id)
+  res = dfpmax.dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll)
 
-  return res, ll
+  return res
 
 
 class InitialValues:

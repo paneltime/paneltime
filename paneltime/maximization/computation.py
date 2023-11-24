@@ -18,15 +18,11 @@ STPMX=100.0
 
 
 class Computation:
-  def __init__(self,args, panel, gtol, tolx, callback, nummerical, diag_hess):
-    """callback is a function taking any named arguments """
-    if callback is None:
-      callback = lambda **kwargs: None#function that does nothing
-    self.callback = callback
-    self.gradient=logl.calculus.gradient(panel, self.callback)
+  def __init__(self,args, panel, gtol, tolx, nummerical, diag_hess):
+    self.gradient=logl.calculus.gradient(panel)
     self.gtol = panel.options.tolerance.value
     self.tolx = tolx
-    self.hessian=logl.hessian(panel,self.gradient, self.callback)
+    self.hessian=logl.hessian(panel,self.gradient)
     self.panel=panel
     self.constr=None
     self.CI=0
@@ -149,7 +145,7 @@ class Computation:
 
 
 
-    return x, f, hessin, H, g, 0, se, det, analytic_calc
+    return x, f, hessin, H, G, g, 0, se, det, analytic_calc
   
   def set_constr(self, args):
     self.constr = constraints.Constraints(self.panel, args)
@@ -171,15 +167,15 @@ class Computation:
       print(e)
 
     if abs(g_norm) < self.gtol:
-      return x, f, hessin, Ha, g, 1, se, det, True
+      return x, f, hessin, Ha, G, g, 1, se, det, True
     elif abs(totpgain)<TOTP_TOL:
-      return x, f, hessin, Ha, g, 2, se, det, True
+      return x, f, hessin, Ha, G, g, 2, se, det, True
     elif its>=self.panel.options.max_iterations.value:
-      return x, f, hessin, Ha, g, 3, se, det, True
+      return x, f, hessin, Ha, G, g, 3, se, det, True
     elif (ls.conv == 2) :
-      return x, f, hessin, Ha, g, 4, se, det, True  
+      return x, f, hessin, Ha, G, g, 4, se, det, True  
     #elif (max(np.abs(dx_norm*a))<gtol*0.1):
-    #  return x, f, hessin, Ha, g, 5, se, det, True  
+    #  return x, f, hessin, Ha, G, g, 5, se, det, True  
  
     
   def calc_gradient(self,ll):

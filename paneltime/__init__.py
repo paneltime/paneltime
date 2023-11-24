@@ -20,18 +20,18 @@ import inspect
 
 mp = None
 
-CALLBACK_ACTIVE = False
+
 
 
 def enable_parallel():
   global mp
-  N_NODES = 10
+  N_NODES = 1
 
   t0=time.time()
 
   #temporary debug output is saved here:
 
-  mp = p.Master(N_NODES)
+  mp = p.Master(N_NODES, os.path.dirname(__file__))
   
 
   print(f"parallel: {time.time()-t0}")
@@ -54,12 +54,8 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
   window=main.identify_global(inspect.stack()[1][0].f_globals,'window', 'geometry')
   exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab', 'isrunning')
 
-  mp.send_dict(locals())
+  r = main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,instruments, console_output, mp)
 
-  #r=main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,instruments, console_output, mp)
-  
-  mp.eval("main.execute(model_string,dataframe,ID, T,HF,options,window,exe_tab,instruments, console_output, mp)")
-  r = mp.collect()
   return r
 
 

@@ -25,9 +25,9 @@ def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
   #ARIMA:
   if not AMAL is None:
     if u_gradient:
-      de2_zeta_xi=-panel.arma_dot.dot(AMAL,g.X_RE,ll)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
+      de2_zeta_xi=-fu.arma_dot(AMAL,g.X_RE,ll)#"T x N x s x m #for error beta-rho covariance, the u gradient must be used	
     else:
-      de2_zeta_xi=panel.arma_dot.dot(AMAL,de_zeta,ll)#"T x N x s x m
+      de2_zeta_xi=fu.arma_dot(AMAL,de_zeta,ll)#"T x N x s x m
     if transpose:#only happens if lags==k
       de2_zeta_xi=de2_zeta_xi+np.swapaxes(de2_zeta_xi,2,3)#adds the transpose
     de2_zeta_xi=de2_zeta_xi*panel.included[4]
@@ -111,7 +111,7 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 
     d2var_zeta_xi_h = (h_e_de2_zeta_xi + h_2e_dezeta_dexi)
 
-    d2var_zeta_xi_h = panel.arma_dot.dot(ll.GAR_1MA, d2var_zeta_xi_h,ll)
+    d2var_zeta_xi_h = fu.arma_dot(ll.GAR_1MA, d2var_zeta_xi_h,ll)
 
   d2var_zeta_xi = add((d2var_zeta_xi_h,  dd_re_variance,d_omega_e), True)
   if not d2var_zeta_xi is None:
@@ -131,7 +131,7 @@ def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
   elif len(L)==0:
     return None
   elif type(L)==tuple:#elif len(L.shape)==3:
-    x=panel.arma_dot.dot(L,d,ll)#"T x N x k x m"
+    x=fu.arma_dot(L,d,ll)#"T x N x k x m"
     if x is None:
       return None
   elif len(L.shape)==2:

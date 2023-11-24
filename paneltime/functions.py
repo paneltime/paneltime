@@ -37,10 +37,6 @@ def dot(a,b,reduce_dims=True):
   """Matrix multiplication. Returns the dot product of a*b where either a or be or both to be
   arrays of matrices. Faster than mmult, less general and only used for special purpose.
   Todo: generalize and merge"""
-
-  
-  
-  
   if len(a.shape)==3 and len(b.shape)==2:  
     k,m = b.shape 
     N,T,k = a.shape    
@@ -56,49 +52,32 @@ def dot(a,b,reduce_dims=True):
       x = np.dot(a,b)
   return x
 
-
-class ArmaDot:
-  def __init__(self,panel):
-    self.N,self.T,self.k = panel.X.shape
-    self.mem = {}
-
-
-  def dotroll(self,aband,k,sign,b,ll):
-    x = sign*self.fast_dot(aband, b)
-    w=[]
-    for i in range(k):
-      w.append(np.roll(np.array(x),i+1,1))
-      w[i][:,:i+1]=0
-    x=np.array(w)
-    x=np.moveaxis(x,0,2)
-    return x
-
   
-  def fast_dot(self, a, b):
-    a, name = a
-    r = fast_dot_c(a,b)
-    return r
+
+def dotroll(aband,k,sign,b,ll):
+  x = sign*fast_dot_c(aband, b)
+  w=[]
+  for i in range(k):
+    w.append(np.roll(np.array(x),i+1,1))
+    w[i][:,:i+1]=0
+  x=np.array(w)
+  x=np.moveaxis(x,0,2)
+  return x
 
 
-
-  def dot(self,a,b,ll):
-    if len(a)>2:#then this is a proper matrix
-      (aband,k,sgn)=a
-      if k==0:
-        return None
-      return self.dotroll(aband, k, sgn, b, ll)
-    x = self.fast_dot(a, b)
-    return x
-
-
-def fast_dot_p(a, b):
-  r = a[0]*b
-  for i in range(1,len(a)):     
-    r[:,i:] += a[i]*b[:,:-i]  
-  return r
+def arma_dot(a,b,ll):
+  if len(a)>2:#then this is a proper matrix
+    (aband,k,sgn)=a
+    if k==0:
+      return None
+    return dotroll(aband, k, sgn, b, ll)
+  x = fast_dot_c(a, b)
+  return x
+  
 
 
 def fast_dot_c(a,b):
+  a, name = a
   r = a[0]*b
   s0 =b.shape
   b = b.swapaxes(1,len(s0)-1)

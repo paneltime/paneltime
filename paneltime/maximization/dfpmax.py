@@ -19,7 +19,7 @@ EPS=3.0e-16
 TOLX=(4*EPS) 
 GTOL = 1e-5
 
-def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id, ll):
+def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
   """Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
   Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
   its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -32,7 +32,7 @@ def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id, ll):
   its, msg = 0, ''
   MAXITER = 10000
 
-  cbhandler = CallBackHandler(callback, slave_id)
+
   fdict = {}
   for its in range(MAXITER):  	#Main loop over the iterations.
 
@@ -47,7 +47,7 @@ def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id, ll):
     ll = ls.ll
 
 
-    x, f, hessin, H, g, conv, se, det, anal = comput.exec(dx_realized,  hessin, H, incr, its, ls)
+    x, f, hessin, H, G, g, conv, se, det, anal = comput.exec(dx_realized,  hessin, H, incr, its, ls)
 
     err = (np.max(np.abs(dx_realized)) < TOLX) and (its >len(comput.constr.constr_matrix)+2)
 
@@ -65,58 +65,13 @@ def dfpmax(x, f, g, hessin, H, comput, callback, panel, slave_id, ll):
       msg = "Warning: Convergence on delta x; the gradient is incorrect or the tolerance is set too low"
     elif terminate:
       msg = "No convergence within %s iterations" %(MAXITER,)
-
-
-    cbhandler.assign(ls, msg, dx_norm, f, x, H, comput, g, hessin, dx_realized, 
-                                 incr, its, 'linesearch', terminate, 
-                                                  conv, fdict, se, det)			
-
-    if terminate or cbhandler.quit:	
-      if terminate:
-        cause = msg
-      else:
-        cause = 'forced'
-      if not panel.options.supress_output:
-        print(f"quit slave {slave_id}, time: {time.time()}, cause: {cause}, conv:{conv}")
-      return cbhandler.callback.outbox, ls.ll
-
-class CallBackHandler:
-  def __init__(self, callback, slave_id):
-    self.t = time.time()
-    self.callback = callback
-    self.id = slave_id
-    self.quit = False
-    self.inbox = {}
-
-
-  def assign(self, ls, msg, dx_norm, f, x, H, comput, g, hessin, dx, incr, its, 
-                   task, terminate, conv, fdict, se, det):
-
-
-    self.check_for_quit_order()
-
-
-
-    if msg == '':
-      msg = ls.msg	
-
-    if time.time()-self.t<1 and not (self.quit or terminate):
-      return
-    self.t = time.time()
-
-    self.inbox = self.callback.callback(msg = msg, dx_norm = dx_norm, f = f, x = x, 
-                                                    H = H, G=comput.G, g = g, hessin = hessin, dx = dx, 
-                                 incr = incr, rev = ls.rev, alam = ls.alam, 
-                                 its = its, constr = comput.constr, perc=min(its/100, 1), task = task, 
-                                 terminate= terminate or self.quit, conv = conv, slave_id = self.id, 
-                                 fdict = dict(fdict), CI = comput.CI, CI_anal = comput.CI_anal, tpgain = comput.totpgain, se = se, det = det)
-
-  def check_for_quit_order(self):
-
-    if not 'quit' in  self.callback.inbox:
-      return
-    if not self.callback.inbox['quit']:
-      return
-    self.quit = True
+    
+    if terminate:
+      break
+    
+  constr = comput.constr
+  v = vars()
+  ret = {k:v[k] for k in v if not k in ['panel']}
+  return ret
 
 

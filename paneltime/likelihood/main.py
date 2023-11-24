@@ -214,7 +214,7 @@ class LL:
 
 
   def standardize_variable(self,panel,X,norm=False,reverse_difference=False):
-    X=panel.arma_dot.dot(self.AMA_1AR,X,self)
+    X=fu.arma_dot(self.AMA_1AR,X,self)
     X=(X+self.re_obj_i.RE(X, panel,False)+self.re_obj_t.RE(X, panel,False))
     if (not panel.Ld_inv is None) and reverse_difference:
       X=fu.dot(panel.Ld_inv,X)*panel.a[3]		

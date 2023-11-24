@@ -65,8 +65,8 @@ def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
   return ddL
 
 def test_c_armas(u_RE, var, e_RE, panel, ll, G):
-  var2 = panel.arma_dot.dot(ll.GAR_1, G,ll) + panel.arma_dot.dot(ll.GAR_1MA, ll.h_val,ll)
-  e_RE2 = panel.arma_dot.dot(ll.AMA_1AR,u_RE,ll)	
+  var2 = fu.arma_dot(ll.GAR_1, G,ll) + fu.arma_dot(ll.GAR_1MA, ll.h_val,ll)
+  e_RE2 = fu.arma_dot(ll.AMA_1AR,u_RE,ll)	
   print(f"Testsums arma: c:{np.sum(var**2)}, py:{np.sum(var2**2)}")
   print(f"Testsums e: c:{np.sum(e_RE**2)}, py:{np.sum(e_RE2**2)}")
 

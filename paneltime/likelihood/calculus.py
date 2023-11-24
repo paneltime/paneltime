@@ -10,15 +10,15 @@ import time
 
 class gradient:
 
-  def __init__(self,panel,callback):
+  def __init__(self,panel):
     self.panel=panel
-    self.callback=callback
+
 
   def arima_grad(self,k,x,ll,sign,pre):
     if k==0:
       return None
     (N,T,m)=x.shape
-    x=self.panel.arma_dot.dotroll(pre,k,sign,x,ll)
+    x=fu.dotroll(pre,k,sign,x,ll)
     x = x.reshape(N,T,k)
     extr_value=1e+100
     if np.max(np.abs(x))>extr_value:
@@ -42,7 +42,7 @@ class gradient:
     if self.panel.pqdkm[4]>0 and not dRE is None: 			#eqs. 33-34
       ((N,T,k))=dRE.shape
       x=cf.prod((ll.h_e_val,dRE))	
-      dvar_sigma=self.panel.arma_dot.dot(ll.GAR_1MA,x,ll)
+      dvar_sigma=fu.arma_dot(ll.GAR_1MA,x,ll)
     dvar_e=cf.add((dvar_sigma,groupeffect),True)
     return dvar_e,dvar_sigma,dvRE_dx,d_input
 
@@ -50,7 +50,6 @@ class gradient:
   def get(self,ll,DLL_e=None,dLL_var=None,return_G=False):
 
 
-    self.callback(perc = 0.05, text = '', task = 'gradient')
     (self.DLL_e, self.dLL_var)=(DLL_e, dLL_var)
     panel=self.panel
     incl=self.panel.included[3]
@@ -64,7 +63,7 @@ class gradient:
     #ARIMA:
     de_rho_RE=self.arima_grad(p,u_RE,ll,-1,ll.AMA_1)
     de_lambda_RE=self.arima_grad(q,e_RE,ll,-1,ll.AMA_1)
-    de_beta_RE=-self.panel.arma_dot.dot(ll.AMA_1AR,self.X_RE,ll)*panel.a[3]
+    de_beta_RE=-fu.arma_dot(ll.AMA_1AR,self.X_RE,ll)*panel.a[3]
 
     (self.de_rho_RE,self.de_lambda_RE,self.de_beta_RE)=(de_rho_RE,de_lambda_RE,de_beta_RE)		
 
@@ -80,7 +79,7 @@ class gradient:
 
     #GARCH:
 
-    self.dvar_omega=self.panel.arma_dot.dot(ll.GAR_1,panel.W_a,ll)
+    self.dvar_omega=fu.arma_dot(ll.GAR_1,panel.W_a,ll)
     self.dvar_initvar = None
     if 'initvar' in ll.args.args_d:
       self.dvar_initvar = ll.GAR_1[0].reshape((1,panel.max_T,1))
@@ -132,7 +131,7 @@ class gradient:
     #print(gn)
     #a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
     #dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)  
-    self.callback(perc = 0.08, text = '', task = 'gradient')
+
     
 
 
@@ -142,11 +141,11 @@ class gradient:
       return g
 
 class hessian:
-  def __init__(self,panel,g,callback):
+  def __init__(self,panel,g):
     self.panel=panel
     self.its=0
     self.g=g
-    self.callback=callback
+
 
 
   def get(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
@@ -174,8 +173,7 @@ class hessian:
     d2var_gamma_initvar 	= cf.dd_func_lags(panel,ll,GARK, 	g.dvar_initvar,					g.dLL_var)
     d2var_gamma_omega 		= cf.dd_func_lags(panel,ll,GARK, 	g.dvar_omega,					g.dLL_var)
     d2var_gamma_z					=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_z_G,							g.dLL_var)
-    
-    self.callback(perc = 0.2, text = '', task = 'hessian')
+
     
     d2var_psi_rho					=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_rho_RE)),		g.dLL_var)
     d2var_psi_lambda			=	cf.dd_func_lags(panel,ll,GARM, 	cf.prod((ll.h_e_val,g.de_lambda_RE)),	g.dLL_var)
@@ -190,7 +188,7 @@ class hessian:
     AMAp=(ll.AMA_1,p,-1)
     d2var_rho_beta,		d2e_rho_beta	=	cf.dd_func_lags_mult(panel,ll,g,AMAp,	'rho',		'beta', u_gradient=True)
 
-    self.callback(perc = 0.4, text = '', task = 'hessian')
+
 
     d2var_mu_rho,d2var_mu_lambda,d2var_mu_beta,d2var_mu_z,mu=None,None,None,None,None
     if panel.N>1:
@@ -200,7 +198,6 @@ class hessian:
       d2var_mu_z=None
       d2var_mu2=0
 
-    self.callback(perc = 0.5, text = '', task = 'hessian')
     d2var_z2				=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, ll.h_2z_val,						g.dLL_var) 
     d2var_z_rho				=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_rho_RE)),	g.dLL_var) 
     d2var_z_lambda			=	cf.dd_func_lags(panel,ll,ll.GAR_1MA, cf.prod((ll.h_ez_val,g.de_lambda_RE)),g.dLL_var) 
@@ -219,7 +216,7 @@ class hessian:
     d2var_rho_initvar, d2var_lambda_initvar = None, None
     
 
-    self.callback(perc = 0.6, text = '', task = 'hessian')
+
     #Final:
     D2LL_beta2 						=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta_RE,		dvar_sigma_beta, 	dvar_sigma_beta,	d2e_beta2, 					d2var_beta2)
     D2LL_beta_rho		      =	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_rho_RE,		dvar_sigma_beta, 	dvar_sigma_rho,		T(d2e_rho_beta), 		T(d2var_rho_beta))
@@ -287,7 +284,7 @@ class hessian:
         [T(D2LL_beta_initvar),T(D2LL_rho_initvar),	T(D2LL_lambda_initvar),	T(D2LL_gamma_initvar),T(D2LL_psi_initvar),T(D2LL_omega_initvar), 	D2LL_initvar2, 				D2LL_initvar_mu,D2LL_initvar_z		], 
         [T(D2LL_beta_mu),			T(D2LL_rho_mu),				T(D2LL_lambda_mu),			T(D2LL_gamma_mu),			T(D2LL_psi_mu),			T(D2LL_omega_mu), 			D2LL_initvar_mu, 			D2LL_mu2,				D2LL_mu_z			],
         [T(D2LL_beta_z),			T(D2LL_rho_z),				T(D2LL_lambda_z),				T(D2LL_gamma_z),			T(D2LL_psi_z),			T(D2LL_omega_z), 				D2LL_initvar_z, 			D2LL_mu_z,			D2LL_z2				]]
-    self.callback(perc = 0.8, text = '', task = 'hessian')
+
     H=cf.concat_matrix(H)
     if H[-1,-1]==0:
       H[-1,-1]=1

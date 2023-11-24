@@ -35,7 +35,7 @@ class panel:
     self.masking()
     self.lag_variables()
     self.final_defs()
-    self.arma_dot=fu.ArmaDot(self)
+
 
 
   def initial_defs(self):

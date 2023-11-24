@@ -30,7 +30,7 @@ class Transact():
 		except EOFError as e:
 			if e.args[0]=='Ran out of input':
 				raise RuntimeError("""An error occured in one of the spawned sub-processes. 
-Check the output in "slave_errors.txt' in your working directory or 
+Check the output in the folder "mp' in your temp directory or 
 run without multiprocessing\n %s""" %(datetime.datetime.now()))
 			else:
 				raise RuntimeError('EOFError:'+e.args[0])

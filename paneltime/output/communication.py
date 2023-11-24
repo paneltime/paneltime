@@ -58,9 +58,6 @@ class web_output:
     #from . import charts
     #self.charts = charts.ProcessCharts(panel)
 
-  def set_progress(self,perc, text, task):
-    return True
-
   def set_output_obj(self,ll, comput, dx_norm):
     "sets the outputobject in the output" 
     if self.output_set:
@@ -107,13 +104,6 @@ class console:
     self.panel=panel
     self.output_set = False
 
-  def set_progress(self,perc,text, task):
-    if task=='done':
-      print(text)
-    #perc = f'{int(perc*100)}%'.ljust(5)
-    #print(f"{perc} - {task}: {text}")
-    return True
-
   def set_output_obj(self,ll, comput, dx_norm):
     if self.output_set:
       return
@@ -155,7 +145,6 @@ class tk_widget:
   def __init__(self,window,exe_tab,panel):
     self.panel=panel
     self.tab=window.main_tabs._tabs.add_output(exe_tab)
-    self.set_progress=self.tab.progress_bar.set_progress
     self.output_set = False
 
   def set_output_obj(self,ll, comput, dx_norm):
