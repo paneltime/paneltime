@@ -5,6 +5,7 @@
 import pickle
 import datetime
 
+
 class Transact():
 	"""Local worker class"""
 	def __init__(self,read, write):

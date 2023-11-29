@@ -23,6 +23,7 @@ class Master():
 		self.n_slaves = n
 		self.slaves=[slave() for i in range(n)]
 		self.q = Queue()
+		self.active_processes = 0
 		pids=[]
 		for i in range(n):
 			self.slaves[i].confirm(i,self.fpath) 
@@ -47,7 +48,7 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 			s.send('dict',fname)
 			t=Thread(target=s.receive,args=(self.q,), daemon=True)
 			t.start()
-		self.collect()
+			self.active_processes += 1
 		#threading.Thread(target=delayed_close, args=(fname,)) 
 
 		a=0
@@ -65,17 +66,18 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 	def run(self, tasks, operation):
 		"""tasks is a list of string expressions to be executed. All variables in expressions are stored 
 		in the dictionary sent to the slaves"""
-		if not self.q.empty():
-			self.collect()
+		self.collect()
 		if type(tasks) == str:
 			tasks = [tasks]*self.n_slaves
-		for i, s in enumerate(self.slaves):
+		for i in range(len(tasks)):
+			s = self.slaves[i]
 			s.send(operation, tasks[i])#initiating the self.cpus first evaluations
 			t=Thread(target=s.receive,args=(self.q,), daemon=True)
 			t.start()
+			self.active_processes += 1
 
 	def exec(self, task):
-		self.run(task, 'exec')
+		return self.run(task, 'exec')
 
 	def eval(self, task):
 		self.run(task, 'eval')
@@ -83,14 +85,13 @@ Slave PIDs: %s"""  %(n,os.getpid(),', '.join(pids))
 	def collect(self):
 		"""Waiting and collecting the sent tasks. """
 		d = {}
-		while not self.q.empty():	
+		while self.active_processes>0:	
 			ds,s = self.q.get()
 			d[s] = ds			
+			self.active_processes -= 1
 		return d
 	
 	def import_module(self, name):
-		if not name[-3:] == '.py':
-			name+= '.py'
 		tasks = [os.path.join(self.import_dir, name)]*self.n_slaves
 		self.run(tasks, 'import')
 	

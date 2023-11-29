@@ -9,7 +9,7 @@ from .. import likelihood as logl
 import numpy as np
 
 
-def maximize(args, inbox, outbox, panel, gtol, tolx, nummerical, diag_hess, slave_id):
+def maximize(args, panel, gtol, tolx, nummerical, diag_hess, slave_id):
   args = np.array(args)
   comput = computation.Computation(args, panel, gtol, tolx, nummerical, diag_hess)
 

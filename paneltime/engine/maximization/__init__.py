@@ -1,98 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
-
-from ..output import stat_functions as stat
-from .. import likelihood as logl
-
 from ..output import communication as comm
 from ..output import output
-from . import init
+from . import maximize
 
 
 import numpy as np
 import time
-import itertools
-from queue import Queue
-import os
-
-EPS=3.0e-16 
-TOLX=(4*EPS) 
-GTOL = 1e-5
 
 
-
-TEST_ITER = 30
-
-
-
-def maximize(panel, args, mp, t0, comm):
-
-  task_name = 'maximization'
-  
-  gtol = panel.options.tolerance.value
-
-  if mp is None or panel.args.initial_user_defined:
-    node = 5
-    
-    d = maximize_node(panel, args.args_v, gtol, {}, {}, 0, False, False)    
-    d['node'] = node
-    return d
-
-  tasks = []
-  a = get_directions(panel, args, mp.n_slaves)
-  for i in range(len(a)):
-    tasks.append(
-                  f'maximization.maximize_node(panel, {list(a[i])}, {gtol}, inbox, outbox, slave_id, False, True)\n'
-                )
-
-  r = mp.exec(tasks, task_name)
-  return r
-
-
-
-def get_directions(panel, args, n):
-  if n == 1:
-    return [args.args_v]
-  d = args.positions
-  size = panel.options.initial_arima_garch_params.value
-  pos = [d[k][0] for k in ['rho', 'lambda'] if len(d[k])]
-  perm = np.array(list(itertools.product([-1,0, 1], repeat=len(pos))), dtype=float)
-  perm[:,:2] =perm[:,:2]*0.1
-  a = np.array([args.args_v for i in range(len(perm))])
-  a[:,pos] = perm
-  return a
-
-
-def maximize_node(panel, args, gtol = 1e-5, inbox = {}, outbox = {}, slave_id =0 , nummerical = False, diag_hess = False):
-  
-  
-  import cProfile
-  profiler = cProfile.Profile()
-  profiler.enable()
-  
-  res = init.maximize(args, inbox, outbox, panel, gtol, TOLX, nummerical, diag_hess, slave_id)
-  
-  profiler.disable()
-  profiler.print_stats(sort='cumulative')
-  
-  
-  #debug from . import debug
-  #debug.save_reg_data(ll, panel)	
-
-  H, G, g, ll = res['H'], res['G'], res['g'], res['ll']
-
-  ll.standardize(panel)
-  res['rsq_st'] = stat.goodness_of_fit(ll,True,panel)
-  res['rsq'] = stat.goodness_of_fit(ll,True,panel)
-  res['var_RE'] = panel.var(ll.e_RE)
-  res['var_u'] = panel.var(ll.u)
-  return res
-
-
-
-def run(panel, args, mp, window, exe_tab, console_output):
+def go(panel, args, mp, window, exe_tab, console_output):
   t0=time.time()
   comm  = Comm(panel, args, mp, window, exe_tab, console_output, t0)
   summary = Summary(comm, panel, t0)
@@ -200,7 +118,7 @@ class Comm:
     self.start_time=t0
     self.panel = panel
     self.channel = comm.get_channel(window,exe_tab,self.panel,console_output)
-    d = maximize(panel, args, mp, t0, self)
+    d = maximize.maximize(panel, args, mp, t0)
 
     self.get(d)
 

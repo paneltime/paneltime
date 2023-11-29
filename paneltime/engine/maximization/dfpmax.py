@@ -31,7 +31,8 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
 
   its, msg = 0, ''
   MAXITER = 10000
-
+  
+  
 
   fdict = {}
   for its in range(MAXITER):  	#Main loop over the iterations.
@@ -71,7 +72,7 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
     
   constr = comput.constr
   v = vars()
-  ret = {k:v[k] for k in v if not k in ['panel']}
+  ret = {k:v[k] for k in v if not k in ['panel', 'comput', 'ls']}
   return ret
 
 
