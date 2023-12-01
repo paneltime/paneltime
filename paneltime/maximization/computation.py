@@ -117,9 +117,10 @@ class Computation:
 
     err = np.max(np.abs(dx_realized)) < 100*TOLX
 
-    analytic_calc = (self.num_hess_count>6) or ((self.CI>10000) and (self.num_hess_count>5) and abs(g_norm)>10*self.gtol)
+    analytic_calc = (self.num_hess_count>10) or ((self.CI>1000) and (self.num_hess_count>3)) 
     analytic_calc = analytic_calc or (np.max(np.abs(dx_realized)) < 4*TOLX)
     analytic_calc = analytic_calc and (self.panel.options.use_analytical.value>0)
+    analytic_calc = self.panel.options.use_analytical.value == 2
     if calc:
       if analytic_calc:
         H = self.calc_hessian(ll)

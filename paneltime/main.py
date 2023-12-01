@@ -63,8 +63,6 @@ def go(datainput,options,mp,pqdkm,window,exe_tab, console_output):
     mp.exec("panel.init()\n")
   pnl.init()
 
-  if not options.parallel.value:
-    mp = None
   summary = maximization.go(pnl, pnl.args.args_init, mp, window, exe_tab, console_output)
 
   return summary

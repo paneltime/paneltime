@@ -12,4 +12,4 @@ __pycache__/
 build/
 dist/
 paneltime.egg-info/
-
+.DS_Store

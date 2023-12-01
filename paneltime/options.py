@@ -135,9 +135,6 @@ def regression_options():
   self.multicoll_threshold_max    = options_item(30,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
                                                        None,None)			
 
-  self.parallel  					= options_item(True,			"If True, uses multiple cores for parallel computing",
-                                                                              bool,'Multicore', [True,False],['Multicore','Single core'],category='General')
-
   #self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
   self.EGARCH	            = options_item(False,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
                                                       [True,False],['Direct GARCH','Usual GARCH'],category='ARIMA-GARCH')	
@@ -243,7 +240,7 @@ def regression_options():
                                                                     [str,dict], 'User constraints')
 
   self.use_analytical		= options_item(1,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
-                                                                  ['No analytical','Analytical in iterations only','Analytical initially and in iterations'],category='Genereal')
+                                                                  ['No analytical','Analytical in some iterations','Analytical in all iterations'],category='Genereal')
 
   self.make_category_tree()
 
