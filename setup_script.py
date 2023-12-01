@@ -22,7 +22,7 @@ def main():
 		
 	wd = os.getcwd()
 	
-	
+	os.system('python setup.py bdist_wheel sdist build')
 	if push:
 		os.system("twine upload dist/*")
 	
