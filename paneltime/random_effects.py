@@ -189,6 +189,7 @@ class re_obj:
     if x is None:
       return None
     mean_x,mean_x_all,incl=mean_time(panel, x)
+
     try:
       dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix
     except (RuntimeWarning,OverflowError) as e:
@@ -198,8 +199,39 @@ class re_obj:
       remove_extreemes([dFE])
     return dFE
 
+
 def mean_time(panel,x,mean_dates=False):
-  
+  #todo: fix fast so that it allways worked
+  #Currently, the fast excepts on unbalanced panels bc ut maps a ragged matrix
+  #possibel solution, change def of panel.dmap_all so that fills with zeros the non entries
+  #Problem with this is that there currently is no element on x that is allways zero.
+  try:
+    return mean_time_fast(panel,x,mean_dates)
+  except ValueError as e:
+    return mean_time_slow(panel,x,mean_dates)
+
+
+
+def mean_time_slow(panel,x,mean_dates=False):
+	n_dates=panel.n_dates
+	dmap=panel.date_map
+	date_count,s=get_subshapes(panel,x,False)
+	incl=panel.included[len(s)]
+	x=x*incl
+	sum_x_dates=np.zeros(s)
+	for i in range(n_dates):
+		sum_x_dates[i]=np.sum(x[dmap[i]],0)		
+	mean_x_dates=sum_x_dates/date_count
+	if mean_dates:
+		return mean_x_dates
+	mean_x=np.zeros(x.shape)
+	for i in range(n_dates):
+		mean_x[dmap[i]]=mean_x_dates[i]	
+	mean_x_all=np.sum(sum_x_dates,0)/panel.NT
+	return mean_x,mean_x_all,incl
+
+def mean_time_fast(panel,x,mean_dates=False):
+  #at present works only on balanced panels
   dmap_all=panel.dmap_all
   date_count,s=get_subshapes(panel,x,False)
   incl=panel.included[len(s)]

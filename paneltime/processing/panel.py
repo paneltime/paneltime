@@ -310,7 +310,9 @@ class panel:
     self.dmap_all =(
     [t_map_tuple[i][0] for i in range(self.n_dates)],
     [t_map_tuple[i][1] for i in range(self.n_dates)]
-    )    
+    )   
+    
+    a=0
 
 
   def define_h_func(self):
