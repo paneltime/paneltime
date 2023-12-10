@@ -3,25 +3,7 @@
 import numpy as np
 import ctypes as ct
 import os
-from pathlib import Path
-import numpy.ctypeslib as npct
-
-p = os.path.join(Path(__file__).parent.absolute(),'likelihood')
-p = os.path.join(p,'cfunctions')
-
-
-if os.name=='nt':
-  cfunct = npct.load_library('ctypes.dll',p)
-elif os.name == 'posix':
-  cfunct = npct.load_library('ctypes.dylib',p)
-else:
-  cfunct = npct.load_library('ctypes.so',p)
-
-
-
-CDPT = ct.POINTER(ct.c_double) 
-CIPT = ct.POINTER(ct.c_uint) 
-
+from . import cfunctions
 
 def save_csv(fname, array, sep = ','):
   f = open(fname, 'wt')
@@ -87,10 +69,7 @@ def fast_dot_c(a,b):
   r = r.flatten()
   b = b.flatten()
   cols = int(np.prod(s1[:-1]))
-  cfunct.fast_dot(r.ctypes.data_as(CIPT), 
-              a.ctypes.data_as(CDPT),
-              b.ctypes.data_as(CDPT), len(a), cols)
-
+  cfunctions.fast_dot(r, a, b, cols)
   r = r.reshape(s1)
   r = r.swapaxes(1,len(s0)-1)
   
@@ -98,4 +77,5 @@ def fast_dot_c(a,b):
               
 
   
+
 

@@ -3,7 +3,8 @@
 /*Use "cl /LD /Ox /Ot /Oi /GL /LTCG /fp:fast ctypes.cpp" to compile for windows */
 /*Linux suggestion (check): gcc -O3 and march=native */
 /*Linux: g++ -shared -o ctypes.so -fPIC ctypes.cpp*/
-/*#include <cstdio>
+/*Mac: clang++ -O3 -shared -o ctypes.dylib -fPIC ctypes.cpp*/
+/*include <cstdio>
 FILE *fp = fopen("coutput.txt","w"); */
 
 #include <cmath>
