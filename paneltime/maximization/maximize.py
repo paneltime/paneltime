@@ -52,6 +52,7 @@ def get_directions(panel, args, n):
   z = np.nonzero(np.sum(perm**2,1)==0)[0][0]
   perm = perm[np.arange(len(perm))!=z]
   perm[:,:] =perm[:,:]*0.01
+  perm = perm[:-1]
   a = np.array([args.args_v for i in range(len(perm))])
   a[:,pos] = perm
   return a
