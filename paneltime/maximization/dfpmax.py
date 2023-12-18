@@ -54,7 +54,7 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
 
     terminate = (conv>0) or err or its+1==MAXITER
 
-    #print(f"sid:{slave_id}, f:{ls.f}, conv:{conv}, its:{its}")
+    print(f"sid:{slave_id}, f:{ls.f}, conv:{conv}, its:{its}")
 
     if conv==1:
       msg = "Convergence on zero gradient; local or global minimum identified"
@@ -67,7 +67,7 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
     elif terminate:
       msg = "No convergence within %s iterations" %(MAXITER,)
     
-    if terminate:
+    if terminate or (conv>0) or err:
       break
     
   constr = comput.constr

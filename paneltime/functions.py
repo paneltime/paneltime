@@ -22,13 +22,13 @@ def dot(a,b,reduce_dims=True):
   if len(a.shape)==3 and len(b.shape)==2:  
     k,m = b.shape 
     N,T,k = a.shape    
-    x = np.dot(a.reshape((N*T,k)),b).reshape((N,T,m))
-    #x = np.array([np.dot(a[i],b) for i in range(a.shape[0])])
+    #x = np.dot(a.reshape((N*T,k)),b).reshape((N,T,m))
+    x = np.array([np.dot(a[i],b) for i in range(a.shape[0])])
   elif len(a.shape)==3 and len(b.shape)==3:
     N,T,m = b.shape 
     N,T,k = a.shape
-    x = np.dot(a.reshape((N*T,k)).T,b.reshape((N*T,m)))
-    #x = np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)   
+    #x = np.dot(a.reshape((N*T,k)).T,b.reshape((N*T,m)))
+    x = np.sum([np.dot(a[i].T,b[i]) for i in range(a.shape[0])],0)   
   elif len(a.shape)==2 and len(b.shape)==2:
     if a.shape[1] == b.shape[0]:
       x = np.dot(a,b)
