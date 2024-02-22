@@ -169,7 +169,7 @@ def parse_model(model_string,settings):
     X=[DEFAULT_INTERCEPT_NAME]
   if settings.add_intercept.value and not (DEFAULT_INTERCEPT_NAME in X):
     X=[DEFAULT_INTERCEPT_NAME]+X
-  return [Y],X
+  return [Y],list(np.unique(X))
 
 def get_names(x,inputtype,add_intercept=False,intercept_name=None):
   if x is None:
@@ -184,7 +184,8 @@ def get_names(x,inputtype,add_intercept=False,intercept_name=None):
     raise RuntimeError(f"Input for {inputtype} needs to be a list or tuple of strings, a pandas DataFrame object or a pandas Series object")
   if add_intercept:
     r=[intercept_name]+r
-  return r
+
+  return list(np.unique(r))
 
 def handle_time(ip,df,x):
   if x==[]:

@@ -22,19 +22,19 @@ def maximize(panel, args, mp, t0):
   gtol = panel.options.tolerance.value
 
   if mp is None or panel.args.initial_user_defined:
-    d = maximize_node(panel, args.args_v, gtol, 0, False, False)    
+    d = maximize_node(panel, args.args_v, gtol, 0)    
     return d
 
   tasks = []
   a = get_directions(panel, args, mp.n_slaves)
   for i in range(len(a)):
     tasks.append(
-                  f'max.maximize_node(panel, {list(a[i])}, {gtol}, {i}, False, True)\n'
+                  f'max.maximize_node(panel, {list(a[i])}, {gtol}, {i}, slave_server)\n'
                 )
     
   mp.eval(tasks)
-  r_base = maximize_node(panel, args.args_v, gtol, len(a), False, False)  
-  res = mp.collect()
+  r_base = maximize_node(panel, args.args_v, gtol, len(a))  
+  res = mp.collect(True)
   res[len(a)] = r_base
   f = [res[k]['f'] for k in res]
   r = res[list(res.keys())[f.index(max(f))]]
@@ -51,19 +51,19 @@ def get_directions(panel, args, n):
   perm = np.array(list(itertools.product([-1,0, 1], repeat=len(pos))), dtype=float)
   z = np.nonzero(np.sum(perm**2,1)==0)[0][0]
   perm = perm[np.arange(len(perm))!=z]
-  perm[:,:] =perm[:,:]*0.01
+  perm[:,:] =perm[:,:]*0.1
   perm = perm[:-1]
   a = np.array([args.args_v for i in range(len(perm))])
   a[:,pos] = perm
   return a
 
 
-def maximize_node(panel, args, gtol = 1e-5, slave_id =0 , nummerical = False, diag_hess = False):
+def maximize_node(panel, args, gtol = 1e-5, slave_id =0 , slave_server = None):
   
   
 
   
-  res = init.maximize(args, panel, gtol, TOLX, nummerical, diag_hess, slave_id)
+  res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server)
   
 
 

@@ -54,7 +54,7 @@ def solve(constr,H, g, x, f):
   except:
     dx = -np.linalg.solve(H, g)
     return dx, H, []
-  H = make_hess_posdef(H)
+
   H_orig = np.array(H)
   m=len(H)
 
@@ -151,9 +151,5 @@ def normalize(dx, x):
   dx_norm=(x<1e-2)*dx+(x>=1e-2)*dx_norm	
   return dx_norm	
 
-def make_hess_posdef(H):
-  c, var_prop, ev, p = stat.var_decomposition(XXNorm=H)
-  ev = ((ev<0) - 1.0 * (ev>=0)) * ev
-  H = np.dot(p, np.dot(np.diag(ev), p.T))  
-  return H
+
 

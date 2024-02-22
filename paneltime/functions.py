@@ -32,6 +32,11 @@ def dot(a,b,reduce_dims=True):
   elif len(a.shape)==2 and len(b.shape)==2:
     if a.shape[1] == b.shape[0]:
       x = np.dot(a,b)
+  elif len(a.shape)==2 and len(b.shape)==3:
+    #this should only be called for differencing in panel.py. Must be checke if used by other processes
+    N,T,k = b.shape 
+    x = np.array([np.dot(a,b[:,:,i].T) for i in range(k)])
+    x = x.swapaxes(0,2)
   return x
 
   
@@ -69,7 +74,8 @@ def fast_dot_c(a,b):
   r = r.flatten()
   b = b.flatten()
   cols = int(np.prod(s1[:-1]))
-  cfunctions.fast_dot(r, a, b, cols)
+  r, a, b = cfunctions.fast_dot(r, a, b, cols)
+
   r = r.reshape(s1)
   r = r.swapaxes(1,len(s0)-1)
   
@@ -77,5 +83,3 @@ def fast_dot_c(a,b):
               
 
   
-
-

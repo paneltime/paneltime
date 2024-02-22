@@ -20,14 +20,14 @@ class Output:
   def __init__(self,ll,panel, dx_norm):
     self.ll=ll
     self.panel=panel
-    
+    self.delta_time = 0
     self.incr=0
     self.dx_norm = dx_norm
 
     
     self.define_table_size()
     self.statistics_decimals = 3 
-    self.update(0, ll, self.incr, dx_norm)
+    self.update(0, ll, self.incr, dx_norm, 0)
     self.describe()
 
   def describe(self):
@@ -38,11 +38,12 @@ class Output:
     s = "Regression model:\n" + s 
     self.model_desc = s
 
-  def update(self,its, ll,incr, dx_norm):
+  def update(self,its, ll,incr, dx_norm, delta_time):
     self.iterations=its
     self.ll=ll
     self.dx_norm = dx_norm
     self.incr=incr
+    self.delta_time = delta_time
     self.stats = Statistics(self.ll,self.panel) 
     
 
@@ -83,14 +84,14 @@ class Output:
     
     return s, method
     
-  def statistics(self, start_time):
+  def statistics(self):
     s = self.stats
     panel = self.panel
     heading = 'Statistics:'
     model, method = self.get_model()
     n,T,k=self.panel.X.shape
     rob = panel.options.robustcov_lags_statistics.value[1]>0
-    run_time = np.round(time.time()-start_time)
+    run_time = np.round(self.delta_time)
 
 
 
@@ -419,7 +420,7 @@ class RegTableObj(dict):
       dx_col=['dx_norm']
     else:
       llength-=1
-    mcoll_col=[]
+    mcoll_col=['multicoll']
     if show_constraints:
       mcoll_col=[ 'multicoll','assco','set_to', 'cause']
     conf_coll = []

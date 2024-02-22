@@ -20,13 +20,14 @@ def go(panel, args, mp, window, exe_tab, console_output):
 
 class Summary:
   def __init__(self, comm, panel, t0):
-    self.output = comm.channel.output
-
+    self.output = output.Output(comm.ll, panel, comm.dx_norm)
+    self.output.update(comm.its, comm.ll, 0, comm.dx_norm, time.time()-t0)
+    self.table = output.RegTableObj(panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm, self.output.model_desc)
+      
     #coefficient statistics:
     self.coef_params = comm.ll.args.args_v
     self.coef_names = comm.ll.args.caption_v
     self.coef_se, self.coef_se_robust = output.sandwich(comm.H, comm.G, comm.g, comm.constr, panel, 100)
-    self.table = output.RegTableObj(panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm, self.output.model_desc)
     self.coef_tstat = self.table.d['tstat']
     self.coef_tsign = self.table.d['tsign']
     self.coef_codes = self.table.d['sign_codes']
@@ -53,8 +54,6 @@ class Summary:
     self.count_ids = N
     self.count_dates = T
     
-
-    self.statistics = output.Statistics(comm.ll, panel)
     self.CI , self.CI_n = self.output.get_CI(comm.constr)
 
     self.its = comm.its
@@ -62,35 +61,34 @@ class Summary:
     self.msg = comm.msg
     self.comm = comm
     self.t0 = t0
+    self.t1 = time.time()
+
+    #Random effects:
+    if (panel.options.fixed_random_time_eff.value + 
+        panel.options.fixed_random_group_eff.value) > 0:
+      self.u_re_i, self.u_re_t = self.ll.get_re(panel)
+
 
   def __str__(self, statistics = True, diagnostics = True, df_accounting = True):
-    return self.comm.channel.print_final(self.comm, self.t0,  statistics, diagnostics, df_accounting)
+    return '\n\n'.join([self.statistics(), self.results(), self.diagnostics(), self.accounting()])
     
 
-  def results(self, return_string = False):
-    t = self.table.table()[0]
-    if return_string:
-      return t
-    print(t)
-    return t
+  def results(self):
+    tbl,llength = self.table.table(5,'(','CONSOLE',False,
+                                      show_direction=False,
+                                      show_constraints=False, 
+                                      show_confidence = True)	      
+    return tbl
 
-  def print_df_summary(self, return_string = False):
-    t = self.statistics.gen_df_str(self.panel)
-    if return_string:
-      return t		
-    print(t)		
+  def statistics(self):
+    return self.output.statistics()		
 
-  def print_model_summary(self, return_string = False):
-    t = self.statistics.gen_mod_fit()
-    if return_string:
-      return t		
-    print(t)	
+  def diagnostics(self):
+    return self.output.diagnostics(self.comm.constr)
 
-  def print_adf_stat(self, return_string = False):
-    t = self.statistics.adf_str()
-    if return_string:
-      return t		
-    print(t)
+  def accounting(self):
+    return self.output.df_accounting(self.panel)
+    
     
   def predict(self, signals=None):
     #debug:

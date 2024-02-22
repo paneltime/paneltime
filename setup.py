@@ -53,7 +53,7 @@ setup(
 	extras_require={'linux':'gcc'},	
 
   package_data={
-      '': ['*.ico','likelihood/cfunctions/*'],
+      '': ['*.ico','cfunctions/*'],
       },
   include_package_data=True,
 

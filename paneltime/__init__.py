@@ -33,7 +33,7 @@ def enable_parallel():
   mp.exec("from paneltime.maximization import maximize as max")
   #this import creates overhead that is not immediately visible, since paneltime_mp is non-blocking. 
   #Paneltime basically needs to be initiated an extra time in the nodes, and paneltime_mp will not
-  #start another process before this import has finnished. Parallel therefore takes considerably more time
+  #start another process before this import has finished. Parallel therefore takes considerably more time
   #than running a single thread. The benefit is that it tries out different directions at once.
 
 

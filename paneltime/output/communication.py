@@ -55,6 +55,7 @@ class web_output:
       if panel.options.web_open_tab.value:
         webbrowser.open(WEB_PAGE, new = 2)
     self.output_set = False
+    self.t0 = time.time()
     #from . import charts
     #self.charts = charts.ProcessCharts(panel)
 
@@ -69,7 +70,7 @@ class web_output:
   def update(self,comput, its, ll, incr, dx_norm):
     if self.panel.options.supress_output.value:
       return
-    self.output.update(its, ll, incr, dx_norm)
+    self.output.update(its, ll, incr, dx_norm, time.time() - self.t0)
     self.reg_table = output.RegTableObj(self.panel, ll, comput.g, comput.H, comput.G, comput.constr, dx_norm, self.output.model_desc) 
     tbl,llength=self.reg_table.table(4,'(','HTML',True,
                                                  show_direction=True,
@@ -93,53 +94,17 @@ class web_output:
     self.f.close()
 
 
-  def print_final(self, comm, t0,  statistics = True, diagnostics = True, df_accounting = True):
-    s = comm.msg
-    s += f"\nLL={comm.f}  success={comm.conv}  t={time.time()-t0}  its: {comm.its}   node: {comm.node}\n"
-    s += comm.x
-    return s
 
 class console:
   def __init__(self,panel):
-    self.panel=panel
-    self.output_set = False
+    return
 
   def set_output_obj(self,ll, comput, dx_norm):
-    if self.output_set:
-      return
-    self.output=output.Output(ll,self.panel, dx_norm)
-    self.output_set = True
+    return
 
   def update(self, compute, its,ll,incr, dx_norm):
-    if self.panel.options.supress_output.value:
-      return
-    self.ll = ll
-    self.incr = incr
-    self.dx_norm = dx_norm
+    return
 
-
-  def print_final(self, comm, t0, statistics = True, diagnostics = True, df_accounting = True):
-    s = comm.msg + '\n'
-    if self.output_set:
-      self.output.update(comm.its, comm.ll, 0, comm.dx_norm)
-      self.reg_table=output.RegTableObj(comm.panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm, self.output.model_desc)
-      tbl,llength=self.reg_table.table(5,'(','CONSOLE',False,
-                                        show_direction=False,
-                                        show_constraints=False, 
-                                        show_confidence = True)	
-      if statistics:
-        s += self.output.statistics(t0) +'\n'
-      #print(self.output.model_desc)
-      s += '\n'+ tbl
-      if diagnostics:
-        s += self.output.diagnostics(comm.constr)+'\n'
-      if df_accounting:
-        s +=  self.output.df_accounting(self.panel)+'\n'
-    else:
-      s += f"LL={comm.f}  success={comm.conv}  t={comm.time}  its: {comm.its}   node: {comm.node}"+'\n'
-      s +=  comm.x+'\n'
-      
-    return s
 
 class tk_widget:
   def __init__(self,window,exe_tab,panel):
@@ -159,11 +124,6 @@ class tk_widget:
       return
     self.tab.update(self.panel, comput,its, ll, incr, dx_norm)
 
-  def print_final(self, comm, t0,  statistics = True, diagnostics = True, df_accounting = True):
-    s = comm.msg
-    s += f"\nLL={comm.f}  success={comm.conv}  t={time.time()-t0}  its: {comm.its}   node: {comm.node}\n"
-    s += comm.x
-    return s
 
 def get_web_page(LL, args, comput,tbl,auto_update):
   au_str=''

@@ -18,7 +18,7 @@ STPMX=100.0
 
 
 class Computation:
-  def __init__(self,args, panel, gtol, tolx, nummerical, diag_hess):
+  def __init__(self,args, panel, gtol, tolx):
     self.gradient=logl.calculus.gradient(panel)
     self.gtol = panel.options.tolerance.value
     self.tolx = tolx
@@ -34,15 +34,14 @@ class Computation:
     self.H, self.g, self.G = None, None, None
     self.mcollcheck = False
     self.rec =[]
-    self.nummerical = nummerical
     self.quit = False
     self.avg_incr = 0
 
-    self.diag_hess = diag_hess
     self.CI_anal = 2
     p, q, d, k, m = panel.pqdkm
     self.init_arma_its = 0
     self.set_constr(args)
+
 
 
 
@@ -52,9 +51,9 @@ class Computation:
     self.lmbda=lmbda
     self.has_reversed_directions=rev
     self.increment=increment
-    self.constr = None
-
+  
     self.constr_old=self.constr
+    self.constr = None
     self.constr = constraints.Constraints(self.panel,x,its)
 
     if self.constr is None:
@@ -71,11 +70,12 @@ class Computation:
     self.H_correl_problem=self.constr.H_correl_problem	
     self.mc_problems=self.constr.mc_problems
     self.weak_mc_dict=self.constr.weak_mc_dict
+    
 
 
   def exec(self, dx_realized,hessin, H, incr, its, ls, calc = True):
     f, x, g_old, rev, alam,ll = ls.f, ls.x, ls.g, ls.rev, ls.alam, ls.ll
-    #Thhese setting may not hold for all circumstances, and should be tested properly:
+    #These setting may not hold for all circumstances, and should be tested properly:
 
     
     TOTP_TOL = 1e-15
@@ -83,7 +83,7 @@ class Computation:
 
     g, G = self.calc_gradient(ll)
     dx, dx_norm, H_ = direction.get(g, x, H, self.constr, f, hessin, simple=False)
-    
+
     a = np.ones(len(g))
     if not self.constr is None:
       a[list(self.constr.fixed.keys())] =0		
@@ -106,21 +106,25 @@ class Computation:
     det = np.linalg.det(H)
     se = [None]*len(H)	
 
-    if (ls.conv == 3) or ( (its >len(self.constr.constr_matrix)+2) and ((abs(g_norm) < gtol) or (abs(totpgain)<TOTP_TOL))# or (max(np.abs(dx_norm*a))<gtol*0.1))
+    if (ls.conv == 3) or ( (its >len(self.constr.constr_matrix)+2) and ((abs(g_norm) < gtol))# or (max(np.abs(dx_norm*a))<gtol*0.1))
         or its>=self.panel.options.max_iterations.value):
       return self.handle_convergence(ll, g, H, x, f, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G, dx_norm, a, gtol)
     if not self.panel.options.supress_output.value:
-      print(f"its:{its}, f:{f}, gnorm: {abs(g_norm)}")
+      print(f"its:{its}, f:{f}, gnorm: {abs(g_norm)}, totpgain: {abs(totpgain)}")
 
     self.avg_incr = incr + self.avg_incr*0.7
     self.ev_constr = False#self.CI>1000
 
     err = np.max(np.abs(dx_realized)) < 100*TOLX
 
-    analytic_calc = (self.num_hess_count>10) or ((self.CI>1000) and (self.num_hess_count>3)) 
-    analytic_calc = analytic_calc or (np.max(np.abs(dx_realized)) < 4*TOLX)
-    analytic_calc = analytic_calc and (self.panel.options.use_analytical.value>0)
-    analytic_calc = self.panel.options.use_analytical.value == 2
+    if err:
+      a=0
+    if self.panel.options.use_analytical.value==2:
+      analytic_calc = True
+    elif self.panel.options.use_analytical.value==1:
+      analytic_calc = (self.num_hess_count>2) or (self.CI>1000) or err or (its<3)
+    else:
+      analytic_calc = False
     if calc:
       if analytic_calc:
         H = self.calc_hessian(ll)
@@ -170,7 +174,7 @@ class Computation:
     if abs(g_norm) < self.gtol:
       return x, f, hessin, Ha, G, g, 1, se, det, True
     elif abs(totpgain)<TOTP_TOL:
-      return x, f, hessin, Ha, G, g, 2, se, det, True
+      return x, f, hessin, Ha, G, g, 2, se, det, False
     elif its>=self.panel.options.max_iterations.value:
       return x, f, hessin, Ha, G, g, 3, se, det, True
     elif (ls.conv == 2) :

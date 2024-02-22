@@ -120,7 +120,7 @@ def regression_options():
                                                                              "An example can be obtained by printing ll.args.args_d"
                                                                                                                                         , [str,dict, list, np.ndarray], 'Initial arguments')	
 
-  self.ARMA_constraint	        = options_item(1000.0,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
+  self.ARMA_constraint	        = options_item(1000,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
                                                            None,None,category='ARIMA-GARCH')	
   self.constraints_engine	        = options_item(True,			'Determines whether to invoke the constraints engine', bool, 'Invoke constraints engine',
                                                               [True,False],['Invoke constraints','Do not invoke constraints'],category='Regression')	
@@ -214,7 +214,7 @@ def regression_options():
   self.subtract_means				= options_item(False,			"If True, subtracts the mean of all variables. This may be a remedy for multicollinearity if the mean is not of interest.",
                                                                           bool,'Subtract means', [True,False],['Subtracts the means','Do not subtract the means'],category='Regression')
 
-  self.supress_output				= options_item(False,			"If True, no output is printed.",
+  self.supress_output				= options_item(True,			"If True, no output is printed.",
                                                                           bool,'Supress output', [True,False],['Supresses output','Do not supress output'],category='Regression')
 
   self.tobit_limits				= options_item([None,None],		"Determines the limits in a tobit regression. "
@@ -223,7 +223,7 @@ def regression_options():
                                                                                                                                         [float,type(None)], 'Tobit-model limits', 
                                                                                                                                         descr_for_input_boxes=['lower limit','upper limit'])
 
-  self.tolerance					= options_item(0.001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
+  self.tolerance					= options_item(0.00000001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
                                                                              "is smaller than the tolerance, the procedure is "
                                                                                                                                         "Tolerance in maximum likelihood",
                                                                                                                                         float,"Tolerance", "%s>0")	
@@ -239,7 +239,7 @@ def regression_options():
   self.user_constraints			= options_item(None,			"You can add constraints as a dict or as a string in python dictonary syntax.\n",
                                                                     [str,dict], 'User constraints')
 
-  self.use_analytical		= options_item(1,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
+  self.use_analytical		= options_item(2,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
                                                                   ['No analytical','Analytical in some iterations','Analytical in all iterations'],category='Genereal')
 
   self.make_category_tree()

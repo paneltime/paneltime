@@ -60,11 +60,12 @@ class LL:
     self.set_var_bounds(panel)
     
     G = fu.dot(panel.W_a, self.args.args_d['omega'])
-    if 'initvar' in self.args.args_d:
-      G[0,0,0] = abs(self.args.args_d['initvar'][0])
-    else:
-      G[0,0,0] = panel.args.init_var
-    
+    if False:
+      if 'initvar' in self.args.args_d:
+        G[0,0,0] = abs(self.args.args_d['initvar'][0])
+      else:
+        G[0,0,0] = panel.args.init_var
+
     #Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
     u = panel.Y-fu.dot(X,self.args.args_d['beta'])
     u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*incl
@@ -182,6 +183,10 @@ class LL:
 
     return self.varRE
 
+  def get_re(self, panel, x = None):
+    if x == None:
+      x = self.u
+    return self.re_obj_i.RE(x, panel), self.re_obj_t.RE(x, panel)
 
 
   def standardize(self,panel,reverse_difference=False):

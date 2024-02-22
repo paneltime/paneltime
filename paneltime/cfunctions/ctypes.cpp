@@ -9,6 +9,7 @@ FILE *fp = fopen("coutput.txt","w"); */
 
 #include <cmath>
 #include <cstdio>
+#include <stdio.h>
 
 
 
@@ -162,7 +163,6 @@ void print(double *r) {
 
 
 EXPORT int  fast_dot(double *r, double *a, double *b, long n, long m) {
-
 	int i, j, k;
 	for(i=1;i<n;i++){//individual dimension
 		for(j=0;j<m;j++){
@@ -170,6 +170,7 @@ EXPORT int  fast_dot(double *r, double *a, double *b, long n, long m) {
 				r[i+k + j*n] += a[i]*b[k + j*n];
 			}
 		}
+		
 	}
 	return 0;
 }

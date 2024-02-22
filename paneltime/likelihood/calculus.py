@@ -123,9 +123,10 @@ class gradient:
     G=cf.concat_marray((dLL_beta,dLL_rho,dLL_lambda,dLL_gamma,dLL_psi,dLL_omega, dLL_initvar,dLL_mu,dLL_z))
     g=np.sum(G,(0,1))
     #For debugging:
-    #from .. import debug
-    #print(debug.grad_debug(ll,panel,0.00001))
-    #print(g)
+    if False:
+      from .. import debug
+      print(debug.grad_debug(ll,panel,0.00001))
+      print(g)
     #if np.sum((g-gn)**2)>10000000:
     #	a=0
     #print(gn)

@@ -447,3 +447,21 @@ class arguments_set:
     self.pqdkm=panel.pqdkm
     self.positions=arguments.positions
     self.names_category_list=arguments.names_category_list
+    self.create_args_names()
+
+  def create_args_names(self):
+    self.args_names = {}
+    for a in self.args_d:
+      for i, k in enumerate(self.names_d[a]):
+        if k in self.args_names:
+          raise RuntimeError(f'You have two instances of the name {k} in the regression. All names must be unique.')
+        self.args_names[k] = self.args_d[a][i]
+        try:
+          self.args_names[k] = self.args_names[k][0]
+        except IndexError as e:
+          pass
+
+
+
+
+

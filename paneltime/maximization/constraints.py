@@ -312,6 +312,8 @@ class Constraints(dict):
         self.weak_mc_dict[index]=[assc,cond_index]
       if cond and cond_index > coll_max_limit :#adding restrictions:
         self.add(assc,index,'collinear')
+        if computation.its/2.0==int(computation.its/2.0):
+          self.add(index,assc,'collinear')
         return
         if old is None:
           self.add(assc,index,'collinear')

@@ -19,7 +19,7 @@ EPS=3.0e-16
 TOLX=(4*EPS) 
 GTOL = 1e-5
 
-def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
+def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, slave_server=None):
   """Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
   Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
   its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
@@ -35,10 +35,13 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
   
 
   fdict = {}
+
   for its in range(MAXITER):  	#Main loop over the iterations.
 
 
     dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
+
+
     ls = linesearch.LineSearch(x, comput, panel, ll)
     ls.lnsrch(x, f, g, H, dx)	
 
@@ -52,9 +55,8 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
 
     err = (np.max(np.abs(dx_realized)) < TOLX) and (its >len(comput.constr.constr_matrix)+2)
 
-    terminate = (conv>0) or err or its+1==MAXITER
+    terminate = (conv>0) or err or its+1==MAXITER or (srvr_terminated(slave_server))
 
-    print(f"sid:{slave_id}, f:{ls.f}, conv:{conv}, its:{its}")
 
     if conv==1:
       msg = "Convergence on zero gradient; local or global minimum identified"
@@ -75,4 +77,8 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll):
   ret = {k:v[k] for k in v if not k in ['panel', 'comput', 'ls']}
   return ret
 
-
+def srvr_terminated(slave_server):
+  if slave_server is None:
+    return False
+  kill = slave_server.kill_request()
+  return kill
