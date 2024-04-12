@@ -3,6 +3,7 @@
 
 from . import linesearch
 from . import direction
+import sys
 
 import numpy as np
 import time
@@ -19,66 +20,85 @@ EPS=3.0e-16
 TOLX=(4*EPS) 
 GTOL = 1e-5
 
-def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, slave_server=None):
-  """Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
-  Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
-  its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
-  gradient is input as gtol. Returned quantities are x[1..n] (the location of the minimum),
-  iter (the number of iterations that were performed), and fret (the minimum value of the
-  function). The routine lnsrch is called to perform approximate line minimizations.
-  fargs are fixed arguments that ar not subject to optimization. ("Nummerical Recipes for C") """
+def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_server):
+	"""Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
+	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
+	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
+	gradient is input as gtol. Returned quantities are x[1..n] (the location of the minimum),
+	iter (the number of iterations that were performed), and fret (the minimum value of the
+	function). The routine lnsrch is called to perform approximate line minimizations.
+	fargs are fixed arguments that ar not subject to optimization. ("Nummerical Recipes for C") """
 
 
-  its, msg = 0, ''
-  MAXITER = 10000
-  
-  
+	its, msg = 0, ''
+	MAXITER = 10000
+	
+	
 
-  fdict = {}
+	fdict = {}
+	step = 1.0
+	step = 1
 
-  for its in range(MAXITER):  	#Main loop over the iterations.
+	for its in range(MAXITER):  	#Main loop over the iterations.
+
+		res = calc(g, x, H, comput, f, hessin, 
+												panel, step, its, fdict, ll, armaconstr)
+			
+
+		(g, G, x, H, comput, f, ll, hessin, 
+			conv, se, incr, dx_norm, step, g_norm) = res
+
+		
+		terminate = srvr_terminated(slave_server, its)
+
+		if conv==1:
+			msg = "Convergence on zero gradient; local or global minimum identified"
+		elif conv==2:
+			msg = "Convergence on zero expected gain; local or global minimum identified given multicolinearity constraints"		
+		elif conv==3:
+			msg = "Reached the maximum number of iterations. This should not happen."		  
+		elif conv==4:
+			msg = "Maximization has stalled"
+		elif conv==5:
+			msg = "Collinear"
+		elif conv==6:
+			msg = "Overflow"
+		elif terminate:
+			msg = f"Terminated. No convergence within {its} iterations" 
+
+		if terminate or (conv>0):
+			break
+
+	constr = comput.constr
+	v = vars()
+	ret = {k:v[k] for k in v if not k in ['panel', 'comput', 'ls']}
+	return ret
+
+def srvr_terminated(slave_server, its):
+	if slave_server is None:
+		return False
+	print('server up, receiving request')
+	kill = slave_server.kill_request()
+	print(f'server up, requested kill={kill}')
+	return kill
 
 
-    dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
 
+def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr):
+		dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
+		ls = linesearch.LineSearch(x, comput, panel, ll, step)
+		ls.lnsrch(x, f, g, H, dx)	
 
-    ls = linesearch.LineSearch(x, comput, panel, ll)
-    ls.lnsrch(x, f, g, H, dx)	
+		step = ls.step
+		dx_realized = ls.x - x
+		incr = ls.f - f
+		fdict[its] = ls.f
+		ll = ls.ll
 
-    dx_realized = ls.x - x
-    incr = ls.f - f
-    fdict[its] = ls.f
-    ll = ls.ll
+		print(list(ls.x[1:3])+list(ls.x[-2:])+[comput.CI, len(comput.constr.mc_constraints)])
 
+		x, f, hessin, H, G, g, conv, se, g_norm = comput.exec(dx_realized,  hessin, H, incr, its, ls, armaconstr)
 
-    x, f, hessin, H, G, g, conv, se, det, anal = comput.exec(dx_realized,  hessin, H, incr, its, ls)
-
-    err = (np.max(np.abs(dx_realized)) < TOLX) and (its >len(comput.constr.constr_matrix)+2)
-
-    terminate = (conv>0) or err or its+1==MAXITER or (srvr_terminated(slave_server))
-
-
-    if conv==1:
-      msg = "Convergence on zero gradient; local or global minimum identified"
-    elif conv==2:
-      msg = "Convergence on zero expected gain; local or global minimum identified given multicolinearity constraints"		
-    elif conv==3:
-      msg = "Reached the maximum number of iterations"		  
-    elif err:
-      msg = "Warning: Convergence on delta x; the gradient is incorrect or the tolerance is set too low"
-    elif terminate:
-      msg = "No convergence within %s iterations" %(MAXITER,)
-    
-    if terminate or (conv>0) or err:
-      break
-    
-  constr = comput.constr
-  v = vars()
-  ret = {k:v[k] for k in v if not k in ['panel', 'comput', 'ls']}
-  return ret
-
-def srvr_terminated(slave_server):
-  if slave_server is None:
-    return False
-  kill = slave_server.kill_request()
-  return kill
+		if (np.max(np.abs(g))>1e+50) or (np.max(np.abs(ll.e))>1e+50):
+			conv = 6
+		return g, G, x, H, comput, f, ll, hessin, conv, se, incr, dx_norm, step, g_norm

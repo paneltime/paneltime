@@ -3,6 +3,9 @@
 
 #contains the log likelihood object
 
+#for debug. comment out!
+import matplotlib.pyplot as plt
+
 from ..output import stat_functions
 from .. import random_effects as re
 from .. import functions as fu
@@ -13,6 +16,7 @@ from . import arma
 
 import numpy as np
 import traceback
+import sys
 import time
 
 
@@ -24,8 +28,8 @@ class LL:
   with the  panel object
   """
   def __init__(self,args,panel,constraints=None,print_err=False):
-    self.err_msg=''
-    self.errmsg_h=''
+    self.err_msg = ''
+    self.errmsg_h = ''
 
     #checking settings. If the FE/RE is done on the data before LL
     gfre=panel.options.fixed_random_group_eff.value
@@ -60,17 +64,18 @@ class LL:
     self.set_var_bounds(panel)
     
     G = fu.dot(panel.W_a, self.args.args_d['omega'])
-    if False:
+    G[0,max((panel.lost_obs-1,0)),0] = panel.args.init_var
+    if True:
       if 'initvar' in self.args.args_d:
-        G[0,0,0] = abs(self.args.args_d['initvar'][0])
-      else:
-        G[0,0,0] = panel.args.init_var
+        G[0,max((panel.lost_obs-1,0)),0] = self.args.args_d['initvar'][0]
 
     #Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
     u = panel.Y-fu.dot(X,self.args.args_d['beta'])
     u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*incl
 
+
     matrices=self.arma_calc(panel, u_RE, self.h_add, G)
+
     if matrices is None:
       return None		
     AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var, h=matrices
@@ -78,15 +83,12 @@ class LL:
     #NOTE: self.h_val itself is also set in ctypes.cpp/ctypes.c. If you change self.h_val below, you need to 
     #change it in the c-scripts too. self.h_val must be calcualted below as well for later calulcations. 
     if panel.options.EGARCH.value==0:
-      e_REsq =(e_RE**2+(e_RE==0)*1e-18) 
+      e_REsq =np.minimum(e_RE**2+(e_RE==0)*1e-18,1e+100)
       nd =1
-      self.h_val, self.h_e_val, self.h_2e_val = (e_RE**2+self.h_add)*incl, nd*2*e_RE*incl, nd*2*incl
+      self.h_val, self.h_e_val, self.h_2e_val = (e_RE**2+self.h_add)*incl, 2*e_RE*incl, 2*incl
       self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
     else:
-      minesq = 1e-20
-      e_REsq =np.maximum(e_RE**2,minesq)
-      nd = e_RE**2>minesq		
-
+      e_REsq =np.minimum(np.maximum(e_RE**2, 1e-20), 1e+100)	
       self.h_val, self.h_e_val, self.h_2e_val = np.log(e_REsq+self.h_add)*incl, 2*incl*e_RE/(e_REsq+self.h_add), incl*2/(e_REsq+self.h_add) - incl*2*e_RE**2/(e_REsq+self.h_add)**2
       self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 
@@ -98,10 +100,14 @@ class LL:
       debug.test_c_armas(u_RE, var, e_RE, panel, self, G)
 
     LL_full,v,v_inv,self.dvar_pos=function.LL(panel,var,e_REsq, e_RE, self.minvar, self.maxvar)
+
     self.tobit(panel,LL_full)
     LL=np.sum(LL_full*incl)
+
     self.LL_all=np.sum(LL_full)
+
     self.add_variables(panel,matrices, u, u_RE, var, v, G,e_RE,e_REsq,v_inv,LL_full)
+
     if abs(LL)>1e+100: 
       return None				
     return LL

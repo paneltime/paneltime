@@ -6,6 +6,7 @@ import numpy as np
 import itertools
 
 
+
 def get(g, x, H, constr, f, hessin, simple=True):
   n = len(x)
   if simple or (H is None):
@@ -31,6 +32,7 @@ def new(g, x, H, constr, f,dx, alam):
     dxalam, H, applied_constraints = solve(constr, H, -g*alam, x, f)	
     slope = np.sum(g*dx)
     rev = True
+
   return dxalam, slope, rev, applied_constraints
 
 def slope_check(g, dx):
@@ -70,7 +72,12 @@ def solve(constr,H, g, x, f):
     OK=constr.within(x+xi_full,False)
     if OK:break 
     key=keys[j]
-    dx, H = kuhn_tucker(constr,key,j,n, H, g, x, f,dx,delmap, OK)
+    try:
+      dx, H = kuhn_tucker(constr,key,j,n, H, g, x, f,dx,delmap, OK)
+    except np.linalg.LinAlgError as e:
+      if not 'Singular matrix' in e.args:
+        raise np.linalg.LinAlgError(e)
+      dx[delmap[key]] = 0
     applied_constraints.append(key)
   xi_full=np.zeros(m)
   xi_full[idx]=dx[:n]
@@ -99,10 +106,15 @@ def add_constraints(constr, H, g):
     except np.linalg.LinAlgError as e:
       if e.args[0] != 'Singular matrix':
         raise np.linalg.LinAlgError(e)
+  for k in list(keys):
+    if not idx_new[k]:#Remove all keys (interval constraints) that are all ready removed by 'False' in idx (fixed constraints)
+      keys.pop(keys.index(k))
   return n, g_new, H_new, delmap, keys, dx, idx_new
   
   
 def remove_and_enlarge(constr, H, g, idx):
+  #idx are fixed constraints
+  #keys is constructed from interval constraints
   m = len(g)
   delmap=np.arange(m) 
   if not np.all(idx==True):#removing fixed constraints from the matrix
@@ -125,6 +137,7 @@ def remove_and_enlarge(constr, H, g, idx):
   return n, g, H, delmap, keys
   
 def kuhn_tucker(constr,key,j,n,H,g,x, f, dx,delmap, OK,recalc=True):
+  H = np.array(H)
   q=None
   c=constr.intervals[key]
   i=delmap[key]

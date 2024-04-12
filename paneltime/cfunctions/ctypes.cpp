@@ -73,9 +73,8 @@ EXPORT int  armas(double *parameters,
 	long rw;
 
 	inverse(T, lambda, nlm, rho, nrh, AMA_1, AMA_1AR);
-
 	inverse(T, gamma, ngm, psi, npsi, GAR_1, GAR_1MA);
-	
+
 	//******************** BEFORE LOST OBS ******************//
 
 	for(k=0;k<N;k++){//individual dimension
@@ -83,7 +82,7 @@ EXPORT int  armas(double *parameters,
 		for(i=0;i<lost_obs;i++){//time dimension
 			//ARMA:
 			sum = 0;
-			for(j=0;j<=i;j++){//time dimesion, back tracking
+			for(j=0;j<=i;j++){//time dimension, back tracking
 				sum += AMA_1AR[j]*u[(i-j) + k*T];
 				}
 			e[i + k*T] = sum;
@@ -105,7 +104,7 @@ EXPORT int  armas(double *parameters,
 			for(i=lost_obs;i<(int) T_array[k];i++){//time dimension
 				//ARMA:
 				sum = 0;
-				for(j=0;j<=i;j++){//time dimesion, back tracking
+				for(j=0;j<=i;j++){//time dimension, back tracking
 					sum += AMA_1AR[j]*u[(i-j) + k*T];
 					}
 				e[i + k*T] = sum;
@@ -151,7 +150,7 @@ EXPORT int  armas(double *parameters,
 }
 	
 	
-void print(double *r) {
+void print(double *r){
 		int i;
 		for (i = 0; i < 10; i++) {
 				printf("%.2f ", r[i]);

@@ -163,7 +163,7 @@ def parse_model(model_string,settings):
   if split is None:#No dependent
     return [model_string],[DEFAULT_INTERCEPT_NAME]
   Y,X=model_string.split(split)
-  X = X.replace('\+','~') # "+' needs an escape character in order to be interpreted as + and not another regressor. ~ is avialable sinc it has all ready 
+  X = X.replace('++','~') # ++ indicates a sum shall be taken, in contrast to + that separate variables 
   X=[i.strip().replace('~','+') for i in X.split('+')]
   if X==['']:
     X=[DEFAULT_INTERCEPT_NAME]

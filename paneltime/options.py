@@ -132,7 +132,7 @@ def regression_options():
   self.multicoll_threshold_report = options_item(30,				'Threshold for reporting multicoll problems', float, 'Multicollinearity threshold',
                                                        None,None)		
 
-  self.multicoll_threshold_max    = options_item(30,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
+  self.multicoll_threshold_max    = options_item(1000,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
                                                        None,None)			
 
   #self.description				= options_item(None, 			"A description of the project." , 'entry','Description')	
@@ -165,7 +165,7 @@ def regression_options():
                                                                                                                                         "the function must return the value and its computation in the following order:\n"
                                                                                                                                         "h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
                                                                                                                                         , str,"GARCH function",category='Regression')
-  self.include_initvar				= options_item(False,			"If True, includes an initaial variance term",
+  self.include_initvar				= options_item(True,			"If True, includes an initaial variance term",
                                                                          bool,'Include initial variance', [True,False],['Include','Do not include'],category='Regression')
 
   self.initial_arima_garch_params = options_item(0.1,			'The initial size of arima-garch parameters (all directions will be attempted', 
@@ -223,12 +223,12 @@ def regression_options():
                                                                                                                                         [float,type(None)], 'Tobit-model limits', 
                                                                                                                                         descr_for_input_boxes=['lower limit','upper limit'])
 
-  self.tolerance					= options_item(0.00000001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
+  self.tolerance					= options_item(0.0000001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
                                                                              "is smaller than the tolerance, the procedure is "
                                                                                                                                         "Tolerance in maximum likelihood",
                                                                                                                                         float,"Tolerance", "%s>0")	
   
-  self.ARMA_round					= options_item(16, 		"Number og digits to round elements in the ARMA matrices by. Small differences in these values can "
+  self.ARMA_round					= options_item(14, 		"Number og digits to round elements in the ARMA matrices by. Small differences in these values can "
                                                 "change the optimization path and makes the estimate less robust"
                                                                                                                                         "Number of significant digits in ARMA",
                                                                                                                                         int,"# of signficant digits", "%s>0")	  

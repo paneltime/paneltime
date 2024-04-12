@@ -8,28 +8,27 @@ from pathlib import Path
 import numpy as np
 import os
 from .. import cfunctions
-
+import sys
 
 def set_garch_arch(panel,args,u, h_add, G):
   """Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
   the diagonal band"""
   N, T, _ = u.shape
-  rho = round( np.insert(-args['rho'],0,1), panel)
+  rho = np.insert(-args['rho'],0,1)
   psi = args['psi']
-  psi = round( np.insert(args['psi'],0,0), panel)
+  psi = np.insert(args['psi'],0,0)
 
 
 
-  lmbda = round( args['lambda'], panel)
-  gmma =  round( -args['gamma'], panel)
-  
-  
+  lmbda = args['lambda']
+  gmma =  -args['gamma']
+
   parameters = np.array(( N , T , 
                   len(lmbda), len(rho), len(gmma), len(psi), 
                   panel.options.EGARCH.value, panel.lost_obs, 
                   h_add))
-  AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_c(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
 
+  AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_c(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
   r=[]
   #Creating nympy arrays with name properties. 
   for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:
@@ -37,7 +36,6 @@ def set_garch_arch(panel,args,u, h_add, G):
     r.append((m,i))
   for i in ['e', 'var', 'h']:
     r.append(locals()[i])
-
   return r
 
 def inv_c(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr):
@@ -56,25 +54,20 @@ def inv_c(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr):
   cfunctions.armas(parameters, lmbda, rho, gmma, psi, 
                     AMA_1, AMA_1AR, GAR_1, GAR_1MA, 
                     u, e, var, h, G, T_arr)   
+
   return AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h
 
 
 
 def round(arr, panel):
+  #skiping round as it makes the code hang for some reson (see below)
   #There may be small differences in calculation between different systems. 
   #For consistency, the inverted matrixes are slightly rounded
   n_digits = panel.options.ARMA_round.value
-  zeros = arr==0
-  arrz = arr + zeros
-  s = np.sign(arr)
-  digits = np.array(np.log10(np.abs(arrz)), dtype=int)-(arr<1)
-  pow = (n_digits-digits)
-  #items smaller in magnitude than e-300 are set to zero:
-  arrz = arrz*(pow<300)
-  pow = pow*(pow<300)
-  a = np.array(arrz*10.0**(pow)+s*0.5,dtype=np.int64)
-  a = a*(zeros==False) 
-  return a*10.0**(-pow)
+  arr2 = arr*(np.abs(arr)>1e-100)
+  digits = 14-np.floor(np.log10(np.abs(arr2 + (arr2==0))))
+  scale = 10**digits
+  return np.round(arr2*scale)/scale
 
 
 

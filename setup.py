@@ -20,7 +20,6 @@ long_description = f.read()
 
 
 from setuptools import setup, Extension
-import numpy as np
 
 
 setup(
@@ -49,7 +48,7 @@ setup(
 
   packages=find_packages(exclude=['contrib', 'docs', 'tests']),
 
-  install_requires=['numpy >= 1.11','pymysql', 'pandas',  'mpmath', 'paneltime_mp'],
+  install_requires=['numpy >= 1.11','pandas',  'mpmath', 'paneltime_mp'],
 	extras_require={'linux':'gcc'},	
 
   package_data={
@@ -63,6 +62,6 @@ setup(
           ],
       },
  
-  include_dirs=[np.get_include()]  
+
 )
 

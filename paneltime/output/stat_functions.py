@@ -11,31 +11,33 @@ import numpy as np
 
 
 
-def var_decomposition(XXNorm=None,X=None):
+def var_decomposition(xx_norm=None,X=None):
   """Variance decomposition. Returns the matrix of condition indexes for each factor (rows) and each variable
-  (columns). Calculates the normalized sum of squares using square_and_norm if XXNorm is not supplied"""
-  if XXNorm is None:
-    XXNorm=square_and_norm(X)
-  ub=len(XXNorm)     
-  ev,p=np.linalg.eig(XXNorm)
+  (columns). Calculates the normalized sum of squares using square_and_norm if xx_norm is not supplied"""
+  if xx_norm is None:
+    xx_norm=square_and_norm(X)
+  ub=len(xx_norm)     
+  ev,p=np.linalg.eig(xx_norm)
   if np.any(np.round(ev.imag,15)!=len(ev)*[0]):
     pass
     #print( "non-real XX matrix")
 
   ev=ev.real
   p=p.real
-  d=np.abs(ev)**0.5+1e-100
-  MaxEv=np.max(d)  
+  d=np.abs(ev)**0.5
+  if any(ev==0):
+    return None, None, ev, p
+  max_ev=np.max(d)  
   fi=np.abs(p*p/((d*d).reshape((1,ub))+1E-200))
-  fiTot=np.sum(fi,1).reshape((ub,1))
-  pi=fi/(fiTot + (fiTot==0)*1E-200)
+  fi_tot=np.sum(fi,1).reshape((ub,1))
+  pi=fi/(fi_tot + (fi_tot==0)*1E-200)
   pi=pi.T
-  CondIx=MaxEv/d
-  ind=np.argsort(CondIx)
+  cond_ix=max_ev/d
+  ind=np.argsort(cond_ix)
   pi=pi[ind]
-  CondIx=CondIx[ind]
-  CondIx=CondIx.reshape((len(CondIx),1))
-  return CondIx,pi, ev, p
+  cond_ix=cond_ix[ind]
+  cond_ix=cond_ix.reshape((len(cond_ix),1))
+  return cond_ix,pi, ev, p
 
 def square_and_norm(X):
   """Squares X, and normalize to unit lenght.
@@ -54,8 +56,10 @@ def singular_elim(panel,X):
   r=np.arange(k)
   ci_threshold=50
   keep,XXCorrel=find_singulars(panel,X) 
-  XXNorm=square_and_norm(X)
-  cond_ix, pi, d, p =var_decomposition(XXNorm)
+  xx_norm = square_and_norm(X)
+  cond_ix, pi, d, p =var_decomposition(xx_norm)
+  if cond_ix is None:
+    return keep,cond_ix
   if max(cond_ix)<ci_threshold:
     return keep,cond_ix
   for cix in range(1,len(cond_ix)):
@@ -166,7 +170,6 @@ def correlogram(panel,e,lags,center=False):
     df=np.sum(incl)
     if df>0:
       rho[i]=np.sum(incl*e[:,i:]*e[:,0:-i])/(v*df)
-    rho[i] = 0
   return rho #The probability of no AC given H0 of AC.
 
 

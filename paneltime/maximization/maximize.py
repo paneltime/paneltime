@@ -3,7 +3,6 @@
 
 from . import init
 
-
 import numpy as np
 import time
 import itertools
@@ -33,6 +32,7 @@ def maximize(panel, args, mp, t0):
                 )
     
   mp.eval(tasks)
+ 
   r_base = maximize_node(panel, args.args_v, gtol, len(a))  
   res = mp.collect(True)
   res[len(a)] = r_base
@@ -59,18 +59,62 @@ def get_directions(panel, args, n):
 
 
 def maximize_node(panel, args, gtol = 1e-5, slave_id =0 , slave_server = None):
-  
-  
+  constr = []
+  if False:
+    r = [init.maximize(args, panel, gtol, TOLX, slave_id, slave_server, bc, constr) 
+        for bc in [False, True]
+    ]
+    bc = int(r[0]['ll'].LL<r[1]['ll'].LL)
+    res = r[bc]
+  else:
+    res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server, False, constr)
+  while True:
+    if not res['constr'].is_collinear:
+      break
+    f = res['constr'].fixed
+    coll = []
+    coll_preferred = []
+    for k in f:
+      if not k in constr:
+        coll.append(k)
+        if not k in panel.args.positions['beta']:#prefers not to constraint independents
+          coll_preferred.append(k)
+    if len(coll)==0:
+      break
+    if len(coll_preferred):
+      coll=coll_preferred
+    for c in ['rho', 'lambda','gamma','psi']:
+      #avoding constraining first ARMA coefficient
+      avoid_first_arma(coll, c, f, panel, constr)
 
-  
-  res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server)
-  
+    k = coll[np.argsort([f[k].ci for k in coll])[-1]]
+    if not panel.args.names_v[k]=='initvar':
+      args[k] = 0
+    print(f'Added multicollinearity constraint for {panel.args.names_v[k]}')
+    constr.append(k)
 
+    #trying another time
+    res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server, False, constr)
 
-  H, G, g, ll = res['H'], res['G'], res['g'], res['ll']
-
-  res['node'] = slave_id
 
   return res
 
+
+def avoid_first_arma(coll, c, f, panel, constr):
+  "Ensures the first ARMA coefficient is not constrained, if possible"
+  pos = panel.args.positions[c]
+  if len(pos)>1:
+    if pos[0] in coll:
+      found = False
+      for k in pos[1:]:
+        if k in coll:
+          found = True
+          coll.pop(coll.index(pos[0]))
+          break
+      if not found:
+        for j in pos[1:]: 
+          if not j in constr:
+            coll.pop(coll.index(pos[0]))
+            coll.append(pos[1])
+            f[pos[1]] = f[pos[0]]
 

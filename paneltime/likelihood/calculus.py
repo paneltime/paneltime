@@ -52,6 +52,7 @@ class gradient:
 
     (self.DLL_e, self.dLL_var)=(DLL_e, dLL_var)
     panel=self.panel
+    (N,T,k) = self.panel.X.shape
     incl=self.panel.included[3]
     re_obj_i,re_obj_t=ll.re_obj_i,ll.re_obj_t
     u, e_RE,u_RE,h_e_val,var,h_val,v=ll.u, ll.e_RE,ll.u_RE,ll.h_e_val,ll.var,ll.h_val,ll.v
@@ -82,9 +83,13 @@ class gradient:
     self.dvar_omega=fu.arma_dot(ll.GAR_1,panel.W_a,ll)
     self.dvar_initvar = None
     if 'initvar' in ll.args.args_d:
-      self.dvar_initvar = ll.GAR_1[0].reshape((1,panel.max_T,1))
-      if not panel.options.EGARCH.value and ll.args.args_d['initvar'][0]<0:	
-        self.dvar_initvar = -self.dvar_initvar
+      if panel.lost_obs>1:
+        self.dvar_initvar = np.append(np.zeros(panel.lost_obs-1), ll.GAR_1[0][:1-panel.lost_obs])
+        self.dvar_initvar = np.tile(self.dvar_initvar, (N, 1)).reshape((N,T,1))
+        a=0
+      else:
+        self.dvar_initvar = np.tile(ll.GAR_1[0], (N, 1)).reshape((N,T,1))
+
       
     (dvar_gamma, dvar_psi, dvar_mu, dvar_z_G, dvar_z)=(None,None,None,None,None)
     
@@ -127,6 +132,8 @@ class gradient:
       from .. import debug
       print(debug.grad_debug(ll,panel,0.00001))
       print(g)
+      a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL_full', 'psi',0)
+      a=0
     #if np.sum((g-gn)**2)>10000000:
     #	a=0
     #print(gn)

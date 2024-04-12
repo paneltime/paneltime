@@ -6,18 +6,26 @@ from . import computation
 #from ..likelihood_simple import dfpmax as dfpmax_smpl
 from .. import likelihood as logl
 
+
 import numpy as np
 
 
-def maximize(args, panel, gtol, tolx, slave_id, slave_server):
+def maximize(args, panel, gtol, tolx, slave_id, slave_server, betaconstr, constr = []):
   args = np.array(args)
-  comput = computation.Computation(args, panel, gtol, tolx)
+  comput = computation.Computation(args, panel, gtol, tolx, betaconstr, constr)
 
   initval = InitialValues(panel, comput)
   
   x, ll, f, g, hessin, H = initval.calc_init_dir(args, panel)
-  res = dfpmax.dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, slave_server)
+  armaconstr = panel.options.ARMA_constraint.value
 
+  res = dfpmax.dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_server)
+  if res['conv']==6:
+    armaconstr = 0.9
+    print(f"Overflow in dfpmax. Maximum absolute value for ARMA/GARCH coefficients set to {armaconstr}")
+    res = dfpmax.dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_server)
+  
+  res['node'] = slave_id
   return res
 
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
+import sys
+import gc
 MIN_DEN = 0
 
 def LL(panel,var,e_REsq, e_RE, minvar, maxvar):
@@ -15,16 +17,21 @@ def LL(panel,var,e_REsq, e_RE, minvar, maxvar):
     v=var	
     v_inv = incl/(var + MIN_DEN + (incl==0))	
 
+    #This seems to cause the code to hang in threads:
+    
     LL_full = LL_const-0.5*(incl*np.log(var+MIN_DEN + (incl==0))+(1-k)*e_REsq*v_inv
                                         + a* (np.abs(e_REsq-var)*v_inv)
                                                                 + (k/3)* e_REsq**2*v_inv**2
                                                                 )
+
+
   else:
     dvar_pos=(var < maxvar) * (var > minvar)
     var = np.maximum(np.minimum(var, maxvar), minvar)
     v = np.exp(var)*incl
     v_inv = np.exp(-var)*incl		
     LL_full = LL_const-0.5*(var+(e_REsq)*v_inv)
+
   return LL_full,v,v_inv,dvar_pos
 
 

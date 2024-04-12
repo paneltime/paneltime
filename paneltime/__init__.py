@@ -47,6 +47,9 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
 	HF: list with names of heteroskedasticity factors (additional regressors in GARCH)\n
 	instruments: list with names of instruments
 	console_output: if True, GUI output is turned off (GUI output is experimental)
+
+  Note that '++' will add two variables and treat the sum as a single variable
+  '+' separates variables
 	"""
 
   window=main.identify_global(inspect.stack()[1][0].f_globals,'window', 'geometry')

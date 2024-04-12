@@ -4,6 +4,7 @@ import numpy as np
 import ctypes as ct
 import os
 from . import cfunctions
+import warnings
 
 def save_csv(fname, array, sep = ','):
   f = open(fname, 'wt')
@@ -83,3 +84,8 @@ def fast_dot_c(a,b):
               
 
   
+def try_warn(function, args):
+  with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    res = function(*args)
+  return res
