@@ -44,7 +44,9 @@ class Constraints(dict):
 	def __init__(self,panel,args, its, armaconstr, betaconstr):
 		dict.__init__(self)
 		self.categories={}
-		self.mc_constraints = {}
+		self.mc_list = set()
+		self.mc_problems = set()
+		self.initvar_fixed = False
 		self.fixed={}
 		self.intervals={}
 		self.associates={}
@@ -59,7 +61,6 @@ class Constraints(dict):
 		self.m_zero=panel.m_zero
 		self.ARMA_constraint = armaconstr
 		self.H_correl_problem=False
-		self.mc_problems=[]	
 		self.is_collinear = False
 		self.constr_matrix_beta = [
 				 (0, 0, 0, 0, 1), 
@@ -242,43 +243,62 @@ class Constraints(dict):
 		self.weak_mc_dict=dict()
 		incl=np.array(k*[True])
 		incl[list(computation.constr.fixed)]=False
-		self.mc_problems=[]#list of [index,associate,condition index]
-		self.CI=self.constraint_multicoll(k, computation, incl, self.mc_problems, H)
-		self.add_mc_constraint(computation)
-		d = self.fixed
-		self.mc_constraints = {k:d[k] for k in d if d[k].cause=='collinear'}
+		self.CI = self.constraint_multicoll(k, computation, incl, H)
 
-	def constraint_multicoll(self, k,computation,incl,mc_problems, H):
+
+
+	def constraint_multicoll(self, k,computation,incl, H):
 		CI_max=0
 		for i in range(k-1):
-			CI,mc_list = self.multicoll_problems(computation, H, incl, mc_problems)
+			CI = self.multicoll_problems(computation, H, incl)
 			CI_max=max((CI_max,CI))
-			if len(mc_list)==0:
+			if len(self.mc_list)==0:
 				break
-			incl[mc_list]=False
+			incl[list(self.mc_list)]=False
 		return CI_max
 
-	def multicoll_problems(self, computation, H, incl, mc_problems):
+	def multicoll_problems(self, computation, H, incl):
 		c_index, var_prop, includemap, d, C = decomposition(H, incl)
 		if any(d==0):
 			self.remove_zero_eigenvalues(C, incl, includemap, d)
 			c_index, var_prop, includemap, d, C = decomposition(H, incl)
-		MAX_VAR_PROP_FRACTION = 0.5
+
 		if c_index is None:
 			return False,[]
-		mc_list=[]
-		limit = computation.panel.options.multicoll_threshold_report.value
+		limit_report = computation.panel.options.multicoll_threshold_report.value
+		limit = computation.panel.options.multicoll_threshold_max.value
+
 		for cix in range(1,len(c_index)):
-			if (np.sum(var_prop[-cix]>MAX_VAR_PROP_FRACTION)>1) and (c_index[-cix]>limit):
-				var_prop_ix=np.argsort(var_prop[-cix])[::-1]
-				var_prop_val=var_prop[-cix][var_prop_ix]
-				assc = var_prop_ix[0] #asscociated variable is picked first as the one whit the highest cond index
-				assc = includemap[assc] #obtains the index of assc after exlusions
-				done=var_prop_check(computation,var_prop_ix, var_prop_val, includemap,assc,mc_problems,c_index[-cix],mc_list)
-				if done:
+			for lmt,lst in [(limit, self.mc_list), 
+						(limit_report, self.mc_problems)]:
+				added = self.add_collinear(lmt, lst, c_index[-cix], 
+					   lmt==limit, var_prop[-cix], includemap, computation)
+				if added:
 					break
-		ensure_first_arma(mc_problems, self)
-		return c_index[-1],mc_list
+		return c_index[-1]
+
+	def add_collinear(self, limit, ci_list, ci, constrain, var_dist, includemap, computation):
+		sign_var = var_dist > 0.5
+
+		n = len(sign_var)
+		m = len(self.panel_args.names_v)
+		if self.initvar_fixed == True:
+			self.add(m-1 ,None,'initvar restr')
+		if (not np.sum(sign_var)>1) or ci<limit:
+			return False
+		a = np.argsort(var_dist)
+		index = includemap[a[-1]]
+		assc = includemap[a[-2]]
+		if index == m-2:
+			index = includemap[a[-2]]
+			assc = includemap[a[-1]]	
+			#self.initvar_fixed = True	
+		ci_list.add(index)
+		if constrain:
+			print(f"{index}/{m}")
+			self.add(index ,assc,'collinear', ci = ci)
+			return True
+		return False
 
 	def remove_zero_eigenvalues(self, C, incl, includemap, d):
 		combo =  find_singular_combinations(C, d)
@@ -287,7 +307,7 @@ class Constraints(dict):
 		for i in combo:
 			indx = includemap[i]
 			incl[indx] = False
-			self.add(indx, None,'caus collin')
+			self.add(indx, None,'zero ev')
 
 	def add_custom_constraints(self,panel, constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
 		"""Adds custom range constraints\n\n
@@ -353,35 +373,7 @@ class Constraints(dict):
 				except TypeError as e:
 					self.add(name,None,cause, [c,None],replace,args=args)
 
-	def add_mc_constraint(self, computation):
-		"""Adds constraints for severe MC problems"""
-		old = computation.constr_old
-		panel = computation.panel
-		if len(self.mc_problems)==0:
-			return
 
-		no_check=get_no_check(computation)
-		a=[i[0] for i in self.mc_problems]
-		if no_check in a:
-			mc=self.mc_problems[a.index(no_check)]
-			mc[0],mc[1]=mc[1],mc[0]
-		mc_limit = panel.options.multicoll_threshold_report.value
-		coll_max_limit = panel.options.multicoll_threshold_max.value
-
-		self.is_collinear = False
-		
-		for index,assc,cond_index in self.mc_problems:
-			cond = not ((index in self.associates) or (index in self.collinears))and (not index==no_check)
-			# same condition, but possible have a laxer condition for weak_mc_dict. 
-			if cond and cond_index>mc_limit :#contains also collinear variables that are only slightly collinear, which shall be restricted when calcuating CV-matrix:	
-				self.weak_mc_dict[index]=[assc,cond_index]
-			if cond and cond_index > coll_max_limit:#adding restrictions:
-				#assc is the variable with the highest associated ev (see def multicoll_problems())
-				if panel.args.names_v[index] == 'omega0' or panel.args.names_v[assc] == 'Initial variance':
-					self.add(assc,index,'collinear', ci = cond_index)
-				else:
-					self.add(index,assc,'collinear', ci = cond_index)
-				self.is_collinear = True
 
 					
 	def print(self, kind = None):
@@ -456,48 +448,6 @@ def find_singular_combinations(matrix, evs):
 	return None  # In case no combination found, though this should not happen
 
 
-def var_prop_check(computation,var_prop_ix,var_prop_val,includemap,assc,mc_problems,cond_index,mc_list):
-	i = 1
-	if var_prop_val[i]<0.5:
-		return True
-	index=var_prop_ix[i]
-	index=includemap[index]
-	mc_problems.append([index,assc,cond_index])
-	mc_list.append(index)
-	return False
-
-def ensure_first_arma(mc_problems, constr):
-	("If the first arma coefficient is found collinear but not the higher, the higher should be chosen" )
-	names_v = constr.panel_args.names_v
-	names_d = constr.panel_args.names_d
-	for i, a in enumerate(mc_problems):
-		k = a[0]
-		this = names_v[k]
-
-		fixed =  [a[0] for a in mc_problems]
-		fixed.pop(i)
-		group = constr.panel_args.find_group(this)
-
-		if not group in ['rho', 'lambda','gamma','psi']:
-			break
-
-		first = names_d[group][0]
-		second = names_d[group][1]
-		
-		if this != first:
-			break
-
-		mc_problems[i][0] = names_v.index(second)
-		a=0
-
-
-def get_no_check(computation):
-	no_check=computation.panel.options.do_not_constrain.value
-	X_names=computation.panel.input.X_names
-	if not no_check is None:
-		if no_check in X_names:
-			return X_names.index(no_check)
-		print("A variable was set for the 'Do not constraint' option (do_not_constrain), but it is not among the x-variables")
 
 
 

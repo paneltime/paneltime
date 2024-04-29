@@ -95,7 +95,7 @@ def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr):
 		fdict[its] = ls.f
 		ll = ls.ll
 
-		print(list(ls.x[1:3])+list(ls.x[-2:])+[comput.CI, len(comput.constr.mc_constraints)])
+		print(list(ls.x[1:3])+list(ls.x[-2:])+[comput.CI, len(comput.constr.mc_list)])
 
 		x, f, hessin, H, G, g, conv, se, g_norm = comput.exec(dx_realized,  hessin, H, incr, its, ls, armaconstr)
 

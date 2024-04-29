@@ -188,7 +188,7 @@ class Computation:
 			conv = 3
 		elif ((sum(self.errs[-3:])==10) and ls.alam<1e-5) or ((sum(self.errs[-3:])==3) and incr<1e-15): #stalled: 3 consectutive errors and small ls.alam, or no function increase
 			conv = 4
-		elif self.constr.CI>10000 and len(self.constr.mc_constraints) and False:
+		elif self.constr.CI>10000 and len(self.constr.mc_list) and False:
 			conv = 5
 		if not conv:
 			return hessin, H, 0, se
