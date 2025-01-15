@@ -39,7 +39,7 @@ def gradient(ll,panel):
   incl=panel.included[3]
   a,k=panel.options.GARCH_assist.value, panel.options.kurtosis_adj.value
   var,e_REsq,e_RE,v_inv=ll.var, ll.e_REsq, ll.e_RE,ll.v_inv 
-
+  var = np.maximum(np.minimum(var, ll.maxvar), ll.minvar)
   if panel.options.EGARCH.value==0:
     DLL_e   =-0.5*(	(1-k)*2*e_RE*v_inv	)
     dLL_var =-0.5*(	v_inv-(1-k)*(e_REsq)*v_inv**2	)
@@ -60,11 +60,18 @@ def gradient(ll,panel):
   DLL_e*=incl
   return dLL_var, DLL_e
 
+def minmax(x):
+  if np.max(np.abs(x))>1e+100:
+    return np.minimum(np.maximum(x,-1e+100), 1e+100)
+  return x
+
+
 def hessian(ll,panel):
   incl=panel.included[3]
   var,e_REsq,e_RE,v_inv=ll.var, ll.e_REsq, ll.e_RE,ll.v_inv 
   a,k=panel.options.GARCH_assist.value, panel.options.kurtosis_adj.value
-
+  var = np.maximum(np.minimum(var, ll.maxvar), ll.minvar)
+  
   if panel.options.EGARCH.value==0:	
     d2LL_de2 	=-0.5*(	(1-k)*2*v_inv	)
     d2LL_dln_de =-0.5*(	-(1-k)*2*e_RE*v_inv**2)

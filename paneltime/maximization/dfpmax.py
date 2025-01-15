@@ -29,24 +29,21 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 	function). The routine lnsrch is called to perform approximate line minimizations.
 	fargs are fixed arguments that ar not subject to optimization. ("Nummerical Recipes for C") """
 
-
-	its, msg = 0, ''
-	MAXITER = 10000
+	MAXITER = panel.options.max_iterations.value
 	
-	
-
 	fdict = {}
 	step = 1.0
-	step = 1
+
+	dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
 
 	for its in range(MAXITER):  	#Main loop over the iterations.
 
 		res = calc(g, x, H, comput, f, hessin, 
-												panel, step, its, fdict, ll, armaconstr)
+							panel, step, its, fdict, ll, armaconstr, dx)
 			
 
 		(g, G, x, H, comput, f, ll, hessin, 
-			conv, se, incr, dx_norm, step, g_norm) = res
+			conv, incr, step, g_norm, dx) = res
 
 		
 		terminate = srvr_terminated(slave_server, its)
@@ -84,7 +81,7 @@ def srvr_terminated(slave_server, its):
 
 
 
-def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr):
+def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr, dx):
 		dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
 		ls = linesearch.LineSearch(x, comput, panel, ll, step)
 		ls.lnsrch(x, f, g, H, dx)	
@@ -95,10 +92,11 @@ def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr):
 		fdict[its] = ls.f
 		ll = ls.ll
 
-		print(list(ls.x[1:3])+list(ls.x[-2:])+[comput.CI, len(comput.constr.mc_list)])
+		x, f, hessin, H, G, g, conv, g_norm, dx = comput.exec(dx_realized,  hessin, H, incr, its, ls, armaconstr)
 
-		x, f, hessin, H, G, g, conv, se, g_norm = comput.exec(dx_realized,  hessin, H, incr, its, ls, armaconstr)
 
-		if (np.max(np.abs(g))>1e+50) or (np.max(np.abs(ll.e))>1e+50):
-			conv = 6
-		return g, G, x, H, comput, f, ll, hessin, conv, se, incr, dx_norm, step, g_norm
+		#print(list(ls.x[1:3])+list(ls.x[-2:])+[comput.CI, len(comput.constr.mc_list)])
+		#print(g)
+
+
+		return g, G, x, H, comput, f, ll, hessin, conv, incr, step, g_norm, dx

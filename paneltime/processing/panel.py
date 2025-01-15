@@ -42,7 +42,7 @@ class panel:
 		p,q,d,k,m=self.pqdkm
 		self.orig_size=len(self.input.X)
 		self.max_lags=self.input.max_lags
-		self.lost_obs=0#max((p,q,self.max_lags))+max((m,k,self.max_lags))+d#+3
+		self.lost_obs = max((p,q,self.max_lags))+max((m,k,self.max_lags))+d#+3
 		self.nW,self.nZ,self.n_beta=len(self.input.W.columns),len(self.input.Z.columns),len(self.input.X.columns)
 		self.define_h_func()
 		self.Ld_inv=None

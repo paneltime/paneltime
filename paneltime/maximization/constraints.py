@@ -63,27 +63,22 @@ class Constraints(dict):
 		self.H_correl_problem=False
 		self.is_collinear = False
 		self.constr_matrix_beta = [
-				 (0, 0, 0, 0, 1), 
 				 (1, 0, 0, 0, 1), 
 				 (0, 1, 0, 0, 1),
-				 (1, 1, 0, 0, 1), 
-				 (0, 0, 1, 0, 1),
-				 (0, 0, 0, 1, 1), 
-				 (0, 0, 1, 1, 1), 
-				 (1, 1, 1, 1, 1)
+				 (0, 0, 1, 0, 1), 
+				 (0, 0, 0, 1, 1)
 		]
 		self.constr_matrix = [
-				 (0, 0, 0, 0, 0), 
 				 (1, 0, 0, 0, 0), 
 				 (0, 1, 0, 0, 0),
-				 (1, 1, 0, 0, 0), 
-				 (0, 0, 1, 0, 0),
-				 (0, 0, 0, 1, 0), 
-				 (0, 0, 1, 1, 0), 
-				 (1, 1, 1, 1, 0),                
+				 (0, 0, 1, 0, 0), 
+				 (0, 0, 0, 1, 0)
+              
 				]  
 		if betaconstr: 
 			self.constr_matrix = self.constr_matrix_beta + self.constr_matrix
+		#self.constr_matrix = []
+
 
 	def add(self,name,assco,cause,interval=None,replace=True,value=None,args=None, ci = 0):
 		#(self,index,assco,cause,interval=None,replace=True,value=None)
@@ -207,9 +202,9 @@ class Constraints(dict):
 			c=self.ARMA_constraint
 
 
-		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',0,1),('psi',0,1)]
+		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
 		if panel.options.include_initvar.value:
-			general_constraints.append(('initvar',1e-50,1e+50))
+			general_constraints.append(('initvar',1e-50,1e+10))
 		self.add_custom_constraints(panel, general_constraints, ll)
 		self.add_custom_constraints(panel, pargs.user_constraints, ll)
 		self.add_custom_constraints(panel, constr, ll)
@@ -230,7 +225,7 @@ class Constraints(dict):
 									 [(f'gamma{i}', None) for i in range(k0,k)] +
 									 [(f'psi{i}', None) for i in range(m0,m)])
 		if beta>0:
-			constr_list.append(('beta',0))
+			constr_list.append(('beta',None))
 		return constr_list
 		
 		
@@ -264,9 +259,9 @@ class Constraints(dict):
 			c_index, var_prop, includemap, d, C = decomposition(H, incl)
 
 		if c_index is None:
-			return False,[]
+			return 0
 		limit_report = computation.panel.options.multicoll_threshold_report.value
-		limit = computation.panel.options.multicoll_threshold_max.value
+		limit = computation.multicoll_threshold_max
 
 		for cix in range(1,len(c_index)):
 			for lmt,lst in [(limit, self.mc_list), 
@@ -295,7 +290,7 @@ class Constraints(dict):
 			#self.initvar_fixed = True	
 		ci_list.add(index)
 		if constrain:
-			print(f"{index}/{m}")
+			#print(f"{index}/{m}")
 			self.add(index ,assc,'collinear', ci = ci)
 			return True
 		return False

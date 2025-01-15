@@ -122,8 +122,12 @@ def regression_options():
 
   self.ARMA_constraint	        = options_item(1000,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
                                                            None,None,category='ARIMA-GARCH')	
-  self.constraints_engine	        = options_item(True,			'Determines whether to invoke the constraints engine', bool, 'Invoke constraints engine',
-                                                              [True,False],['Invoke constraints','Do not invoke constraints'],category='Regression')	
+  self.betaconstraint	          = options_item(True,			'Determines whether to initially constraint beta coefficients while setting the ARIMA-GARCH-coefficients', bool, 
+                                                              'Constraint betas initially',
+                                                              [True,False],['Constraint betas','Do not constraint betas'],category='Regression')	
+
+  self.constraints_engine	        = options_item(True,			'Determines whether to use the constraints engine', bool, 'Uses constraints engine',
+                                                              [True,False],['Use constraints','Do not use constraints'],category='Regression')	
 
   self.debug_mode	      	        = options_item(False,			'Determines whether the code will run in debug mode. Should normally allways be False', 
                                                                     bool, 'Debug or not',
@@ -180,7 +184,7 @@ def regression_options():
 
   self.min_group_df				= options_item(1, 				"The smallest permissible number of observations in each group. Must be at least 1", int, 'Minimum degrees of freedom', "%s>0",category='Regression')
 
-  self.max_iterations			= options_item(10000, 			"Maximum number of iterations", int, 'Maximum number of iterations', "%s>0",category='Regression')
+  self.max_iterations			= options_item(150, 			"Maximum number of iterations", int, 'Maximum number of iterations', "%s>0",category='Regression')
   
   self.max_increments			= options_item(0, 			"Maximum increment before maximization is ended", float, 'Maximum increments', "%s>0",category='Regression')
 
@@ -223,7 +227,7 @@ def regression_options():
                                                                                                                                         [float,type(None)], 'Tobit-model limits', 
                                                                                                                                         descr_for_input_boxes=['lower limit','upper limit'])
 
-  self.tolerance					= options_item(0.0000001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
+  self.tolerance					= options_item(0.001, 		"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
                                                                              "is smaller than the tolerance, the procedure is "
                                                                                                                                         "Tolerance in maximum likelihood",
                                                                                                                                         float,"Tolerance", "%s>0")	
@@ -239,7 +243,7 @@ def regression_options():
   self.user_constraints			= options_item(None,			"You can add constraints as a dict or as a string in python dictonary syntax.\n",
                                                                     [str,dict], 'User constraints')
 
-  self.use_analytical		= options_item(2,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
+  self.use_analytical		= options_item(1,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
                                                                   ['No analytical','Analytical in some iterations','Analytical in all iterations'],category='Genereal')
 
   self.make_category_tree()

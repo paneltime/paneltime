@@ -48,20 +48,22 @@ class LineSearch:
 		#*******CUSTOMIZATION
 		#multithread:
 
-		for i in range(30):#Setting alam so that the largest step is valid. Set func to return None when input is invalid
-			self.alam = 0.5**i*self.step #Always try full Newton step first.
+		for i in range(20):#Setting alam so that the largest step is valid. Set func to return None when input is invalid
+			self.alam = 0.5**i**2*self.step #Always try full Newton step first.
 			dx_alam, slope, self.rev, self.applied_constraints  = direction.new(g, x, H, self.comput.constr, f, dx, self.alam)
 			self.x = x + dx_alam
 			self.f, self.ll = self.func(self.x) 
 			if self.f != None: 
-				break
+				if self.f>=f:
+					break
 			
 
 		if self.f is None:
 			self.default(f, x, 0,  "dx is zero", 4)  
 			return 
 		#*************************
-		f2=0
+		f2=f
+		f0 = f
 		ll0 = self.ll
 		alam2 = self.alam
 		alamstart = self.alam#***********CUSTOMIZATION
@@ -73,7 +75,7 @@ class LineSearch:
 				self.f, self.ll = self.func(self.x) 
 			if self.f is None:
 				self.msg = 'Function reached undefined region'
-				self.f = f
+				self.f = f0
 				self.ll = ll0
 				return
 			if (self.alam < alamin):   #Convergence on delta x. For zero finding,the calling program should verify the convergence.
@@ -105,6 +107,9 @@ class LineSearch:
 					if (tmplam > 0.5*self.alam): 
 						tmplam = 0.5*self.alam   								#  lambda<=0.5*lambda1
 			alam2 = self.alam 
+			if self.f>f0:
+				f0 = self.f
+				ll0 = self.ll
 			f2 = self.f
 			self.alam = max(tmplam, 0.1*self.alam)								#lambda>=0.1*lambda1
 			if alamstart<1.0:#*************CUSTOMIZATION

@@ -32,7 +32,8 @@ def set_garch_arch(panel,args,u, h_add, G):
   r=[]
   #Creating nympy arrays with name properties. 
   for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:
-    m = round(locals()[i], panel)
+    x = np.maximum(np.minimum(locals()[i], 1e+150), -1e+150)
+    m = round(x, panel)
     r.append((m,i))
   for i in ['e', 'var', 'h']:
     r.append(locals()[i])

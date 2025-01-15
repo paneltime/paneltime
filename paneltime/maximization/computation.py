@@ -33,7 +33,6 @@ class Computation:
 		self.mc_problems=[]
 		self.H_correl_problem=False
 		self.singularity_problems=False
-		self.num_hess_count = 0
 		self.H, self.g, self.G = None, None, None
 		self.mcollcheck = False
 		self.rec =[]
@@ -44,6 +43,7 @@ class Computation:
 		p, q, d, k, m = panel.pqdkm
 		self.init_arma_its = 0
 		self.betaconstr = betaconstr
+		self.multicoll_threshold_max = panel.options.multicoll_threshold_max.value
 		self.set_constr(args, iterative_constr,  panel.options.ARMA_constraint.value)
 		
 
@@ -78,140 +78,66 @@ class Computation:
 		
 
 
+	
+
 	def exec(self, dx_realized,hessin, H, incr, its, ls, armaconstr):
-		f, x, g_old, rev, alam,ll = ls.f, ls.x, ls.g, ls.rev, ls.alam, ls.ll
+		f, x, g_old, ll = ls.f, ls.x, ls.g, ls.ll
 		#These setting may not hold for all circumstances, and should be tested properly:
 
-		
-		TOTP_TOL = 1e-15
-
-
 		g, G = self.calc_gradient(ll)
-		if np.max(np.abs(g))>1e+50:
-			return x, f, hessin, H, G, g, 0, None, 0
-		dx, dx_norm, H_ = direction.get(g, x, H, self.constr, f, hessin, simple=False)
+		
+		hessin, H  = self.hessin_get(g, g_old, dx_realized, ll, hessin, H, its)
 
+		self.set(its, ls.f - f, ls.alam, ls.rev,  H, ls.ll, ls.x, armaconstr)
+		dx, dx_norm, H_ = direction.get(g, x, H, self.constr, f, hessin, simple=False)
 		a = np.ones(len(g))
 		if not self.constr is None:
 			a[list(self.constr.fixed.keys())] =0		
 			a[ls.applied_constraints] = 0    
-
 		pgain, totpgain = potential_gain(dx*a, g, H)
-		self.totpgain = totpgain
-		max_pgain = abs(max(pgain))
-
-
-		g_norm =np.max(np.abs(g*a*x)/(abs(f)+1e-12) )
-		gtol = self.gtol
-			
-		if sum(a)==1:
-			gtol = 1e-10
-		self.rec.append(str(i) for i in [totpgain, max_pgain, incr, g_norm])
-		CI=0
-		if not self.CI is None:
-			CI = self.CI
-
-
-
-		se = [None]*len(H)	
+		max_pgain = max(pgain)
+		g_norm =min((np.max(np.abs(g*a*x)/(abs(f)+1e-12) ), 1e+50))
 		err = np.max(np.abs(dx_realized)) < 10000*TOLX
 		self.errs.append(err)
-
-		hessin, H, conv, se = self.handle_convergence(ll, H, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G, incr)
-		if conv:
-			return x, f, hessin, H, G, g, conv, se, g_norm
-
+		
 		if not self.panel.options.supress_output.value:
-			print(f"its:{its}, f:{f}, gnorm: {abs(g_norm)}, totpgain: {abs(totpgain)}")
+			print(f"its:{its}, f:{f}, gnorm: {abs(g_norm)}, totpgain: {abs(totpgain)}, max_pgain: {max(np.abs(pgain))}")
 			sys.stdout.flush()
 
-		self.avg_incr = incr + self.avg_incr*0.7
-		self.ev_constr = False#self.CI>1000
-
-		
-		h_det = fu.try_warn(np.linalg.det, (H,))
-		hessin_det = fu.try_warn(np.linalg.det, (hessin,))
-
-
-		if self.panel.options.use_analytical.value==2:
-			analytic_calc = not ((self.CI>100) 
-											 or err 
-											 or (not 0 < abs(h_det) < 1e+30)
-											 or (not 0 < abs(hessin_det) < 1e+30))
-		elif self.panel.options.use_analytical.value==1:
-			analytic_calc = ((self.CI>100) 
-											 or err 
-											 or (not 0 < abs(h_det) < 1e+30)
-											 or (not 0 < abs(hessin_det) < 1e+30))
-		else:
-			analytic_calc = False
-
-		if analytic_calc:
-			H = self.calc_hessian(ll)
-			a = 1.0
-			try:
-				hessin = np.linalg.inv(H)*a + (1-a)*hessin
-			except:
-				pass
-			self.num_hess_count = 0
-
-		else:
-			self.num_hess_count +=1
-			try:
-				hessin=self.hessin_num(hessin, g-g_old, dx_realized)
-				Hn = np.linalg.inv(hessin)
-				H = Hn
-			except:
-				H = self.calc_hessian(ll)
-
-		self.set(its, ls.f - f, ls.alam, ls.rev,  H, ls.ll, ls.x, armaconstr)
-
-		self.H, self.g, self.G = H, g, G
-
-		return x, f, hessin, H, G, g, 0, se, g_norm
-	
-	def set_constr(self, args, constr, armaconstr):
-		self.constr = constraints.Constraints(self.panel, args, 0, armaconstr, self.betaconstr)
-		self.constr.add_static_constraints(self.panel, 0, constr=constr)	    
-
-	def handle_convergence(self, ll, H, hessin, totpgain, its, TOTP_TOL, ls, g_norm, se, G, incr):
 		if its<len(self.constr.constr_matrix)+2:
-			return hessin, H, 0, se
-		
-		conv = 0
-
-		if abs(g_norm) < self.gtol:
+			conv = 0
+		elif abs(g_norm*max_pgain*totpgain) < self.gtol*25:
 			conv = 1
-		elif abs(totpgain)<TOTP_TOL:
+		elif abs(g_norm)<self.gtol:
 			conv = 2
 		elif its>=self.panel.options.max_iterations.value:
 			conv = 3
 		elif ((sum(self.errs[-3:])==10) and ls.alam<1e-5) or ((sum(self.errs[-3:])==3) and incr<1e-15): #stalled: 3 consectutive errors and small ls.alam, or no function increase
 			conv = 4
-		elif self.constr.CI>10000 and len(self.constr.mc_list) and False:
+		elif (np.max(np.abs(g))>1e+50) or (np.max(np.abs(ll.e))>1e+50):
 			conv = 5
-		if not conv:
-			return hessin, H, 0, se
-		return hessin, H, conv, se
-		Ha = self.calc_hessian(ll)    
-		keep = [True]*len(H)
-		if not self.constr is None:      
-			self.constr.add_dynamic_constraints(self, Ha, ll,ll.args.args_v)
-			keep = [not i in self.constr.fixed.keys() for i in range(len(H))]
-		Ha_keep = Ha[keep][:,keep]
-		self.CI_anal = condition_index(Ha_keep)
-		try:
-			det = np.linalg.det(Ha_keep)
-			hessin[keep][:,keep] = np.linalg.inv(Ha_keep)
-			se = stat.robust_se(self.panel, 100, hessin, G)[0]				
-		except Exception as e:
-			print(e)
+		else:
+			conv = 0
+
+		if (its>100 and (incr<0.01 or ls.alam<1e-5 or sum(self.errs[-3:])==3) 
+	  			and (self.multicoll_threshold_max != 1000)):
+			self.multicoll_threshold_max = 1000
+		elif its>100:
+			self.multicoll_threshold_max = self.panel.options.multicoll_threshold_max.value
+		
+		return x, f, hessin, H, G, g, conv, g_norm, dx
+	
 
 
 
-		return hessin, Ha, conv, se  
 
- 
+
+	
+	def set_constr(self, args, constr, armaconstr):
+		self.constr = constraints.Constraints(self.panel, args, 0, armaconstr, self.betaconstr)
+		self.constr.add_static_constraints(self.panel, 0, constr=constr)	    
+
+
 		
 	def calc_gradient(self,ll):
 		dLL_lnv, DLL_e=logl.func_gradent(ll,self.panel)
@@ -266,7 +192,7 @@ class Computation:
 		n=len(dg)
 		#and difference times current matrix:
 		hdg=(np.dot(hessin,dg.reshape(n,1))).flatten()
-		fac=fae=sumdg=sumxi=0.0 							#Calculate dot products for the denominators. 
+		#Calculate dot products for the denominators. 
 		fac = np.sum(dg*xi) 
 		fae = np.sum(dg*hdg)
 		sumdg = np.sum(dg*dg) 
@@ -283,7 +209,55 @@ class Computation:
 
 		return hessin
 
+	def hessin_get(self, g, g_old, dx_realized, ll, hessin_orig, H_orig, its):
+		H = self.calc_hessian(ll)
+		Hn, hessin = None, None
 
+		try:
+			hessin=self.hessin_num(hessin_orig, g-g_old, dx_realized)
+			Hn = np.linalg.inv(hessin)
+		except:
+			pass
+		if hessin is None or Hn is None:
+			if np.linalg.det(H)<0:
+				hessin = np.linalg.inv(H)
+				Hn = H
+			else:
+				if np.sum((g-g_old)*dx_realized)==0:
+					hessin = -np.identity(len(hessin_orig))
+				else:
+					hessin=self.hessin_num(np.identity(len(hessin_orig)), g-g_old, dx_realized)
+					if abs(np.linalg.det(hessin))<1e-100:
+						hessin = - np.identity(len(hessin_orig))
+				Hn = np.linalg.inv(hessin)
+		if H is None:
+			H = Hn
+
+		H, hessin = self.mixedhess(H, Hn, hessin, its)
+
+		return hessin, H
+	
+
+	def mixedhess(self, H, Hn, hessin, its):
+
+		if self.panel.options.use_analytical.value==0 and its>5:
+			try:
+				H_det = abs(fu.try_warn(np.linalg.det, (H,)))
+				Hn_det = abs(fu.try_warn(np.linalg.det, (Hn,)))
+				if H_det*Hn_det>0:
+					a = (1/H_det)/((1/H_det)+(1/Hn_det))
+					a = max((a,0.5))
+					H = a*H + (1-a)*hessin
+			except:
+				H = 0.5* H + 0.5*Hn
+		elif self.panel.options.use_analytical.value==1:
+			H = 0.5* H + 0.5*Hn
+		try:
+			hessin = np.linalg.inv(H)
+		except:
+			pass
+
+		return H, hessin
 
 def det_managed(H):
 	try:
@@ -331,6 +305,8 @@ def potential_gain(dx, g, H):
 		dxi=dx*(rng!=i)
 		dxLL[i]=dxLL_full-(sum(g*dxi)+0.5*np.dot(dxi.reshape((1,n)),np.dot(H,dxi.reshape((n,1)))))[0,0]
 
+	dxLL = np.minimum(np.abs(dxLL), 1e+50)
+	dxLL_full = min((np.abs(dxLL_full), 1e+50))
 	return dxLL, dxLL_full
 
 
