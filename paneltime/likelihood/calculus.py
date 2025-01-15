@@ -127,7 +127,7 @@ class gradient:
 		if np.any(np.isnan(g)):
 			a=0
 		#For debugging:
-		if True:
+		if False:
 			from .. import debug
 			print(debug.grad_debug(ll,panel,0.00001))
 			print(g)

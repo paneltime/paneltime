@@ -181,7 +181,7 @@ class Output:
 				 ('A) total # of groups:',len(panel.idincl)),
 				 ('B) # of groups removed:',sum(panel.idincl==False)), 
 				 ('# of groups remaining (A-B):',sum(panel.idincl==True)), 
-				 ('# of observations removed:',panel.input.X.shape[0]-panel.NT_before_loss)
+				 ('# of observations removed:',panel.input.X.shape[0]*panel.input.X.shape[0]-panel.NT_before_loss)
 				 ]    
 		
 
