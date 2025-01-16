@@ -2,7 +2,7 @@
 
 
 Author: Espen Sirnes
-Version: 1.1.6
+Version: 1.2.49
 
 This package integrates paneldata estimation with a very efficient ARIMA/GARCH
 estimator. 

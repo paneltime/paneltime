@@ -9,22 +9,31 @@ import glob
 
 def main():
 
-	push = '-p' in sys.argv
+	push_git = '-g' in sys.argv
+	push_pip = '-p' in sys.argv
 	try:
 		nukedir('dist')
 		nukedir('build')
 		nukedir('paneltime.egg-info')
 	except FileNotFoundError:
 		pass
-	if push:
-		version = add_version()
+	wd = os.path.dirname(__file__)
+	os.chdir(wd)
+
+	version = add_version(wd)
+	print(f"Incrementet to version {version}")
+
+	if push_git:
 		gitpush(version)
-		
-	wd = os.getcwd()
+	else:
+		print('Not pushed to git - use "-g" to push to git')
 	
 	os.system('python setup.py bdist_wheel sdist build')
-	if push:
+
+	if push_pip:
 		os.system("twine upload dist/*")
+	else:
+		print('Not pushed to pypi - use "-g" to push to pypi (pip)')
 	
 
 
@@ -37,20 +46,30 @@ def gitpush(version):
 	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit: ")}"')
 	os.system('git push')	
 	
-def add_version():
-	f = open('setup.py', 'r')
-	s = f.read()
-	m = re.search("(?<=version=')(.*)(?=')", s)
-	v = s[m.start(0):m.end(0)]
-	v = v.split('.')
-	v = v[0], v[1], str(int(v[2])+1)
-	version = '.'.join(v)
-	s = s[:m.start(0)] +  version + s[m.end(0):]
-	save('setup~.py', s)
-	save('setup.py',s)
-	os.remove('setup~.py')
-	save('paneltime/info.py', f"version='{version}'")
+def add_version(wd):
+	version = re_replace('setup.py', "(?<=version=')(.*)(?=')", wd)
+	re_replace('README.md', "(?<=Version:\s)([^\s]+)", wd, version)
+	re_replace('paneltime/info.py', "(?<=version=')(.*)(?=')", wd, version)
 	return version
+
+def re_replace(fname, searchterm, wd, version = None):
+	fname = os.path.join(wd, fname)
+	f = open(fname, 'r')
+	s = f.read()
+	m = re.search(searchterm, s)
+	if version is None:
+		v = s[m.start(0):m.end(0)]
+		v = v.split('.')
+		v = v[0], v[1], str(int(v[2])+1)
+		version = '.'.join(v)
+	s = s[:m.start(0)] +  version + s[m.end(0):]
+	tmpname = fname.replace('.', '~.')
+	save(tmpname, s)
+	save(fname,s)
+	os.remove(tmpname)
+
+	return version
+
 	
 def save(file, string):
 	f = open(file,'w')

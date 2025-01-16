@@ -7,7 +7,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-version='1.2.48'
+version='1.2.49'
 
 from setuptools import setup, find_packages
 from codecs import open
@@ -15,7 +15,7 @@ from os import path
 
 # Get the long description from the README file
 here = path.abspath(path.dirname(__file__))
-f = open(path.join(here, 'README.txt'), encoding='utf-8')
+f = open(path.join(here, 'README.md'), encoding='utf-8')
 long_description = f.read()
 
 
