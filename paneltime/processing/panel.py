@@ -74,7 +74,7 @@ class panel:
 		self.W_a=self.W*self.a[3]
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT=np.sum(self.included[3])
-		self.NT_before_loss=self.NT+self.tot_lost_obs
+		self.NT_before_loss=self.NT
 		if not hasattr(self,'n_dates'):
 			self.number_of_RE_coef=0
 			self.number_of_RE_coef_in_variance=0
@@ -167,7 +167,7 @@ class panel:
 		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs"""
 
 		X, Y, W, IDs,timevar,Z=[to_numpy(i) for i in 
-																				(self.input.X, self.input.Y, self.input.W, self.input.IDs_num,self.input.timevar_num,self.input.Z)]
+				(self.input.X, self.input.Y, self.input.W, self.input.IDs_num,self.input.timevar_num,self.input.Z)]
 		X,Y,Z=self.subtract_means(X,Y,Z)
 		NT,k=X.shape
 		self.total_obs=NT
@@ -201,7 +201,7 @@ class panel:
 			sel=(IDs.T==sel.reshape((N,1)))
 			T=np.sum(sel,1)
 			self.max_T=np.max(T)
-			self.idincl=T>self.lost_obs+self.options.min_group_df.value
+			self.idincl=T>=self.lost_obs+self.options.min_group_df.value
 			self.X=arrayize(X, N,self.max_T,T, self.idincl,sel)
 			self.Y=arrayize(Y, N,self.max_T,T, self.idincl,sel)
 			self.W=arrayize(W, N,self.max_T,T, self.idincl,sel)
@@ -233,6 +233,8 @@ class panel:
 		self.included=[None,None]
 		self.zeros=[None,None]
 		self.ones=[None,None]
+
+		#self.included[2] is 2 dim, self.included[3] is 3 dim and so on ...:
 		self.included.extend([included.reshape(list(included.shape)[:-1]+[1]*i) for i in range(5)])		
 		self.zeros.extend([zeros.reshape(list(zeros.shape)[:-1]+[1]*i) for i in range(5)])	
 		self.ones.extend([ones.reshape(list(ones.shape)[:-1]+[1]*i) for i in range(5)])	

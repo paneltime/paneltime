@@ -175,13 +175,13 @@ class Output:
 				 ('Lost observations:',''), 
 				 ('A) ARIMA/GARCH:', panel.lost_obs), 
 				 ('B) min obs (user preferences):',panel.options.min_group_df.value),
-				 ('Required observations (A+B):',panel.lost_obs+panel.options.min_group_df.value),
+				 ('Required obs (A+B):',panel.lost_obs+panel.options.min_group_df.value),
 				 
 				 ('Groups removed:',''),
 				 ('A) total # of groups:',len(panel.idincl)),
 				 ('B) # of groups removed:',sum(panel.idincl==False)), 
 				 ('# of groups remaining (A-B):',sum(panel.idincl==True)), 
-				 ('# of observations removed:',panel.input.X.shape[0]*panel.input.X.shape[0]-panel.NT_before_loss)
+				 ('# of observations removed:',panel.orig_size-panel.NT_before_loss)
 				 ]    
 		
 
