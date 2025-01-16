@@ -28,7 +28,7 @@ def main():
 	else:
 		print('Not pushed to git - use "-g" to push to git')
 	
-	os.system('python setup.py bdist_wheel sdist build')
+	os.system('python -m build')
 
 	if push_pip:
 		os.system("twine upload dist/*")
@@ -47,16 +47,18 @@ def gitpush(version):
 	os.system('git push')	
 	
 def add_version(wd):
-	version = re_replace('setup.py', "(?<=version=')(.*)(?=')", wd)
-	re_replace('README.md', "(?<=Version:\s)([^\s]+)", wd, version)
-	re_replace('paneltime/info.py', "(?<=version=')(.*)(?=')", wd, version)
+	srchtrm = r"(\d+\.\d+\.\d+)"
+	version = re_replace('setup.cfg', srchtrm, wd)
+	re_replace('setup.py',srchtrm, wd, version)
+	re_replace('README.md', srchtrm, wd, version)
+	re_replace('paneltime/info.py', srchtrm, wd, version)
 	return version
 
 def re_replace(fname, searchterm, wd, version = None):
 	fname = os.path.join(wd, fname)
 	f = open(fname, 'r')
 	s = f.read()
-	m = re.search(searchterm, s)
+	m = re.search(searchterm, s, re.MULTILINE)
 	if version is None:
 		v = s[m.start(0):m.end(0)]
 		v = v.split('.')
