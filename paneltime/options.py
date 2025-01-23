@@ -3,8 +3,18 @@
 import numpy as np
 def create_options():
 	options = options_dict()
+	options_to_txt(options)
 	opt = OptionsObj(options)
 	return opt
+
+def options_to_txt(options):
+	with open('options.txt','w') as f:
+		for o in options:
+			if type(options[o].dtype) is list:
+				tp = [i.__name__ for i in options[o].dtype]
+			else:
+				tp = options[o].dtype.__name__
+			f.write(f"|{o}|{options[o].value}|{tp}|{options[o].name}:{options[o].description.replace('\n', '')}|\n")
 
 class options_item:
 	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None, descr_for_input_boxes=[],category='General'):
