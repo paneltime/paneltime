@@ -78,8 +78,8 @@ class Summary:
 	def rndeff_stats(self, panel):
 		#Random effects:
 		try:
-			if (panel.options.fixed_random_time_eff.value + 
-					panel.options.fixed_random_group_eff.value) > 0:
+			if (panel.options.fixed_random_time_eff + 
+					panel.options.fixed_random_group_eff) > 0:
 				self.u_re_i, self.u_re_t = self.ll.get_re(panel)
 		except:
 			pass
@@ -150,6 +150,6 @@ class Comm:
 			det = np.linalg.det(self.H)
 		except:
 			det = 'NA'
-		if (not self.panel.options.supress_output.value) and self.f!=self.current_max:
+		if (not self.panel.options.supress_output) and self.f!=self.current_max:
 			print(f"node: {self.node}, its: {self.its},  LL:{self.f}")
 		self.current_max = self.f

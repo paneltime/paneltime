@@ -29,7 +29,7 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 	function). The routine lnsrch is called to perform approximate line minimizations.
 	fargs are fixed arguments that ar not subject to optimization. ("Nummerical Recipes for C") """
 
-	MAXITER = panel.options.max_iterations.value
+	MAXITER = panel.options.max_iterations
 	
 	fdict = {}
 	step = 1.0

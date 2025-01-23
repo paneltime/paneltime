@@ -41,7 +41,7 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
 
   """Maximizes the likelihood of an ARIMA/GARCH model with random/fixed effects (RE/FE)\n
 	model_string: a string on the form 'Y ~ X1 + X2 + X3\n
-	dataframe: a dataframe consisting of variables with the names usd in model_string, ID, T, HF and instruments\n
+	dataframe: a dataframe consisting of variables with the names usd in model_string\n
 	ID: The group identifier\n
 	T: the time identifier\n
 	HF: list with names of heteroskedasticity factors (additional regressors in GARCH)\n
@@ -62,7 +62,7 @@ def execute(model_string,dataframe, ID=None,T=None,HF=None,instruments=None, con
 
 __version__ = info.version
 
-options=opt_module.regression_options()
+options=opt_module.create_options()
 preferences=opt_module.application_preferences()
 
 

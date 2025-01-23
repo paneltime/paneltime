@@ -203,7 +203,7 @@ class Constraints(dict):
 
 
 		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
-		if panel.options.include_initvar.value:
+		if panel.options.include_initvar:
 			general_constraints.append(('initvar',1e-50,1e+10))
 		self.add_custom_constraints(panel, general_constraints, ll)
 		self.add_custom_constraints(panel, pargs.user_constraints, ll)
@@ -260,7 +260,7 @@ class Constraints(dict):
 
 		if c_index is None:
 			return 0
-		limit_report = computation.panel.options.multicoll_threshold_report.value
+		limit_report = computation.panel.options.multicoll_threshold_report
 		limit = computation.multicoll_threshold_max
 
 		for cix in range(1,len(c_index)):

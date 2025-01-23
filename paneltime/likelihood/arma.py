@@ -25,7 +25,7 @@ def set_garch_arch(panel,args,u, h_add, G):
 
   parameters = np.array(( N , T , 
                   len(lmbda), len(rho), len(gmma), len(psi), 
-                  panel.options.EGARCH.value, panel.lost_obs, 
+                  panel.options.EGARCH, panel.lost_obs, 
                   h_add))
 
   AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_c(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)
@@ -64,7 +64,7 @@ def round(arr, panel):
   #skiping round as it makes the code hang for some reson (see below)
   #There may be small differences in calculation between different systems. 
   #For consistency, the inverted matrixes are slightly rounded
-  n_digits = panel.options.ARMA_round.value
+  n_digits = panel.options.ARMA_round
   arr2 = arr*(np.abs(arr)>1e-100)
   digits = 14-np.floor(np.log10(np.abs(arr2 + (arr2==0))))
   scale = 10**digits

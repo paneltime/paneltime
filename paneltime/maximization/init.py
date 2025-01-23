@@ -17,7 +17,7 @@ def maximize(args, panel, gtol, tolx, slave_id, slave_server, betaconstr, constr
 	initval = InitialValues(panel, comput)
 	
 	x, ll, f, g, hessin, H = initval.calc_init_dir(args, panel)
-	armaconstr = panel.options.ARMA_constraint.value
+	armaconstr = panel.options.ARMA_constraint
 
 	res = dfpmax.dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_server)
 	if res['conv']==6:
@@ -63,7 +63,7 @@ class InitialValues:
 		g, G = self.comput.calc_gradient(ll)
 		if sum(np.isnan(g)):
 			a=0
-		if self.panel.options.use_analytical.value==0:
+		if self.panel.options.use_analytical==0:
 			H = -np.identity(len(g))
 			hessin = H
 			return p0, ll, ll.LL , g, hessin, H

@@ -63,7 +63,7 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 					('IDs_num',False,True),('timevar_num',False,True),
 																('IDs',False,False),('timevar',False,False),
 																('W',True,True),('Z',True,True),('Y',False,True),
-																	('X',settings.add_intercept.value,True)]:
+																	('X',settings.add_intercept,True)]:
 		ip.__dict__[x], const[x]= check_var(df,locals()[x],x,add_intercept,num)
 		ip.__dict__[x+"_names"]=list(ip.__dict__[x].columns)
 	ip.dataframe=df
@@ -167,7 +167,7 @@ def parse_model(model_string,settings):
 	X=[i.strip().replace('~','+') for i in X.split('+')]
 	if X==['']:
 		X=[DEFAULT_INTERCEPT_NAME]
-	if settings.add_intercept.value and not (DEFAULT_INTERCEPT_NAME in X):
+	if settings.add_intercept and not (DEFAULT_INTERCEPT_NAME in X):
 		X=[DEFAULT_INTERCEPT_NAME]+X
 	return [Y], ordered_unique(X)
 

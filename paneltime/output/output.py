@@ -63,8 +63,8 @@ class Output:
 		if (k*m):
 			if s!='': s += '-'
 			s += f"GARCH{(k,m)}"
-		t = self.panel.options.fixed_random_time_eff.value
-		i = self.panel.options.fixed_random_group_eff.value
+		t = self.panel.options.fixed_random_time_eff
+		i = self.panel.options.fixed_random_group_eff
 		if t+i:
 			if s!='': s += ' '      
 			if (t==2)&(i==2):
@@ -90,7 +90,7 @@ class Output:
 		heading = 'Statistics:'
 		model, method = self.get_model()
 		n,T,k=self.panel.X.shape
-		rob = panel.options.robustcov_lags_statistics.value[1]>0
+		rob = panel.options.robustcov_lags_statistics[1]>0
 		run_time = np.round(self.delta_time)
 
 
@@ -174,8 +174,8 @@ class Output:
 				 ('GROUP REMOVAL:',''),
 				 ('Lost observations:',''), 
 				 ('A) ARIMA/GARCH:', panel.lost_obs), 
-				 ('B) min obs (user preferences):',panel.options.min_group_df.value),
-				 ('Required obs (A+B):',panel.lost_obs+panel.options.min_group_df.value),
+				 ('B) min obs (user preferences):',panel.options.min_group_df),
+				 ('Required obs (A+B):',panel.lost_obs+panel.options.min_group_df),
 				 
 				 ('Groups removed:',''),
 				 ('A) total # of groups:',len(panel.idincl)),
@@ -278,7 +278,7 @@ class RegTableObj(dict):
 		try:
 			self.set(panel, ll, g, H, G, constr, dx_norm, model_desc)
 		except Exception as e:
-			if not panel.options.supress_output.value:
+			if not panel.options.supress_output:
 				print(f'Exception while getting statistics: {e}')
 		
 	def set(self, panel, ll, g, H, G, constr, dx_norm, model_desc):
@@ -287,7 +287,7 @@ class RegTableObj(dict):
 		self.X_names = panel.input.X_names
 		self.args = ll.args.dict_string
 		self.n_variables = panel.args.n_args
-		self.lags = panel.options.robustcov_lags_statistics.value[1]
+		self.lags = panel.options.robustcov_lags_statistics[1]
 		self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{ll.err_msg}"	
 		self.dx_norm = dx_norm
 		self.t_stats(panel, ll, H, G, g, constr)
@@ -574,7 +574,7 @@ class Statistics:
 		try:
 			self.set(ll, panel)
 		except Exception as e:
-			if not panel.options.supress_output.value:
+			if not panel.options.supress_output:
 				print(f'Exception while getting statistics: {e}')
 
 

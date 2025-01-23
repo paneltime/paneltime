@@ -25,7 +25,7 @@ class panel:
 		if not pqdkm is None:
 			self.pqdkm=pqdkm
 		else:
-			self.pqdkm=settings.pqdkm.value
+			self.pqdkm=settings.pqdkm
 
 	def init(self):
 		self.initial_defs()
@@ -47,9 +47,9 @@ class panel:
 		self.define_h_func()
 		self.Ld_inv=None
 		if self.input.IDs is None:
-			self.options.fixed_random_group_eff.value=0
+			self.options.fixed_random_group_eff=0
 		if self.input.IDs is None:
-			self.options.fixed_random_group_eff.value=0		
+			self.options.fixed_random_group_eff=0		
 		self.m_zero = False
 		if  m==0 and k>0:
 			self.m_zero = True
@@ -82,9 +82,9 @@ class panel:
 			self.options.fixed_random_time_eff.set(0)
 			self.options.fixed_random_variance_eff.set(0)
 		else:
-			self.number_of_RE_coef=self.N*(self.options.fixed_random_group_eff.value>0)+self.n_dates*(self.options.fixed_random_time_eff.value>0)
-			self.number_of_RE_coef_in_variance=(self.N*(self.options.fixed_random_group_eff.value>0)
-																														+self.n_dates*(self.options.fixed_random_time_eff.value>0))*(self.options.fixed_random_variance_eff.value>0)
+			self.number_of_RE_coef=self.N*(self.options.fixed_random_group_eff>0)+self.n_dates*(self.options.fixed_random_time_eff>0)
+			self.number_of_RE_coef_in_variance=(self.N*(self.options.fixed_random_group_eff>0)
+																														+self.n_dates*(self.options.fixed_random_time_eff>0))*(self.options.fixed_random_variance_eff>0)
 		self.args=arguments.arguments(self)
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_RE_coef_in_variance
 		self.set_instrumentals()
@@ -141,7 +141,7 @@ class panel:
 		self.XIV=fu.dot(self.Z, ZZInv_ZX)#using non-normalized first, since XIV should be unnormalized.	
 
 	def subtract_means(self,X,Y,Z):
-		subtract=self.options.subtract_means.value
+		subtract=self.options.subtract_means
 		if not subtract:
 			return X,Y,Z
 		X=X-np.mean(X,0)
@@ -201,7 +201,7 @@ class panel:
 			sel=(IDs.T==sel.reshape((N,1)))
 			T=np.sum(sel,1)
 			self.max_T=np.max(T)
-			self.idincl=T>=self.lost_obs+self.options.min_group_df.value
+			self.idincl=T>=self.lost_obs+self.options.min_group_df
 			self.X=arrayize(X, N,self.max_T,T, self.idincl,sel)
 			self.Y=arrayize(Y, N,self.max_T,T, self.idincl,sel)
 			self.W=arrayize(W, N,self.max_T,T, self.idincl,sel)
@@ -242,7 +242,7 @@ class panel:
 
 	def tobit(self):
 		"""Sets the tobit threshold"""
-		tobit_limits=self.options.tobit_limits.value
+		tobit_limits=self.options.tobit_limits
 		if tobit_limits is None:
 			return
 		if len(tobit_limits)!=2:
@@ -327,7 +327,7 @@ def h(e,z):
 
 	return h_val,h_e_val,h_2e_val,None,None,None
 		"""	
-		h_definition=self.options.h_function.value
+		h_definition=self.options.h_function
 		if h_definition is None:
 			h_definition=h_def
 		d=dict()

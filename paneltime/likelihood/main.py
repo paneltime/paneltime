@@ -32,9 +32,9 @@ class LL:
 		self.errmsg_h = ''
 
 		#checking settings. If the FE/RE is done on the data before LL
-		gfre=panel.options.fixed_random_group_eff.value
-		tfre=panel.options.fixed_random_time_eff.value
-		vfre=panel.options.fixed_random_variance_eff.value
+		gfre=panel.options.fixed_random_group_eff
+		tfre=panel.options.fixed_random_time_eff
+		vfre=panel.options.fixed_random_variance_eff
 
 		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
 		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
@@ -83,7 +83,7 @@ class LL:
 		#NOTE: self.h_val itself is also set in ctypes.cpp/ctypes.c. If you change self.h_val below, you need to 
 		#change it in the c-scripts too. self.h_val must be calcualted below as well for later calulcations. 
 		e_REsq =e_RE**2 + self.h_add
-		if panel.options.EGARCH.value==0:
+		if panel.options.EGARCH==0:
 			self.h_val, self.h_e_val, self.h_2e_val = (e_REsq)*incl, 2*e_RE*incl, 2*incl
 			self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 		else:
@@ -148,7 +148,7 @@ class LL:
 		self.ddvarRE,self.dvarRE_mu,self.ddvarRE_mu_vRE=panel.zeros[3],None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
 		return
-		if panel.options.fixed_random_variance_eff.value==0:
+		if panel.options.fixed_random_variance_eff==0:
 			return panel.zeros[3]
 		if panel.N==0:
 			return None
@@ -157,7 +157,7 @@ class LL:
 		self.varRE_input=(e_REsq-meane2)*panel.included[3]
 
 		mine2=0
-		mu=panel.options.variance_RE_norm.value
+		mu=panel.options.variance_RE_norm
 		self.vRE_i=self.re_obj_i_v.RE(self.varRE_input, panel)
 		self.vRE_t=self.re_obj_t_v.RE(self.varRE_input, panel)
 		self.meane2=meane2

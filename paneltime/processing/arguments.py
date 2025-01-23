@@ -22,7 +22,7 @@ class arguments:
 		p, q, d, k, m=panel.pqdkm
 		self.initial_user_defined = False
 		self.categories=['beta','rho','lambda','gamma','psi','omega']
-		if panel.options.include_initvar.value:
+		if panel.options.include_initvar:
 			self.categories+=['initvar']
 		if panel.z_active:
 			self.categories+=['z']
@@ -39,7 +39,7 @@ class arguments:
 		
 		p, q, d, k, m=panel.pqdkm
 
-		if panel.options.include_initvar.value and k>0:
+		if panel.options.include_initvar and k>0:
 			initargs['initvar'][0] = initvar
 		initargs['omega'][0] = omega
 		initargs['beta']=beta
@@ -57,14 +57,14 @@ class arguments:
 
 	def get_user_constraints(self,panel):
 		e="User contraints must be a dict of dicts or a string evaluating to that, on the form of ll.args.dict_string. User constraints not applied"
-		if type(panel.options.user_constraints.value)==dict:
-			self.user_constraints=panel.options.user_constraints.value
+		if type(panel.options.user_constraints)==dict:
+			self.user_constraints=panel.options.user_constraints
 		else:
-			if panel.options.user_constraints.value is None or panel.options.user_constraints.value=='':
+			if panel.options.user_constraints is None or panel.options.user_constraints=='':
 				self.user_constraints={}
 				return
 			try:
-				self.user_constraints=eval(panel.options.user_constraints.value)
+				self.user_constraints=eval(panel.options.user_constraints)
 			except SyntaxError:
 				print(f"Syntax error: {e}")
 				self.user_constraints={}
@@ -75,7 +75,7 @@ class arguments:
 				return
 		if not panel.z_active and 'z' in self.user_constraints:
 			self.user_constraints.pop('z')	
-		if panel.options.include_initvar.value  and 'initvar' in self.user_constraints:
+		if panel.options.include_initvar  and 'initvar' in self.user_constraints:
 			self.user_constraints.pop('initvar')	
 		for grp in list(self.user_constraints.keys()):
 			try:
@@ -109,7 +109,7 @@ class arguments:
 		args['gamma']=np.zeros(k)
 		args['omega'][0][0]=0
 		args['mu']=np.array([])
-		if panel.options.include_initvar.value:
+		if panel.options.include_initvar:
 			args['initvar']=np.zeros(1)
 		args['z']=np.array([])			
 
@@ -147,7 +147,7 @@ class arguments:
 		args_OLS['beta']=beta
 		
 		v = panel.var(panel.Y)
-		if panel.options.EGARCH.value==0:
+		if panel.options.EGARCH==0:
 			args_restricted['omega'][0][0]= v
 			args_OLS['omega'][0][0]=omega
 		else:
@@ -235,7 +235,7 @@ class arguments:
 		names.extend(names_d['omega'])
 
 		c.append(d['omega'])
-		if panel.options.include_initvar.value:
+		if panel.options.include_initvar:
 			d['initvar'] = ['Initial variance']
 			captions.extend(d['initvar'])
 			names_d['initvar'] = d['initvar']
@@ -321,7 +321,7 @@ class arguments:
 			return name,[x]
 
 	def set_init_regression(self, initargs,panel, default):
-		usrargs =  panel.options.arguments.value
+		usrargs =  panel.options.arguments
 		beta,rho,lmbda, psi, gamma,v, initvar, omega = initreg.start_values(panel)
 		
 		
@@ -340,7 +340,7 @@ class arguments:
 			
 			return initargs['beta'], initargs['omega'][0,0]
 
-		if panel.options.fixed_random_variance_eff.value==0:
+		if panel.options.fixed_random_variance_eff==0:
 			if v < 1e-20:
 				print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
 				

@@ -52,7 +52,7 @@ class web_output:
     self.Jupyter=Jupyter
     if not Jupyter:
       self.save_html(get_web_page('None', 'None', 'None', '', True))
-      if panel.options.web_open_tab.value:
+      if panel.options.web_open_tab:
         webbrowser.open(WEB_PAGE, new = 2)
     self.output_set = False
     self.t0 = time.time()
@@ -68,7 +68,7 @@ class web_output:
 
 
   def update(self,comput, its, ll, incr, dx_norm):
-    if self.panel.options.supress_output.value:
+    if self.panel.options.supress_output:
       return
     self.output.update(its, ll, incr, dx_norm, time.time() - self.t0)
     self.reg_table = output.RegTableObj(self.panel, ll, comput.g, comput.H, comput.G, comput.constr, dx_norm, self.output.model_desc) 
@@ -120,7 +120,7 @@ class tk_widget:
     self.output_set = True
 
   def update(self,comput, its, ll, incr, dx_norm):
-    if self.panel.options.supress_output.value:
+    if self.panel.options.supress_output:
       return
     self.tab.update(self.panel, comput,its, ll, incr, dx_norm)
 

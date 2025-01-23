@@ -39,7 +39,7 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
     if not exe_tab is None:
       if exe_tab.isrunning==False:return
     datainput=Input(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
-    summary = go(datainput,options,mp,options.pqdkm.value,window,exe_tab, console_output)
+    summary = go(datainput,options,mp,options.pqdkm,window,exe_tab, console_output)
 
   return summary
 
@@ -50,8 +50,8 @@ class Input:
     self.descr=model_string
     self.n_nodes = N_NODES
     self.args=None
-    if options.arguments.value!="":
-      self.args=options.arguments.value
+    if options.arguments!="":
+      self.args=options.arguments
 
 def go(datainput,options,mp,pqdkm,window,exe_tab, console_output):
   if not options.supress_output:

@@ -19,8 +19,8 @@ def start_values(panel, X = None, Y = None):
 	if X is None:
 		X = panel.X
 		Y = panel.Y
-	gfre=panel.options.fixed_random_group_eff.value
-	tfre=panel.options.fixed_random_time_eff.value
+	gfre=panel.options.fixed_random_group_eff
+	tfre=panel.options.fixed_random_time_eff
 	re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
 	re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
 
@@ -31,12 +31,12 @@ def start_values(panel, X = None, Y = None):
 	psi, gamma = 0.05, 0.95
 	v = panel.var(u) 
 	v = v
-	if panel.options.EGARCH.value:
+	if panel.options.EGARCH:
 		vreg = np.log(v)
 	else:
 		vreg = v
 
-	if panel.options.include_initvar.value and k>0:
+	if panel.options.include_initvar and k>0:
 		initvar = vreg*0.25
 		omega = 0
 	else:

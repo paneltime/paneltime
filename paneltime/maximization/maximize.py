@@ -17,7 +17,7 @@ TOLX=(4*EPS)
 def maximize(panel, args, mp, t0):
 
 
-		gtol = panel.options.tolerance.value
+		gtol = panel.options.tolerance
 
 		if mp is None or panel.args.initial_user_defined:
 				d = maximize_node(panel, args.args_v, gtol, 0)    
@@ -45,7 +45,7 @@ def get_directions(panel, args, n):
 		if n == 1:
 				return [args.args_v]
 		d = args.positions
-		size = panel.options.initial_arima_garch_params.value
+		size = panel.options.initial_arima_garch_params
 		pos = [d[k][0] for k in ['rho', 'lambda'] if len(d[k])]
 		perm = np.array(list(itertools.product([-1,0, 1], repeat=len(pos))), dtype=float)
 		z = np.nonzero(np.sum(perm**2,1)==0)[0][0]

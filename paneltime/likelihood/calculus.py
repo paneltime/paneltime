@@ -30,7 +30,7 @@ class gradient:
 		groupeffect=0
 		groupeffect, dvRE_dx=None, None
 		d_input=0
-		if self.panel.N>1 and panel.options.fixed_random_group_eff.value>0 and not dRE is None:
+		if self.panel.N>1 and panel.options.fixed_random_group_eff>0 and not dRE is None:
 			d_eRE_sq=2*ll.e_RE*dRE
 			dmeane2=panel.mean(d_eRE_sq,(0,1))
 			d_input=(d_eRE_sq-dmeane2)*panel.a[3]

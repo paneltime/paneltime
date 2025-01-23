@@ -39,7 +39,7 @@ def dd_func_lags_mult_arima(panel,ll,g,AMAL,vname1,vname2,transpose, u_gradient)
 
 
 def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
-	if panel.N<=1 or panel.options.fixed_random_group_eff.value==0:
+	if panel.N<=1 or panel.options.fixed_random_group_eff==0:
 		return None
 	#voaltility RE:
 

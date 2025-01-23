@@ -22,7 +22,7 @@ STPMX=100.0
 class Computation:
 	def __init__(self,args, panel, gtol, tolx, betaconstr, iterative_constr=[]):
 		self.gradient=logl.calculus.gradient(panel)
-		self.gtol = panel.options.tolerance.value
+		self.gtol = panel.options.tolerance
 		self.tolx = tolx
 		self.hessian=logl.hessian(panel,self.gradient)
 		self.panel=panel
@@ -43,8 +43,8 @@ class Computation:
 		p, q, d, k, m = panel.pqdkm
 		self.init_arma_its = 0
 		self.betaconstr = betaconstr
-		self.multicoll_threshold_max = panel.options.multicoll_threshold_max.value
-		self.set_constr(args, iterative_constr,  panel.options.ARMA_constraint.value)
+		self.multicoll_threshold_max = panel.options.multicoll_threshold_max
+		self.set_constr(args, iterative_constr,  panel.options.ARMA_constraint)
 		
 
 
@@ -66,7 +66,7 @@ class Computation:
 			self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
 			return
 
-		if self.panel.options.constraints_engine.value:
+		if self.panel.options.constraints_engine:
 			self.constr.add_static_constraints(self.panel, its, ll, self.iterative_constr)	
 
 			self.constr.add_dynamic_constraints(self, H, ll)	
@@ -100,7 +100,7 @@ class Computation:
 		err = np.max(np.abs(dx_realized)) < 10000*TOLX
 		self.errs.append(err)
 		
-		if not self.panel.options.supress_output.value:
+		if not self.panel.options.supress_output:
 			print(f"its:{its}, f:{f}, gnorm: {abs(g_norm)}, totpgain: {abs(totpgain)}, max_pgain: {max(np.abs(pgain))}")
 			sys.stdout.flush()
 
@@ -110,7 +110,7 @@ class Computation:
 			conv = 1
 		elif abs(g_norm)<self.gtol:
 			conv = 2
-		elif its>=self.panel.options.max_iterations.value:
+		elif its>=self.panel.options.max_iterations:
 			conv = 3
 		elif ((sum(self.errs[-3:])==10) and ls.alam<1e-5) or ((sum(self.errs[-3:])==3) and incr<1e-15): #stalled: 3 consectutive errors and small ls.alam, or no function increase
 			conv = 4
@@ -123,7 +123,7 @@ class Computation:
 	  			and (self.multicoll_threshold_max != 1000)):
 			self.multicoll_threshold_max = 1000
 		elif its>100:
-			self.multicoll_threshold_max = self.panel.options.multicoll_threshold_max.value
+			self.multicoll_threshold_max = self.panel.options.multicoll_threshold_max
 		
 		return x, f, hessin, H, G, g, conv, g_norm, dx
 	
@@ -240,7 +240,7 @@ class Computation:
 
 	def mixedhess(self, H, Hn, hessin, its):
 
-		if self.panel.options.use_analytical.value==0 and its>5:
+		if self.panel.options.use_analytical==0 and its>5:
 			try:
 				H_det = abs(fu.try_warn(np.linalg.det, (H,)))
 				Hn_det = abs(fu.try_warn(np.linalg.det, (Hn,)))
@@ -250,7 +250,7 @@ class Computation:
 					H = a*H + (1-a)*hessin
 			except:
 				H = 0.5* H + 0.5*Hn
-		elif self.panel.options.use_analytical.value==1:
+		elif self.panel.options.use_analytical==1:
 			H = 0.5* H + 0.5*Hn
 		try:
 			hessin = np.linalg.inv(H)
