@@ -8,13 +8,24 @@ def create_options():
 	return opt
 
 def options_to_txt(options):
+	a = []
+
+	for o in options:
+		if type(options[o].dtype) is list:
+			tp = [i.__name__ for i in options[o].dtype]
+		else:
+			tp = options[o].dtype.__name__
+		value = options[o].value
+		if type(value)==str:
+			value = value.replace('\n','<br>').replace('\t','<t>')
+		a.append([o, value, tp, f"{options[o].name}: {options[o].description}".replace('\n','<br>').replace('\t','<t>')])
+
+	sorted_list = sorted(a, key=lambda x: x[0])
 	with open('options.txt','w') as f:
-		for o in options:
-			if type(options[o].dtype) is list:
-				tp = [i.__name__ for i in options[o].dtype]
-			else:
-				tp = options[o].dtype.__name__
-			f.write(f"|{o}|{options[o].value}|{tp}|{options[o].name}:{options[o].description.replace('\n', '')}|\n")
+		for name, default, dtype, desc in sorted_list:
+			print(name)
+			f.write(f"|{name}|{default}|{dtype}|{desc}|\n")
+	a=0
 
 class options_item:
 	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None, descr_for_input_boxes=[],category='General'):
@@ -159,16 +170,10 @@ def options_dict():
 
 	options['ARMA_constraint']		        = options_item(1000,				'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
 																													 None,None,category='ARIMA-GARCH')	
-	options['betaconstraint']		          = options_item(True,			'Determines whether to initially constraint beta coefficients while setting the ARIMA-GARCH-coefficients', bool, 
-																															'Constraint betas initially',
-																															[True,False],['Constraint betas','Do not constraint betas'],category='Regression')	
 
 	options['constraints_engine']		        = options_item(True,			'Determines whether to use the constraints engine', bool, 'Uses constraints engine',
 																															[True,False],['Use constraints','Do not use constraints'],category='Regression')	
 
-	options['debug_mode']		      	        = options_item(False,			'Determines whether the code will run in debug mode. Should normally allways be False', 
-																																		bool, 'Debug or not',
-																																		 [True,False],['Debug mode','Not debug mode'],category='General')	
 
 	options['multicoll_threshold_report']	 = options_item(30,				'Threshold for reporting multicoll problems', float, 'Multicollinearity threshold',
 																											 None,None)		
@@ -176,14 +181,10 @@ def options_dict():
 	options['multicoll_threshold_max']	    = options_item(1000,			'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
 																											 None,None)			
 
-	#options['description']					= options_item(None, 			"A description of the project." , 'entry','Description')	
 	options['EGARCH']		            = options_item(False,			'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
 																											[True,False],['Direct GARCH','Usual GARCH'],category='ARIMA-GARCH')	
 
 
-	options['do_not_constrain']				= options_item(None, 			"The name of a variable of interest \nthat shall not be constrained due to \nmulticollinearity",
-																																		[str,type(None)],"Avoid constraint",
-																																		descr_for_input_boxes=['Variable not to constraint:'])	
 
 	options['fixed_random_group_eff']			= options_item(0,				'Fixed, random or no group effects', int, 'Group fixed random effect',[0,1,2], 
 																																	['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
@@ -223,15 +224,6 @@ def options_dict():
 
 	options['max_iterations']				= options_item(150, 			"Maximum number of iterations", int, 'Maximum number of iterations', "%s>0",category='Regression')
 	
-	options['max_increments']				= options_item(0, 			"Maximum increment before maximization is ended", float, 'Maximum increments', "%s>0",category='Regression')
-
-	options['minimum_iterations']			= options_item(0, 				'Minimum number of iterations in maximization:',
-																																			int,"Minimum iterations", "%s>-1")		
-
-
-	options['pool']							= options_item(False, 			"True if sample is to be pooled, otherwise False." 
-																									"For running a pooled regression",  
-																									bool,'Pooling',[True,False],['Pooled','Not Pooled'])
 
 	options['pqdkm']							= options_item([1,1,0,1,1], 
 															"ARIMA-GARCH parameters:",int, 'ARIMA-GARCH orders',
@@ -247,10 +239,6 @@ def options_dict():
 																																descr_for_input_boxes=["# lags in final statistics calulation",
 																																													"# lags iterations (smaller saves time)"],
 																																		category='Output')
-
-	options['silent']							= options_item(False, 			"True if silent mode, otherwise False." 
-																																									"For running the procedure in a script, where output should be suppressed",  
-																											bool,'Silent mode',[True,False],['Silent','Not Silent'])
 
 	options['subtract_means']					= options_item(False,			"If True, subtracts the mean of all variables. This may be a remedy for multicollinearity if the mean is not of interest.",
 																											 bool,'Subtract means', [True,False],['Subtracts the means','Do not subtract the means'],category='Regression')
@@ -282,10 +270,6 @@ def options_dict():
 	options['use_analytical']			= options_item(1,				'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
 																																	['No analytical','Analytical in some iterations','Analytical in all iterations'],category='Genereal')
 
-
-	options['web_open_tab']					= options_item(True, 			"True if web a new web browser tab should be opened when using web interface" 
-																																				"Should a new tab be opemed?",  
-																									bool,'New web tab',[True,False],['Yes','No'])	
 
 
 	return options
