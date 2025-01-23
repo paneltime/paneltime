@@ -3,7 +3,7 @@
 import numpy as np
 def create_options():
 	options = options_dict()
-	options_to_txt(options)
+	#options_to_txt(options)
 	opt = OptionsObj(options)
 	return opt
 

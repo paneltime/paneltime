@@ -1,6 +1,3 @@
-# Paneltime
-
-
 Author: Espen Sirnes
 Version: 1.2.50
 
@@ -50,13 +47,29 @@ indicators = {
 # Download data
 df = wbdata.get_dataframe(indicators)
 
+
+# prepare data
+df = pd.DataFrame(df.reset_index())
+df = df.rename(columns = {'date':'year'})
+df = df.sort_values(by=['country', 'year'])
+df_grouped = df.groupby('country')
+
+df['Lagged_Gross_Savings'] = df_grouped['Gross_Savings'].shift(1)
+df['Lagged_Gov_Consumption'] = df_grouped['Gov_Consumption'].shift(1)
+df['Lagged_Growth'] =          df_grouped['GDP_growth'].shift(1)
+df['Lagged_Inflation'] =       df_grouped['Inflation'].shift(1)
+df['Lagged_Interest_rate'] =   df_grouped['Interest_rate'].shift(1)
+
+df = df[abs(df['Inflation'])<30]
+
+
+
 # Estimate:
 m = paneltime.execute('Inflation~Intercept+Lagged_Growth+Lagged_Inflation+Lagged_Interest_rate+'
-					  'Lagged_Gross_Savings+Diff_Gov_Consumption', pt_data,T = 'Year',ID='Country' )
+					  'Lagged_Gross_Savings', df,T = 'year',ID='country' )
 
 # display results
 print(m)
-
 
 ```
 
