@@ -85,8 +85,8 @@ pt.options.add_intercept = False
 The options available are:
 
 
-|Attribute name|Default value|Permissible<br>values|Description|
-|--------------|-------------|-----------|-----------|
+|Attribute name|Default value|Permissible<br>values|Data type|Description|
+|--------------|-------------|-----------|-----------|-----------|
 |ARMA_constraint|1000|None|float|ARMA coefficient constraint: Maximum absolute value of ARMA coefficients|
 |ARMA_round|14|%s>0|int|# of signficant digits: Number og digits to round elements in the ARMA matrices by. Small differences in these values can change the optimization path and makes the estimate less robustNumber of significant digits in ARMA|
 |EGARCH|False|[True, False]|bool|Estimate GARCH directly: Normal GARCH, as opposed to EGARCH if True|
