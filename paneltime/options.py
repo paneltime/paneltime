@@ -3,11 +3,12 @@
 import numpy as np
 def create_options():
 	options = options_dict()
-	options_to_txt(options)
 	opt = OptionsObj(options)
 	return opt
 
-def options_to_txt(options):
+def options_to_txt():
+
+	options = options_dict()
 	a = []
 
 	for o in options:
@@ -24,11 +25,10 @@ def options_to_txt(options):
 		a.append([o, value, tp, opt.permissible_values , f"<b>{opt.name}:</b> {opt.description}".replace('\n','<br>').replace('\t','a&#9;')])
 
 	sorted_list = sorted(a, key=lambda x: x[0])
-	with open('options.txt','w') as f:
+	with open('paneltime/options.md','w') as f:
 		f.write("|Attribute name|Default<br>value|Permissible<br>values|Data<br>type|Description|\n")
 		f.write("|--------------|-------------|-----------|-----------|-----------|\n")
 		for name, default, dtype, perm, desc in sorted_list:
-			print(name)
 			f.write(f"|{name}|{default}|{perm}|{dtype}|{desc}|\n")
 	a=0
 
