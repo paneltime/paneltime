@@ -21,7 +21,7 @@ def options_to_txt(options):
 			value = value.replace('\n','<br>').replace('\t','a&#9;')
 			if len(value)>12:
 				value = value[:9]+"..."
-		a.append([o, value, tp, opt.permissible_values , f"{opt.name}: {opt.description}".replace('\n','<br>').replace('\t','<t>')])
+		a.append([o, value, tp, opt.permissible_values , f"<b>{opt.name}:</b> {opt.description}".replace('\n','<br>').replace('\t','a&#9;')])
 
 	sorted_list = sorted(a, key=lambda x: x[0])
 	with open('options.txt','w') as f:
