@@ -3,7 +3,7 @@
 import numpy as np
 def create_options():
 	options = options_dict()
-	#options_to_txt(options)
+	options_to_txt(options)
 	opt = OptionsObj(options)
 	return opt
 
@@ -18,11 +18,15 @@ def options_to_txt(options):
 			tp = opt.dtype.__name__
 		value = opt.value
 		if type(value)==str:
-			value = value.replace('\n','<br>').replace('\t','<t>')
+			value = value.replace('\n','<br>').replace('\t','a&#9;')
+			if len(value)>12:
+				value = value[:9]+"..."
 		a.append([o, value, tp, opt.permissible_values , f"{opt.name}: {opt.description}".replace('\n','<br>').replace('\t','<t>')])
 
 	sorted_list = sorted(a, key=lambda x: x[0])
 	with open('options.txt','w') as f:
+		f.write("|Attribute name|Default<br>value|Permissible<br>values|Data<br>type|Description|\n")
+		f.write("|--------------|-------------|-----------|-----------|-----------|\n")
 		for name, default, dtype, perm, desc in sorted_list:
 			print(name)
 			f.write(f"|{name}|{default}|{perm}|{dtype}|{desc}|\n")
@@ -197,17 +201,19 @@ def options_dict():
 
 
 	options['h_function']						= options_item("def h(e,z):\n"
-																				"	e2			=	e**2+1e-5\n"
-																													"	h_val		=	np.log(e2)\n"	
-																													"	h_e_val		=	2*e/e2\n"
-																													"	h_2e_val	=	2/e2-4*e**2/e2**2\n"
-																													"	return h_val,h_e_val,h_2e_val,None,None,None\n",	
+															   "	e2 = e**2+1e-5\n"
+																"	h_val    =	np.log(e2)\n"	
+																"	h_e_val	 =	2*e/e2\n"
+																"	h_2e_val =	2/e2-4*e**2/e2**2\n"
+																"	return (h_val,h_e_val,h_2e_val,\n"
+																"				None,None,None)\n", 	
 
-																													"You can supply your own heteroskedasticity function. It must be a function of\n"
-																													"residuals e and a shift parameter z that is determined by the maximization procedure\n"
-																													"the function must return the value and its computation in the following order:\n"
-																													"h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
-																													, str,"GARCH function",category='Regression')
+																"You can supply your own heteroskedasticity function. It must be a function of\n"
+																"residuals e and a shift parameter z that is determined by the maximization procedure\n"
+																"the function must return the value and its computation in the following order:\n"
+																"h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
+																, str,"GARCH function",category='Regression')
+	
 	options['include_initvar']					= options_item(True,			"If True, includes an initaial variance term",
 																																				 bool,'Include initial variance', [True,False],['Include','Do not include'],category='Regression')
 

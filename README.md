@@ -85,7 +85,7 @@ pt.options.add_intercept = False
 The options available are:
 
 
-|Attribute name|Default value|Permissible<br>values|Data type|Description|
+|Attribute name|Default<br>value|Permissible<br>values|Data<br>type|Description|
 |--------------|-------------|-----------|-----------|-----------|
 |ARMA_constraint|1000|None|float|ARMA coefficient constraint: Maximum absolute value of ARMA coefficients|
 |ARMA_round|14|%s>0|int|# of signficant digits: Number og digits to round elements in the ARMA matrices by. Small differences in these values can change the optimization path and makes the estimate less robustNumber of significant digits in ARMA|
@@ -98,7 +98,7 @@ The options available are:
 |fixed_random_group_eff|0|[0, 1, 2]|int|Group fixed random effect: Fixed, random or no group effects|
 |fixed_random_time_eff|0|[0, 1, 2]|int|Time fixed random effect: Fixed, random or no time effects|
 |fixed_random_variance_eff|0|[0, 1, 2]|int|Variance fixed random effects: Fixed, random or no group effects for variance|
-|h_function|def h(e,z):<br><t>e2<t><t><t>=<t>e**2+1e-5<br><t>h_val<t><t>=<t>np.log(e2)<br><t>h_e_val<t><t>=<t>2*e/e2<br><t>h_2e_val<t>=<t>2/e2-4*e**2/e2**2<br><t>return h_val,h_e_val,h_2e_val,None,None,None<br>|None|str|GARCH function: You can supply your own heteroskedasticity function. It must be a function of<br>residuals e and a shift parameter z that is determined by the maximization procedure<br>the function must return the value and its computation in the following order:<br>h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)|
+|h_function|def h(e,z...|None|str|GARCH function: You can supply your own heteroskedasticity function. It must be a function of<br>residuals e and a shift parameter z that is determined by the maximization procedure<br>the function must return the value and its computation in the following order:<br>h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)|
 |include_initvar|True|[True, False]|bool|Include initial variance: If True, includes an initaial variance term|
 |initial_arima_garch_params|0.1|%s>=0|float|initial size of arima-garch parameters: The initial size of arima-garch parameters (all directions will be attempted|
 |kurtosis_adj|0|%s>=0|float|Amount of kurtosis adjustment: Amount of kurtosis adjustment|
@@ -115,5 +115,3 @@ The options available are:
 |use_analytical|1|[0, 1, 2]|int|Analytical Hessian: Use analytical Hessian|
 |user_constraints|None|None|['str', 'dict']|User constraints: You can add constraints as a dict or as a string in python dictonary syntax.<br>|
 |variance_RE_norm|5e-06|%s>0|float|Variance RE/FE normalization point in log function: This parameter determines at which point the log function involved in the variance RE/FE calculations, will be extrapolate by a linear function for smaller values|
-
-
