@@ -11,20 +11,21 @@ def options_to_txt(options):
 	a = []
 
 	for o in options:
-		if type(options[o].dtype) is list:
-			tp = [i.__name__ for i in options[o].dtype]
+		opt = options[o]
+		if type(opt.dtype) is list:
+			tp = [i.__name__ for i in opt.dtype]
 		else:
-			tp = options[o].dtype.__name__
-		value = options[o].value
+			tp = opt.dtype.__name__
+		value = opt.value
 		if type(value)==str:
 			value = value.replace('\n','<br>').replace('\t','<t>')
-		a.append([o, value, tp, f"{options[o].name}: {options[o].description}".replace('\n','<br>').replace('\t','<t>')])
+		a.append([o, value, tp, opt.permissible_values , f"{opt.name}: {opt.description}".replace('\n','<br>').replace('\t','<t>')])
 
 	sorted_list = sorted(a, key=lambda x: x[0])
 	with open('options.txt','w') as f:
-		for name, default, dtype, desc in sorted_list:
+		for name, default, dtype, perm, desc in sorted_list:
 			print(name)
-			f.write(f"|{name}|{default}|{dtype}|{desc}|\n")
+			f.write(f"|{name}|{default}|{perm}|{dtype}|{desc}|\n")
 	a=0
 
 class options_item:
