@@ -1,3 +1,9 @@
+---
+title: Paneltime
+nav_order: 1
+has_toc: true
+---
+
 Author: Espen Sirnes
 Version: 1.2.53
 
