@@ -6,6 +6,7 @@ import re
 import subprocess as sp
 import sys
 import glob
+import psutil
 from paneltime import opt_module
 
 def main():
@@ -21,7 +22,7 @@ def main():
 		nukedir('build')
 		nukedir('paneltime.egg-info')
 	except FileNotFoundError:
-		pass
+		identify_blocks('dist')
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
 
@@ -29,7 +30,7 @@ def main():
 		version = add_version(wd)
 		print(f"Incrementet to version {version}")
 
-	if push_git:
+	if push_git or True:
 		gitpush(version)
 	else:
 		print('Not pushed to git - use "-g" to push to git')
@@ -39,7 +40,7 @@ def main():
 	if push_pip:
 		os.system("twine upload dist/*")
 	else:
-		print('Not pushed to pypi - use "-g" to push to pypi (pip)')
+		print('Not pushed to pypi - use "-p" to push to pypi (pip)')
 	
 
 
@@ -49,7 +50,7 @@ def gitpush(version):
 	if r != b'Already up to date.\n':
 		raise RuntimeError(f'Not up to date after git pull. Fix any conflicts and check that the repository is up to date\nPull output:\n{r})')
 	os.system('git add .')
-	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit: ")}"')
+	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit (without quotation marks): ")}"')
 	os.system('git push')	
 	
 def add_version(wd):
@@ -93,17 +94,34 @@ def rm(fldr):
 		print(e)
 
 def nukedir(dir):
-	if dir[-1] == os.sep: dir = dir[:-1]
-	if os.path.isfile(dir):
+	try:
+		if dir[-1] == os.sep: dir = dir[:-1]
+		if os.path.isfile(dir):
+			return
+		files = os.listdir(dir)
+		for file in files:
+			if file == '.' or file == '..': continue
+			path = dir + os.sep + file
+			if os.path.isdir(path):
+				nukedir(path)
+			else:
+				os.unlink(path)
+		os.rmdir(dir)
 		return
-	files = os.listdir(dir)
-	for file in files:
-		if file == '.' or file == '..': continue
-		path = dir + os.sep + file
-		if os.path.isdir(path):
-			nukedir(path)
-		else:
-			os.unlink(path)
-	os.rmdir(dir)
+	except FileNotFoundError:
+		return
+	except PermissionError:
+		identify_blocks('dir')
 	
+
+def identify_blocks(folder):
+	
+	for proc in psutil.process_iter(['pid', 'name', 'open_files']):
+		try:
+			if proc.info['open_files']:
+				for file in proc.info['open_files']:
+					if folder in file.path:
+						print(f"Process {proc.info['name']} (PID {proc.info['pid']}) is using the folder.")
+		except (psutil.NoSuchProcess, psutil.AccessDenied):
+			pass
 main()

@@ -10,13 +10,14 @@ from .. import likelihood as logl
 import numpy as np
 
 
-def maximize(args, panel, gtol, tolx, slave_id, slave_server, betaconstr, constr = []):
+def maximize(args, panel, gtol, tolx, slave_id, slave_server):
 	args = np.array(args)
-	comput = computation.Computation(args, panel, gtol, tolx, betaconstr, constr)
+	comput = computation.Computation(args, panel, gtol, tolx)
 
 	initval = InitialValues(panel, comput)
 	
 	x, ll, f, g, hessin, H = initval.calc_init_dir(args, panel)
+
 	armaconstr = panel.options.ARMA_constraint
 
 	res = dfpmax.dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_server)

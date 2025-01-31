@@ -14,14 +14,14 @@ def set_garch_arch(panel,args,u, h_add, G):
   """Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
   the diagonal band"""
   N, T, _ = u.shape
-  rho = np.insert(-args['rho'],0,1)
+  rho = np.insert(-args['rho'].flatten(),0,1)
   psi = args['psi']
-  psi = np.insert(args['psi'],0,0)
+  psi = np.insert(args['psi'].flatten(),0,0)
 
 
 
-  lmbda = args['lambda']
-  gmma =  -args['gamma']
+  lmbda = args['lambda'].flatten()
+  gmma =  -args['gamma'].flatten()
 
   parameters = np.array(( N , T , 
                   len(lmbda), len(rho), len(gmma), len(psi), 

@@ -96,6 +96,6 @@ def set_GARCH(panel,initargs,u,m):
 def h_func(e,panel,initargs):
 	z=None
 	if len(initargs['z'])>0:
-		z=initargs['z'][0]	
+		z=initargs['z'][0][0]
 	h_val,h_e_val,h_2e_val,h_z,h_2z,h_e_z=logl.h(e,z,panel)
 	return h_val*panel.included[3]

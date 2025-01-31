@@ -40,8 +40,8 @@ class arguments:
 		p, q, d, k, m=panel.pqdkm
 
 		if panel.options.include_initvar and k>0:
-			initargs['initvar'][0] = initvar
-		initargs['omega'][0] = omega
+			initargs['initvar'][0][0] = initvar
+		initargs['omega'][0][0] = omega
 		initargs['beta']=beta
 
 		for n,name, value in [(q, 'lambda', lmbda),
@@ -50,13 +50,14 @@ class arguments:
 													(m, 'psi', psi),
 													]:
 			if n > 0:
-				initargs[name][0] = value
+				initargs[name][0][0] = value
 
 
 
 
 	def get_user_constraints(self,panel):
-		e="User contraints must be a dict of dicts or a string evaluating to that, on the form of ll.args.dict_string. User constraints not applied"
+		e="User contraints must be a dict of lists or a string evaluating to that, on the form of ll.args.dict_string."
+
 		if type(panel.options.user_constraints)==dict:
 			self.user_constraints=panel.options.user_constraints
 		else:
@@ -76,25 +77,12 @@ class arguments:
 		if not panel.z_active and 'z' in self.user_constraints:
 			self.user_constraints.pop('z')	
 		if panel.options.include_initvar  and 'initvar' in self.user_constraints:
-			self.user_constraints.pop('initvar')	
-		for grp in list(self.user_constraints.keys()):
-			try:
-				self.user_constraints[grp] = np.array(self.user_constraints[grp]).flatten()
-				test = None
-				if not self.user_constraints[grp][0] is None:
-					test = 1.0 * self.user_constraints[grp][0]
-				if not self.user_constraints[grp][1] is None:
-					test = 1.0 * self.user_constraints[grp][1]  
-				if test is None:
-					print(f'Failed to apply user constraints for {grp}')
-			except:
-				print(f'Failed to apply user constraints for {grp}')
-				self.user_constraints.pop(grp)
+			self.user_constraints.pop('initvar')
 
 		for grp in self.user_constraints:
 			if not grp in self.caption_d:
 				print(f"Constraint on {grp} not applied, {grp} not in arguments")
-
+				self.user_constraints.pop(grp)
 
 
 
@@ -103,22 +91,22 @@ class arguments:
 		args=dict()
 		args['beta']=np.zeros((panel.X.shape[2],1))
 		args['omega']=np.zeros((panel.W.shape[2],1))
-		args['rho']=np.zeros(p)
-		args['lambda']=np.zeros(q)
-		args['psi']=np.zeros(m)
-		args['gamma']=np.zeros(k)
+		args['rho']=np.zeros((p,1))
+		args['lambda']=np.zeros((q,1))
+		args['psi']=np.zeros((m,1))
+		args['gamma']=np.zeros((k,1))
 		args['omega'][0][0]=0
-		args['mu']=np.array([])
+		args['mu']=np.array([[]])
 		if panel.options.include_initvar:
-			args['initvar']=np.zeros(1)
-		args['z']=np.array([])			
+			args['initvar']=np.zeros((1,1))
+		args['z']=np.array([[]])			
 
 
 		if m>0 and panel.z_active:
-			args['z']=np.array([1e-09])	
+			args['z']=np.array([[1e-09]])	
 
 		if panel.N>1 and not self.mu_removed:
-			args['mu']=np.array([0.0001])			
+			args['mu']=np.array([[0.0001]])			
 
 
 		return args
@@ -189,9 +177,7 @@ class arguments:
 		for i in self.categories:
 			n=len(self.positions[i])
 			rng=range(k,k+n)
-			d[i]=np.array(args[rng])
-			if i=='beta' or i=='omega':
-				d[i]=d[i].reshape((n,1))
+			d[i]=np.array(args[rng]).reshape((n,1))
 			k+=n
 		return d
 
@@ -293,31 +279,43 @@ class arguments:
 				raise RuntimeError("argument inconsistency")
 
 	def get_name_ix(self,x,single_item=False):
+		("Tests if x is recognized and returns the associated name and index."
+   		"If not single_item, an array of indicies is returned")
 		#returns name, list of indicies
 		if x is None:
 			return None, None
-		if x in self.caption_v:
+		if x in self.caption_v: 
+			#if x is in individual caption names
 			if single_item:
 				indicies=self.caption_v.index(x)
 			else:
 				indicies=[self.caption_v.index(x)]	
 			return x,indicies
 		elif x in self.positions and not single_item:
+			#if x is in group names
+			if single_item:
+				raise RuntimeError(f"'{x}' is a group name, single items do not exist for groups")
 			indicies=list(self.positions[x])
 			return x,indicies
 		elif x in self.names_v:
+			#if x is in individual names
 			if single_item:
 				indicies=self.names_v.index(x)
 			else:
 				indicies=[self.names_v.index(x)]	
 			return x,indicies			
 		try:
+			#assuming x is an index
 			name=self.caption_v[x]
 		except Exception as e:
 			raise RuntimeError(f"{e}. The identifier of an argument must be an integer or a string macthing a name in 'self.caption_v' or a category in 'self.positions'")
+		
+		# if no exeption occured, x is an integer, and we got its name
+		
 		if single_item:
 			return name,x
 		else:
+			# Returns x as a list if multiple items are expected (single_item==False)
 			return name,[x]
 
 	def set_init_regression(self, initargs,panel, default):

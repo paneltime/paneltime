@@ -20,14 +20,13 @@ STPMX=100.0
 
 
 class Computation:
-	def __init__(self,args, panel, gtol, tolx, betaconstr, iterative_constr=[]):
+	def __init__(self,args, panel, gtol, tolx):
 		self.gradient=logl.calculus.gradient(panel)
 		self.gtol = panel.options.tolerance
 		self.tolx = tolx
 		self.hessian=logl.hessian(panel,self.gradient)
 		self.panel=panel
 		self.constr=None
-		self.iterative_constr = iterative_constr
 		self.CI=0
 		self.weak_mc_dict={}
 		self.mc_problems=[]
@@ -42,9 +41,8 @@ class Computation:
 		self.CI_anal = 2
 		p, q, d, k, m = panel.pqdkm
 		self.init_arma_its = 0
-		self.betaconstr = betaconstr
 		self.multicoll_threshold_max = panel.options.multicoll_threshold_max
-		self.set_constr(args, iterative_constr,  panel.options.ARMA_constraint)
+		self.set_constr(args,  panel.options.ARMA_constraint)
 		
 
 
@@ -59,7 +57,7 @@ class Computation:
 	
 		self.constr_old=self.constr
 		self.constr = None
-		self.constr = constraints.Constraints(self.panel,x,its,armaconstr, self.betaconstr)
+		self.constr = constraints.Constraints(self.panel,x,its,armaconstr)
 
 		if self.constr is None:
 			self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
@@ -67,7 +65,7 @@ class Computation:
 			return
 
 		if self.panel.options.constraints_engine:
-			self.constr.add_static_constraints(self.panel, its, ll, self.iterative_constr)	
+			self.constr.add_static_constraints(self.panel, its, ll)	
 
 			self.constr.add_dynamic_constraints(self, H, ll)	
 
@@ -133,9 +131,9 @@ class Computation:
 
 
 	
-	def set_constr(self, args, constr, armaconstr):
-		self.constr = constraints.Constraints(self.panel, args, 0, armaconstr, self.betaconstr)
-		self.constr.add_static_constraints(self.panel, 0, constr=constr)	    
+	def set_constr(self, args, armaconstr):
+		self.constr = constraints.Constraints(self.panel, args, 0, armaconstr)
+		self.constr.add_static_constraints(self.panel, 0)	    
 
 
 		

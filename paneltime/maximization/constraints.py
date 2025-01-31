@@ -41,7 +41,7 @@ class Constraint:
 class Constraints(dict):
 
 	"""Stores the constraints of the LL maximization"""	
-	def __init__(self,panel,args, its, armaconstr, betaconstr):
+	def __init__(self,panel,args, its, armaconstr):
 		dict.__init__(self)
 		self.categories={}
 		self.mc_list = set()
@@ -75,24 +75,23 @@ class Constraints(dict):
 				 (0, 0, 0, 1, 0)
               
 				]  
-		if betaconstr: 
-			self.constr_matrix = self.constr_matrix_beta + self.constr_matrix
+
 		#self.constr_matrix = []
 
 
-	def add(self,name,assco,cause,interval=None,replace=True,value=None,args=None, ci = 0):
+	def add(self,name,assco,cause,interval=None,replace=True,value=None, ci = 0):
 		#(self,index,assco,cause,interval=None,replace=True,value=None)
 		name,index=self.panel_args.get_name_ix(name)
 		name_assco,assco=self.panel_args.get_name_ix(assco,True)
 		for i in index:
-			self.add_item(i,assco,cause, interval ,replace,value,args, ci)
+			self.add_item(i,assco,cause, interval ,replace,value, ci)
 
 	def clear(self,cause=None):
 		for c in list(self.keys()):
 			if self[c].cause==cause or cause is None:
 				self.delete(c)	
 
-	def add_item(self,index,assco,cause,interval,replace,value,args, ci):
+	def add_item(self,index,assco,cause,interval,replace,value, ci):
 		"""Adds a constraint. 'index' is the position
 		for which the constraints shall apply.  \n\n
 
@@ -101,12 +100,11 @@ class Constraints(dict):
 		'replace' determines whether an existing constraint shall be replaced or not 
 		(only one equality and inequality allowed per position)"""
 
-		if args is None:
-			args=self.panel_args
+		args=self.panel_args
 		if not replace:
 			if index in self:
 				return False
-		interval,value=test_interval(interval, value)
+
 		if interval is None:#this is a fixed constraint
 			if len(self.fixed)==len(args.caption_v)-1:#can't lock all variables
 				return False
@@ -127,8 +125,8 @@ class Constraints(dict):
 		elif not index in self.categories[category]:
 			self.categories[category].append(index)
 
-		c=Constraint(index,assco,cause,value, interval ,args.caption_v,category, ci)
-		self[index]=c
+		c = Constraint(index,assco,cause,value, interval ,args.caption_v,category, ci)
+		self[index] = c
 		if value is None:
 			self.intervals[index]=c
 		else:
@@ -192,7 +190,7 @@ class Constraints(dict):
 					return False
 		return True
 
-	def add_static_constraints(self, panel, its, ll=None, constr = []):
+	def add_static_constraints(self, panel, its, ll=None):
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 
@@ -202,28 +200,28 @@ class Constraints(dict):
 			c=self.ARMA_constraint
 
 
-		general_constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
+		constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
 		if panel.options.include_initvar:
-			general_constraints.append(('initvar',1e-50,1e+10))
-		self.add_custom_constraints(panel, general_constraints, ll)
-		self.add_custom_constraints(panel, pargs.user_constraints, ll)
-		self.add_custom_constraints(panel, constr, ll)
-		
-
+			constraints.append(('initvar',1e-50,1e+10))
+		for name, min_, max_ in constraints:
+				self.add(name,None,'ARMA/GARCH extreeme bounds', [min_,max_])
+		self.add_custom_constraints(panel, pargs.user_constraints, True, 'user constraints')
+	
 		c = self.constr_matrix
 		if its<len(c):
 			constr = self.get_init_constr(*c[its])
-			self.add_custom_constraints(panel, constr, ll)
+			for name in constr:
+				self.add(name, None,'user constraint')
 		a=0
 		
 			
 			
 	def get_init_constr(self, p0,q0,k0,m0, beta):
 		p, q, d, k, m = self.pqdkm
-		constr_list = ([(f'rho{i}', None) for i in range(p0,p)] +
-									 [(f'lambda{i}', None) for i in range(q0,q)] + 
-									 [(f'gamma{i}', None) for i in range(k0,k)] +
-									 [(f'psi{i}', None) for i in range(m0,m)])
+		constr_list = ([f'rho{i}' for i in range(p0,p)] +
+									 [f'lambda{i}' for i in range(q0,q)] + 
+									 [f'gamma{i}' for i in range(k0,k)] +
+									 [f'psi{i}' for i in range(m0,m)])
 		if beta>0:
 			constr_list.append(('beta',None))
 		return constr_list
@@ -304,72 +302,40 @@ class Constraints(dict):
 			incl[indx] = False
 			self.add(indx, None,'zero ev')
 
-	def add_custom_constraints(self,panel, constraints, ll,replace=True,cause='user constraint',clear=False,args=None):
-		"""Adds custom range constraints\n\n
-			constraints shall be on the format [(name, minimum, maximum), ...]
-			or
-			a dictionary of the same form of an argument dictionary
-			(a dictionary of dictonaries on the form dict[category][name]) 
-			where items are lists of [minimum,maximum] or the fixing value
 
-			name is taken from self.panel_args.caption_v"""	
-
-		if clear:
-			self.clear(cause)
-		if type(constraints)==list or type(constraints)==tuple:
-			for c in constraints:
-				self.add_custom_constraints_list(c,replace,cause,args, ll)
-		elif type(constraints)==dict:
-			self.add_custom_constraints_dict(panel, constraints,replace,cause,args)
-		else:
-			raise TypeError("The constraints must be a list, tuple or dict.")
-
-
-	def add_custom_constraints_list(self,constraint,replace,cause,args, ll):
-		"""Adds a custom range constraint\n\n
-			constraint shall be on the format (name, minimum, maximum)"""
-		if np.issubdtype(type(constraint), np.integer):
-			name = self.panel_args.names_v[constraint]
-			self.add(name, None,cause,replace=replace,args=args)
-			return
-		elif type(constraint)==str or isinstance(constraint,int):
-			name, value=constraint,None
-			self.add(name,None,cause,replace=replace,value=value,args=args)
-			return
-		elif len(constraint)==2:
-			name, minimum,maximum=list(constraint)+[None]
-		elif len(constraint)==3:
-			name, minimum, maximum=constraint
-		else:
-			raise TypeError("A constraint needs to be a string, integer or iterable with lenght no more than tree.")
-
-		name,ix=self.panel_args.get_name_ix(name)
-		m=[minimum,maximum]
-		for i in range(2):
-			if type(m[i])==str:
-				try:
-					m[i]=eval(m[i],globals(),ll.__dict__)
-				except:
-					print(f"Custom constraint {name} ({m[i]}) failed")
-					return
-		[minimum,maximum]=m
-		self.add(name,None,cause, [minimum,maximum],replace,args=args)
-
-	def add_custom_constraints_dict(self, panel, constraints,replace,cause,args):
+	def add_custom_constraints(self, panel, constraints,replace,cause):
 		"""Adds a custom range constraint\n\n
 			 If list, constraint shall be on the format (minimum, maximum)"""
+		#If it is a dict, it needs to have a paneltime hierarchical structure with
+		#grops at top level and 
 		for grp in constraints:
-			for i in range(len(panel.args.caption_d[grp])):
-				name = panel.args.caption_d[grp][i]
-				c=constraints[grp]
-				try:
-					iter(c)
-					self.add(name,None,cause, c,replace,args=args)
-				except TypeError as e:
-					self.add(name,None,cause, [c,None],replace,args=args)
+			c=constraints[grp]
+			if c is None:
+				continue
+			elif type(c) == tuple: #interval constraints on whole group
+				self.add(grp,None,cause, c,replace)
+			elif type(c) == float:
+				self.add(grp,None,cause, replace = replace, value = c)
+			else:
+				for i, name in enumerate(panel.args.caption_d[grp]):
+					self.add_custom_constraint_subgroup(c, i, name, replace, cause, grp)
 
-
-
+	def add_custom_constraint_subgroup(self, constraints, i, name, replace, cause, grp):
+		c = constraints
+		if not len(c)>i:
+			return
+		if c[i] is None:
+			return
+		if type(c[i]) == tuple:
+			self.add(name,None,cause, c[i],replace)
+		elif type(c[i]) == float:
+			self.add(name,None,cause, value = c[i], replace = replace)
+		elif type(c[i][0]) == float and len(c[i])==1:
+			self.add(name,None,cause, value = c[i][0], replace = replace)
+		else:
+			raise RuntimeError(f"When using the constraints option, the elements of {grp} "
+					  			"must either be a tuple with (max, min), a float or a single element list with a float "
+									)
 					
 	def print(self, kind = None):
 		for desc, obj in [('All', self),

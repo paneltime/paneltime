@@ -44,7 +44,7 @@ class LL:
 		self.args=panel.args.create_args(args,panel,constraints)
 		self.h_err=""
 		self.LL=None
-		#self.LL=self.LL_calc(panel)
+		self.LL=self.LL_calc(panel)
 		try:
 			self.LL=self.LL_calc(panel)
 			if np.isnan(self.LL):
@@ -67,7 +67,7 @@ class LL:
 		G[:,max((panel.lost_obs-1,0)),0] = panel.args.init_var
 		if True:
 			if 'initvar' in self.args.args_d:
-				G[:,0,0] = self.args.args_d['initvar'][0]
+				G[:,0,0] = self.args.args_d['initvar'][0][0]
 
 		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-fu.dot(X,self.args.args_d['beta'])
