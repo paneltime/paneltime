@@ -6,5 +6,5 @@ markdown: kramdown
 # Enable Table of Contents in Sidebar
 just_the_docs:
   toc: true
-  nav_order: 1
+  toc_levels: 2..3  # Show H2 and H3 in TOC
   search_enabled: true
