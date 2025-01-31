@@ -87,7 +87,7 @@ pt.options.add_intercept = False
 
 The options available are:
 
-{% options.md %}
+{% include options.md %}
 
 
 # Ouput
