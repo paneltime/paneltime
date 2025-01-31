@@ -2,19 +2,18 @@
 title: Home
 nav_order: 1
 has_toc: true
+author: Espen Sirnes
+version: 1.2.53
 ---
 
-Author: Espen Sirnes
-Version: 1.2.53
 
-
-## Installation
+# Installation
 
 
 Use "pip install paneltime" for installation
 
 
-## Usage
+# Usage
 
 Datasets are estimated with 
 
@@ -33,7 +32,7 @@ It takes the following arguments:
 	- `instruments`: list with names of instruments
   
 
-## Example using world bank data
+# Example using world bank data
 ```
 import wbdata
 import pandas as pd
