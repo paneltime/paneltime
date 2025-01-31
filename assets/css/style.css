@@ -1,0 +1,25 @@
+/* Parent container for TOC + Main Content */
+#layout {
+    display: flex;  /* Enables left-sidebar layout */
+}
+
+/* Left Sidebar - TOC */
+#toc-container {
+    width: 100px;         /* Fixed width */
+    height: 100vh;        /* Full height */
+    position: fixed;      /* Stays in place */
+    top: 0;
+    left: 0;
+    background: #333;     /* Dark background */
+    color: white;         /* Light text */
+    padding: 10px;
+    font-size: 14px;
+    overflow-y: auto;     /* Scroll if needed */
+}
+
+/* Right Side - Main Content */
+#main-content {
+    margin-left: 120px;   /* Space for TOC */
+    padding: 20px;
+    max-width: 800px;     /* Adjust based on preference */
+}

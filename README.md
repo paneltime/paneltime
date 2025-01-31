@@ -1,6 +1,10 @@
-* TOC
-{:toc}
+<div id="layout">
+    <div id="toc-container">
+        * TOC
+        {:toc}
+    </div>
 
+<div id="main-content">
 Author: Espen Sirnes
 Version: 1.2.53
 
@@ -97,3 +101,7 @@ The options available are:
 `paneltime.execute()` returns a `Summary`-object. This object has the following attributes and methods:
 
 {% include attributes.md %}
+
+
+    </div>
+</div>
