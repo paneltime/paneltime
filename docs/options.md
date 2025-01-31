@@ -8,7 +8,7 @@ has_toc: true
 You can set various options by setting attributes of the `options` attribute, for example: 
 ```
 import paneltime as pt
-pt.options.add_intercept = False
+pt.options.accuracy = 1e-10
 ```
 
 The options available are:

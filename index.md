@@ -2,10 +2,11 @@
 title: Home
 nav_order: 1
 has_toc: true
-author: Espen Sirnes
-version: 1.2.53
 ---
+# About
 
+Author: Espen Sirnes
+Current version: 1.2.53
 
 # Installation
 
@@ -24,8 +25,8 @@ paneltime.execute(model_string, dataframe,
 ```
 It takes the following arguments:
 
-	- `model_string`: A string on the form 'Y ~ X1 + X2 + X3', where Y is the dependent and X1-X3 are the independents, as named in the dataframe.
-	- `dataframe`: a dataframe consisting of variables with the names used in `model_string`.
+	- `model_string`: A string on the form 'Y ~ X1 + X2 + X3', where <br>Y is the dependent and X1-X3 are the independents, <br>as named in the dataframe.
+	- `dataframe`: a dataframe consisting of variables with the names <br>used in `model_string`.
 	- `ID`: The group identifier
 	- `T`: the time identifier
 	- `HF`: list with names of heteroskedasticity factors
