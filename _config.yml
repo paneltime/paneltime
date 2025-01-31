@@ -1,1 +1,27 @@
+title: "Paneltime"
+description: "Integrating paneldata and and efficient ARIMA/GARCH estimation. "
+baseurl: "https://github.com/paneltime/paneltime" # Leave empty if using a custom domain
+url: "https://paneltime.github.io/paneltime/" # Change this to your GitHub Pages URL
+
+# Set the default layout for all pages
+defaults:
+  - scope:
+      path: "" # Apply to all pages
+    values:
+      layout: "default"
+
+# Markdown processor
 markdown: kramdown
+kramdown:
+  toc_levels: 2..3 # TOC will include H2 and H3 headings
+
+# Theme (optional)
+theme: minima # Change if using another theme
+
+# Plugins (GitHub Pages-compatible ones)
+plugins:
+  - jekyll-toc
+  - jekyll-seo-tag
+  - jekyll-feed
+  - jekyll-sitemap
+
