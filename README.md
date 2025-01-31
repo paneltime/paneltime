@@ -80,22 +80,6 @@ print(m)
 ```
 
 
-## Setting options
-
-You can set various options by setting attributes of the `options` attribute, for example: 
-```
-import paneltime as pt
-pt.options.add_intercept = False
-```
-
-The options available are:
-
-{% include options.md %}
 
 
-## Ouput
-
-`paneltime.execute()` returns a `Summary`-object. This object has the following attributes and methods:
-
-{% include attributes.md %}
 

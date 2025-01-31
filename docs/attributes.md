@@ -1,3 +1,15 @@
+---
+title: Output
+nav_order: 3
+has_toc: true
+---
+
+
+
+`paneltime.execute()` returns a `Summary`-object. This object has the following attributes and methods:
+
+
+
 | Attribute        | Sub attributes               | Data Type           | Explanation                                                                                          |
 |------------------|------------------------------|---------------------|------------------------------------------------------------------------------------------------------|
 | `count`         |                              | `Counting` instance | Contains counts of the sample                                                                        |

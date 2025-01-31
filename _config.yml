@@ -7,4 +7,3 @@ markdown: kramdown
 just_the_docs:
   toc: true
   toc_levels: 2..3  # Show H2 and H3 in TOC
-  search_enabled: true

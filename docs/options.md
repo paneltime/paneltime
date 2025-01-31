@@ -1,3 +1,21 @@
+---
+title: Setting options
+nav_order: 2
+has_toc: true
+---
+
+
+You can set various options by setting attributes of the `options` attribute, for example: 
+```
+import paneltime as pt
+pt.options.add_intercept = False
+```
+
+The options available are:
+
+
+
+
 |Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|
 |--------------|-------------|-----------|-----------|-----------|
 |ARMA_constraint|1000|%s>0|float|<b>ARMA coefficient constraint:</b> Maximum absolute value of ARMA coefficients|
