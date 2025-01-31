@@ -53,7 +53,7 @@ def gitpush(version):
 def add_version(wd):
 	srchtrm = r"(\d+\.\d+\.\d+)"
 	version = re_replace('setup.cfg', srchtrm, wd)
-	re_replace('README.md', srchtrm, wd, version)
+	re_replace('index.md', srchtrm, wd, version)
 	re_replace('paneltime/info.py', srchtrm, wd, version)
 	return version
 
