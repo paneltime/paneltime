@@ -1,10 +1,7 @@
-<div id="layout">
-    <div id="toc-container">
-        * TOC
-        {:toc}
-    </div>
 
-<div id="main-content">
+* TOC
+{:toc}
+
 Author: Espen Sirnes
 Version: 1.2.53
 
