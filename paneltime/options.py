@@ -28,7 +28,7 @@ def options_to_txt():
 		a.append([o, value, tp, opt.permissible_values , f"<b>{opt.name}:</b> {opt.description}".replace('\n','<br>').replace('\t','a&#9;')])
 
 	sorted_list = sorted(a, key=lambda x: x[0])
-	with open('paneltime/options.md','w') as f:
+	with open('_includes/options.md','w') as f:
 		f.write("|Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|\n")
 		f.write("|--------------|-------------|-----------|-----------|-----------|\n")
 		for name, default, dtype, perm, desc in sorted_list:

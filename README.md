@@ -1,5 +1,5 @@
 Author: Espen Sirnes
-Version: 1.2.52
+Version: 1.2.53
 
 This package integrates paneldata estimation with a very efficient ARIMA/GARCH
 estimator. 
@@ -16,7 +16,9 @@ Use "pip install paneltime" for installation
 Datasets are estimated with 
 
 ```
-paneltime.execute(model_string, dataframe, ID=None,T=None,HF=None,instruments=None, console_output=True)
+paneltime.execute(model_string, dataframe, 
+						ID=None,T=None,HF=None,
+						instruments=None, console_output=True)
 ```
 It takes the following arguments:
 

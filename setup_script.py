@@ -16,13 +16,10 @@ def main():
 
 	opt_module.options_to_txt()
 
+	nukedir('dist')
+	nukedir('build')
+	nukedir('paneltime.egg-info')
 
-	try:
-		nukedir('dist')
-		nukedir('build')
-		nukedir('paneltime.egg-info')
-	except FileNotFoundError:
-		identify_blocks('dist')
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
 
@@ -108,20 +105,9 @@ def nukedir(dir):
 				os.unlink(path)
 		os.rmdir(dir)
 		return
-	except FileNotFoundError:
+	except (FileNotFoundError, PermissionError):
 		return
-	except PermissionError:
-		identify_blocks('dir')
-	
 
-def identify_blocks(folder):
-	
-	for proc in psutil.process_iter(['pid', 'name', 'open_files']):
-		try:
-			if proc.info['open_files']:
-				for file in proc.info['open_files']:
-					if folder in file.path:
-						print(f"Process {proc.info['name']} (PID {proc.info['pid']}) is using the folder.")
-		except (psutil.NoSuchProcess, psutil.AccessDenied):
-			pass
+
+
 main()
