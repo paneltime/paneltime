@@ -1,4 +1,5 @@
-{% toc %}
+* TOC
+{:toc}
 
 Author: Espen Sirnes
 Version: 1.2.53
