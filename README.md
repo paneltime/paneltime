@@ -87,7 +87,7 @@ pt.options.add_intercept = False
 
 The options available are:
 
-{% paneltime/options.md %}
+{% _includes/options.md %}
 
 
 # Ouput
