@@ -14,6 +14,7 @@ def LL(panel,var,e_REsq, e_RE, minvar, maxvar):
 
     dvar_pos=(var<maxvar)*(var>minvar) 
     var = incl*np.maximum(np.minimum(var,maxvar),minvar)
+    e_REsq = np.sign(e_REsq)* np.minimum(np.abs(e_REsq), 1e+50)
     v=var	
     v_inv = incl/(var + MIN_DEN + (incl==0))	
 

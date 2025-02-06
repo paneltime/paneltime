@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
+import os
+
 def create_options():
 	options = options_dict()
 	opt = OptionsObj(options)
@@ -28,7 +30,8 @@ def options_to_txt():
 		a.append([o, value, tp, opt.permissible_values , f"<b>{opt.name}:</b> {opt.description}".replace('\n','<br>').replace('\t','a&#9;')])
 
 	sorted_list = sorted(a, key=lambda x: x[0])
-	with open('_includes/options.md','w') as f:
+	path = os.sep.join(__file__.split(os.sep)[:-2])
+	with open(f'{path}{os.sep}docs{os.sep}options.md','w') as f:
 		f.write("|Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|\n")
 		f.write("|--------------|-------------|-----------|-----------|-----------|\n")
 		for name, default, dtype, perm, desc in sorted_list:

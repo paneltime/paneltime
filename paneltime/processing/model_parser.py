@@ -35,7 +35,7 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 		df[timevar] = np.arange(len(df))
 
 	IDs     = get_names(IDs, 'IDs')
-	timevar =get_names(timevar, 'timevar')
+	timevar = get_names(timevar, 'timevar')
 
 	IDs_num,     IDs      = handle_IDs(ip,df,IDs)
 	timevar_num, timevar  = handle_time(ip,df,timevar)
@@ -200,6 +200,11 @@ def handle_time(ip,df,x):
 	if x==[]:
 		return [],[]
 	x=x[0]
+
+	if np.issubdtype(np.array(df[x]).dtype, np.number):
+		df[x+NUMERIC_TAG] = df[x]
+		return [x+NUMERIC_TAG],[x]
+
 	try:
 		x_dt=pd.to_datetime(df[x])
 	except ValueError as e:

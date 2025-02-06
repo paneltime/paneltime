@@ -108,7 +108,8 @@ class Results:
 class General:
 	def __init__(self, panel, comm, t0, output):	
 		#other statistics:
-
+		self.comm = comm
+		
 		self.time = time.time() - t0
 		self.t0 = t0
 		self.t1 = time.time()

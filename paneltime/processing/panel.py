@@ -126,19 +126,12 @@ class panel:
 		return True
 
 	def set_instrumentals(self):
-		if self.input.Z.shape[1]==1:
-			self.XIV=self.X
+		if self.input.Z.shape[1]==1: #The instrument is just a constant
+			self.XIV = self.X
 		else:
-			self.XIV=self.X=self.Z
+			self.XIV = self.Z
 		return
-		ll=logl.LL(self.args.args_init,self)
-		ll.standardize(self)
-		Z_st,Z_st_long=ll.standardize_variable(panel,self.Z)
-		ZZ=fu.dot(Z_st,Z_st)
-		ZZInv=np.linalg.inv(ZZ)
-		ZX=fu.dot(Z_st,ll.X_st)
-		ZZInv_ZX=fu.dot(ZZInv, ZX)
-		self.XIV=fu.dot(self.Z, ZZInv_ZX)#using non-normalized first, since XIV should be unnormalized.	
+
 
 	def subtract_means(self,X,Y,Z):
 		subtract=self.options.subtract_means
