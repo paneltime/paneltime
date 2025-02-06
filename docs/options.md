@@ -10,6 +10,7 @@ You can set various options by setting attributes of the `options` attribute, fo
 import paneltime as pt
 pt.options.accuracy = 1e-10
 ```
+
 |Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|
 |--------------|-------------|-----------|-----------|-----------|
 |ARMA_constraint|1000|%s>0|float|<b>ARMA coefficient constraint:</b> Maximum absolute value of ARMA coefficients|
