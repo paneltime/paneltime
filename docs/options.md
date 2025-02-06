@@ -5,11 +5,17 @@ has_toc: true
 ---
 
 
+# Setting options
+
+
 You can set various options by setting attributes of the `options` attribute, for example:
 ```
 import paneltime as pt
 pt.options.accuracy = 1e-10
 ```
+
+## `OptionsObj` attributes 
+
 
 |Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|
 |--------------|-------------|-----------|-----------|-----------|
