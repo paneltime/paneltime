@@ -37,11 +37,14 @@ def options_to_txt():
 					"nav_order: 2\n"
 					"has_toc: true\n"
 					"---\n\n\n"
+					"# Setting options\n\n\n"
+					
 					"You can set various options by setting attributes of the `options` attribute, for example:\n"
 					"```\n"
 					"import paneltime as pt\n"
 					"pt.options.accuracy = 1e-10\n"
-					"```\n"
+					"```\n\n"
+					"## `OptionsObj` attributes \n\n\n"
 					"|Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|\n"
 					"|--------------|-------------|-----------|-----------|-----------|\n")
 		
