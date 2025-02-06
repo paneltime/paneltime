@@ -7,7 +7,7 @@ has_toc: true
 
 Author: Espen Sirnes
 
-Current version: 1.2.54
+Current version: 1.2.55
 
 # Installation
 

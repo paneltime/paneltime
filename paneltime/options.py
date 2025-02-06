@@ -32,8 +32,19 @@ def options_to_txt():
 	sorted_list = sorted(a, key=lambda x: x[0])
 	path = os.sep.join(__file__.split(os.sep)[:-2])
 	with open(f'{path}{os.sep}docs{os.sep}options.md','w') as f:
-		f.write("|Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|\n")
-		f.write("|--------------|-------------|-----------|-----------|-----------|\n")
+		f.write(	"---\n"
+					"title: Setting options\n"
+					"nav_order: 2\n"
+					"has_toc: true\n"
+					"---\n\n\n"
+					"You can set various options by setting attributes of the `options` attribute, for example:\n"
+					"```\n"
+					"import paneltime as pt\n"
+					"pt.options.accuracy = 1e-10\n"
+					"```\n"
+					"|Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|\n"
+					"|--------------|-------------|-----------|-----------|-----------|\n")
+		
 		for name, default, dtype, perm, desc in sorted_list:
 			f.write(f"|{name}|{default}|{perm}|{dtype}|{desc}|\n")
 	a=0
