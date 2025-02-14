@@ -10,6 +10,7 @@ FILE *fp = fopen("coutput.txt","w"); */
 #include <cmath>
 #include <cstdio>
 #include <stdio.h>
+//#include <iostream>
 
 
 
@@ -57,7 +58,8 @@ EXPORT int  armas(double *parameters,
 				double *GAR_1, double *GAR_1MA, 
 				double *u, double *e, double *var, double *h, double *W, double *T_array
 				) {
-				
+
+
 	double sum, esq ;
 	long k,j,i;
 
@@ -75,6 +77,8 @@ EXPORT int  armas(double *parameters,
 	inverse(T, lambda, nlm, rho, nrh, AMA_1, AMA_1AR);
 	inverse(T, gamma, ngm, psi, npsi, GAR_1, GAR_1MA);
 
+
+
 	//******************** BEFORE LOST OBS ******************//
 
 	for(k=0;k<N;k++){//individual dimension
@@ -86,6 +90,8 @@ EXPORT int  armas(double *parameters,
 				sum += AMA_1AR[j]*u[(i-j) + k*T];
 				}
 			e[i + k*T] = sum;
+			//std::cout << "u: " << u[i] << std::endl;
+			
 			sum =0;
 			for(j=0;j<=i;j++){//time dimension, back tracking
 				sum += GAR_1[j] * W[(i-j) + k*T] + GAR_1MA[j]*h[(i-j) + k*T];
@@ -98,9 +104,7 @@ EXPORT int  armas(double *parameters,
 	
 	//**   EGARCH ESTIMATION:   */
 	if(egarch){
-		
 		for(k=0;k<N;k++){//individual dimension
-	
 			for(i=lost_obs;i<(int) T_array[k];i++){//time dimension
 				//ARMA:
 				sum = 0;
@@ -108,6 +112,7 @@ EXPORT int  armas(double *parameters,
 					sum += AMA_1AR[j]*u[(i-j) + k*T];
 					}
 				e[i + k*T] = sum;
+				
 				//GARCH:
 				h[i + k*T] = sum*sum;
 				h[i + k*T] += h_add;

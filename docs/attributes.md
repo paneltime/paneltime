@@ -3,11 +3,15 @@ title: Output
 nav_order: 3
 has_toc: true
 ---
+# Output
 
 
+`paneltime.execute()` returns a `Summary`-object. In addition, printing the `Summary` object, prints out the regression table and related information.
 
-`paneltime.execute()` returns a `Summary`-object. This object has the following attributes and methods:
 
+This object has the following attributes:
+
+## Attributes available in the `Summary` object
 
 
 | Attribute        | Sub attributes               | Data Type           | Explanation                                                                                          |

@@ -277,8 +277,8 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
     k=k+1
   X=X*c
   Y=Y*c
-  XX=fu.dot(X,X)
-  XY=fu.dot(X,Y)
+  XX=np.array(fu.dot(X,X),dtype=np.float64)
+  XY=np.array(fu.dot(X,Y),dtype=np.float64)
   try:
     beta=np.linalg.solve(XX,XY)
   except np.linalg.LinAlgError:

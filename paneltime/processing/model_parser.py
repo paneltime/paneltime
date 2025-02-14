@@ -12,7 +12,7 @@ import pandas as pd
 import builtins
 import keyword
 
-def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,instruments,settings,pool=(None,'mean')):
+def get_variables(ip, df,model_string,idvar,timevar,heteroscedasticity_factors,instruments,settings,pool=(None,'mean')):
 	if not settings.supress_output:
 		print ("Analyzing variables ...")
 	if not type(df)==pd.DataFrame:
@@ -20,6 +20,9 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 	if CONST_NAME in df:
 		print(f"Warning: The name {CONST_NAME} is reserved for the constant 1."
 											f"The variable with this name will be overwritten and set to 1")
+	
+	df = df.reset_index()
+	
 	df=pool_func(df,pool)
 
 	df[CONST_NAME]=1
@@ -27,24 +30,21 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 	df[VAR_INTERCEPT_NAME]         = df[CONST_NAME]
 	df[INSTRUMENT_INTERCEPT_NAME]  = df[CONST_NAME]
 
-	if IDs is None:
-		IDs = 'IDs'
-		df[IDs] = 1
-	if timevar is None:
-		timevar = 'timevar'
-		df[timevar] = np.arange(len(df))
+	identify_sort_var(timevar, df)
+	identify_sort_var(idvar, df)
+	#if not pd.api.types.is_datetime64_any_dtype(df['date_column']):
 
-	IDs     = get_names(IDs, 'IDs')
-	timevar = get_names(timevar, 'timevar')
+	idvar   = get_names(idvar, df,  'id variable')
+	timevar = get_names(timevar, df,  'time variable')
 
-	IDs_num,     IDs      = handle_IDs(ip,df,IDs)
+	idvar_num,     idvar      = handle_idvar(ip,df,idvar)
 	timevar_num, timevar  = handle_time(ip,df,timevar)
-	sort= IDs_num + timevar
+	sort= idvar_num + timevar
 	if len(sort):
 		df=df.sort_values(sort)
 
-	W=get_names(heteroscedasticity_factors,'heteroscedasticity_factors',True, VAR_INTERCEPT_NAME)
-	Z=get_names(instruments,'instruments',True,INSTRUMENT_INTERCEPT_NAME)
+	W=get_names(heteroscedasticity_factors, df,'heteroscedasticity_factors',True, VAR_INTERCEPT_NAME)
+	Z=get_names(instruments, df,'instruments',True,INSTRUMENT_INTERCEPT_NAME)
 
 	try:
 		Y,X=parse_model(model_string, settings)
@@ -53,23 +53,37 @@ def get_variables(ip,df,model_string,IDs,timevar,heteroscedasticity_factors,inst
 	if Y==['']:
 		raise RuntimeError("No dependent variable specified")
 
-	x = IDs_num+IDs+timevar+timevar_num+W+Z+Y+X
+	x = idvar_num+idvar+timevar+timevar_num+W+Z+Y+X
 	x = list(dict.fromkeys(x))
-	df, ip.lost_na_obs, ip.max_lags, ip.orig_n = eval_variables(df, x, IDs_num)
+	df, ip.lost_na_obs, ip.max_lags, ip.orig_n = eval_variables(df, x, idvar_num)
 
-
+	if len(df)==0:
+		raise RuntimeError('The filtered data is. This typically happens if all observations have nan-observations. Plealse check your data.')
 	const={}
 	for x,add_intercept,num in [
-					('IDs_num',False,True),('timevar_num',False,True),
-																('IDs',False,False),('timevar',False,False),
+					('idvar_num',False,True),('timevar_num',False,True),
+																('idvar',False,False),('timevar',False,False),
 																('W',True,True),('Z',True,True),('Y',False,True),
 																	('X',settings.add_intercept,True)]:
 		ip.__dict__[x], const[x]= check_var(df,locals()[x],x,add_intercept,num)
-		ip.__dict__[x+"_names"]=list(ip.__dict__[x].columns)
+		if ip.__dict__[x] is None:
+			ip.__dict__[x + "_names"] = None
+		else:
+			ip.__dict__[x + "_names"] = list(ip.__dict__[x].columns)
 	ip.dataframe=df
 	ip.has_intercept=const['X']
 
-
+def identify_sort_var(x, df):
+	if x is None:
+		return
+	if x in df:
+		return
+	if x == df.index.name:
+		df[x] = df.index
+	elif x in df.index.names:
+		df[x] = df.index[x]
+	else:
+		raise KeyError(f"Name {x} not found in data frame")
 
 def pool_func(df,pool):
 	x,operation=pool
@@ -109,17 +123,20 @@ def check_var(df,x,inputtype,add_intercept,numeric):
 			const_found=True
 	return dfx,const_found
 
-def eval_variables(df, x,IDs_num):
+def eval_variables(df, x,idvar_num):
 	pd_panel = df
-	if len(IDs_num)>0:
-		pd_panel=df.groupby(IDs_num)
+	if len(idvar_num)>0:
+		pd_panel=df.groupby(idvar_num)
 	lag_obj=lag_object(pd_panel)
 	d={'D':lag_obj.diff,'L':lag_obj.lag,'np':np}
 	for i in df.keys():#Adding columns to name space
 		d[i]=df[i]
 	for i in x:
 		if not i in df:
-			df[i]=eval(i,d)
+			try:
+				df[i]=eval(i,d)
+			except:
+				raise NameError(f"{i} not defined in data frame or function")
 	try:#just to make sure everytning is ok
 		df = pd.DataFrame(df[x])
 	except KeyError:
@@ -163,8 +180,8 @@ def parse_model(model_string,settings):
 	if split is None:#No dependent
 		return [model_string],[DEFAULT_INTERCEPT_NAME]
 	Y,X=model_string.split(split)
-	X = X.replace('++','~') # ++ indicates a sum shall be taken, in contrast to + that separate variables
-	X=[i.strip().replace('~','+') for i in X.split('+')]
+	X=[i.strip() for i in X.split('+')]
+	Y = Y.strip()
 	if X==['']:
 		X=[DEFAULT_INTERCEPT_NAME]
 	if settings.add_intercept and not (DEFAULT_INTERCEPT_NAME in X):
@@ -174,23 +191,26 @@ def parse_model(model_string,settings):
 
 def ordered_unique(X):
 	unique = []
+	invalid = ['']
 	for i in X:
-		if not i in unique:
+		if not i in unique + invalid:
 			unique.append(i)
 	return unique
 
 
-def get_names(x,inputtype,add_intercept=False,intercept_name=None):
+def get_names(x, df,inputtype,add_intercept=False,intercept_name=None):
+	r = None
 	if x is None:
 		r=[]
 	elif type(x)==str:
 		r=[x]
-	elif type(x)==pd.DataFrame:
-		r=x.columns
-	elif type(x)==pd.Series:
-		r=[x.name]
-	else:
-		raise RuntimeError(f"Input for {inputtype} needs to be a list or tuple of strings, a pandas DataFrame object or a pandas Series object")
+	elif type(x)==list or type(x)==tuple:
+		r=list(x.name)
+	
+	if r is None or not np.all(i in df for i in r):
+		raise RuntimeError(f"Input for {inputtype} needs to be a string, list or tuple of strings," 
+					 		"corresponding to names in the supplied data frame")
+	
 	if add_intercept:
 		r=[intercept_name]+r
 
@@ -213,20 +233,19 @@ def handle_time(ip,df,x):
 		except ValueError as e:
 			raise ValueError(f'Expected date or numeric for {inputtype}, but {x} is not recognized as a date or numeric variable by pandas.')
 	x_dt=pd.to_numeric(x_dt)/(24*60*60*1000000000)
-	x_int=x_dt.astype(int)
-	if len(pd.unique(df[x]))==len(pd.unique(x_int)):
-		x_dt=x_int
+	if np.all(x_dt.astype(int)==x_dt):
+		x_dt=x_dt.astype(int)
 	df[x+NUMERIC_TAG]=x_dt
 	return [x+NUMERIC_TAG],[x]
 
 
-def handle_IDs(ip,df,x):
+def handle_idvar(ip,df,x):
 	if x==[]:
 		return [],[]
 	x=x[0]
-	ids, ip.IDs_unique = pd.factorize(df[x],True)
+	ids, ip.idvar_unique = pd.factorize(df[x],True)
 	df[x+NUMERIC_TAG]=ids
 	#both these are true before next assignment:
-	#np.all(ip.IDs_unique[ids]==df[x])
+	#np.all(ip.idvar_unique[ids]==df[x])
 	#np.all(np.arange(len(ids))[ids]==ids)
 	return [x+NUMERIC_TAG],[x]

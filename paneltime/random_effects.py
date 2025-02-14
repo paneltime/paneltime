@@ -73,7 +73,7 @@ class re_obj:
     dRE0=self.FRE(dx,panel,self.theta)
     dRE1=self.FRE(x,panel,self.dtheta[vname])
     ret=(dRE0+dRE1)*panel.included[3]
-    remove_extreemes(ret)
+    remove_extremes(ret)
     return ret
 
   def ddRE(self,ddx,dx1,dx2,x,vname1,vname2,panel):
@@ -119,7 +119,7 @@ class re_obj:
       ddtheta=self.calc_theta(*theta_args)
     except (RuntimeWarning,OverflowError) as e:
       print(e)
-      remove_extreemes(theta_args)
+      remove_extremes(theta_args)
       ddtheta=self.calc_theta(*theta_args)
       overflow=True
 
@@ -132,7 +132,7 @@ class re_obj:
     dRE11=self.FRE(x,panel,ddtheta,True)
     ret=(dRE00+dRE01+dRE10+dRE11)*panel.included[4]
     if overflow:
-      remove_extreemes([ret])
+      remove_extremes([ret])
     return (dRE00+dRE01+dRE10+dRE11)*panel.included[4]
 
   def calc_theta(self,dxFE1,dxFE2,ddxFE,dx1,dx2,x,ddx,dtheta_dv_var,theta,dtheta_de_var,de_var1,de_var2,dv_var1,dv_var2,panel):
@@ -177,9 +177,9 @@ class re_obj:
       dFE=w*(mean_x_all-mean_x)*incl#last product expands the T vector to a TxN matrix
     except (RuntimeWarning,OverflowError) as e:
       print(e)
-      remove_extreemes([w])
+      remove_extremes([w])
       dFE=w*(mean_x_all-mean_x)*incl#last product expands the T vector to a TxN matrix
-      remove_extreemes([dFE])
+      remove_extremes([dFE])
     return dFE
 
   def FRE_time(self,x,w,d,panel):
@@ -194,9 +194,9 @@ class re_obj:
       dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix
     except (RuntimeWarning,OverflowError) as e:
       print(e)
-      remove_extreemes([w])
+      remove_extremes([w])
       dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix		
-      remove_extreemes([dFE])
+      remove_extremes([dFE])
     return dFE
 
 
@@ -278,7 +278,7 @@ def get_subshapes(panel,x,group):
 
 
 
-def remove_extreemes(args,max_arg=1e+100):
+def remove_extremes(args,max_arg=1e+100):
   for i in range(len(args)):
     s=np.sign(args[i][np.abs(args[i])>max_arg])
     args[i][np.abs(args[i])>max_arg]=s*max_arg

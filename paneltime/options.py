@@ -120,7 +120,10 @@ class options_item:
 				return False
 			return valid
 		elif type(permissible)==str:
-			return eval(permissible %(value,))
+			if type(value) == list or type(value)== tuple:
+				return np.all([eval(permissible %(i,)) for i in value])
+			else:
+				return eval(permissible %(value,))
 		else:
 			print('No method to handle this permissible')
 

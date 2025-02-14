@@ -29,7 +29,7 @@ np.set_printoptions(suppress=True)
 np.set_printoptions(precision=8)
 
 
-def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_factors,options,window,
+def execute(model_string,dataframe, timevar, idvar, heteroscedasticity_factors, options, window,
             exe_tab,instruments, console_output, mp):
 
   """optimizes LL using the optimization procedure in the maximize module"""
@@ -38,15 +38,15 @@ def execute(model_string,dataframe, IDs_name, time_name,heteroscedasticity_facto
     warnings.simplefilter('error')
     if not exe_tab is None:
       if exe_tab.isrunning==False:return
-    datainput=Input(dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments)
+    datainput=Input(dataframe, model_string, idvar, timevar, options, heteroscedasticity_factors,instruments)
     summary = go(datainput,options,mp,options.pqdkm,window,exe_tab, console_output)
 
   return summary
 
 class Input:
-  def __init__(self,dataframe,model_string,IDs_name,time_name, options,heteroscedasticity_factors,instruments):
+  def __init__(self,dataframe, model_string, idvar, timevar, options,heteroscedasticity_factors,instruments):
 
-    model_parser.get_variables(self,dataframe,model_string,IDs_name,time_name,heteroscedasticity_factors,instruments,options)
+    model_parser.get_variables(self,dataframe,model_string, idvar, timevar,heteroscedasticity_factors,instruments,options)
     self.descr=model_string
     self.n_nodes = N_NODES
     self.args=None

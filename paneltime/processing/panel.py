@@ -46,9 +46,9 @@ class panel:
 		self.nW,self.nZ,self.n_beta=len(self.input.W.columns),len(self.input.Z.columns),len(self.input.X.columns)
 		self.define_h_func()
 		self.Ld_inv=None
-		if self.input.IDs is None:
+		if self.input.idvar is None:
 			self.options.fixed_random_group_eff=0
-		if self.input.IDs is None:
+		if self.input.idvar is None:
 			self.options.fixed_random_group_eff=0		
 		self.m_zero = False
 		if  m==0 and k>0:
@@ -78,9 +78,9 @@ class panel:
 		if not hasattr(self,'n_dates'):
 			self.number_of_RE_coef=0
 			self.number_of_RE_coef_in_variance=0
-			self.options.fixed_random_group_eff.set(0)
-			self.options.fixed_random_time_eff.set(0)
-			self.options.fixed_random_variance_eff.set(0)
+			self.options.fixed_random_group_eff = 0
+			self.options.fixed_random_time_eff = 0
+			self.options.fixed_random_variance_eff = 0
 		else:
 			self.number_of_RE_coef=self.N*(self.options.fixed_random_group_eff>0)+self.n_dates*(self.options.fixed_random_time_eff>0)
 			self.number_of_RE_coef_in_variance=(self.N*(self.options.fixed_random_group_eff>0)
@@ -147,9 +147,9 @@ class panel:
 		Z[:,0]=1		
 
 	def is_single(self):
-		IDs,t=self.input.IDs_num,self.input.timevar_num
+		idvar,t=self.input.idvar_num,self.input.timevar_num
 		try:
-			if (np.all(IDs.iloc[0]==IDs) or np.all(t.iloc[0]==t)):
+			if (np.all(idvar.iloc[0]==idvar) or np.all(t.iloc[0]==t)):
 				return True
 		except:
 			return True
@@ -157,10 +157,10 @@ class panel:
 
 
 	def arrayize(self):
-		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each IDs"""
+		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each idvar"""
 
-		X, Y, W, IDs,timevar,Z=[to_numpy(i) for i in 
-				(self.input.X, self.input.Y, self.input.W, self.input.IDs_num,self.input.timevar_num,self.input.Z)]
+		X, Y, W, idvar,timevar,Z=[to_numpy(i) for i in 
+				(self.input.X, self.input.Y, self.input.W, self.input.idvar_num,self.input.timevar_num,self.input.Z)]
 		X,Y,Z=self.subtract_means(X,Y,Z)
 		NT,k=X.shape
 		self.total_obs=NT
@@ -189,9 +189,9 @@ class panel:
 			if not np.all(timevar[:,0]==np.sort(timevar[:,0])):#remove in production
 				raise RuntimeError("The arrayize procedure has unsorted the time variable!?!")					
 		else:
-			sel,ix=np.unique(IDs,return_index=True)
+			sel,ix=np.unique(idvar,return_index=True)
 			N=len(sel)
-			sel=(IDs.T==sel.reshape((N,1)))
+			sel=(idvar.T==sel.reshape((N,1)))
 			T=np.sum(sel,1)
 			self.max_T=np.max(T)
 			self.idincl=T>=self.lost_obs+self.options.min_group_df
@@ -211,8 +211,8 @@ class panel:
 			self.get_time_map(timevar, self.N,T, self.idincl,sel,included)
 
 			if np.sum(self.idincl)<len(self.idincl):
-				idname=self.input.IDs.columns[0]
-				idremoved=np.array(self.input.IDs)[ix,0][self.idincl==False]
+				idname=self.input.idvar.columns[0]
+				idremoved=np.array(self.input.idvar)[ix,0][self.idincl==False]
 				s = formatarray(idremoved,90,', ')
 				print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
 			#remove in production. Checking sorting:
@@ -414,6 +414,8 @@ def arrayize(X,N,max_T,T,idincl,sel,dtype=None):
 
 
 def to_numpy(x):
+	if x is None:
+		return None
 	x=np.array(x)
 	if len(x.shape)==2:
 		return x

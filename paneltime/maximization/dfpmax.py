@@ -47,7 +47,7 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 
 		
 		terminate = srvr_terminated(slave_server, its)
-
+		
 		if conv==1:
 			msg = "Convergence on zero gradient; local or global minimum identified"
 		elif conv==2:

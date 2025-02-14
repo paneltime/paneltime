@@ -61,7 +61,7 @@ class Output:
 			s+=f"AR{p}"
 
 		if (k*m):
-			if s!='': s += '-'
+			if s!='': s += ', '
 			s += f"GARCH{(k,m)}"
 		t = self.panel.options.fixed_random_time_eff
 		i = self.panel.options.fixed_random_group_eff
@@ -102,7 +102,7 @@ class Output:
 				('Method:',method), 
 				('Date:',datetime.now().strftime('%a, %d %b %Y')), 
 				('Time:',datetime.now().strftime('%H:%M:%S')), 
-				('Run time:', run_time), 
+				(f'Run time (its):', f'{run_time} ({self.iterations})'), 
 				('Observations count:',panel.NT), 
 				('Df Residuals:',s.df), 
 				('Df Model:',k-1), 
@@ -571,11 +571,8 @@ def remove_illegal_signs(name):
 
 class Statistics:
 	def __init__(self,ll,panel):
-		try:
-			self.set(ll, panel)
-		except Exception as e:
-			if not panel.options.supress_output:
-				print(f'Exception while getting statistics: {e}')
+		self.set(ll, panel)
+
 
 
 	def set(self, ll, panel):

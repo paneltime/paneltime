@@ -104,13 +104,13 @@ class Computation:
 
 		if its<len(self.constr.constr_matrix)+2:
 			conv = 0
-		elif abs(g_norm*max_pgain*totpgain) < self.gtol*25:
+		elif abs(g_norm*max_pgain*totpgain) < self.gtol and its>50:
 			conv = 1
 		elif abs(g_norm)<self.gtol:
 			conv = 2
 		elif its>=self.panel.options.max_iterations:
 			conv = 3
-		elif ((sum(self.errs[-3:])==10) and ls.alam<1e-5) or ((sum(self.errs[-3:])==3) and incr<1e-15): #stalled: 3 consectutive errors and small ls.alam, or no function increase
+		elif (sum(self.errs[-3:])==3) and incr<1e-15: #stalled: 3 consectutive errors and small ls.alam, or no function increase
 			conv = 4
 		elif (np.max(np.abs(g))>1e+50) or (np.max(np.abs(ll.e))>1e+50):
 			conv = 5

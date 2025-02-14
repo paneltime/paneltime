@@ -68,6 +68,9 @@ def maximize_node_new(panel, args, gtol = 1e-5, slave_id =0 , slave_server = Non
 #Need to implement this again
 def maximize_node(panel, args, gtol = 1e-5, slave_id =0 , slave_server = None):
 	res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server)
+	return res
+	# Possibly unneccessary code:
+	constr = []
 	while True:
 		if not res['constr'].is_collinear:
 			break

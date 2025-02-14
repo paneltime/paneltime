@@ -96,28 +96,26 @@ def solve(constr,H, g, x, f):
 def add_constraints(constr, H, g):
 	#testing the direction in case H is singular (should be handled by constr, but 
 	#sometimes it isn't), and removing randomly until H is not singular
-	
-	idx=np.ones(len(g),dtype=bool)
-	idx[list(constr.fixed.keys())]=False
-	for i in np.array(list(itertools.product([False, True], repeat=sum(idx)))):
-		idx_new = np.array(idx)
-		idx_active = np.array(idx[idx])
-		idx_active[i] = False
-		idx_new[idx] = idx_active
-		n, g_new, H_new, delmap, keys =  remove_and_enlarge(constr, H, g, idx_new)
-		try:
-			dx = -np.linalg.solve(H_new, g_new)
-			break
-		except np.linalg.LinAlgError as e:
-			if e.args[0] != 'Singular matrix':
-				raise np.linalg.LinAlgError(e)
+
+	include=np.ones(len(g),dtype=bool) #all are initially included
+	include[list(constr.fixed.keys())]=False #but not fixed constraints
+	include_others = np.ones(sum(include), dtype=bool) #potential for adding additional ad hoc constraints by setting other variables to False
+	include_copy = np.array(include) 
+	include_copy[include] = include_others
+
+	n, g_new, H_new, delmap, keys =  remove_and_enlarge(constr, H, g, include_copy)
+
+	dx = -np.linalg.solve(H_new, g_new)
+
 	for k in list(keys):
-		if not idx_new[k]:#Remove all keys (interval constraints) that are all ready removed by 'False' in idx (fixed constraints)
+		if not include_copy[k]:#Remove all keys (interval constraints) that are all ready removed by 'False' in idx (fixed constraints)
 			keys.pop(keys.index(k))
-	return n, g_new, H_new, delmap, keys, dx, idx_new
+	return n, g_new, H_new, delmap, keys, dx, include_copy
 	
 	
 def remove_and_enlarge(constr, H, g, idx):
+	("Variables with fixed constraints are *removed*"
+  	 "Slack variables are added for variables with interval constraints, which *enlarges* the hessian and gradient")
 	#idx are fixed constraints
 	#keys is constructed from interval constraints
 	m = len(g)
@@ -126,7 +124,7 @@ def remove_and_enlarge(constr, H, g, idx):
 		
 		H=H[idx][:,idx]
 		g=g[idx]
-		delmap-=np.cumsum(idx==False)
+		delmap-=np.cumsum(idx==False) #delmap is the list of indicies to the undeleted variables, after deletion
 		delmap[idx==False]=m#if for some odd reason, the deleted variables are referenced later, an out-of-bounds error will be thrown  
 		
 	n=len(H)

@@ -204,7 +204,7 @@ class Constraints(dict):
 		if panel.options.include_initvar:
 			constraints.append(('initvar',1e-50,1e+10))
 		for name, min_, max_ in constraints:
-				self.add(name,None,'ARMA/GARCH extreeme bounds', [min_,max_])
+				self.add(name,None,'ARMA/GARCH extreme bounds', [min_,max_])
 		self.add_custom_constraints(panel, pargs.user_constraints, True, 'user constraints')
 	
 		c = self.constr_matrix
