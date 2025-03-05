@@ -19,7 +19,13 @@ import keyword
 def get_variables(ip, df,model_string,idvar,timevar,heteroscedasticity_factors,instruments,settings,pool=(None,'mean')):
 	if not settings.supress_output:
 		print ("Analyzing variables ...")
-	if not type(df)==pd.DataFrame:
+	try:
+		df = pd.DataFrame(df)
+	except:
+		pass
+	if df is None:
+		raise RuntimeError('The dataframe supplied is not a pandas dataframe. Only pandas dataframes are supported.')
+	if not type(df)==pd.DataFrame or len(df)==0:
 		raise RuntimeError('The dataframe supplied is not a pandas dataframe. Only pandas dataframes are supported.')
 	if CONST_NAME in df:
 		print(f"Warning: The name {CONST_NAME} is reserved for the constant 1."

@@ -16,7 +16,7 @@ Unlike any other statistical tool currently available, **Paneltime** simultaneou
 The package can also be used on **non-panel data** or datasets that only exhibit ARIMA or GARCH characteristics. However, if your data has none of these issues, **OLS is the preferred method**.  
 
 **Author:** Espen Sirnes  
-**Current version:** 1.2.57  
+**Current version:** 1.2.58  
 
 
 # Installation
@@ -52,8 +52,7 @@ variable that is the absolute value of x.
 # Example using world bank data
 ```
 import wbdata
-import pandas as pd
-import paneltime 
+import paneltime as pt
 
 # Define variables to download
 indicators = {
@@ -68,30 +67,17 @@ indicators = {
 # Download data
 df = wbdata.get_dataframe(indicators)
 
-
-# prepare data
-df = pd.DataFrame(df.reset_index())
-df = df.rename(columns = {'date':'year'})
-df = df.sort_values(by=['country', 'year'])
-df_grouped = df.groupby('country')
-
-
-df['Lagged_Gross_Savings'] = df_grouped['Gross_Savings'].shift(1)
-df['Lagged_Gov_Consumption'] = df_grouped['Gov_Consumption'].shift(1)
-df['Lagged_Growth'] =          df_grouped['GDP_growth'].shift(1)
-df['Lagged_Inflation'] =       df_grouped['Inflation'].shift(1)
-df['Lagged_Interest_rate'] =   df_grouped['Interest_rate'].shift(1)
-
+#avoiding extreme interest rates
 df = df[abs(df['Inflation'])<30]
 
-
-
 # Run the regression:
-m = paneltime.execute('Inflation~Intercept+Lagged_Growth+Lagged_Inflation+Lagged_Interest_rate+'
-					  'Lagged_Gross_Savings', df,T = 'year',ID='country' )
+pt.options.pqdkm = (1, 1, 0, 1, 1)
+m = pt.execute('Inflation~L(Gross_Savings)+L(Inflation)+L(Interest_rate)+D(L(Gov_Consumption))'
+					 , df, timevar = 'date',idvar='country' )
 
 # display results
 print(m)
+
 
 ```
 
