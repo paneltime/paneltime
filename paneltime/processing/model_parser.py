@@ -5,12 +5,16 @@ DEFAULT_INTERCEPT_NAME='Intercept'
 VAR_INTERCEPT_NAME='log_variance_constant'
 INSTRUMENT_INTERCEPT_NAME='instrument_intercept'
 CONST_NAME='one'
-NUMERIC_TAG="_numeric"
+ORIG_SUFIX = '_orig'
+
 
 import numpy as np
 import pandas as pd
 import builtins
 import keyword
+
+
+
 
 def get_variables(ip, df,model_string,idvar,timevar,heteroscedasticity_factors,instruments,settings,pool=(None,'mean')):
 	if not settings.supress_output:
@@ -21,7 +25,15 @@ def get_variables(ip, df,model_string,idvar,timevar,heteroscedasticity_factors,i
 		print(f"Warning: The name {CONST_NAME} is reserved for the constant 1."
 											f"The variable with this name will be overwritten and set to 1")
 	
+	
+	timevar, idvar = check_dimensions(df, timevar, idvar)
+
+
 	df = df.reset_index()
+
+	if df.columns.duplicated().any():
+		raise RuntimeError(f"There are more than one occurence of '{df.columns[df.columns.duplicated()][0]}'. " 
+					 "All variable names must be unique")
 	
 	df=pool_func(df,pool)
 
@@ -32,16 +44,19 @@ def get_variables(ip, df,model_string,idvar,timevar,heteroscedasticity_factors,i
 
 	identify_sort_var(timevar, df)
 	identify_sort_var(idvar, df)
-	#if not pd.api.types.is_datetime64_any_dtype(df['date_column']):
+
 
 	idvar   = get_names(idvar, df,  'id variable')
 	timevar = get_names(timevar, df,  'time variable')
 
-	idvar_num,     idvar      = handle_idvar(ip,df,idvar)
-	timevar_num, timevar  = handle_time(ip,df,timevar)
-	sort= idvar_num + timevar
+
+
+
+	sort= idvar + timevar
 	if len(sort):
 		df=df.sort_values(sort)
+
+
 
 	W=get_names(heteroscedasticity_factors, df,'heteroscedasticity_factors',True, VAR_INTERCEPT_NAME)
 	Z=get_names(instruments, df,'instruments',True,INSTRUMENT_INTERCEPT_NAME)
@@ -53,25 +68,67 @@ def get_variables(ip, df,model_string,idvar,timevar,heteroscedasticity_factors,i
 	if Y==['']:
 		raise RuntimeError("No dependent variable specified")
 
-	x = idvar_num+idvar+timevar+timevar_num+W+Z+Y+X
-	x = list(dict.fromkeys(x))
-	df, ip.lost_na_obs, ip.max_lags, ip.orig_n = eval_variables(df, x, idvar_num)
+	vars = W+Z+Y+X
+
+	idvar_orig = numberize_idvar(ip,df,timevar, idvar)
+	timevar_orig, time_delta, time_delta_orig  = numberize_time(df,timevar, idvar)
+
+	df, ip.lost_na_obs, ip.max_lags, ip.orig_n = eval_and_add_pred_space(df, vars, idvar_orig, timevar_orig, 
+																	idvar, timevar, time_delta, time_delta_orig)
+
+
+
+	df_test(vars, df)
 
 	if len(df)==0:
 		raise RuntimeError('The filtered data is. This typically happens if all observations have nan-observations. Plealse check your data.')
+	
+	ip.has_intercept = add_variables(ip, settings, df, locals(), idvar)
+	ip.dataframe=df
+
+
+def add_variables(ip, settings, df, locals, idvar):
 	const={}
-	for x,add_intercept,num in [
-					('idvar_num',False,True),('timevar_num',False,True),
-																('idvar',False,False),('timevar',False,False),
-																('W',True,True),('Z',True,True),('Y',False,True),
-																	('X',settings.add_intercept,True)]:
-		ip.__dict__[x], const[x]= check_var(df,locals()[x],x,add_intercept,num)
-		if ip.__dict__[x] is None:
+	df = df.reset_index()
+	for x,add_intercept,num in [('idvar',False,True),('timevar',False,True),
+							 	('idvar_orig',False,False),('timevar_orig',False,False),
+								('W',True,True),('Z',True,True),('Y',False,True),
+								('X',settings.add_intercept,True)]:
+		
+		var, const[x]= check_var(df,locals[x],x,num)
+		
+		if var is None:
 			ip.__dict__[x + "_names"] = None
 		else:
-			ip.__dict__[x + "_names"] = list(ip.__dict__[x].columns)
-	ip.dataframe=df
-	ip.has_intercept=const['X']
+			ip.__dict__[x + "_names"] = list(var)
+
+
+		ip.__dict__[x] = var
+
+	return const['X']
+		
+		
+def check_dimensions(df, timevar, idvar):
+	ix = df.index
+
+	if (not timevar is None) or isinstance(ix, pd.RangeIndex):
+		return timevar, idvar
+	
+	for k in range(len(ix.names)):
+		try:
+			pd.to_datetime(ix.get_level_values(k), format='%Y-%m-%d')
+			names = list(ix.names)
+			timevar = names.pop(k)
+			if idvar  is None:
+				unique_dates = len(ix.get_level_values(timevar))
+				unique_indicies = len(set(df.index.to_list()))
+				if unique_dates != unique_indicies:
+					idvar = names[0]
+			return timevar, idvar
+		except Exception as e:
+			pass
+
+	return timevar, idvar
 
 def identify_sort_var(x, df):
 	if x is None:
@@ -93,14 +150,13 @@ def pool_func(df,pool):
 	df=df.groupy(x).agg(operation)
 	return df
 
-def check_var(df,x,inputtype,add_intercept,numeric):
+
+
+
+def check_var(df,x,inputtype,numeric):
 	if len(x)==0:
 		return None,None
-	try:
-		dfx=df[x]
-	except KeyError as e:
-		x = [i.replace(' ', '_') for i in x]
-		dfx=df[x]
+	dfx=df[x]
 	if not numeric:
 		return dfx,None
 	const_found=False
@@ -123,53 +179,127 @@ def check_var(df,x,inputtype,add_intercept,numeric):
 			const_found=True
 	return dfx,const_found
 
-def eval_variables(df, x,idvar_num):
+
+def eval_and_add_pred_space(df, vars, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig):
+	df = df.sort_values(idvar_orig + timevar_orig)
+	df = df.set_index(idvar_orig + timevar_orig)
+	df_new, lost_na_obs, max_lags, n = eval_variables(df, idvar + timevar + vars, idvar_orig)
+	if max_lags>0:
+		df_new = extend_timeseries(df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig, max_lags)
+		df_new, lost_na_obs, max_lags, n = eval_variables(df_new, idvar + timevar + vars, idvar_orig)
+	df_new=df_new.dropna()
+	
+	#todo: 
+	# - add max_lags observations to the end of all variables that have dates at the terminal date
+	# - cut the corresponding obsverations in the arrayized matrices in the panel module, and 
+	#   assign them to prediction versions. 
+	return df_new, lost_na_obs, max_lags, n
+
+
+def extend_timeseries(df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig, max_lags):
+	# Ensure the data is sorted by timevar within each group
+
+	return df
+
+	#Works here to cut of last rows in `panel` before can be implemented.
+	
+	idvar_orig, timevar_orig = idvar_orig[0], timevar_orig[0]
+	idvar, timevar = idvar[0], timevar[0]
+
+	# Find the maximum date in the dataset
+	max_date = df.index.get_level_values(timevar_orig).max()
+
+	# Get the last date per group
+	last_dates = df.groupby(level=idvar_orig).apply(lambda x: x.index.get_level_values(timevar_orig).max())
+	last_dates = last_dates.reset_index()
+	last_dates.columns = [idvar_orig, timevar_orig]  # Ensure proper column names
+
+	# Filter groups where last date matches max_date
+	extend_groups = last_dates[last_dates[timevar_orig] == max_date]
+
+	# Compute mean of previous observations per group
+	group_means = df.groupby(level=idvar_orig).mean()
+
+	# Prepare new rows
+	new_rows = []
+	
+	for _, row in extend_groups.iterrows():
+		group_id = row[idvar_orig]
+		last_date_orig = row[timevar_orig]
+		last_date = df.loc[group_id,last_date_orig][timevar]
+		mean_values = group_means.loc[group_id]  # Get mean values for the group
+
+		for i in range(1, max_lags + 1):
+			new_date_orig = last_date_orig + i * time_delta_orig  # Increment date
+			new_row = pd.Series(mean_values, name=(group_id, new_date_orig))  # Set new index tuple
+			new_row[timevar] = last_date + i * time_delta
+			new_rows.append(new_row)
+	
+	# Convert new rows to DataFrame
+	if new_rows:
+		new_df = pd.DataFrame(new_rows)
+		new_df.index.names = [idvar_orig, timevar_orig]  # Ensure multi-index naming
+		df_extended = pd.concat([df, new_df]).sort_index()
+	else:
+		df_extended = df
+
+	return df_extended
+
+
+
+def eval_variables(df, x,idvar_orig):
+	new_df = pd.DataFrame()
 	pd_panel = df
-	if len(idvar_num)>0:
-		pd_panel=df.groupby(idvar_num)
-	lag_obj=lag_object(pd_panel)
+	if len(idvar_orig)>0:
+		pd_panel=df.groupby(level=idvar_orig)
+	lag_obj = LagObject(pd_panel)
+
+	n=len(df)
+	df=df.dropna()
+	lost_na_obs = (n-len(df))
+
 	d={'D':lag_obj.diff,'L':lag_obj.lag,'np':np}
 	for i in df.keys():#Adding columns to name space
 		d[i]=df[i]
 	for i in x:
 		if not i in df:
 			try:
-				df[i]=eval(i,d)
-			except:
+				new_df[i] = eval(i,d)
+			except NameError as e:
 				raise NameError(f"{i} not defined in data frame or function")
-	try:#just to make sure everytning is ok
-		df = pd.DataFrame(df[x])
-	except KeyError:
-		df_test(x, df)
+		else:
+			new_df[i] = df[i]
+	
+	if len(idvar_orig):
+		maxlags = max(new_df.isna().groupby(level = idvar_orig).sum().max())
+	else:
+		maxlags = max(new_df.isna().sum().max())
 
-	n=len(df)
-	df=df.dropna()
-	lost_na_obs=(n-len(df))-lag_obj.max_lags
-
-	return df, lost_na_obs, lag_obj.max_lags, n
-
-def df_test(x, df):
-	not_in = []
-	for i in x:
-		if not i in df:
-			not_in.append(i)
-	raise RuntimeError(f"These names are in the model, but not in the data frame:{', '.join(not_in) }")
+	return new_df, lost_na_obs, maxlags, n
 
 
-class lag_object:
+class LagObject:
 	def __init__(self,panel):
 		self.panel=panel
-		self.max_lags=0
 
 	def lag(self,variable,lags=1):
-		x=self.panel[variable.name].shift(lags)
-		self.max_lags=max((self.max_lags,lags))
+		x = variable.shift(lags)
 		return x
 
 	def diff(self,variable,lags=1):
-		x=self.panel[variable.name].diff(lags)
-		self.max_lags=max((self.max_lags,lags))
+		x = variable.diff(lags)
 		return x
+
+def df_test(x, df):
+	try: 
+		df = pd.DataFrame(df[x])
+	except KeyError:
+		not_in = []
+		for i in x:
+			if not i in df:
+				not_in.append(i)
+		raise RuntimeError(f"These names are in the model, but not in the data frame:{', '.join(not_in) }")
+
 
 def parse_model(model_string,settings):
 	split = None
@@ -216,36 +346,95 @@ def get_names(x, df,inputtype,add_intercept=False,intercept_name=None):
 
 	return list(np.unique(r))
 
-def handle_time(ip,df,x):
-	if x==[]:
-		return [],[]
-	x=x[0]
+def numberize_time(df, timevar, idvar):
+	if timevar==[]:
+		return [],None, None
+	timevar=timevar[0]
+	timevar_orig = timevar+ ORIG_SUFIX
 
-	if np.issubdtype(np.array(df[x]).dtype, np.number):
-		df[x+NUMERIC_TAG] = df[x]
-		return [x+NUMERIC_TAG],[x]
-
+	#Trying to coerce to number
 	try:
-		x_dt=pd.to_datetime(df[x])
+		df[timevar] = df[timevar].astype(float)
+		df_int = df[timevar].astype(int)
+		if np.all(df[timevar]==df_int):
+			df[timevar] = df_int
+	except:
+		pass
+
+	#if number:
+	dtype = np.array(df[timevar]).dtype
+
+	if np.issubdtype(dtype, np.number):
+		df[timevar + ORIG_SUFIX] = df[timevar]
+		time_delta = get_mean_diff(df, timevar, idvar)
+		if np.issubdtype(dtype, np.integer):
+			time_delta = int(time_delta)
+			if time_delta == 0:
+				time_delta = 1
+		return [timevar_orig], time_delta, time_delta
+
+	#Not number:
+	try:
+		x_dt=pd.to_datetime(df[timevar])
 	except ValueError as e:
 		try:
 			x_dt=pd.to_numeric(x_dt)
 		except ValueError as e:
-			raise ValueError(f'Expected date or numeric for {inputtype}, but {x} is not recognized as a date or numeric variable by pandas.')
+			raise ValueError(f"{timevar} is determined to be the date variable, but it is neither nummeric "
+					"nor a date variable. Set a variable that meets these conditions as `timevar`.")
 	x_dt=pd.to_numeric(x_dt)/(24*60*60*1000000000)
-	if np.all(x_dt.astype(int)==x_dt):
-		x_dt=x_dt.astype(int)
-	df[x+NUMERIC_TAG]=x_dt
-	return [x+NUMERIC_TAG],[x]
+	x_int = x_dt.astype(int)
+	if np.all(x_int==x_dt):
+		x_dt = x_int
+
+	df[timevar_orig] = df[timevar]
+	df[timevar]=x_dt
+	
+	time_delta = get_mean_diff(df, timevar, idvar)
+	time_delta_orig = get_mean_diff(df, timevar_orig, idvar)
+	time_delta2 = pd.infer_freq(df[timevar])
+	if time_delta_orig!=time_delta2:
+		a=0
+
+	return [timevar+ ORIG_SUFIX], time_delta, time_delta_orig
+
+def get_mean_diff(df, timevar, idvar):
+	if idvar == []:
+		m = df[timevar].diff().median()
+	else:
+		m = df.groupby(idvar)[timevar].diff().median()
+
+	if int(m) == m:
+		m = int(m)
+
+	if m ==0:
+		raise ValueError(f'Your date variable {timevar} has zero meadian. Use another time variable or fix the one defined.')
+	return m
+
+	
+
+def numberize_idvar(ip,df,timevar, idvar):
+
+	if idvar==[]:
+		return []
+	idvar=idvar[0]
+	timevar = timevar[0]
+
+	if df.duplicated(subset=[idvar, timevar]).any():
+		raise ValueError(f"Time and groups identifiers are {timevar} and {idvar}, but "
+			 	   f"there are non-unique '{timevar}'-items for some or all '{idvar}'-items. "
+				   f"Make sure the dates are unique and define the group and time identifiers "
+				   "explicitly, if these were not those you intended. ")
+	
+	dtype = np.array(df[idvar]).dtype
+	df[idvar + ORIG_SUFIX] = df[idvar]
+
+	if not np.issubdtype(dtype, np.number):
+		ids, ip.idvar_unique = pd.factorize(df[idvar],True)
+		df[idvar]=ids
+	else:
+		df[idvar]=df[idvar]
+
+	return [idvar + ORIG_SUFIX]
 
 
-def handle_idvar(ip,df,x):
-	if x==[]:
-		return [],[]
-	x=x[0]
-	ids, ip.idvar_unique = pd.factorize(df[x],True)
-	df[x+NUMERIC_TAG]=ids
-	#both these are true before next assignment:
-	#np.all(ip.idvar_unique[ids]==df[x])
-	#np.all(np.arange(len(ids))[ids]==ids)
-	return [x+NUMERIC_TAG],[x]

@@ -44,19 +44,19 @@ class Constraints(dict):
 	def __init__(self,panel,args, its, armaconstr):
 		dict.__init__(self)
 		self.categories={}
-		self.mc_list = set()
-		self.mc_problems = set()
-		self.initvar_fixed = False
+		self.mc_constr = {}
+		self.mc_report = {}
 		self.fixed={}
 		self.intervals={}
 		self.associates={}
 		self.collinears={}
-		self.weak_mc_dict={}
+		self.mc_report={}
 		self.args=args
 		self.args[0]
 		self.panel_args=panel.args
-		self.CI=None
+		self.ci=None
 		self.its=its
+		self.initvar_set = False
 		self.pqdkm=panel.pqdkm
 		self.m_zero=panel.m_zero
 		self.ARMA_constraint = armaconstr
@@ -190,7 +190,9 @@ class Constraints(dict):
 					return False
 		return True
 
-	def add_static_constraints(self, panel, its, ll=None):
+	def add_static_constraints(self, comput, its, ll= None):
+
+		panel = comput.panel
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 
@@ -212,6 +214,12 @@ class Constraints(dict):
 			constr = self.get_init_constr(*c[its])
 			for name in constr:
 				self.add(name, None,'user constraint')
+
+		if not comput.constr_old is None:
+			if not comput.constr_old.ci is None:
+				if comput.constr_old.ci > 15 or self.initvar_set:
+					self.initvar_set = True
+					self.add('initvar', None,'initial variance set')
 		a=0
 		
 			
@@ -233,24 +241,26 @@ class Constraints(dict):
 			self.args = args
 			self.args[0]
 		k,k=H.shape
-		self.weak_mc_dict=dict()
 		incl=np.array(k*[True])
 		incl[list(computation.constr.fixed)]=False
-		self.CI = self.constraint_multicoll(k, computation, incl, H)
+		self.constraint_multicoll(k, computation, incl, H)
 
 
 
 	def constraint_multicoll(self, k,computation,incl, H):
-		CI_max=0
+		cimax = {}
 		for i in range(k-1):
-			CI = self.multicoll_problems(computation, H, incl)
-			CI_max=max((CI_max,CI))
-			if len(self.mc_list)==0:
+			ci = self.multicoll_problems(computation, H, incl, cimax)
+			if len(self.mc_report)==0:
 				break
-			incl[list(self.mc_list)]=False
-		return CI_max
+			incl[list(self.mc_constr)]=False
+		if len(cimax)==0:
+			self.ci, self.ci_n = None, None
+		else:
+			self.ci = max(cimax, key = cimax.get)
+			self.ci_n = cimax[self.ci]
 
-	def multicoll_problems(self, computation, H, incl):
+	def multicoll_problems(self, computation, H, incl, cimax):
 		c_index, var_prop, includemap, d, C = decomposition(H, incl)
 		if any(d==0):
 			self.remove_zero_eigenvalues(C, incl, includemap, d)
@@ -259,34 +269,35 @@ class Constraints(dict):
 		if c_index is None:
 			return 0
 		limit_report = computation.panel.options.multicoll_threshold_report
-		limit = computation.multicoll_threshold_max
+		limit_constr = computation.multicoll_threshold_max
 
 		for cix in range(1,len(c_index)):
-			for lmt,lst in [(limit, self.mc_list), 
-						(limit_report, self.mc_problems)]:
-				added = self.add_collinear(lmt, lst, c_index[-cix], 
-					   lmt==limit, var_prop[-cix], includemap, computation)
-				if added:
-					break
+	
+			constr = self.add_collinear(limit_constr, self.mc_constr, c_index[-cix], 
+					   						True, var_prop[-cix], includemap, cimax)
+			
+			report = self.add_collinear(limit_report, self.mc_report, c_index[-cix], 
+					   						True, var_prop[-cix], includemap, cimax)
+			if constr:
+				break
 		return c_index[-1]
 
-	def add_collinear(self, limit, ci_list, ci, constrain, var_dist, includemap, computation):
+	def add_collinear(self, limit, ci_list, ci, constrain, var_dist, includemap, cimax):
+		"""Identifies if there are collinearities outside `limit`, and adds them to ci_list. If `constrain==True`, 
+		a regression constraint is added."""
 		sign_var = var_dist > 0.5
 
-		n = len(sign_var)
-		m = len(self.panel_args.names_v)
-		if self.initvar_fixed == True:
-			self.add(m-1 ,None,'initvar restr')
+
 		if (not np.sum(sign_var)>1) or ci<limit:
 			return False
 		a = np.argsort(var_dist)
 		index = includemap[a[-1]]
 		assc = includemap[a[-2]]
-		if index == m-2:
-			index = includemap[a[-2]]
-			assc = includemap[a[-1]]	
-			#self.initvar_fixed = True	
-		ci_list.add(index)
+		if ci in cimax:
+			cimax[ci] = max((np.sum(sign_var), cimax[ci]))
+		else:
+			cimax[ci] = np.sum(sign_var)
+		ci_list[index] = assc
 		if constrain:
 			#print(f"{index}/{m}")
 			self.add(index ,assc,'collinear', ci = ci)
@@ -337,18 +348,20 @@ class Constraints(dict):
 					  			"must either be a tuple with (max, min), a float or a single element list with a float "
 									)
 					
-	def print(self, kind = None):
+	def __str__(self):
+		s = ''
 		for desc, obj in [('All', self),
 								('Fixed', self.fixed),
 								('Intervals', self.intervals)]:
-			print(f"{desc} constraints:")
+			s += f"{desc} constraints:\n"
 			for i in obj:
 				c=obj[i]
 				try:
-					print(f"constraint: {i}, associate:{c.assco_ix}, max:{c.max}, min:{c.min}, value:{c.value}, cause:{c.cause}")  
+					s += f"constraint: {i}, associate:{c.assco_ix}, max:{c.max}, min:{c.min}, value:{c.value}, cause:{c.cause}\n"
 				except:
-					print(f"constraint: {i}, associate:{c.assco_ix}, max:{None}, min:{None}, value:{c.value}, cause:{c.cause}")  
-
+					s += f"constraint: {i}, associate:{c.assco_ix}, max:{None}, min:{None}, value:{c.value}, cause:{c.cause}\n"  
+		return s
+	
 def test_interval(interval,value):
 	if not interval is None:
 		if np.any([i is None for i in interval]):

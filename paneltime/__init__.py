@@ -37,7 +37,7 @@ def enable_parallel():
 	#than running a single thread. The benefit is that it tries out different directions at once.
 
 
-def execute(model_string,dataframe, timevar, idvar = None, het_factors=None, instruments=None, console_output=True):
+def execute(model_string,dataframe, timevar = None, idvar = None, het_factors=None, instruments=None, console_output=True):
 
 	"""Maximizes the likelihood of an ARIMA/GARCH model with random/fixed effects (RE/FE)\n
 	model_string: a string on the form 'Y ~ X1 + X2 + X3\n

@@ -25,7 +25,7 @@ def set_garch_arch(panel,args,u, h_add, G):
 
 	parameters = np.array(( N , T , 
 									len(lmbda), len(rho), len(gmma), len(psi), 
-									panel.options.EGARCH, panel.lost_obs, 
+									panel.options.EGARCH, 0, 
 									h_add))
 
 	AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_c(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr)

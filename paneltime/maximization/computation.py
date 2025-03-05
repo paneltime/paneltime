@@ -26,10 +26,9 @@ class Computation:
 		self.tolx = tolx
 		self.hessian=logl.hessian(panel,self.gradient)
 		self.panel=panel
-		self.constr=None
-		self.CI=0
-		self.weak_mc_dict={}
-		self.mc_problems=[]
+		self.ci=0
+		self.mc_report={}
+		self.mc_report=[]
 		self.H_correl_problem=False
 		self.singularity_problems=False
 		self.H, self.g, self.G = None, None, None
@@ -60,19 +59,23 @@ class Computation:
 		self.constr = constraints.Constraints(self.panel,x,its,armaconstr)
 
 		if self.constr is None:
-			self.H_correl_problem,self.mc_problems,self.weak_mc_dict=False, [],{}
-			self.singularity_problems=(len(self.mc_problems)>0) or self.H_correl_problem
+			self.H_correl_problem,self.mc_report,self.mc_report=False, [],{}
+			self.singularity_problems=(len(self.mc_report)>0) or self.H_correl_problem
 			return
 
 		if self.panel.options.constraints_engine:
-			self.constr.add_static_constraints(self.panel, its, ll)	
+			self.constr.add_static_constraints(self, its, ll)	
 
 			self.constr.add_dynamic_constraints(self, H, ll)	
 
-		self.CI=self.constr.CI
+		self.ci=self.constr.ci
+		if False:
+			print(self.ci)
+			print(x)
+			print(len(self.constr.fixed))
 		self.H_correl_problem=self.constr.H_correl_problem	
-		self.mc_problems=self.constr.mc_problems
-		self.weak_mc_dict=self.constr.weak_mc_dict
+		self.mc_report=self.constr.mc_report
+		self.mc_report=self.constr.mc_report
 		
 
 
@@ -81,6 +84,7 @@ class Computation:
 	def exec(self, dx_realized,hessin, H, incr, its, ls, armaconstr):
 		f, x, g_old, ll = ls.f, ls.x, ls.g, ls.ll
 		#These setting may not hold for all circumstances, and should be tested properly:
+
 
 		g, G = self.calc_gradient(ll)
 		
@@ -110,7 +114,7 @@ class Computation:
 			conv = 2
 		elif its>=self.panel.options.max_iterations:
 			conv = 3
-		elif (sum(self.errs[-3:])==3) and incr<1e-15: #stalled: 3 consectutive errors and small ls.alam, or no function increase
+		elif ((sum(self.errs[-3:])==3) and  incr<1e-15): #stalled: 3 consectutive errors and small ls.alam, or no function increase
 			conv = 4
 		elif (np.max(np.abs(g))>1e+50) or (np.max(np.abs(ll.e))>1e+50):
 			conv = 5
@@ -127,13 +131,23 @@ class Computation:
 	
 
 
+	def fixed_constr_change(self):
+		new = self.constr.fixed.keys()
+		old = self.constr_old.fixed.keys()
+		for i in new:
+			if not i in old:
+				return True
+		for i in old:
+			if not i in new:
+				return True
 
-
+		return False
 
 	
 	def set_constr(self, args, armaconstr):
+		self.constr_old = None
 		self.constr = constraints.Constraints(self.panel, args, 0, armaconstr)
-		self.constr.add_static_constraints(self.panel, 0)	    
+		self.constr.add_static_constraints(self, 0)	    
 
 
 		
@@ -256,6 +270,8 @@ class Computation:
 			pass
 
 		return H, hessin
+
+
 
 def det_managed(H):
 	try:

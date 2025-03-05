@@ -23,7 +23,7 @@ class gradient:
 		extr_value=1e+100
 		if np.max(np.abs(x))>extr_value:
 			x[np.abs(x)>extr_value]=np.sign(x[np.abs(x)>extr_value])*extr_value
-		return x*self.panel.a[3]
+		return x*self.panel.included[3]
 
 	def garch_arima_grad(self,ll,dRE,varname):
 		panel=self.panel
@@ -33,9 +33,9 @@ class gradient:
 		if self.panel.N>1 and panel.options.fixed_random_group_eff>0 and not dRE is None:
 			d_eRE_sq=2*ll.e_RE*dRE
 			dmeane2=panel.mean(d_eRE_sq,(0,1))
-			d_input=(d_eRE_sq-dmeane2)*panel.a[3]
-			dvRE_dx=dmeane2*panel.a[3]-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname,panel)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname,panel)
-			groupeffect=ll.dvarRE*dvRE_dx*panel.a[3]
+			d_input=(d_eRE_sq-dmeane2)*panel.included[3]
+			dvRE_dx=dmeane2*panel.included[3]-ll.re_obj_i_v.dRE(d_input,ll.varRE_input,varname,panel)-ll.re_obj_t_v.dRE(d_input,ll.varRE_input,varname,panel)
+			groupeffect=ll.dvarRE*dvRE_dx*panel.included[3]
 
 
 		dvar_sigma=None
@@ -44,9 +44,8 @@ class gradient:
 			x=cf.prod((ll.h_e_val,dRE))	
 			dvar_sigma=fu.arma_dot(ll.GAR_1MA,x,ll)
 		dvar_e=cf.add((dvar_sigma,groupeffect),True)
-		if np.any(np.isnan(dvar_e)):
-			a=0
-		return dvar_e,dvar_sigma,dvRE_dx,d_input
+
+		return dvar_e, dvar_sigma, dvRE_dx, d_input
 
 
 	def get(self,ll,DLL_e=None,dLL_var=None,return_G=False):
@@ -66,7 +65,7 @@ class gradient:
 		#ARIMA:
 		de_rho_RE=self.arima_grad(p,u_RE,ll,-1,ll.AMA_1)
 		de_lambda_RE=self.arima_grad(q,e_RE,ll,-1,ll.AMA_1)
-		de_beta_RE=-fu.arma_dot(ll.AMA_1AR,self.X_RE,ll)*panel.a[3]
+		de_beta_RE=-fu.arma_dot(ll.AMA_1AR,self.X_RE,ll)*panel.included[3]
 
 		(self.de_rho_RE,self.de_lambda_RE,self.de_beta_RE)=(de_rho_RE,de_lambda_RE,de_beta_RE)		
 
@@ -82,7 +81,9 @@ class gradient:
 
 		#GARCH:
 
-		self.dvar_omega=fu.arma_dot(ll.GAR_1,panel.W_a,ll)
+		dG = np.array(panel.W_a)
+		dG[:,0,0] = 0
+		self.dvar_omega=fu.arma_dot(ll.GAR_1,dG,ll)
 		self.dvar_initvar = None
 		if 'initvar' in ll.args.args_d:
 			self.dvar_initvar = np.tile(ll.GAR_1[0], (N, 1)).reshape((N,T,1))
@@ -129,7 +130,7 @@ class gradient:
 		#For debugging:
 		if False:
 			from .. import debug
-			print(debug.grad_debug(ll,panel,0.00001))
+			print(debug.grad_debug(ll,panel,0.0000001))
 			print(g)
 			a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL_full', 'psi',0)
 			a=0

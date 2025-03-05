@@ -23,8 +23,8 @@ This object has the following attributes:
 |                | `count_samp_size_after_filter` | `float`           | The number of observations after filtering                                                            |
 |                | `count_samp_size_orig`       | `float`             | The number of original observations                                                                   |
 | `general`      |                              | `General` instance  | Contains various information of interest                                                              |
-|                | `CI`                         | `float`             | The condition index                                                                                  |
-|                | `CI_n`                       | `int`               | The number of variables being dependent (more than 50% of variance) of a high CI>30 factor            |
+|                | `ci`                         | `float`             | The condition index                                                                                  |
+|                | `ci_n`                       | `int`               | The number of variables being dependent (more than 50% of variance) of a high ci>30 factor            |
 |                | `converged`                  | `float`             | Indicates whether the maximization procedure converged (`True`) or not (`False`)                     |
 |                | `dx_norm`                    | `float`             | The normalized direction for the next iteration. Should be close to 0 for all variables.              |
 |                | `gradient_matrix`            | `float`             | The gradient matrix of vectors for each observation, calculated analytically at the final regression coefficients point. |

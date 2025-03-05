@@ -291,7 +291,7 @@ def options_dict():
 																		[float,type(None)], 'Tobit-model limits', ['%s>0',None], 
 																		descr_for_input_boxes=['lower limit','upper limit'])
 
-	options['tolerance']						= options_item(0.001, 	"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
+	options['tolerance']						= options_item(0.0001, 	"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
 																		"is smaller than the tolerance, the procedure is "
 																		"Tolerance in maximum likelihood",
 																		float,"Tolerance", "%s>0")	

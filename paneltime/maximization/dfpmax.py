@@ -31,6 +31,7 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 
 	MAXITER = panel.options.max_iterations
 	
+	
 	fdict = {}
 	step = 1.0
 
@@ -60,8 +61,8 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 			msg = "Collinear"
 		elif conv==6:
 			msg = "Overflow"
-		elif terminate:
-			msg = f"Terminated. No convergence within {its} iterations" 
+		elif terminate or its + 1 == MAXITER:
+			msg = f"No convergence within {its} iterations" 
 
 		if terminate or (conv>0):
 			break
@@ -95,7 +96,7 @@ def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr, dx
 		x, f, hessin, H, G, g, conv, g_norm, dx = comput.exec(dx_realized,  hessin, H, incr, its, ls, armaconstr)
 
 
-		#print(list(ls.x[1:3])+list(ls.x[-2:])+[comput.CI, len(comput.constr.mc_list)])
+		#print(list(ls.x[1:3])+list(ls.x[-2:])+[comput.ci, len(comput.constr.mc_constr)])
 		#print(g)
 
 

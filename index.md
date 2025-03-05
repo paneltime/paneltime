@@ -5,9 +5,19 @@ has_toc: true
 ---
 # About
 
-Author: Espen Sirnes
+**Paneltime** is a statistical tool for estimating regressions on datasets that:  
 
-Current version: 1.2.56
+- Are **panels** (have both a time and a group dimension)  
+- Are **non-stationary in means** (ARIMA)  
+- Are **non-stationary in variance** (GARCH)  
+
+Unlike any other statistical tool currently available, **Paneltime** simultaneously estimates **random/fixed effects**, **ARIMA**, and **GARCH** parameters.  
+
+The package can also be used on **non-panel data** or datasets that only exhibit ARIMA or GARCH characteristics. However, if your data has none of these issues, **OLS is the preferred method**.  
+
+**Author:** Espen Sirnes  
+**Current version:** 1.2.57  
+
 
 # Installation
 

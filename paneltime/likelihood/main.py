@@ -64,7 +64,7 @@ class LL:
 		self.set_var_bounds(panel)
 		
 		G = fu.dot(panel.W_a, self.args.args_d['omega'])
-		G[:,max((panel.lost_obs-1,0)),0] = panel.args.init_var
+		G[:,0,0] = panel.args.init_var
 		if True:
 			if 'initvar' in self.args.args_d:
 				G[:,0,0] = self.args.args_d['initvar'][0][0]
@@ -223,8 +223,8 @@ class LL:
 	def standardize_variable(self,panel,X,norm=False,reverse_difference=False):
 		X=fu.arma_dot(self.AMA_1AR,X,self)
 		X=(X+self.re_obj_i.RE(X, panel,False)+self.re_obj_t.RE(X, panel,False))
-		if (not panel.Ld_inv is None) and reverse_difference:
-			X=fu.dot(panel.Ld_inv,X)*panel.a[3]		
+		if (not panel.undiff is None) and reverse_difference:
+			X=fu.dot(panel.undiff,X)*panel.included[3]		
 		if norm:
 			X=X*self.v_inv05
 		X_long=self.stretch_variable(panel,X)
@@ -250,49 +250,67 @@ class LL:
 		self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
 		return matrices
 	
-	def predict(self, W, W_next = None):
+	def predict(self, W, W_next, panel):
 		d = self.args.args_d
-		self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'])
-		u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], 0)#test
-		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], W_next, self.minvar, self.maxvar)
-		#var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar)#test
+		self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'], panel)
+		#u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], panel)#test
+		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], W_next, self.minvar, self.maxvar, panel)
+		#var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar, panel)#test
 		if not hasattr(self,'Y_pred'):
 			self.standardize()
 		
-		return {'predicted residual':self.u_pred, 'predicted variance':self.var_pred, 
-						'in-sample predicted Y': self.Y_pred_long, 'in-sample predicted variance': self.v}
+		return {'predicted residual':self.u_pred, 
+		  		'predicted variance':self.var_pred, 
+				'predicted Y': np.mean(self.Y_pred,1)+ self.u_pred , 
+				'in-sample predicted Y': self.Y_pred, 
+				'in-sample predicted variance': self.v}
 
-		
-def pred_u(u, e, rho, lmbda, e_now = 0):
+def get_last_obs(u, panel):
+	maxlag = max(panel.pqdkm)
+	N,T,k = panel.X.shape
+	last_obs_i = np.array(panel.date_map[-1][0])
+	last_obs_t = np.array(panel.date_map[-1][1])
+	u_new = np.zeros((N,maxlag,1))
+	for t in range(maxlag):
+		u_new[last_obs_i, maxlag-1-t] = u[last_obs_i,last_obs_t - t]
+
+	return u_new
+
+
+def pred_u(u, e, rho, lmbda, panel, e_now = 0):
 	if len(lmbda)==0 and len(rho)==0:
 		return 0
 	u_pred = e_now
+	u_last = get_last_obs(u, panel)
+	e_last = get_last_obs(e, panel)
 	if len(rho):
 		u_pred += sum([
-			rho[i]*u[:,-i-1] for i in range(len(rho))
+			rho[i]*u_last[:,-i-1] for i in range(len(rho))
 			])
 	if len(lmbda):
 		u_pred += sum([
-			lmbda[i]*e[:,-i-1] for i in range(len(lmbda))
+			lmbda[i]*e_last[:,-i-1] for i in range(len(lmbda))
 		])  
 	if len(u_pred)==1:
 		u_pred = u_pred[0,0]
 	return u_pred
 	
-def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar):
+def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar, panel):
 	W = test_variance_signal(W, h, omega)
 	if W is None:
 		G =omega[0,0]
 	else:
 		G = np.dot(W,omega)
 	a, b = 0, 0 
+	h_last = get_last_obs(h, panel)
+	var_last = get_last_obs(var, panel)
 	if len(psi):
 		a = sum([
-			psi[i]*h[:,-i-1] for i in range(len(psi))
+			psi[i]*h_last[:,-i-1] for i in range(len(psi))
 			])
 	if len(gamma):
 		b = sum([
-			gamma[i]*(var[:,-i-1]) for i in range(len(gamma))
+			gamma[i]*(var_last[:,-i-1]) for i in range(len(gamma))
 		])  
 		
 	var_pred = G + a +b

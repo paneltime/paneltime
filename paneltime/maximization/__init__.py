@@ -26,6 +26,8 @@ class Summary:
 		c = comm.ll.args
 		self.names = Names(list(c.args_d), list(c.caption_v), list(c.names_v) )
 		self.count = Counting(panel)
+		self.panel = panel
+		self.ll = comm.ll
 		self.results = Results(panel, comm, self.table)
 		self.general = General(panel, comm, t0, self.output)
 		self.random_effects = RandomEffects(panel, comm.ll)
@@ -57,10 +59,10 @@ class Summary:
 		
 	def predict(self, signals=None):
 		#debug:
-		#self.ll.predict(self.panel.W_a[:,-2], self.panel.W_a[:,-1])
+		#self.ll.predict(self.panel.W_a[:,-2], self.panel.W_a[:,-1], self.panel)
 		N,T,k = self.panel.W_a.shape
 		if signals is None:
-			pred = self.ll.predict(self.panel.W_a[:,-1], None)
+			pred = self.ll.predict(self.panel.W_a[:,-1], None, self.panel)
 			return pred
 		if not hasattr(signals, '__iter__'):#assumed float
 			signals = np.array([signals])
@@ -70,7 +72,7 @@ class Summary:
 			raise RuntimeError("Signals must be a float or a one dimensional vector with the same size as variables assigned to HF argument")
 		
 		signals = np.append([1],signals)
-		pred = self.ll.predict(self.panel.W_a[:,-1], signals.reshape((1,k)))
+		pred = self.ll.predict(self.panel.W_a[:,-1], signals.reshape((1,k)), self.panel)
 		return pred
 		
 class Names:
@@ -122,7 +124,7 @@ class General:
 		self.hessian = comm.H
 		self.gradient_vector = comm.g
 		self.gradient_matrix = comm.G
-		self.CI , self.CI_n = output.get_CI(comm.constr)
+		self.ci , self.ci_n = output.get_CI(comm.constr)
 
 		self.its = comm.its
 		self.dx_norm = comm.dx_norm

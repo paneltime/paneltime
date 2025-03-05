@@ -130,27 +130,27 @@ class Output:
 
 		s = self.stats
 		heading = 'Diagnostics:'
-		CI, n_CI = self.get_CI(constr)
-		c0 =(
-				('Omnibus:',s.Omnibus_st),
-				('Prob(Omnibus):',s.Omnibus_pval),
-				('Skew:',s.skewness_st),
-				('Kurtosis:',s.kurtosis),
-				('', ''),
-				('', ''),
-				('ADF statistic:',s.ADF_stat),
+		ci, n_ci = self.get_CI(constr)
+		c0 =(	('Distribution:',''),
+				('  Omnibus:',s.Omnibus_st),
+				('  Prob(Omnibus):',s.Omnibus_pval),
+				('  Jarque-Bera (JB):',s.JB_st),
+				('  Prob(JB):',s.JB_prob_st),
+				('  Skew:',s.skewness_st),
+				('  Kurtosis:',s.kurtosis),
 				('','')
+				
 		)   
 		
-		c1 =(
-				('Durbin-Watson:',s.DW),
-				('Jarque-Bera (JB):',s.JB_st),
-				('Prob(JB):',s.JB_prob_st),
-				('Cond. No.:',CI),
-				('Cond. var count.:', n_CI),
-				('', ''),
-				('ADF crit.val 1%:',s.c1),
-				('ADF crit.val 5%:',s.c5),
+		c1 =(	('Stationarity:',''),
+				('  Durbin-Watson:',s.DW),
+				('  ADF statistic:',s.ADF_stat),
+				('  ADF crit.val 1%:',s.c1),
+				('  ADF crit.val 5%:',s.c5),
+				('Singularity:',''),
+				('  Cond. No.:',ci),
+				('  Cond. var count.:', n_ci),
+
 		)     
 		
 		tbl = [(c0[i],c1[i]) for i in range(len(c0))]
@@ -260,13 +260,13 @@ class Output:
 		return "{:<{}}{}".format(description, length - len(value), value) 
 
 	def get_CI(self, constr):
-		CI ='None'
-		n_CI = 'None'
+		ci ='None'
+		ci_n = 'None'
 		if not constr is None:
-			if not constr.CI is None:
-				CI = np.round(constr.CI)
-			n_CI=len(constr.mc_problems)
-		return CI, n_CI
+			if not constr.ci is None:
+				ci = np.round(constr.ci)
+				ci_n = constr.ci_n
+		return ci, ci_n
 
 
 
@@ -322,9 +322,9 @@ class RegTableObj(dict):
 		d['conf_high'] = d['args'] +z*d['se_robust']
 		
 	def constraints_formatting(self, panel, constr):
-		weak_mc_dict={}
+		mc_report={}
 		if not constr is None:
-			weak_mc_dict = constr.weak_mc_dict
+			mc_report = constr.mc_report
 		d=self.d
 		if not self.dx_norm is None:
 			d['dx_norm']=self.dx_norm
@@ -345,9 +345,9 @@ class RegTableObj(dict):
 				d['assco'][i]='NA'
 				d['cause'][i]=c[i].cause		
 
-		for i in weak_mc_dict:#adding associates of non-severe multicollinearity
+		for i in mc_report:#adding associates of non-severe multicollinearity
 			d['multicoll'][i]='|'
-			d['assco'][i]=panel.args.caption_v[weak_mc_dict[i][0]]	  
+			d['assco'][i]=panel.args.caption_v[mc_report[i]]	  
 
 	def table(self,n_digits = 3,brackets = '(',fmt = 'NORMAL',stacked = True, show_direction = False, show_constraints = True, show_confidence = False):
 		include_cols,llength=self.get_cols(stacked, show_direction, show_constraints, show_confidence)
@@ -499,16 +499,16 @@ def reduce_size(H, G, g, constr, oposite,resize):
 	m=len(H)
 	if not resize:
 		return H,G,np.ones(m,dtype=bool)
-	weak_mc_dict=constr.weak_mc_dict.keys()
+	mc_report=constr.mc_report.keys()
 	c = list(constr.fixed.keys())	
 	if oposite:
-		weak_mc_dict=[constr.weak_mc_dict[i][0] for i in constr.weak_mc_dict]
+		mc_report=[constr.mc_report[i] for i in constr.mc_report]
 		c = []
 		for i in constr.fixed:
 			if not constr.fixed[i].assco_ix is None:
 				c.append(constr.fixed[i].assco_ix)
 	if False:#not sure why this is here
-		for i in weak_mc_dict:
+		for i in mc_report:
 			if not i in c:
 				c.append(i)
 	idx=np.ones(m,dtype=bool)

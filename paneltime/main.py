@@ -39,7 +39,7 @@ def execute(model_string,dataframe, timevar, idvar, heteroscedasticity_factors, 
     if not exe_tab is None:
       if exe_tab.isrunning==False:return
     datainput=Input(dataframe, model_string, idvar, timevar, options, heteroscedasticity_factors,instruments)
-    summary = go(datainput,options,mp,options.pqdkm,window,exe_tab, console_output)
+    summary = go(datainput,options,mp,window,exe_tab, console_output)
 
   return summary
 
@@ -53,10 +53,10 @@ class Input:
     if options.arguments!="":
       self.args=options.arguments
 
-def go(datainput,options,mp,pqdkm,window,exe_tab, console_output):
+def go(datainput,options,mp,window,exe_tab, console_output):
   if not options.supress_output:
     print("Creating panel")
-  pnl=panel.panel(datainput,options,pqdkm)			
+  pnl=panel.Panel(datainput,options)			
 
   if not mp is None:
     mp.send_dict({'panel':pnl})

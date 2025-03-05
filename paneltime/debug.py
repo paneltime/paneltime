@@ -117,8 +117,8 @@ def LL_calc(self,panel):
   lnv+=grp
   self.dlnv_pos=(lnv<100)*(lnv>-100)
   lnv = np.maximum(np.minimum(lnv,100),-100)
-  v = np.exp(lnv)*panel.a[3]
-  v_inv = np.exp(-lnv)*panel.a[3]
+  v = np.exp(lnv)*panel.included[3]
+  v_inv = np.exp(-lnv)*panel.included[3]
 
   LL = self.LL_const-0.5*(lnv+(e_REsq)*v_inv)
 
