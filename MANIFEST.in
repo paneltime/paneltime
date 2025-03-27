@@ -1,5 +1,3 @@
-graft paneltime/gui
-include paneltime/*.ico
 
-include *.ico
-recursive-include cfunctions *
+
+recursive-include paneltime/cfunctions *
