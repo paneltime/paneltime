@@ -22,6 +22,7 @@ def main():
 
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
+	add_version(wd)
 
 	if push_git or push_pip:
 		version = add_version(wd)
@@ -52,7 +53,7 @@ def gitpush(version):
 	
 def add_version(wd):
 	srchtrm = r"(\d+\.\d+\.\d+)"
-	version = re_replace('setup.cfg', srchtrm, wd)
+	version = re_replace('pyproject.toml', srchtrm, wd)
 	re_replace('index.md', srchtrm, wd, version)
 	re_replace('paneltime/info.py', srchtrm, wd, version)
 	return version

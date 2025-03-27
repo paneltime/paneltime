@@ -1,16 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "paneltime"
-version = "1.2.60"
-description = "Paneltime is a statistical tool for estimating panel data models with timseries problems."
-authors = [{ name = "Espen Sirnes", email = "espen.sirnes@uit.no" }]
+version = "1.2.63"
+description = "Panel regression simultaneously solving for ARIMA/GARCH and random/fixed effects."
 readme = "index.md"
-license = { text = "GPL-3.0-only" }
+requires-python = ">=3.8"
+license = "GPL-3.0-only"
+
+authors = [
+  { name = "Espen Sirnes", email = "espen.sirnes@uit.no" }
+]
+
+keywords = ["econometrics"]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Programming Language :: Python :: 3.8"
+]
+
 dependencies = [
     "numpy >=1.11",
     "pandas >=1.0",
     "mpmath >=1.1"
 ]
 
-[build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+[project.urls]
+Homepage = "https://github.com/espensirnes/paneltime"
+
+[project.scripts]
+paneltime = "paneltime:main"
+
+[project.optional-dependencies]
+linux = ["gcc"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
