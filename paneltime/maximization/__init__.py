@@ -31,6 +31,11 @@ class Summary:
 		self.results = Results(panel, comm, self.table)
 		self.general = General(panel, comm, t0, self.output)
 		self.random_effects = RandomEffects(panel, comm.ll)
+		
+		name_y = panel.input.Y_names[0]
+		self.prediction_names = {'Observed':f'Observed {name_y}', 
+						   		 'Predicted':f'Predicted {name_y}', 
+								 'Fitted':f'Fitted {name_y}'}		
 
 	def __str__(self, statistics = True, diagnostics = True, df_accounting = True):
 		return '\n\n'.join([
@@ -62,7 +67,7 @@ class Summary:
 		#self.ll.predict(self.panel.W_a[:,-2], self.panel.W_a[:,-1], self.panel)
 		N,T,k = self.panel.W_a.shape
 		if signals is None:
-			pred = self.ll.predict(self.panel.W_a[:,-1], None, self.panel)
+			pred = self.ll.predict(self.panel)
 			return pred
 		if not hasattr(signals, '__iter__'):#assumed float
 			signals = np.array([signals])

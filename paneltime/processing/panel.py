@@ -9,6 +9,7 @@ from . import conversion
 from .. import functions as fu
 
 import numpy as np
+from .. import debug
 import time
 
 
@@ -141,19 +142,21 @@ class Panel:
 	def arrayize(self):
 		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each idvar"""
 
-		X, Y, W, idvar,timevar,Z=[to_numpy(i) for i in 
-				(self.input.X, self.input.Y, self.input.W, self.input.idvar,self.input.timevar,self.input.Z)]
+		X, Y, W, idvar,timevar, timevar_orig,Z=[to_numpy(i) for i in 
+				(self.input.X, self.input.Y, self.input.W, self.input.idvar,self.input.timevar, 
+	 			 self.input.timevar_orig ,self.input.Z)]
 		X,Y,Z=self.subtract_means(X,Y,Z)
 		
 		
-		if self.is_single():
-			self.arrayize_single(timevar, X, Y, W, Z)			
+		if self.is_single() and False:
+			self.arrayize_single(timevar, timevar_orig, X, Y, W, Z)			
 		else:
-			self.arrayize_multi(idvar, timevar, X, Y, W, Z)
+			self.arrayize_multi(idvar, timevar, timevar_orig, X, Y, W, Z)
 
 		self.cross_section_count()
+		self.arrayize_pred()
 
-	def arrayize_single(self, timevar, X, Y, W, Z):
+	def arrayize_single(self, timevar, timevar_orig, X, Y, W, Z):
 		NT,k=X.shape
 		self.total_obs=NT
 
@@ -176,18 +179,20 @@ class Panel:
 		self.date_count_mtrx=None
 		self.date_count=None
 		self.idincl=np.array([True])
-		if not np.all(timevar[:,0]==np.sort(timevar[:,0])):#remove in production
-			raise RuntimeError("The arrayize procedure has unsorted the time variable!?!")		
+		self.timevar = timevar_orig
 		self.masking()
 		self.date_map = [(0,t) for t in range(NT)]
+		idvar_names = np.array(self.input.idvar_orig)[self.idvar_ix,0]
+		self.remove_incomplete(idvar_names)
 
-	def arrayize_multi(self, idvar, timevar, X, Y, W, Z):
+	def arrayize_multi(self, idvar, timevar, timevar_orig, X, Y, W, Z):
 		NT,k=X.shape
 		self.total_obs=NT
 
-		sel,ix=np.unique(idvar,return_index=True)
-		N=len(sel)
-		sel=(idvar.T==sel.reshape((N,1)))
+		self.idvar, self.idvar_ix=np.unique(idvar,return_index=True)
+		idvar_names = np.array(self.input.idvar_orig)[self.idvar_ix,0]
+		N=len(self.idvar)
+		sel=(idvar.T==self.idvar.reshape((N,1)))
 		T=np.sum(sel,1)
 		self.max_T=np.max(T)
 		self.idincl=T>=self.lost_obs+self.options.min_group_df
@@ -201,22 +206,60 @@ class Panel:
 		self.T_arr=T[self.idincl].reshape((self.N,1))
 		self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
 		self.masking()
-		if len(self.included[3])<5:
+		if len(self.included[3])<5 and False:
 			raise RuntimeError(f"{len(self.included[3])} valid observations, cannot perform panel analysis. Try without panel (don't specify ID and time)")
 		self.map_time_to_panel_structure(timevar, self.N,T, self.idincl,sel,self.included[3])
 
-		if np.sum(self.idincl)<len(self.idincl):
-			idname=self.input.idvar.columns[0]
-			idremoved=np.array(self.input.idvar_orig)[ix,0][self.idincl==False]
-			s = formatarray(idremoved,90,', ')
-			print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
-		#remove in production. Checking sorting:
-		tvar=arrayize(timevar, N,self.max_T,T, self.idincl,sel)
-		a=[tvar[i][0][0] for i in self.date_map]
-		if not np.all(a==np.sort(a)):	
-			raise RuntimeError("It seems the data is not properly sorted on time")
-			
 		
+		self.remove_incomplete(idvar_names)
+		self.timevar = arrayize(timevar_orig, N,self.max_T,T, self.idincl,sel)
+
+		#debug.test_date_map(arrayize, timevar, N, T, sel, self)
+		a=0
+	
+	def remove_incomplete(self, idvar_names):
+		"""Removes incomplete time series"""
+
+		idname=self.input.idvar.columns[0]
+		idremoved = idvar_names[self.idincl==False]
+		s = formatarray(idremoved,90,', ')
+		if np.any(self.idincl==False) and self.options.supress_output==False:
+			print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
+
+		self.idvar_included = self.idvar[self.idincl]
+		self.original_names = idvar_names[self.idincl]
+
+
+
+	def arrayize_pred(self):
+		self.X_pred, self.X_is_predicted, self.X_pred_timevar = self.arrayize_pred_array('X')
+		self.W_pred_, _, _ = self.arrayize_pred_array('W')
+
+		
+		
+	def arrayize_pred_array(self, name):
+		X = getattr(self, name)
+		N, T, k = X.shape
+		X_pred = getattr(self.input, name + '_pred')
+		idvar_pred = np.array(self.input.idvar_pred).flatten()
+		timevar_pred = self.input.timevar_orig_pred
+		X_ret = np.zeros((N, max(self.max_lags,1), k))
+		timevar_ret = np.full((N, max(self.max_lags,1), 1), np.nan)
+		X_is_predicted = np.ones(N, dtype=bool)
+
+
+		X_pred = X_pred.to_numpy(dtype=float)
+		row_index = 0
+		for i, is_included in enumerate(self.idincl):
+			if is_included:
+				if self.idvar[i] in idvar_pred:
+					X_ret[row_index] = X_pred[idvar_pred == self.idvar[i]]
+					timevar_ret[row_index] = timevar_pred[idvar_pred == self.idvar[i]]
+				else:
+					X_is_predicted[row_index] = False
+				row_index += 1
+		
+		return X_ret, X_is_predicted, timevar_ret
 
 
 	def cross_section_count(self):
@@ -442,23 +485,25 @@ def h(e,z):
 			Xm=(X-m)*a			
 			return np.sum((Xm)**2,axis)/(self.NT-k)
 
-def arrayize(X,N,max_T,T,idincl,sel,dtype=None):
-	if X is None:
-		return None
-	NT,k=X.shape
-	if dtype is None:
-		Xarr=np.zeros((N,max_T,k))
-	else:
-		Xarr=np.zeros((N,max_T,k),dtype=dtype)
-	T_used=[]
-	k=0
-	for i in range(len(sel)):
-		if idincl[i]:
-			Xarr[k,:T[i]]=X[sel[i]]
-			k+=1
-	Xarr=Xarr[:k]
-	return Xarr
 
+def arrayize(X, N, max_T, T, id_included, selections, dtype=None):
+    if X is None:
+        return None
+    
+    num_samples, num_features = X.shape
+    dtype = dtype or X.dtype  # Use X's dtype if not provided
+    
+    # Initialize the 3D output array
+    X_arr = np.zeros((N, max_T, num_features), dtype=dtype)
+
+    # Fill the new array with selected data
+    row_index = 0
+    for i, is_included in enumerate(id_included):
+        if is_included:
+            X_arr[row_index, :T[i]] = X[selections[i]]
+            row_index += 1
+    
+    return X_arr[:row_index]  # Trim unused rows
 
 
 

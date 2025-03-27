@@ -18,6 +18,8 @@ import numpy as np
 import traceback
 import sys
 import time
+import pandas as pd
+
 
 
 class LL:
@@ -196,7 +198,7 @@ class LL:
 		If reverse_difference and the ARIMA difference term d>0, the standardized variables are converted to
 		the original undifferenced order. This may be usefull if the predicted values should be used in another 
 		differenced regression."""
-		if hasattr(self,'Y_st'):
+		if hasattr(self,'Y_st') and False:
 			return		
 		m=panel.lost_obs
 		N,T,k=panel.X.shape
@@ -210,12 +212,12 @@ class LL:
 		self.Y_st,   self.Y_st_long   = self.standardize_variable(panel,panel.Y,reverse_difference)
 		self.X_st,   self.X_st_long   = self.standardize_variable(panel,panel.X,reverse_difference)
 		self.XIV_st, self.XIV_st_long = self.standardize_variable(panel,panel.XIV,reverse_difference)
-		self.Y_pred_st=fu.dot(self.X_st,self.args.args_d['beta'])
-		self.Y_pred=fu.dot(panel.X,self.args.args_d['beta'])	
+		self.Y_fitted_st=fu.dot(self.X_st,self.args.args_d['beta'])
+		self.Y_fitted=fu.dot(panel.X,self.args.args_d['beta'])	
 		self.e_RE_norm_centered_long=self.stretch_variable(panel,self.e_RE_norm_centered)
-		self.Y_pred_st_long=self.stretch_variable(panel,self.Y_pred_st)
-		self.Y_pred_long=np.dot(panel.input.X,self.args.args_d['beta'])
-		self.u_long=np.array(panel.input.Y-self.Y_pred_long)
+		self.Y_fitted_st_long=self.stretch_variable(panel,self.Y_fitted_st)
+		self.Y_fitted_long=np.dot(panel.input.X,self.args.args_d['beta'])
+		self.u_long=np.array(panel.input.Y-self.Y_fitted_long)
 		
 		a=0
 
@@ -250,36 +252,116 @@ class LL:
 		self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
 		return matrices
 	
-	def predict(self, W, W_next, panel):
+	def predict(self, panel):
+		self.standardize(panel)
 		d = self.args.args_d
+
+		N, T, k = panel.X.shape
 		self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'], panel)
 		#u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], panel)#test
-		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], W_next, self.minvar, self.maxvar, panel)
+		self.y_pred = pred_y(panel.X, panel.X_pred, d['beta'], self.u_pred, d['rho'], d['lambda'], panel)
+		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], self.minvar, self.maxvar, panel)
 		#var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar, panel)#test
-		if not hasattr(self,'Y_pred'):
+		if not hasattr(self,'Y_fitted'):
 			self.standardize()
+		index = pd.MultiIndex.from_arrays(
+				[panel.original_names, panel.X_pred_timevar.flatten()],  # Flatten if necessary
+				names=[panel.input.idvar_names[0], panel.input.timevar_names[0]]
+			)
+		pred_df = pd.DataFrame({
+			f'Predicted {panel.input.Y_names[0]}': self.y_pred.flatten(),
+			'Predicted variance':self.var_pred.flatten(), 
+			'Predicted residual':self.u_pred.flatten(), 	
+							}, index=index)
+		pred_df = pred_df[~np.isnan(index.get_level_values(1))]
+		incl = panel.included[2]
+		index = pd.MultiIndex.from_arrays(
+				[np.array(T*[panel.original_names]).T[incl] , panel.timevar[incl][:,0]],  # Flatten if necessary
+				names=[panel.input.idvar_names[0], panel.input.timevar_names[0]]
+			)
 		
-		return {'predicted residual':self.u_pred, 
-		  		'predicted variance':self.var_pred, 
-				'predicted Y': np.mean(self.Y_pred,1)+ self.u_pred , 
-				'in-sample predicted Y': self.Y_pred, 
-				'in-sample predicted variance': self.v}
+		fit_df = pd.DataFrame({
+			f'Observed {panel.input.Y_names[0]}': panel.Y[incl][:,0], 
+			f'Fitted {panel.input.Y_names[0]}': self.Y_fitted[incl][:,0], 
+			'Fitted residual':self.u[incl][:,0],
+			'Fitted variance': self.v[incl][:,0] 	
+							}, index=index)
+		
+
+		df = pd.concat((pred_df, fit_df), axis=1)
+		return df.sort_index()
 
 def get_last_obs(u, panel):
 	maxlag = max(panel.pqdkm)
 	N,T,k = panel.X.shape
-	last_obs_i = np.array(panel.date_map[-1][0])
-	last_obs_t = np.array(panel.date_map[-1][1])
 	u_new = np.zeros((N,maxlag,1))
+	u_new2 = np.zeros((N,maxlag,1))
 	for t in range(maxlag):
-		u_new[last_obs_i, maxlag-1-t] = u[last_obs_i,last_obs_t - t]
-
+		u_new[:, maxlag-1-t] = u[(np.arange(N), panel.T_arr[:,0]-1-t)]
+	u_new[panel.X_is_predicted==False] = np.nan
 	return u_new
 
+def pred_y(X, X_pred, beta, u_pred, rho, lmbda, panel, e_now = 0):
+	N,T,k = X.shape
+	x_pred = pred_x(X, panel)
+	y_pred = np.sum(x_pred*beta[:,0], axis=1).reshape((N,1))
+	y_pred_ag = y_pred + u_pred
+	
+	return y_pred_ag
+
+
+def pred_x(X, panel):
+	"""
+	Predicts values for a given NxTxk matrix (X) using a time-dependent 
+	regression model that includes lagged variables and time trends.
+
+	Parameters:
+	X (numpy.ndarray): An NxTxk matrix where:
+		- N is the number of groups.
+		- T is the number of time periods.
+		- k is the number of variables (including the dependent variable).
+	panel: An object containing necessary panel attributes, specifically:
+		- panel.included[3]: A mask for selecting relevant elements.
+		- panel.T_arr: An Nx1 array indicating the time indices.
+		- panel.X_is_predicted: A boolean mask specifying which values should be predicted.
+
+	Returns:
+	numpy.ndarray: An Nxkx1 matrix containing the predicted values for each group and variable.
+				   Predictions are constrained within the observed range of X.
+				   Unpredicted values are set to NaN.
+	"""
+	N, T, k = X.shape
+
+	tarr = (np.ones((N,1))*np.arange(T)).reshape((N,T,1))*panel.included[3]
+	pred = np.zeros((N, k))
+
+	for i in range(1, k):
+		x = X[:,:,i:i+1]
+		xlag = np.roll(x, 1)*panel.included[3]
+		z = np.concatenate((np.ones((N,T,1)), 
+					  		tarr, 
+							xlag), axis=2)*panel.included[3]
+		
+		new_z  = np.concatenate((np.ones((N, 1)), 
+						   		(panel.T_arr), 
+								x[(np.arange(N), panel.T_arr[:,0]-1)]), axis=1)
+		coefs = np.zeros((N,z.shape[2]))
+		for j in range(N):
+			coefs[j] = (np.linalg.pinv(z[j].T @ z[j]) @ z[j].T @ x[j])[:,0]
+		pred[:,i] = np.sum(new_z * coefs, axis=1)
+		pred[:,i] = np.clip(pred[:,i], np.min(x, axis=(1,2)), np.max(x, axis=(1,2)))
+	pred[:,0] = 1
+	pred[panel.X_is_predicted==False] = np.nan
+	return pred
 
 def pred_u(u, e, rho, lmbda, panel, e_now = 0):
+	pred = pred_mean(u, e, rho, lmbda, panel, e_now)	
+	pred[panel.X_is_predicted==False] = np.nan
+	return pred
+
+def pred_mean(u, e, rho, lmbda, panel, e_now = 0):
 	if len(lmbda)==0 and len(rho)==0:
-		return 0
+		return u[:,-1]*0
 	u_pred = e_now
 	u_last = get_last_obs(u, panel)
 	e_last = get_last_obs(e, panel)
@@ -295,12 +377,9 @@ def pred_u(u, e, rho, lmbda, panel, e_now = 0):
 		u_pred = u_pred[0,0]
 	return u_pred
 	
-def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar, panel):
-	W = test_variance_signal(W, h, omega)
-	if W is None:
-		G =omega[0,0]
-	else:
-		G = np.dot(W,omega)
+def pred_var(h, var, psi, gamma, omega, minvar, maxvar, panel):
+	W = pred_x(panel.W, panel)
+	G = np.dot(W,omega)
 	a, b = 0, 0 
 	h_last = get_last_obs(h, panel)
 	var_last = get_last_obs(var, panel)
@@ -315,12 +394,8 @@ def pred_var(h, var, psi, gamma, omega, W, minvar, maxvar, panel):
 		
 	var_pred = G + a +b
 	var_pred = np.maximum(np.minimum(var_pred, maxvar), minvar)
-	try:
-		if len(var_pred)==1:
-			var_pred = var_pred[0,0]  
-	except TypeError:
-		#var_pred is not iterable, which is expected with GARCH(0,0)
-		pass
+
+	var_pred[panel.X_is_predicted==False] = np.nan
 	return var_pred
 
 

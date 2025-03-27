@@ -10,131 +10,200 @@ ORIG_SUFIX = '_orig'
 
 import numpy as np
 import pandas as pd
-import builtins
-import keyword
+from collections import namedtuple
 
 
 
+def get_variables(ip, df, model_string, idvar, timevar, heteroscedasticity_factors, instruments, settings, pool=(None, 'mean')):
+	"""
+	Processes and extracts variables for a statistical model.
+	
+	Args:
+		ip: Internal object for storing extracted information.
+		df: Pandas DataFrame containing the data.
+		model_string: Model equation in the format "Y ~ X1 + X2 + X3".
+		idvar: Identifier variable(s).
+		timevar: Time variable(s).
+		heteroscedasticity_factors: Variables used for heteroscedasticity correction.
+		instruments: Instrumental variables.
+		settings: Configuration object with additional options.
+		pool: Tuple specifying variable and aggregation method for pooling.
 
-def get_variables(ip, df,model_string,idvar,timevar,heteroscedasticity_factors,instruments,settings,pool=(None,'mean')):
+	Raises:
+		RuntimeError: If the DataFrame is invalid, contains duplicate column names, 
+					  or the model_string is incorrectly formatted.
+	"""
+
 	if not settings.supress_output:
-		print ("Analyzing variables ...")
-	try:
-		df = pd.DataFrame(df)
-	except:
-		pass
-	if df is None:
-		raise RuntimeError('The dataframe supplied is not a pandas dataframe. Only pandas dataframes are supported.')
-	if not type(df)==pd.DataFrame or len(df)==0:
-		raise RuntimeError('The dataframe supplied is not a pandas dataframe. Only pandas dataframes are supported.')
+		print("Analyzing variables ...")
+
+	if not isinstance(df, pd.DataFrame) or df.empty:
+		raise RuntimeError("The supplied data must be a non-empty pandas DataFrame.")
+
 	if CONST_NAME in df:
-		print(f"Warning: The name {CONST_NAME} is reserved for the constant 1."
-											f"The variable with this name will be overwritten and set to 1")
-	
-	
+		print(f"Warning: The name '{CONST_NAME}' is reserved and will be set to 1.")
+
+	# Ensure unique column names
+	duplicated_cols = df.columns[df.columns.duplicated()]
+	if duplicated_cols.any():
+		raise RuntimeError(f"Duplicate column names found: '{duplicated_cols[0]}'. Column names must be unique.")
+
+	# Resolve time and ID variables
 	timevar, idvar = check_dimensions(df, timevar, idvar)
 
+	if idvar is None:
+		idvar = CONST_NAME #Single group
+	elif timevar is None:
+		raise RuntimeError("If you have supplied an ID variable, you must also supply a time variable.")
 
+	
 	df = df.reset_index()
 
-	if df.columns.duplicated().any():
-		raise RuntimeError(f"There are more than one occurence of '{df.columns[df.columns.duplicated()][0]}'. " 
-					 "All variable names must be unique")
-	
-	df=pool_func(df,pool)
+	# Apply pooling transformation
+	df = pool_func(df, pool)
 
-	df[CONST_NAME]=1
-	df[DEFAULT_INTERCEPT_NAME]     = df[CONST_NAME]
-	df[VAR_INTERCEPT_NAME]         = df[CONST_NAME]
-	df[INSTRUMENT_INTERCEPT_NAME]  = df[CONST_NAME]
+	# Add constant/intercept variables
+	df[CONST_NAME] = 1
+	df[DEFAULT_INTERCEPT_NAME] = df[VAR_INTERCEPT_NAME] = df[INSTRUMENT_INTERCEPT_NAME] = df[CONST_NAME]
 
+	# Ensure sorting variables exist in df
 	identify_sort_var(timevar, df)
 	identify_sort_var(idvar, df)
 
+	# Validate and retrieve variable names
+	idvar = get_names(idvar, df, "ID variable")
+	timevar = get_names(timevar, df, "Time variable")
 
-	idvar   = get_names(idvar, df,  'id variable')
-	timevar = get_names(timevar, df,  'time variable')
+	# Sort DataFrame by ID and Time variables (if present)
+	sort_columns = idvar + timevar
+	if sort_columns:
+		df = df.sort_values(sort_columns)
 
-
-
-
-	sort= idvar + timevar
-	if len(sort):
-		df=df.sort_values(sort)
-
-
-
-	W=get_names(heteroscedasticity_factors, df,'heteroscedasticity_factors',True, VAR_INTERCEPT_NAME)
-	Z=get_names(instruments, df,'instruments',True,INSTRUMENT_INTERCEPT_NAME)
+	# Process variable groups
+	W = get_names(heteroscedasticity_factors, df, "Heteroscedasticity factors", True, VAR_INTERCEPT_NAME)
+	Z = get_names(instruments, df, "Instruments", True, INSTRUMENT_INTERCEPT_NAME)
 
 	try:
-		Y,X=parse_model(model_string, settings)
-	except:
-		raise RuntimeError("The model_string must be on the form Y~X1+X2+X3")
-	if Y==['']:
-		raise RuntimeError("No dependent variable specified")
+		Y, X = parse_model(model_string, settings)
+	except Exception:
+		raise RuntimeError("The model_string must be in the format 'Y ~ X1 + X2 + X3'.")
 
-	vars = W+Z+Y+X
+	if not Y or Y == ['']:
+		raise RuntimeError("No dependent variable specified in the model_string.")
 
-	idvar_orig = numberize_idvar(ip,df,timevar, idvar)
-	timevar_orig, time_delta, time_delta_orig  = numberize_time(df,timevar, idvar)
+	vars_list = W + Z + Y + X
 
-	df, ip.lost_na_obs, ip.max_lags, ip.orig_n = eval_and_add_pred_space(df, vars, idvar_orig, timevar_orig, 
-																	idvar, timevar, time_delta, time_delta_orig)
+	# Convert ID and Time variables to numeric representations
+	idvar_orig = numberize_idvar(ip, df, timevar, idvar)
+	timevar_orig, time_delta, time_delta_orig = numberize_time(df, timevar, idvar)
+
+	# Prepare and extend dataset for prediction space
+	df, ip.lost_na_obs, ip.max_lags, ip.orig_n, ip.df_pred = eval_and_add_pred_space(
+		df, vars_list, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig
+	)
+
+	# Check if variables exist in the processed DataFrame
+	df_test(vars_list, df)
+
+	if df.empty:
+		raise RuntimeError("Filtered dataset is empty. Check for missing values in your data.")
+
+	# Store processed variables in `ip`
+	ip.has_intercept = add_variables(ip, settings, df, ip.df_pred, locals())
+	ip.dataframe = df
 
 
+def add_variables(ip, settings, df, df_pred, locals_dict):
+	"""
+	Adds processed variables to the 'ip' object.
 
-	df_test(vars, df)
+	Args:
+		ip: Object to store variable data.
+		settings: Configuration object with additional options.
+		df: Processed dataset.
+		df_pred: Extended dataset for prediction.
+		locals_dict: Dictionary of local variables.
 
-	if len(df)==0:
-		raise RuntimeError('The filtered data is. This typically happens if all observations have nan-observations. Plealse check your data.')
+	Returns:
+		bool: True if intercept was added, otherwise False.
+	"""
 	
-	ip.has_intercept = add_variables(ip, settings, df, locals(), idvar)
-	ip.dataframe=df
+	# Ensure index reset before processing
+	df, df_pred = df.reset_index(), df_pred.reset_index()
 
+	# Define variable types and properties
+	VariableInfo = namedtuple("VariableInfo", ["name", "is_numeric"])
+	variables = [
+		VariableInfo("idvar", True),
+		VariableInfo("timevar", True),
+		VariableInfo("idvar_orig", False),
+		VariableInfo("timevar_orig", False),
+		VariableInfo("W", True),
+		VariableInfo("Z", True),
+		VariableInfo("Y", True),
+		VariableInfo("X", True)
+	]
 
-def add_variables(ip, settings, df, locals, idvar):
-	const={}
-	df = df.reset_index()
-	for x,add_intercept,num in [('idvar',False,True),('timevar',False,True),
-							 	('idvar_orig',False,False),('timevar_orig',False,False),
-								('W',True,True),('Z',True,True),('Y',False,True),
-								('X',settings.add_intercept,True)]:
+	const_vars = {}
+
+	for var_name, is_numeric in variables:
+
+		var, var_pred, const_vars[var_name] = check_var(df, df_pred, locals_dict[var_name], var_name, is_numeric)
+
+		setattr(ip, f"{var_name}_names", list(var) if var is not None else None)
+		setattr(ip, var_name, var)
+		setattr(ip, f"{var_name}_pred", var_pred)
+
+	return const_vars["X"]
+
 		
-		var, const[x]= check_var(df,locals[x],x,num)
 		
-		if var is None:
-			ip.__dict__[x + "_names"] = None
-		else:
-			ip.__dict__[x + "_names"] = list(var)
 
-
-		ip.__dict__[x] = var
-
-	return const['X']
-		
-		
 def check_dimensions(df, timevar, idvar):
-	ix = df.index
+	"""
+	Determines the time variable (`timevar`) and ID variable (`idvar`) in a MultiIndex DataFrame.
 
-	if (not timevar is None) or isinstance(ix, pd.RangeIndex):
+	Parameters:
+		df (pd.DataFrame): The input DataFrame with a MultiIndex.
+		timevar (str or None): The name of the time variable (if known).
+		idvar (str or None): The name of the ID variable (if known).
+
+	Returns:
+		tuple: (timevar, idvar) - Identified names of the time variable and ID variable.
+	"""
+	ix = df.index  # Get the DataFrame's index
+
+	# If `timevar` is already provided or index is a simple RangeIndex, return as-is
+	if (timevar is not None) or isinstance(ix, pd.RangeIndex):
 		return timevar, idvar
-	
+
+	# Loop through all levels of the MultiIndex
 	for k in range(len(ix.names)):
 		try:
+			# Try converting the k-th index level to datetime format
 			pd.to_datetime(ix.get_level_values(k), format='%Y-%m-%d')
-			names = list(ix.names)
-			timevar = names.pop(k)
-			if idvar  is None:
-				unique_dates = len(ix.get_level_values(timevar))
-				unique_indicies = len(set(df.index.to_list()))
-				if unique_dates != unique_indicies:
-					idvar = names[0]
-			return timevar, idvar
-		except Exception as e:
+
+			# If successful, assume this is the time variable
+			names = list(ix.names)  # Get MultiIndex level names
+			timevar = names.pop(k)  # Remove the detected time variable
+
+			# If `idvar` is not provided, try to infer it
+			if idvar is None:
+				unique_dates = len(ix.get_level_values(timevar))  # Count unique time points
+				unique_indices = len(set(df.index.to_list()))  # Count total unique index tuples
+
+				# If unique dates ≠ unique index tuples, assume first remaining index is an ID variable
+				if unique_dates != unique_indices:
+					idvar = names[0] if names else None  # Assign first remaining level as ID var
+
+			return timevar, idvar  # Return once a time variable is found
+		except Exception:
+			# If conversion fails, continue checking other index levels
 			pass
 
+	# If no time variable is found, return inputs unchanged
 	return timevar, idvar
+
 
 def identify_sort_var(x, df):
 	if x is None:
@@ -158,130 +227,213 @@ def pool_func(df,pool):
 
 
 
+def check_var(df, df_pred, x, input_type, numeric):
+	if not x: 
+		return None, None, None
 
-def check_var(df,x,inputtype,numeric):
-	if len(x)==0:
-		return None,None
-	dfx=df[x]
+	dfx = df[x]
+	if df_pred.empty:
+		dfx_pred = None
+	else:
+		dfx_pred = df_pred[x]
+
+
 	if not numeric:
-		return dfx,None
-	const_found=False
-	for i in x:
-		if ' ' in i:
-			raise RuntimeError(f'Spaces are not allowed in variables, but found in the variable {i} from {inputtype}')
+		return dfx, dfx_pred, None
+
+	const_found = False
+
+	for var in x:
+		if ' ' in var:
+			raise RuntimeError(f"Spaces are not allowed in variable names, but found in '{var}' from {input_type}")
+
 		try:
-			v=np.var(dfx[i])
+			variance = np.var(dfx[var])
 		except TypeError as e:
-			raise TypeError(f"All variables except time and id must be numeric. {e}")
-		if v==0 and const_found:
-			if dfx[i].iloc[0]==0:
-				print(f"Warning: All values in {i} from {inputtype} are zero, variable dropped")
+			raise TypeError(f"All variables except time and ID must be numeric. {e}")
+
+		if variance == 0:
+			if const_found:
+				msg = f"Warning: {var} from {input_type} is constant. Variable dropped."
+				if dfx[var].iloc[0] == 0:
+					msg = f"Warning: All values in '{var}' from {input_type} are zero. Variable dropped."
+				print(msg)
+
+				dfx = dfx.drop(columns=[var])
+				if dfx_pred is not None:
+					dfx_pred = dfx_pred.drop(columns=[var])
 			else:
-				print(f"Warning: {i} from {inputtype} is constant. Variable dropped.")
-			dfx=dfx.drop(i,1)
-		elif v==0 and not const_found:
-			if inputtype=='Y':
-				raise RuntimeError('The dependent variable is constant')
-			const_found=True
-	return dfx,const_found
+				if input_type == 'Y':
+					raise RuntimeError("The dependent variable is constant")
+				const_found = True
+
+	return dfx, dfx_pred, const_found
+
 
 
 def eval_and_add_pred_space(df, vars, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig):
 	df = df.sort_values(idvar_orig + timevar_orig)
 	df = df.set_index(idvar_orig + timevar_orig)
-	df_new, lost_na_obs, max_lags, n = eval_variables(df, idvar + timevar + vars, idvar_orig)
-	if max_lags>0:
-		df_new = extend_timeseries(df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig, max_lags)
-		df_new, lost_na_obs, max_lags, n = eval_variables(df_new, idvar + timevar + vars, idvar_orig)
+	df_new, lost_na_obs, max_lags, max_history, n = eval_variables(df, idvar + timevar + vars, idvar_orig)
+
+	df_pred = get_pred_df(df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig, max_lags, max_history, vars)
+
 	df_new=df_new.dropna()
 	
-	#todo: 
-	# - add max_lags observations to the end of all variables that have dates at the terminal date
-	# - cut the corresponding obsverations in the arrayized matrices in the panel module, and 
-	#   assign them to prediction versions. 
-	return df_new, lost_na_obs, max_lags, n
+
+	return df_new, lost_na_obs, max_lags, n, df_pred
 
 
-def extend_timeseries(df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig, max_lags):
+def get_pred_df(df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig, max_lags, max_history, vars):
+	df_pred, pred_start = extend_timeseries(df, idvar_orig, idvar, timevar_orig, timevar, time_delta, time_delta_orig, max_lags, max_history)
+	df_pred, _, _, _ , _ = eval_variables(df_pred, idvar + timevar + vars, idvar_orig, False)
+	#For the prediction values, collect only the last max_lags observations
+	df_pred = df_pred[df_pred.index.get_level_values(timevar_orig[0]) >= pred_start]
+
+	return df_pred
+
+
+
+
+def extend_timeseries(df, idvar_orig, idvar, timevar_orig, timevar, time_delta, time_delta_orig, max_lags, max_history):
 	# Ensure the data is sorted by timevar within each group
 
-	return df
 
 	#Works here to cut of last rows in `panel` before can be implemented.
 	
-	idvar_orig, timevar_orig = idvar_orig[0], timevar_orig[0]
-	idvar, timevar = idvar[0], timevar[0]
+	idvar_orig, idvar, timevar_orig, timevar = idvar_orig + idvar + timevar_orig + timevar
 
 	# Find the maximum date in the dataset
-	max_date = df.index.get_level_values(timevar_orig).max()
+	max_date = df[timevar].max()
+	max_date_orig = df.index.get_level_values(timevar_orig).max()
 
 	# Get the last date per group
-	last_dates = df.groupby(level=idvar_orig).apply(lambda x: x.index.get_level_values(timevar_orig).max())
-	last_dates = last_dates.reset_index()
-	last_dates.columns = [idvar_orig, timevar_orig]  # Ensure proper column names
+	idvar_max_dates =  df.groupby(level=idvar_orig)[timevar].max()# Ensure proper column names
 
 	# Filter groups where last date matches max_date
-	extend_groups = last_dates[last_dates[timevar_orig] == max_date]
+	extend_groups = idvar_max_dates[idvar_max_dates== max_date].index
 
-	# Compute mean of previous observations per group
-	group_means = df.groupby(level=idvar_orig).mean()
-
-	# Prepare new rows
+	# Create a list to store new rows
 	new_rows = []
+
+	# Iterate over groups and time steps
+	for g in extend_groups:
+		
+		for t in range(1, max(max_lags,1) + 1):
+			new_date_orig = max_date_orig + t * time_delta_orig  # Increment original format date
+			s = pd.Series(pd.NA, index=df.columns, name=(g, new_date_orig))
+			s[timevar] = max_date + t * time_delta
+			s[idvar] = df.loc[(g, max_date_orig), idvar]  # Copy the group identifier
+			s[DEFAULT_INTERCEPT_NAME] = s[VAR_INTERCEPT_NAME] = s[INSTRUMENT_INTERCEPT_NAME] = s[CONST_NAME] = 1  # Add intercept value
+			new_rows.append(s)
+
+	new_df = convert_datetime_columns_to_float(pd.DataFrame(new_rows))
+	new_df.index.names = df.index.names  # Ensure correct MultiIndex structure
 	
-	for _, row in extend_groups.iterrows():
-		group_id = row[idvar_orig]
-		last_date_orig = row[timevar_orig]
-		last_date = df.loc[group_id,last_date_orig][timevar]
-		mean_values = group_means.loc[group_id]  # Get mean values for the group
-
-		for i in range(1, max_lags + 1):
-			new_date_orig = last_date_orig + i * time_delta_orig  # Increment date
-			new_row = pd.Series(mean_values, name=(group_id, new_date_orig))  # Set new index tuple
-			new_row[timevar] = last_date + i * time_delta
-			new_rows.append(new_row)
+	# Filter only the included groups in extended_gruops: 
+	df_last = df[df.index.get_level_values(idvar_orig).isin(extend_groups)]
+	# Filtering last `max_history`observations per group as only the last `max_lags` are needed
+	df_last = convert_datetime_columns_to_float(df_last)
+	df_last = df_last[df_last[timevar]>max_date-(max_history+1)*time_delta]
 	
-	# Convert new rows to DataFrame
-	if new_rows:
-		new_df = pd.DataFrame(new_rows)
-		new_df.index.names = [idvar_orig, timevar_orig]  # Ensure multi-index naming
-		df_extended = pd.concat([df, new_df]).sort_index()
-	else:
-		df_extended = df
+	# Concatenate in one step to avoid fragmentation
+	df_pred = pd.concat([df_last, new_df]).sort_index()
 
-	return df_extended
+	return df_pred, max_date+time_delta
 
 
+def convert_datetime_columns_to_float(df):
+    df_converted = df.copy()
+    for col in df_converted.columns:
+        if np.issubdtype(df_converted[col].dtype, np.datetime64):
+            df_converted[col] = df_converted[col].astype('int64') / 1e9  # Convert nanoseconds to seconds
+        elif pd.api.types.is_object_dtype(df_converted[col]):
+            try:
+                df_converted[col] = pd.to_datetime(df_converted[col])
+                df_converted[col] = df_converted[col].astype('int64') / 1e9
+            except (ValueError, TypeError):
+                pass  # Leave non-datetime strings unchanged
+    return df_converted.astype('Float64')
 
-def eval_variables(df, x,idvar_orig):
-	new_df = pd.DataFrame()
-	pd_panel = df
-	if len(idvar_orig)>0:
-		pd_panel=df.groupby(level=idvar_orig)
-	lag_obj = LagObject(pd_panel)
+def eval_variables(df, x, idvar_orig, dropna=True):
+    """
+    Evaluates variables by handling lags and differences in a DataFrame.
 
-	n=len(df)
-	df=df.dropna()
-	lost_na_obs = (n-len(df))
+    Parameters:
+        df (pd.DataFrame): Input DataFrame (potentially with MultiIndex).
+        x (list): List of variable names (including lagged/differenced expressions).
+        idvar_orig (list): ID variable(s) for panel data grouping.
+        dropna (bool): Whether to drop NaN values from the dataset.
 
-	d={'D':lag_obj.diff,'L':lag_obj.lag,'np':np}
-	for i in df.keys():#Adding columns to name space
-		d[i]=df[i]
-	for i in x:
-		if not i in df:
-			try:
-				new_df[i] = eval(i,d)
-			except NameError as e:
-				raise NameError(f"{i} not defined in data frame or function")
-		else:
-			new_df[i] = df[i]
-	
-	if len(idvar_orig):
-		maxlags = max(new_df.isna().groupby(level = idvar_orig).sum().max())
-	else:
-		maxlags = max(new_df.isna().sum().max())
+    Returns:
+        tuple: (new_df, lost_na_obs, max_lags, max_history, n)
+            - new_df (pd.DataFrame): Transformed DataFrame with evalnew_dfuated variables.
+            - lost_na_obs (int): Number of observations lost due to NaN removal.
+            - max_lags (int): Maximum lag required across all expressions.
+            - max_history (int): Total historical data needed for computations.
+            - n (int): Original number of rows in `df`.
+    """
 
-	return new_df, lost_na_obs, maxlags, n
+    # Initialize the transformed DataFrame
+    new_df = pd.DataFrame()
+    
+    # Convert to panel format if `idvar_orig` is provided
+    pd_panel = df.groupby(level=idvar_orig) if idvar_orig else df
+    lag_obj = LagObject(pd_panel)  # Create lag object for time-series operations
+
+    # Track original row count
+    n = len(df)
+
+    # Drop NaN values if specified
+    if dropna:
+        df = df.dropna()
+    lost_na_obs = n - len(df)
+
+    # Define namespaces for evaluating lagged/differenced expressions
+    namespace = {'D': lag_obj.diff, 'L': lag_obj.lag, 'np': np}
+    namespace_lags = {
+        'D': lambda x, lag=1: diffs.append(lag),
+        'L': lambda x, lag=1: lags.append(lag),
+        'np': np
+    }
+
+    # Initialize tracking lists
+    lags, diffs = [], []
+    max_lags, max_history = [], []
+
+    # Add all DataFrame columns to namespaces
+    for column in df.columns:
+        namespace[column] = df[column]
+        namespace_lags[column] = 0  # Ensures column names are recognized in eval
+
+    # Process each variable/expression in `x`
+    for var in x:
+        if var in df:
+            # Directly copy existing columns
+            new_df[var] = df[var]
+        else:
+            # Reset tracking lists before evaluating expressions
+            lags.clear()
+            diffs.clear()
+            try:
+                # Evaluate expression to track required lags and diffs
+                eval(var, namespace_lags)
+                
+                # Compute and store evaluated expression
+                new_df[var] = eval(var, namespace)
+
+                # Store max lag and history depth needed
+                max_lags.append(max(lags) if lags else 0)
+                max_history.append(sum(lags) + sum(diffs))
+            except NameError:
+                raise NameError(f"{var} not defined in data frame or function")
+
+    # Get the max required lag and total historical data needed
+    max_lags = max(max_lags) if max_lags else 0
+    max_history = max(max_history) if max_history else 0
+
+    return new_df, lost_na_obs, max_lags, max_history, n
+
 
 
 class LagObject:
@@ -338,6 +490,9 @@ def get_names(x, df,inputtype,add_intercept=False,intercept_name=None):
 	r = None
 	if x is None:
 		r=[]
+		if inputtype=="Time variable":
+			df['time']=np.arange(len(df))
+			return ['time']
 	elif type(x)==str:
 		r=[x]
 	elif type(x)==list or type(x)==tuple:
@@ -357,15 +512,6 @@ def numberize_time(df, timevar, idvar):
 		return [],None, None
 	timevar=timevar[0]
 	timevar_orig = timevar+ ORIG_SUFIX
-
-	#Trying to coerce to number
-	try:
-		df[timevar] = df[timevar].astype(float)
-		df_int = df[timevar].astype(int)
-		if np.all(df[timevar]==df_int):
-			df[timevar] = df_int
-	except:
-		pass
 
 	#if number:
 	dtype = np.array(df[timevar]).dtype
@@ -389,9 +535,6 @@ def numberize_time(df, timevar, idvar):
 			raise ValueError(f"{timevar} is determined to be the date variable, but it is neither nummeric "
 					"nor a date variable. Set a variable that meets these conditions as `timevar`.")
 	x_dt=pd.to_numeric(x_dt)/(24*60*60*1000000000)
-	x_int = x_dt.astype(int)
-	if np.all(x_int==x_dt):
-		x_dt = x_int
 
 	df[timevar_orig] = df[timevar]
 	df[timevar]=x_dt
@@ -420,14 +563,11 @@ def get_mean_diff(df, timevar, idvar):
 	
 
 def numberize_idvar(ip,df,timevar, idvar):
-
-	if idvar==[]:
-		return []
 	idvar=idvar[0]
 	timevar = timevar[0]
 
 	if df.duplicated(subset=[idvar, timevar]).any():
-		raise ValueError(f"Time and groups identifiers are {timevar} and {idvar}, but "
+		raise ValueError(f"Check your data! {timevar} and {idvar} needs to be jointly unique.\n"
 			 	   f"there are non-unique '{timevar}'-items for some or all '{idvar}'-items. "
 				   f"Make sure the dates are unique and define the group and time identifiers "
 				   "explicitly, if these were not those you intended. ")
