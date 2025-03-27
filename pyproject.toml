@@ -4,7 +4,7 @@ version = "1.2.60"
 description = "Paneltime is a statistical tool for estimating panel data models with timseries problems."
 authors = [{ name = "Espen Sirnes", email = "espen.sirnes@uit.no" }]
 readme = "index.md"
-license = { text = "GNU 3.0" }
+license = { text = "GPL-3.0-only" }
 dependencies = [
     "numpy >=1.11",
     "pandas >=1.0",
