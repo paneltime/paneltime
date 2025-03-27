@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-#import paneltime_mp as pmp
+
 import time
 import os
 
@@ -24,17 +24,12 @@ import pandas as pd
 import inspect
 
 
-mp = None
+mp = None 
+#multiprocessing module can be enabled here by importing the paneltime_mp package
+#for implementation see this version of this repository https://github.com/paneltime/paneltime/commit/65d9f9d08eb3b722526cc708402db73b8f6188bb
+#However, this is currently experimental and not recommended for general use.
 
-def enable_parallel():
-	global mp
 
-	mp = pmp.Master(9)
-	mp.exec("from paneltime.maximization import maximize as max")
-	#this import creates overhead that is not immediately visible, since paneltime_mp is non-blocking. 
-	#Paneltime basically needs to be initiated an extra time in the nodes, and paneltime_mp will not
-	#start another process before this import has finished. Parallel therefore takes considerably more time
-	#than running a single thread. The benefit is that it tries out different directions at once.
 
 
 def execute(model_string,dataframe, timevar = None, idvar = None, het_factors=None, instruments=None, console_output=True):
