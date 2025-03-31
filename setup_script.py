@@ -23,6 +23,7 @@ def main():
 	nukedir(f'{CUR_DIR}/build')
 	nukedir(f'{CUR_DIR}/paneltime.egg-info')
 	remove_pycache_dirs(CUR_DIR)
+	create_readme()
 
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
@@ -113,13 +114,29 @@ def nukedir(dir):
 	except (FileNotFoundError, PermissionError):
 		return
 
+def create_readme():
+	src=f"{CUR_DIR}/index.md"
+	dest=f"{CUR_DIR}/README.md"
+	with open(src, "r", encoding="utf-8") as f:
+		lines = f.readlines()
+
+	if lines[0].strip() == "---":
+		# Skip until closing '---'
+		end = next(i for i, line in enumerate(lines[1:], 1) if line.strip() == "---")
+		content = lines[end+1:]
+	else:
+		content = lines
+
+	with open(dest, "w", encoding="utf-8") as f:
+		f.writelines(content)
+
 
 def remove_pycache_dirs(root):
-    for dirpath, dirnames, filenames in os.walk(root):
-        if '__pycache__' in dirnames:
-            pycache_path = os.path.join(dirpath, '__pycache__')
-            print(f"Removing {pycache_path}")
-            shutil.rmtree(pycache_path)
+	for dirpath, dirnames, filenames in os.walk(root):
+		if '__pycache__' in dirnames:
+			pycache_path = os.path.join(dirpath, '__pycache__')
+			print(f"Removing {pycache_path}")
+			shutil.rmtree(pycache_path)
 
 
 main()
