@@ -9,6 +9,9 @@ import glob
 import psutil
 from paneltime import opt_module
 
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 def main():
 
 	push_git = '-g' in sys.argv
@@ -16,9 +19,10 @@ def main():
 
 	opt_module.options_to_txt()
 
-	nukedir('dist')
-	nukedir('build')
-	nukedir('paneltime.egg-info')
+	nukedir(f'{CUR_DIR}/dist')
+	nukedir(f'{CUR_DIR}/build')
+	nukedir(f'{CUR_DIR}/paneltime.egg-info')
+	remove_pycache_dirs(CUR_DIR)
 
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
@@ -109,6 +113,13 @@ def nukedir(dir):
 	except (FileNotFoundError, PermissionError):
 		return
 
+
+def remove_pycache_dirs(root):
+    for dirpath, dirnames, filenames in os.walk(root):
+        if '__pycache__' in dirnames:
+            pycache_path = os.path.join(dirpath, '__pycache__')
+            print(f"Removing {pycache_path}")
+            shutil.rmtree(pycache_path)
 
 
 main()
