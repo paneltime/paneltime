@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paneltime"
-version = "1.2.67"
+version = "1.2.72"
 description = "Panel regression simultaneously solving for ARIMA/GARCH and random/fixed effects."
 readme = "index.md"
 requires-python = ">=3.8"
@@ -43,3 +43,4 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
+exclude = ["*.tests", "*.tests.*", "*.test.*", "*__pycache__*"]

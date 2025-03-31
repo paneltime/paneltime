@@ -534,9 +534,11 @@ def numberize_time(df, timevar, idvar):
 		except ValueError as e:
 			raise ValueError(f"{timevar} is determined to be the date variable, but it is neither nummeric "
 					"nor a date variable. Set a variable that meets these conditions as `timevar`.")
-	x_dt=pd.to_numeric(x_dt)/(24*60*60*1000000000)
+		x_dt=pd.to_numeric(x_dt)/(24*60*60*1000000000)
 
 	df[timevar_orig] = df[timevar]
+	if x_dt.dtype == '<M8[ns]':
+		df[timevar_orig] = x_dt
 	df[timevar]=x_dt
 	
 	time_delta = get_mean_diff(df, timevar, idvar)
@@ -552,9 +554,11 @@ def get_mean_diff(df, timevar, idvar):
 		m = df[timevar].diff().median()
 	else:
 		m = df.groupby(idvar)[timevar].diff().median()
-
-	if int(m) == m:
-		m = int(m)
+	try:
+		if int(m) == m:
+			m = int(m)
+	except TypeError:
+		pass
 
 	if m ==0:
 		raise ValueError(f'Your date variable {timevar} has zero meadian. Use another time variable or fix the one defined.')
