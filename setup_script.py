@@ -27,8 +27,6 @@ def main():
 
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
-	add_version(wd)
-
 	if push_git or push_pip:
 		version = add_version(wd)
 		print(f"Incrementet to version {version}")
