@@ -98,6 +98,7 @@ def get_variables(ip, df, model_string, idvar, timevar, heteroscedasticity_facto
 	timevar_orig, time_delta, time_delta_orig = numberize_time(df, timevar, idvar)
 
 	# Prepare and extend dataset for prediction space
+	df = clean_df(df, idvar + timevar + vars_list + idvar_orig + timevar_orig)
 	df, ip.lost_na_obs, ip.max_lags, ip.orig_n, ip.df_pred = eval_and_add_pred_space(
 		df, vars_list, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig
 	)
@@ -112,6 +113,20 @@ def get_variables(ip, df, model_string, idvar, timevar, heteroscedasticity_facto
 	ip.has_intercept = add_variables(ip, settings, df, ip.df_pred, locals())
 	ip.dataframe = df
 
+def clean_df(df, usedvars):
+	vars_used = []
+	for var in df:
+		if (var in usedvars):
+			vars_used.append(var)
+		else:
+			for v in usedvars:
+				if var in v:
+					vars_used.append(var)
+					break
+			
+	df = df[vars_used] # Filter DataFrame to include only relevant columns
+
+	return df
 
 def add_variables(ip, settings, df, df_pred, locals_dict):
 	"""
@@ -327,20 +342,49 @@ def extend_timeseries(df, idvar_orig, idvar, timevar_orig, timevar, time_delta, 
 			s[DEFAULT_INTERCEPT_NAME] = s[VAR_INTERCEPT_NAME] = s[INSTRUMENT_INTERCEPT_NAME] = s[CONST_NAME] = 1  # Add intercept value
 			new_rows.append(s)
 
-	new_df = convert_datetime_columns_to_float(pd.DataFrame(new_rows))
+	new_df = pd.DataFrame(new_rows)
 	new_df.index.names = df.index.names  # Ensure correct MultiIndex structure
 	
 	# Filter only the included groups in extended_gruops: 
 	df_last = df[df.index.get_level_values(idvar_orig).isin(extend_groups)]
 	# Filtering last `max_history`observations per group as only the last `max_lags` are needed
-	df_last = convert_datetime_columns_to_float(df_last)
+	df_last = df_last
 	df_last = df_last[df_last[timevar]>max_date-(max_history+1)*time_delta]
 	
-	# Concatenate in one step to avoid fragmentation
+	# Concatenates, workaround for the fact that one sized NA dfs are not allowed to be concatenated
+	df_pred = concatenate(new_df, df_last)
+
+	return df_pred, max_date_orig+time_delta_orig
+
+
+def concatenate(new_df, df_last):
+	"Concatenates, workaround for the fact that one sized NA dfs are not allowed to be concatenated"
+	
+	# Concatenate the new rows with the original DataFrame
+	original_dtypes = df_last.dtypes.to_dict()
+
+	# Replace dtypes with nullable equivalents where appropriate
+	nullable_dtypes = {}
+	for col, dtype in original_dtypes.items():
+		if pd.api.types.is_integer_dtype(dtype):
+			nullable_dtypes[col] = 'Int64'
+		elif pd.api.types.is_float_dtype(dtype):
+			nullable_dtypes[col] = 'Float64'
+		else:
+			nullable_dtypes[col] = 'object'
+
+	df_last = df_last.astype('object')
+	new_df = new_df.astype('object')
+
+	new_df[new_df.isna()]='NA'
+	df_last[df_last.isna()]='NA'
+
 	df_pred = pd.concat([df_last, new_df]).sort_index()
+	df_pred[df_pred=='NA'] = pd.NA
 
-	return df_pred, max_date+time_delta
+	df_pred = df_pred.astype(nullable_dtypes)
 
+	return df_pred
 
 def convert_datetime_columns_to_float(df):
     df_converted = df.copy()
@@ -539,15 +583,20 @@ def numberize_time(df, timevar, idvar):
 	df[timevar_orig] = df[timevar]
 	if x_dt.dtype == '<M8[ns]':
 		df[timevar_orig] = x_dt
-	df[timevar]=x_dt
+	df[timevar]=x_dt.astype('int64')/ 1e9
 	
 	time_delta = get_mean_diff(df, timevar, idvar)
 	time_delta_orig = get_mean_diff(df, timevar_orig, idvar)
-	time_delta2 = pd.infer_freq(df[timevar])
-	if time_delta_orig!=time_delta2:
-		a=0
 
-	return [timevar+ ORIG_SUFIX], time_delta, time_delta_orig
+	return [timevar_orig], time_delta, time_delta_orig
+
+
+def datetime_to_float_year(d):
+    year_start = pd.to_datetime(f'{d.year}-01-01')
+    next_year_start = pd.to_datetime(f'{d.year + 1}-01-01')
+    return d.year + ((d - year_start).total_seconds() / (next_year_start - year_start).total_seconds())
+
+
 
 def get_mean_diff(df, timevar, idvar):
 	if idvar == []:

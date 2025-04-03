@@ -17,6 +17,7 @@ def main():
 	push_git = '-g' in sys.argv
 	push_pip = '-p' in sys.argv
 
+
 	opt_module.options_to_txt()
 
 	nukedir(f'{CUR_DIR}/dist')
@@ -28,10 +29,10 @@ def main():
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
 	if push_git or push_pip:
-		version = add_version(wd)
+		version = add_version(wd, False)
 		print(f"Incrementet to version {version}")
 
-	if push_git or True:
+	if push_git:
 		gitpush(version)
 	else:
 		print('Not pushed to git - use "-g" to push to git')
@@ -54,14 +55,14 @@ def gitpush(version):
 	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit (without quotation marks): ")}"')
 	os.system('git push')	
 	
-def add_version(wd):
+def add_version(wd, add=True):
 	srchtrm = r"(\d+\.\d+\.\d+)"
-	version = re_replace('pyproject.toml', srchtrm, wd)
+	version = re_replace('pyproject.toml', srchtrm, wd, add=add)
 	re_replace('index.md', srchtrm, wd, version)
 	re_replace('paneltime/info.py', srchtrm, wd, version)
 	return version
 
-def re_replace(fname, searchterm, wd, version = None):
+def re_replace(fname, searchterm, wd, version = None, add=True):
 	fname = os.path.join(wd, fname)
 	f = open(fname, 'r')
 	s = f.read()
@@ -69,7 +70,7 @@ def re_replace(fname, searchterm, wd, version = None):
 	if version is None:
 		v = s[m.start(0):m.end(0)]
 		v = v.split('.')
-		v = v[0], v[1], str(int(v[2])+1)
+		v = v[0], v[1], str(int(v[2])+add)
 		version = '.'.join(v)
 	s = s[:m.start(0)] +  version + s[m.end(0):]
 	tmpname = fname.replace('.', '~.')
@@ -134,7 +135,7 @@ def remove_pycache_dirs(root):
 		if '__pycache__' in dirnames:
 			pycache_path = os.path.join(dirpath, '__pycache__')
 			print(f"Removing {pycache_path}")
-			shutil.rmtree(pycache_path)
+			nukedir(pycache_path)
 
 
 main()

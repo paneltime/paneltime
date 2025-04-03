@@ -247,8 +247,8 @@ class Panel:
 		timevar_ret = np.full((N, max(self.max_lags,1), 1), np.nan)
 		X_is_predicted = np.ones(N, dtype=bool)
 
-
-		X_pred = X_pred.to_numpy(dtype=float)
+		X_pred[X_pred.isna()]=np.nan
+		X_pred = X_pred.astype("float64").to_numpy()
 		row_index = 0
 		for i, is_included in enumerate(self.idincl):
 			if is_included:

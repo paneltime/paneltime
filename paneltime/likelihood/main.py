@@ -373,8 +373,8 @@ def pred_mean(u, e, rho, lmbda, panel, e_now = 0):
 		u_pred += sum([
 			lmbda[i]*e_last[:,-i-1] for i in range(len(lmbda))
 		])  
-	if len(u_pred)==1:
-		u_pred = u_pred[0,0]
+	#if len(u_pred)==1:
+	#	u_pred = u_pred[0,0]
 	return u_pred
 	
 def pred_var(h, var, psi, gamma, omega, minvar, maxvar, panel):
