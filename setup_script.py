@@ -16,6 +16,7 @@ def main():
 
 	push_git = '-g' in sys.argv
 	push_pip = '-p' in sys.argv
+	addver = not ('-k' in sys.argv)
 
 
 	opt_module.options_to_txt()
@@ -29,7 +30,7 @@ def main():
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
 	if push_git or push_pip:
-		version = add_version(wd, False)
+		version = add_version(wd, addver)
 		print(f"Incrementet to version {version}")
 
 	if push_git:
