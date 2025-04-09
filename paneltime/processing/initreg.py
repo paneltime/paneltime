@@ -36,7 +36,7 @@ def start_values(panel, X = None, Y = None):
 	else:
 		vreg = v
 
-	if panel.options.include_initvar and k>0:
+	if panel.options.include_initvar:
 		initvar = vreg*0.25
 		omega = 0
 	else:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paneltime"
-version = "1.2.62"
+version = "1.2.63"
 description = "Panel regression simultaneously solving for ARIMA/GARCH and random/fixed effects."
 readme = "README.md"
 requires-python = ">=3.8"

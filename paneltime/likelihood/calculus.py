@@ -132,7 +132,7 @@ class gradient:
 			from .. import debug
 			print(debug.grad_debug(ll,panel,0.0000001))
 			print(g)
-			a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL_full', 'psi',0)
+			a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL_full', 'beta',0)
 			a=0
 		#if np.sum((g-gn)**2)>10000000:
 		a=0

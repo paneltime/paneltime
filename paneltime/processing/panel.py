@@ -51,6 +51,9 @@ class Panel:
 			print("Warning: GARCH term removed since ARCH terms was set to 0")
 		self.pqdkm=p,q,d,k,m
 
+		if k == 0:
+			self.options.include_initvar = False
+
 
 
 	def final_defs(self):
@@ -232,8 +235,9 @@ class Panel:
 
 
 	def arrayize_pred(self):
-		self.X_pred, self.X_is_predicted, self.X_pred_timevar = self.arrayize_pred_array('X')
-		self.W_pred_, _, _ = self.arrayize_pred_array('W')
+		(self.X_pred, self.X_is_predicted, 
+   				self.X_pred_timevar, self.X_pred_idvar) = self.arrayize_pred_array('X')
+		self.W_pred_, _, _, _ = self.arrayize_pred_array('W')
 
 		
 		
@@ -242,9 +246,15 @@ class Panel:
 		N, T, k = X.shape
 		X_pred = getattr(self.input, name + '_pred')
 		idvar_pred = np.array(self.input.idvar_pred).flatten()
+		idvar_pred_orig = np.array(self.input.idvar_orig_pred).flatten()
 		timevar_pred = self.input.timevar_orig_pred
-		X_ret = np.zeros((N, max(self.max_lags,1), k))
-		timevar_ret = np.full((N, max(self.max_lags,1), 1), np.nan)
+
+		max_T = max(self.max_lags,1)
+
+		X_ret = np.zeros((N, max_T, k))
+		timevar_ret = np.full((N, max_T, 1), np.nan)
+		idvar_ret = np.full((N, max_T, 1),  np.nan, dtype=object)
+		
 		X_is_predicted = np.ones(N, dtype=bool)
 
 		X_pred[X_pred.isna()]=np.nan
@@ -255,11 +265,12 @@ class Panel:
 				if self.idvar[i] in idvar_pred:
 					X_ret[row_index] = X_pred[idvar_pred == self.idvar[i]]
 					timevar_ret[row_index] = timevar_pred[idvar_pred == self.idvar[i]]
+					idvar_ret[row_index] = idvar_pred_orig[idvar_pred == self.idvar[i]].reshape(max_T, 1)
 				else:
 					X_is_predicted[row_index] = False
 				row_index += 1
 		
-		return X_ret, X_is_predicted, timevar_ret
+		return X_ret, X_is_predicted, timevar_ret, idvar_ret
 
 
 	def cross_section_count(self):
@@ -486,24 +497,30 @@ def h(e,z):
 			return np.sum((Xm)**2,axis)/(self.NT-k)
 
 
-def arrayize(X, N, max_T, T, id_included, selections, dtype=None):
-    if X is None:
-        return None
-    
-    num_samples, num_features = X.shape
-    dtype = dtype or X.dtype  # Use X's dtype if not provided
-    
-    # Initialize the 3D output array
-    X_arr = np.zeros((N, max_T, num_features), dtype=dtype)
+def arrayize(X, N, max_T, T, id_included, selections, dtype = None):
+	if X is None:
+		return None
+	
+	NT, k = X.shape
+	
+	if not (np.issubdtype(X.dtype, np.integer) or 
+			np.issubdtype(X.dtype, np.floating)):
+		X = np.array(X, dtype=float)
+	
+	# Initialize the 3D output array
+	if dtype is None:
+		dtype = X.dtype
 
-    # Fill the new array with selected data
-    row_index = 0
-    for i, is_included in enumerate(id_included):
-        if is_included:
-            X_arr[row_index, :T[i]] = X[selections[i]]
-            row_index += 1
-    
-    return X_arr[:row_index]  # Trim unused rows
+	X_arr = np.zeros((N, max_T, k), dtype=dtype)
+
+	# Fill the new array with selected data
+	row_index = 0
+	for i, is_included in enumerate(id_included):
+		if is_included:
+			X_arr[row_index, :T[i]] = X[selections[i]]
+			row_index += 1
+	
+	return X_arr[:row_index]  # Trim unused rows
 
 
 

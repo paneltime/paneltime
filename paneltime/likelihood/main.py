@@ -259,13 +259,13 @@ class LL:
 		N, T, k = panel.X.shape
 		self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'], panel)
 		#u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], panel)#test
-		self.y_pred = pred_y(panel.X, panel.X_pred, d['beta'], self.u_pred, d['rho'], d['lambda'], panel)
+		self.y_pred = pred_y(panel.X, panel.X_pred[:,0], d['beta'], self.u_pred, d['rho'], d['lambda'], panel)
 		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], self.minvar, self.maxvar, panel)
 		#var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar, panel)#test
 		if not hasattr(self,'Y_fitted'):
 			self.standardize()
 		index = pd.MultiIndex.from_arrays(
-				[panel.original_names, panel.X_pred_timevar.flatten()],  # Flatten if necessary
+				[panel.X_pred_idvar[:,0,0].flatten(), panel.X_pred_timevar[:,0,0].flatten()],  # Flatten if necessary
 				names=[panel.input.idvar_names[0], panel.input.timevar_names[0]]
 			)
 		pred_df = pd.DataFrame({
@@ -301,10 +301,13 @@ def get_last_obs(u, panel):
 	u_new[panel.X_is_predicted==False] = np.nan
 	return u_new
 
-def pred_y(X, X_pred, beta, u_pred, rho, lmbda, panel, e_now = 0):
+def pred_y(X, x_pred_lags, beta, u_pred, rho, lmbda, panel, e_now = 0):
 	N,T,k = X.shape
-	x_pred = pred_x(X, panel)
-	y_pred = np.sum(x_pred*beta[:,0], axis=1).reshape((N,1))
+	x_pred_extrpolate = pred_x(X, panel)
+	#Substitutes first row
+	x_pred_lags[np.isnan(x_pred_lags)] = x_pred_extrpolate[np.isnan(x_pred_lags)]
+
+	y_pred = np.sum(x_pred_lags*beta.T, axis=1).reshape((N,1))
 	y_pred_ag = y_pred + u_pred
 	
 	return y_pred_ag
@@ -346,6 +349,7 @@ def pred_x(X, panel):
 						   		(panel.T_arr), 
 								x[(np.arange(N), panel.T_arr[:,0]-1)]), axis=1)
 		coefs = np.zeros((N,z.shape[2]))
+		
 		for j in range(N):
 			coefs[j] = (np.linalg.pinv(z[j].T @ z[j]) @ z[j].T @ x[j])[:,0]
 		pred[:,i] = np.sum(new_z * coefs, axis=1)

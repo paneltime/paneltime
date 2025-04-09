@@ -39,7 +39,7 @@ class arguments:
 		
 		p, q, d, k, m=panel.pqdkm
 
-		if panel.options.include_initvar and k>0:
+		if panel.options.include_initvar:
 			initargs['initvar'][0][0] = initvar
 		initargs['omega'][0][0] = omega
 		initargs['beta']=beta
