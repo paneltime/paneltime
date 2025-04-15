@@ -54,7 +54,7 @@ variable that is the absolute value of x.
 {% include_relative docs/example.py %}
 ```
 
-
+[view source file](docs/example.py){:target="_blank"}
 
 
 
