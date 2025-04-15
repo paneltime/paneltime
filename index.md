@@ -50,7 +50,7 @@ variable that is the absolute value of x.
 
 
 # Example using world bank data
-```{python}
+```
 {% include_relative docs/example.py %}
 ```
 
