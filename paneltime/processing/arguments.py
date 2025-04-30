@@ -24,7 +24,7 @@ class arguments:
 		self.categories=['beta','rho','lambda','gamma','psi','omega']
 		if panel.options.include_initvar:
 			self.categories+=['initvar']
-		if panel.z_active:
+		if panel.h_func.z_active:
 			self.categories+=['z']
 		self.mu_removed=True
 		if not self.mu_removed:
@@ -74,7 +74,7 @@ class arguments:
 				print(e)
 				self.user_constraints={}
 				return
-		if not panel.z_active and 'z' in self.user_constraints:
+		if not panel.h_func.z_active and 'z' in self.user_constraints:
 			self.user_constraints.pop('z')	
 		if panel.options.include_initvar  and 'initvar' in self.user_constraints:
 			self.user_constraints.pop('initvar')
@@ -102,7 +102,7 @@ class arguments:
 		args['z']=np.array([[]])			
 
 
-		if m>0 and panel.z_active:
+		if m>0 and panel.h_func.z_active:
 			args['z']=np.array([[1e-09]])	
 
 		if panel.N>1 and not self.mu_removed:
@@ -235,7 +235,7 @@ class arguments:
 				names_d['mu']=['mu']
 				names.extend(d['mu'])				
 				c.append(d['mu'])
-			if panel.z_active:
+			if panel.h_func.z_active:
 				d['z']=['z in h(e,z)']
 				captions.extend(d['z'])
 				names_d['z']=['z']

@@ -93,42 +93,8 @@ def hess_debug_detail(f0,panel,d,llname,varname1,varname2,pos1=0,pos2=0):
 
 
 def LL_calc(self,panel):
-	panel=self.panel
-	X=panel.XIV
-	matrices=set_garch_arch(panel,self.args.args_d)
-	if matrices is None:
-		return None		
-
-	AMA_1,AMA_1AR,GAR_1,GAR_1MA=matrices
-	(N,T,k)=X.shape
-	#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
-	u = panel.Y-fu.dot(X,self.args.args_d['beta'])
-	e = fu.dot(AMA_1AR,u)
-	e_RE = (e+self.re_obj_i.RE(e, panel)+self.re_obj_t.RE(e, panel))*panel.included[3]
-
-	e_REsq =(e_RE**2+(e_RE==0)*1e-18) 
-	grp = self.variance_RE(panel,e_REsq)#experimental
-
-	W_omega = fu.dot(panel.W_a, self.args.args_d['omega'])
-
-	lnv_ARMA = self.garch(panel, GAR_1MA, e_RE)
-
-	lnv = W_omega+lnv_ARMA# 'N x T x k' * 'k x 1' -> 'N x T x 1'
-	lnv+=grp
-	self.dlnv_pos=(lnv<100)*(lnv>-100)
-	lnv = np.maximum(np.minimum(lnv,100),-100)
-	v = np.exp(lnv)*panel.included[3]
-	v_inv = np.exp(-lnv)*panel.included[3]
-
-	LL = self.LL_const-0.5*(lnv+(e_REsq)*v_inv)
-
-	self.tobit(panel,LL)
-	LL=np.sum(LL*panel.included[3])
-
-	self.add_variables(matrices, u, e, lnv_ARMA, lnv, v, W_omega, grp,e_RE,e_REsq,v_inv)
-	if abs(LL)>1e+100: 
-		return None				
-	return LL
+	raise RuntimeError('The function needs ot be updated to match the new LL_calc function')
+	return
 
 
 def save_reg_data(ll, panel, fname = 'repr.csv', heading=True):

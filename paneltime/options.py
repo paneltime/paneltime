@@ -142,7 +142,7 @@ class OptionsObj:
 			try:
 				self.__dict__[_name].set(value)
 			except Exception as e:
-				raise RuntimeError(f"A custom option failed with error message: {e}")
+				raise RuntimeError(f"A custom option failed with error message:  e")
 			value = self.__dict__[_name].value
 		elif not name in ['make_category_tree', 'categories','categories_srtd' ]:
 			raise RuntimeError(f"'{name}' is not a valid options attribute.")
@@ -230,19 +230,11 @@ def options_dict():
 
 
 
-	options['h_function']						= options_item("def h(e,z):\n"
-															   "	e2 = e**2+1e-5\n"
-																"	h_val    =	np.log(e2)\n"	
-																"	h_e_val	 =	2*e/e2\n"
-																"	h_2e_val =	2/e2-4*e**2/e2**2\n"
-																"	return (h_val,h_e_val,h_2e_val,\n"
-																"				None,None,None)\n", 	
+	options['h_dict']						= options_item({'h':'', 'h_e':'', 'h_e2':'', 'h_z':'','h_z2':'', 'h_e_z':''}, 	
 
-																"You can supply your own heteroskedasticity function. It must be a function of\n"
-																"residuals e and a shift parameter z that is determined by the maximization procedure\n"
-																"the function must return the value and its computation in the following order:\n"
-																"h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)"
-																, str,"GARCH function",category='Regression')
+																"You can supply your own GARCH heteroskedasticity function. Se 'GARCH heteroskedasticity function syntax guide' "
+																"in the documentation for information on how to write the mathematical expressions."
+																, dict,"GARCH function",category='Regression')
 	
 	options['include_initvar']					= options_item(True,	"If True, includes an initaial variance term",
 																	 	bool,'Include initial variance', [True,False],['Include','Do not include'],category='Regression')

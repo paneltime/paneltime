@@ -10,8 +10,9 @@ FILE *fp = fopen("coutput.txt","w"); */
 #include <cmath>
 #include <cstdio>
 #include <stdio.h>
-//#include <iostream>
+#include <cctype>
 
+#include <iostream>
 
 
 #if defined(_MSC_VER)
@@ -23,6 +24,8 @@ FILE *fp = fopen("coutput.txt","w"); */
 #else
 	#define EXPORT extern "C" 
 #endif
+
+#include "mathexp.cpp"
 
 void inverse(long n, double *x_args, long nx, double *b_args, long nb, 
 				double *a, double *ab) {
@@ -52,15 +55,16 @@ void inverse(long n, double *x_args, long nx, double *b_args, long nb,
 	//fclose(fp);
 }
 	
-EXPORT int  armas(double *parameters, 
+EXPORT int  armas(double *parameters,
 				double *lambda, double *rho, double *gamma, double *psi,
 				double *AMA_1, double *AMA_1AR, 
 				double *GAR_1, double *GAR_1MA, 
-				double *u, double *e, double *var, double *h, double *W, double *T_array
+				double *u, double *e, double *var, double *h, double *W, double *T_array, 
+				char* h_expr
 				) {
 
 
-	double sum, esq ;
+	double sum, esq;
 	long k,j,i;
 
 	long N = (int) parameters[0];
@@ -70,42 +74,40 @@ EXPORT int  armas(double *parameters,
 	long ngm = (int) parameters[4];
 	long npsi = (int) parameters[5];
 	long egarch = (int) parameters[6];
-	long lost_obs = (int) parameters[7];
-	double h_add = parameters[8];
+	double h_add = parameters[7];
+	double z = parameters[8];
 	long rw;
 
 	inverse(T, lambda, nlm, rho, nrh, AMA_1, AMA_1AR);
 	inverse(T, gamma, ngm, psi, npsi, GAR_1, GAR_1MA);
 
+	if(h_expr != NULL && *h_expr != '\0'){
+	//if(false){
 
-
-	//******************** BEFORE LOST OBS ******************//
-
-	for(k=0;k<N;k++){//individual dimension
-
-		for(i=0;i<lost_obs;i++){//time dimension
-			//ARMA:
-			sum = 0;
-			for(j=0;j<=i;j++){//time dimension, back tracking
-				sum += AMA_1AR[j]*u[(i-j) + k*T];
-				}
-			e[i + k*T] = sum;
-			//std::cout << "u: " << u[i] << std::endl;
-			
-			sum =0;
-			for(j=0;j<=i;j++){//time dimension, back tracking
-				sum += GAR_1[j] * W[(i-j) + k*T] + GAR_1MA[j]*h[(i-j) + k*T];
-			}
-			var[i + k*T] = sum;
-		}
-	}
-	
-	//******************** AFTER LOST OBS ******************//
-	
-	//**   EGARCH ESTIMATION:   */
-	if(egarch){
+		auto* h_func = exprtk_create_from_string(h_expr);
 		for(k=0;k<N;k++){//individual dimension
-			for(i=lost_obs;i<(int) T_array[k];i++){//time dimension
+			for(i=0;i<(int) T_array[k];i++){//time dimension
+				//ARMA:
+				sum = 0;
+				for(j=0;j<=i;j++){//time dimesion, back tracking
+					sum += AMA_1AR[j]*u[(i-j) + k*T];
+					}
+				e[i + k*T] = sum;
+				//GARCH:
+				esq = exprtk_eval(h_func, sum, z);
+				h[i + k*T] = esq;
+
+				sum =0;
+				for(j=0;j<=i;j++){//time dimension, back tracking
+					sum += GAR_1[j] * W[(i-j) + k*T] + GAR_1MA[j]*h[(i-j) + k*T];
+				}
+				var[i + k*T] = sum;
+			}
+		}
+	//**   EGARCH ESTIMATION:   */
+	}else if(egarch){
+		for(k=0;k<N;k++){//individual dimension
+			for(i=0;i<(int) T_array[k];i++){//time dimension
 				//ARMA:
 				sum = 0;
 				for(j=0;j<=i;j++){//time dimension, back tracking
@@ -114,11 +116,11 @@ EXPORT int  armas(double *parameters,
 				e[i + k*T] = sum;
 				
 				//GARCH:
-				h[i + k*T] = sum*sum;
-				h[i + k*T] += h_add;
+				esq = sum*sum + h_add;
+				esq = esq + (esq==0)*1e-18;
 				
 				//EGARCH:
-				h[i + k*T] = log((h[i + k*T]) + (h[i + k*T]==0)*1e-18);
+				h[i + k*T] = log(esq);
 				
 				sum =0;
 				for(j=0;j<=i;j++){//time dimension, back tracking
@@ -127,21 +129,22 @@ EXPORT int  armas(double *parameters,
 				var[i + k*T] = sum;
 			}
 		}
-	
-	//**  NOT EGARCH ESTIMATION:   */
 	}else{
-		
+		//**  NOT EGARCH ESTIMATION:   */
 		for(k=0;k<N;k++){//individual dimension
-			for(i=lost_obs;i<(int) T_array[k];i++){//time dimension
+			for(i=0;i<(int) T_array[k];i++){//time dimension
 				//ARMA:
 				sum = 0;
 				for(j=0;j<=i;j++){//time dimesion, back tracking
 					sum += AMA_1AR[j]*u[(i-j) + k*T];
 					}
 				e[i + k*T] = sum;
+
 				//GARCH:
-				h[i + k*T] = sum*sum;
-				h[i + k*T] += h_add;
+				esq = sum*sum + h_add;
+				esq = esq + (esq==0)*1e-18;
+				
+				h[i + k*T] = esq;
 
 				sum =0;
 				for(j=0;j<=i;j++){//time dimension, back tracking
@@ -154,7 +157,7 @@ EXPORT int  armas(double *parameters,
 	return 0;
 }
 	
-	
+
 void print(double *r){
 		int i;
 		for (i = 0; i < 10; i++) {
@@ -163,7 +166,6 @@ void print(double *r){
 		printf("\n"); // Print a newline character at the end
 		fflush(stdout);
 }
-
 
 
 EXPORT int  fast_dot(double *r, double *a, double *b, long n, long m) {

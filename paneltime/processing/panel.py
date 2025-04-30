@@ -10,6 +10,7 @@ from .. import functions as fu
 
 import numpy as np
 from .. import debug
+from .. import cfunctions
 import time
 
 
@@ -38,7 +39,6 @@ class Panel:
 		self.max_lags=self.input.max_lags
 		self.lost_obs = max((p,q,self.max_lags))+max((m,k,self.max_lags))+d#+3
 		self.nW,self.nZ,self.n_beta=len(self.input.W.columns),len(self.input.Z.columns),len(self.input.X.columns)
-		self.define_h_func()
 		self.undiff=None
 		if self.input.idvar is None:
 			self.options.fixed_random_group_eff=0
@@ -57,6 +57,7 @@ class Panel:
 
 
 	def final_defs(self):
+		self.h_func = cfunctions.hFunction(self.options.h_dict, self.included[3])
 		self.W_a=self.W*self.included[3]
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT=np.sum(self.included[3])
@@ -415,37 +416,6 @@ class Panel:
 		return t_map_tuple, tcnt
 
 
-	def define_h_func(self):
-		h_def="""
-def h(e,z):
-	e2			=	e**2+1e-5
-	h_val		=	np.log(e2)	
-	h_e_val		=	2*e/e2
-	h_2e_val	=	2/e2-4*e**2/e2**2
-
-	return h_val,h_e_val,h_2e_val,None,None,None
-		"""	
-		h_definition=self.options.h_function
-		if h_definition is None:
-			h_definition=h_def
-		d=dict()
-		try:
-			exec(h_definition,globals(),d)
-			ret=d['h'](1,1)
-			if len(ret)!=6:
-				raise RuntimeError("""Your custom h-function must return exactly six arguments
-				(h, dh/dx and ddh/dxdx for both e and z. the z return values can be set to None)""")
-			self.h_def=h_definition
-		except Exception as e:
-			print('Something is wrong with your custom function, default is used:'+ str(e))
-			exec(h_def,globals(),d)
-			self.h_def=h_def
-
-		self.z_active=True
-		for i in ret[3:]:
-			self.z_active=self.z_active and not (i is None)	
-
-
 	def mean(self,X,axis=None):
 		dims=list(X.shape)
 		dims[2:]=[1]*(len(dims)-2)
@@ -538,3 +508,6 @@ def formatarray(array,linelen,sep):
 	s=sep.join([str(i) for i in array])
 	s='\n'.join(s[n:n + linelen] for n in range(0, len(s), linelen))	
 	return s
+
+
+

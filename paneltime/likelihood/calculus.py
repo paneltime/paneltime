@@ -57,8 +57,8 @@ class gradient:
 		incl=self.panel.included[3]
 		re_obj_i,re_obj_t=ll.re_obj_i,ll.re_obj_t
 		u, e_RE,u_RE,h_e_val,var,h_val,v=ll.u, ll.e_RE,ll.u_RE,ll.h_e_val,ll.var,ll.h_val,ll.v
-		p,q,d,k,m=panel.pqdkm
-		nW=panel.nW
+		p,q,d,k,m = panel.pqdkm
+		nW = panel.nW
 		if DLL_e is None:
 			dLL_var, DLL_e=function.gradient(ll,self.panel)
 		self.X_RE = (panel.XIV+re_obj_i.RE(panel.XIV, panel)+re_obj_t.RE(panel.XIV, panel))*panel.included[3]
@@ -226,59 +226,59 @@ class hessian:
 
 
 		#Final:
-		D2LL_beta2 						=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta_RE,		dvar_sigma_beta, 	dvar_sigma_beta,	d2e_beta2, 					d2var_beta2)
-		D2LL_beta_rho		      =	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_rho_RE,		dvar_sigma_beta, 	dvar_sigma_rho,		T(d2e_rho_beta), 		T(d2var_rho_beta))
+		D2LL_beta2 					=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_beta_RE,		dvar_sigma_beta, 	dvar_sigma_beta,	d2e_beta2, 					d2var_beta2)
+		D2LL_beta_rho		      	=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_rho_RE,		dvar_sigma_beta, 	dvar_sigma_rho,		T(d2e_rho_beta), 		T(d2var_rho_beta))
 		D2LL_beta_lambda			=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	de_lambda_RE,	dvar_sigma_beta, 	dvar_sigma_lambda,	T(d2e_lambda_beta), 	T(d2var_lambda_beta))
 		D2LL_beta_gamma				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	g.dvar_gamma,		None, 					T(d2var_gamma_beta))
-		D2LL_beta_psi					=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	g.dvar_psi,			None, 					T(d2var_psi_beta))
+		D2LL_beta_psi				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	g.dvar_psi,			None, 					T(d2var_psi_beta))
 		D2LL_beta_omega				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	g.dvar_omega,		None, 					d2var_beta_omega)
-		D2LL_beta_initvar			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	g.dvar_initvar,	None, 					d2var_beta_initvar)
-		D2LL_beta_mu					=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	dvar_mu,				None, 					d2var_mu_beta)
-		D2LL_beta_z						=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	dvar_z,					None, 					T(d2var_z_beta))
+		D2LL_beta_initvar			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	g.dvar_initvar,		None, 					d2var_beta_initvar)
+		D2LL_beta_mu				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	dvar_mu,			None, 					d2var_mu_beta)
+		D2LL_beta_z					=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_beta_RE, 	None,			dvar_sigma_beta, 	dvar_z,				None, 					T(d2var_z_beta))
 
-		D2LL_rho2							=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_rho_RE,		dvar_sigma_rho, 	dvar_sigma_rho,		d2e_rho2, 					d2var_rho2)
+		D2LL_rho2					=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_rho_RE,		dvar_sigma_rho, 	dvar_sigma_rho,		d2e_rho2, 					d2var_rho2)
 		D2LL_rho_lambda				=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		de_lambda_RE,	dvar_sigma_rho, 	dvar_sigma_lambda,	T(d2e_lambda_rho), 		T(d2var_lambda_rho))
 		D2LL_rho_gamma				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dvar_sigma_rho, 	g.dvar_gamma,		None, 					T(d2var_gamma_rho))	
-		D2LL_rho_psi					=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dvar_sigma_rho, 	g.dvar_psi,			None, 					T(d2var_psi_rho))
+		D2LL_rho_psi				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dvar_sigma_rho, 	g.dvar_psi,			None, 					T(d2var_psi_rho))
 		D2LL_rho_omega				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dvar_sigma_rho, 	g.dvar_omega,		None, 					d2var_rho_omega)
-		D2LL_rho_initvar			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 	 	None,			dvar_sigma_rho, 	g.dvar_initvar,	None, 					d2var_rho_initvar)
-		D2LL_rho_mu						=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dvar_sigma_rho, 	dvar_mu,				None, 					T(d2var_mu_rho))
-		D2LL_rho_z						=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dvar_sigma_rho, 	dvar_z,					None, 					T(d2var_z_rho))
+		D2LL_rho_initvar			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 	 	None,			dvar_sigma_rho, 	g.dvar_initvar,		None, 					d2var_rho_initvar)
+		D2LL_rho_mu					=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dvar_sigma_rho, 	dvar_mu,			None, 					T(d2var_mu_rho))
+		D2LL_rho_z					=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_rho_RE, 		None,			dvar_sigma_rho, 	dvar_z,				None, 					T(d2var_z_rho))
 
-		D2LL_lambda2					=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	de_lambda_RE,	dvar_sigma_lambda, 	dvar_sigma_lambda,	T(d2e_lambda2), 		T(d2var_lambda2))
+		D2LL_lambda2				=	cf.dd_func(d2LL_de2,	d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	de_lambda_RE,	dvar_sigma_lambda, 	dvar_sigma_lambda,	T(d2e_lambda2), 		T(d2var_lambda2))
 		D2LL_lambda_gamma			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	g.dvar_gamma,		None, 					T(d2var_gamma_lambda))
 		D2LL_lambda_psi				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	g.dvar_psi,			None, 					T(d2var_psi_lambda))
 		D2LL_lambda_omega			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	g.dvar_omega,		None, 					d2var_lambda_omega)
-		D2LL_lambda_initvar		=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	g.dvar_initvar,	None, 					d2var_lambda_initvar)
-		D2LL_lambda_mu				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	dvar_mu,				None, 					T(d2var_mu_lambda))
-		D2LL_lambda_z					=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	dvar_z,					None, 					T(d2var_z_lambda))
+		D2LL_lambda_initvar			=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	g.dvar_initvar,		None, 					d2var_lambda_initvar)
+		D2LL_lambda_mu				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	dvar_mu,			None, 					T(d2var_mu_lambda))
+		D2LL_lambda_z				=	cf.dd_func(None,		d2LL_dln_de,	d2LL_dln2,	de_lambda_RE, 	None,			dvar_sigma_lambda, 	dvar_z,				None, 					T(d2var_z_lambda))
 
-		D2LL_gamma2						=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		g.dvar_gamma,		None, 					T(d2var_gamma2))
+		D2LL_gamma2					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_gamma, 		g.dvar_gamma,		None, 					T(d2var_gamma2))
 		D2LL_gamma_psi				=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dvar_gamma, 		g.dvar_psi,			None, 					d2var_gamma_psi)
-		D2LL_gamma_omega			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		g.dvar_omega,		None, 					d2var_gamma_omega)
-		D2LL_gamma_initvar		=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma,		 	g.dvar_initvar,	None, 					d2var_gamma_initvar)
-		D2LL_gamma_mu					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		dvar_mu,				None, 					None)
-		D2LL_gamma_z					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_gamma, 		dvar_z,					None, 					d2var_gamma_z)
+		D2LL_gamma_omega			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_gamma, 		g.dvar_omega,		None, 					d2var_gamma_omega)
+		D2LL_gamma_initvar			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_gamma,		g.dvar_initvar,		None, 					d2var_gamma_initvar)
+		D2LL_gamma_mu				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_gamma, 		dvar_mu,			None, 					None)
+		D2LL_gamma_z				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_gamma, 		dvar_z,				None, 					d2var_gamma_z)
 
-		D2LL_psi2							=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dvar_psi, 		g.dvar_psi,			None, 					None)
-		D2LL_psi_omega				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_psi, 		g.dvar_omega,		None, 					None)
-		D2LL_psi_initvar			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_psi, 	 	g.dvar_initvar,	None, 					None)
-		D2LL_psi_mu						=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_psi, 		dvar_mu,			 	None, 					None)
-		D2LL_psi_z						=	cf.dd_func(None,		None,			d2LL_dln2,	None, 		None,			g.dvar_psi, 		dvar_z,				 	None, 					d2var_psi_z)
+		D2LL_psi2					=	cf.dd_func(None,		None,			d2LL_dln2,	None,			None,			g.dvar_psi, 		g.dvar_psi,			None, 					None)
+		D2LL_psi_omega				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_psi, 		g.dvar_omega,		None, 					None)
+		D2LL_psi_initvar			=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_psi, 	 	g.dvar_initvar,		None, 					None)
+		D2LL_psi_mu					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_psi, 		dvar_mu,			None, 					None)
+		D2LL_psi_z					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_psi, 		dvar_z,				None, 					d2var_psi_z)
 
-		D2LL_omega2						=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_omega, 	g.dvar_omega,		None, 					None)
-		D2LL_omega_initvar		=	cf.dd_func(None,		None,	 	 	d2LL_dln2,	None, 	 	  None,			g.dvar_omega, 	g.dvar_initvar,	None, 					None)
-		D2LL_omega_mu					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_omega, 	g.dvar_mu,			None, 					None)
-		D2LL_omega_z					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_omega, 	g.dvar_z,			 	None, 					None)
+		D2LL_omega2					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_omega, 		g.dvar_omega,		None, 					None)
+		D2LL_omega_initvar			=	cf.dd_func(None,		None,	 	 	d2LL_dln2,	None, 	 	  	None,			g.dvar_omega, 		g.dvar_initvar,		None, 					None)
+		D2LL_omega_mu				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_omega, 		g.dvar_mu,			None, 					None)
+		D2LL_omega_z				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_omega, 		g.dvar_z,			None, 					None)
 
-		D2LL_initvar2					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_initvar,		g.dvar_initvar,		None, 					None)
-		D2LL_initvar_mu				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_mu, 					g.dvar_initvar,		None, 					None)
-		D2LL_initvar_z				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_z, 					g.dvar_initvar,		None, 					None)
+		D2LL_initvar2				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			g.dvar_initvar,		g.dvar_initvar,		None, 					None)
+		D2LL_initvar_mu				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_mu, 			g.dvar_initvar,		None, 					None)
+		D2LL_initvar_z				=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_z, 			g.dvar_initvar,		None, 					None)
 
-		D2LL_mu2							=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_mu, 			dvar_mu,			None, 					None)
-		D2LL_mu_z							=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_mu, 			dvar_z,				None, 					d2var_mu_z)
+		D2LL_mu2					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_mu, 			dvar_mu,			None, 					None)
+		D2LL_mu_z					=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_mu, 			dvar_z,				None, 					d2var_mu_z)
 
-		D2LL_z2								=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_z, 			dvar_z,				None, 					d2var_z2)
+		D2LL_z2						=	cf.dd_func(None,		None,			d2LL_dln2,	None, 			None,			dvar_z, 			dvar_z,				None, 					d2var_z2)
 
 
 

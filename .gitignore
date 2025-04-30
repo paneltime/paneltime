@@ -1,6 +1,7 @@
 *.egg-info
 *.csv
-*.pyc'
+*.pyc
+*.dmp
 *.exp
 *.lib
 *.c

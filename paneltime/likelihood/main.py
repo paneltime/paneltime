@@ -85,14 +85,25 @@ class LL:
 		#NOTE: self.h_val itself is also set in ctypes.cpp/ctypes.c. If you change self.h_val below, you need to 
 		#change it in the c-scripts too. self.h_val must be calcualted below as well for later calulcations. 
 		e_REsq =e_RE**2 + self.h_add
-		if panel.options.EGARCH==0:
-			self.h_val, self.h_e_val, self.h_2e_val = (e_REsq)*incl, 2*e_RE*incl, 2*incl
-			self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
+
+		
+		hf = panel.h_func
+		if hf.h_func_str == '':
+			if panel.options.EGARCH==0:
+				self.h_val, self.h_e_val, self.h_2e_val = (e_REsq)*incl, 2*e_RE*incl, 2*incl
+				self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
+			else:
+				self.h_val = np.log(e_REsq)*incl
+				self.h_e_val = 2*incl*e_RE/(e_REsq)
+				self.h_2e_val = incl*2/(e_REsq) - incl*2*e_RE**2/(e_REsq**2)
+				self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 		else:
-			self.h_val = np.log(e_REsq)*incl
-			self.h_e_val = 2*incl*e_RE/(e_REsq)
-			self.h_2e_val = incl*2/(e_REsq) - incl*2*e_RE**2/(e_REsq**2)
-			self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
+
+			z=0
+			if panel.h_func.z_active:
+				z = self.args.args_d['z']
+			self.h_val, self.h_e_val, self.h_2e_val = hf.h(e_RE, z), hf.h_e(e_RE, z), hf.h_e2(e_RE, z)
+			self.h_z_val, self.h_2z_val,  self.h_ez_val = hf.h_z(e_RE, z), hf.h_z2(e_RE, z), hf.h_e_z(e_RE, z)	#possibility of additional parameter in sq res function	
 
 		self.variance_RE(panel,e_REsq)
 		if False:#debug
@@ -145,47 +156,11 @@ class LL:
 
 	def variance_RE(self,panel,e_REsq):
 		"""Calculates random/fixed effects for variance."""
-		#not in use, expermental. Should be applied to normalize before ARIMA/GARCH
+		#not in use, expermental. Intended for a variance version of RE/FE
 		self.vRE,self.varRE,self.dvarRE=panel.zeros[3],panel.zeros[3],panel.zeros[3]
 		self.ddvarRE,self.dvarRE_mu,self.ddvarRE_mu_vRE=panel.zeros[3],None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
 		return
-		if panel.options.fixed_random_variance_eff==0:
-			return panel.zeros[3]
-		if panel.N==0:
-			return None
-
-		meane2=panel.mean(e_REsq)
-		self.varRE_input=(e_REsq-meane2)*panel.included[3]
-
-		mine2=0
-		mu=panel.options.variance_RE_norm
-		self.vRE_i=self.re_obj_i_v.RE(self.varRE_input, panel)
-		self.vRE_t=self.re_obj_t_v.RE(self.varRE_input, panel)
-		self.meane2=meane2
-		vRE=meane2*panel.included[3]-self.vRE_i-self.vRE_t
-		self.vRE=vRE
-		small=vRE<=mine2
-		big=small==False
-		vREbig=vRE[big]
-		vREsmall=vRE[small]
-
-		varREbig=np.log(vREbig+mu)
-		varREsmall=(np.log(mine2+mu)+((vREsmall-mine2)/(mine2+mu)))
-		varRE,dvarRE,ddvarRE=np.zeros(vRE.shape),np.zeros(vRE.shape),np.zeros(vRE.shape)
-
-		varRE[big]=varREbig
-		varRE[small]=varREsmall
-		self.varRE=varRE*panel.included[3]
-
-		dvarRE[big]=1/(vREbig+mu)
-		dvarRE[small]=1/(mine2+mu)
-		self.dvarRE=dvarRE*panel.included[3]
-
-		ddvarRE[big]=-1/(vREbig+mu)**2
-		self.ddvarRE=ddvarRE*panel.included[3]
-
-		return self.varRE
 
 	def get_re(self, panel, x = None):
 		if x == None:
@@ -198,6 +173,14 @@ class LL:
 		If reverse_difference and the ARIMA difference term d>0, the standardized variables are converted to
 		the original undifferenced order. This may be usefull if the predicted values should be used in another 
 		differenced regression."""
+
+		# currently seems to be some confusion with what is standardization and 
+		# inverting the ARIMA transformation. Need to use inverted operators to invert
+		# back to original residuals.
+
+		# Will then simply invert self.AMA_1AR
+
+
 		if hasattr(self,'Y_st') and False:
 			return		
 		m=panel.lost_obs
