@@ -19,6 +19,7 @@ CDPT = ct.POINTER(ct.c_double)
 CIPT = ct.POINTER(ct.c_uint) 
 
 
+
 def armas(parameters,lmbda, rho,  gmma, psi,  
           AMA_1, AMA_1AR,  GAR_1, GAR_1MA,  
           u,e,var,  h,  G,T_arr, h_expr):
@@ -118,6 +119,6 @@ class hFunction:
 	def test_expr(self, e, z, h_expr):
 		h_expr = h_expr.encode('utf-8')
 		cfunct.expression_test.argtypes = [ct.c_double, ct.c_double, ct.c_char_p]
-		cfunct.expression_test.restype = ct.c_double
+		cfunct.expression_test.restype = ct.c_char_p
 		x = cfunct.expression_test(e, z, h_expr)
 		return x

@@ -17,7 +17,7 @@ df = df[abs(df['Inflation'])<30]
 pt.options.pqdkm = (2, 2, 1, 2, 2)
 
 # Defing a custom h function for the GARCH model (identical to standard GARCH model):
-pt.options.h_dict = {'h':	'x0 = e^2 + 1e-8; '
+pt.options.h_dict = {'h':	'x0 = e^2 + 1e-8 +adfadf(e); '
 							'x0 + (x0==0)*1e-18;',
 					 'h_e':'2*e', 'h_e2':'2', 'h_z':'','h_z2':'', 'h_e_z':''}
 # The h function avoids division by zero in the GARCH model using e2 + (e2==0)*1e-18.

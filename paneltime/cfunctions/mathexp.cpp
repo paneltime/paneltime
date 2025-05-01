@@ -7,6 +7,7 @@
 extern "C" {
 
 struct evaluator_handle;
+std::string last_result;
 
 evaluator_handle* exprtk_create_from_string(const std::string& expr);
 double exprtk_eval(evaluator_handle* handle, double e, double z);
@@ -66,11 +67,25 @@ extern "C" void exprtk_destroy(evaluator_handle* handle) {
 }
 
 
-EXPORT int expression_test(double e, double z, char* h_expr) {
+EXPORT const char* expression_test(double e, double z, const char* h_expr) {
+    try {
+        std::string expr_str(h_expr);
+        auto* h_func = exprtk_create_from_string(expr_str);
+        if (!h_func) {
+            last_result = "error: failed to create expression";
+            return last_result.c_str();
+        }
 
-    auto* h_func = exprtk_create_from_string(h_expr);  // use the std::string directly
-    double x = exprtk_eval(h_func, e, z);
+        double x = exprtk_eval(h_func, e, z);
+        exprtk_destroy(h_func);
 
-    exprtk_destroy(h_func);
-    return x;
+        last_result = std::to_string(x);
+        return last_result.c_str();
+    } catch (const std::exception& ex) {
+        last_result = std::string("error: ") + ex.what();
+        return last_result.c_str();
+    } catch (...) {
+        last_result = "error: unknown exception";
+        return last_result.c_str();
+    }
 }
