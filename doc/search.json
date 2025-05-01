@@ -1,0 +1,142 @@
+[
+  {
+    "objectID": "options.html",
+    "href": "options.html",
+    "title": "Options",
+    "section": "",
+    "text": "You can set various options by setting attributes of the options attribute, for example:\nimport paneltime as pt\npt.options.accuracy = 1e-10\n\n\n\n\n\n\n\n\n\n\n\n\nAttribute name\nDefaultvalue\nPermissiblevalues*\nDatatype\nDescription\n\n\n\n\nARMA_constraint\n1000\n%s&gt;0\nfloat\nARMA coefficient constraint: Maximum absolute value of ARMA coefficients\n\n\nARMA_round\n14\n%s&gt;0\nint\n# of signficant digits: Number og digits to round elements in the ARMA matrices by. Small differences in these values can change the optimization path and makes the estimate less robustNumber of significant digits in ARMA\n\n\nEGARCH\nFalse\n[True, False]\nbool\nEstimate GARCH directly: Normal GARCH, as opposed to EGARCH if True\n\n\nGARCH_assist\n0\n%s&gt;=0\nfloat\nGARCH assist: Amount of weight put on assisting GARCH variance to be close to squared residuals\n\n\naccuracy\n0\n%s&gt;0\nint\nAccuracy: Accuracy of the optimization algorithm. 0 = fast and inaccurate, 3=slow and maximum accuracy\n\n\nadd_intercept\nTrue\n[True, False]\nbool\nAdd intercept: If True, adds intercept if not all ready in the data\n\n\narguments\nNone\nNone\n[‘str’, ‘dict’, ‘list’, ‘ndarray’]\nInitial arguments: A dict or string defining a dictionary in python syntax containing the initial arguments.An example can be obtained by printing ll.args.args_d\n\n\nconstraints_engine\nTrue\n[True, False]\nbool\nUses constraints engine: Determines whether to use the constraints engine\n\n\nfixed_random_group_eff\n0\n[0, 1, 2]\nint\nGroup fixed random effect: No, fixed or random group effects\n\n\nfixed_random_time_eff\n0\n[0, 1, 2]\nint\nTime fixed random effect: No, fixed or random time effects\n\n\nfixed_random_variance_eff\n0\n[0, 1, 2]\nint\nVariance fixed random effects: No, fixed or random group effects for variance\n\n\nh_function\ndef h(e,z…\nNone\nstr\nGARCH function: You can supply your own heteroskedasticity function. It must be a function ofresiduals e and a shift parameter z that is determined by the maximization procedurethe function must return the value and its computation in the following order:h, dh/de, (d2)h/de2, dh/dz, (d2)h/dz2,(d^2)h/(dz*de)\n\n\ninclude_initvar\nTrue\n[True, False]\nbool\nInclude initial variance: If True, includes an initaial variance term\n\n\ninitial_arima_garch_params\n0.1\n%s&gt;=0\nfloat\ninitial size of arima-garch parameters: The initial size of arima-garch parameters (all directions will be attempted\n\n\nkurtosis_adj\n0\n%s&gt;=0\nfloat\nAmount of kurtosis adjustment: Amount of kurtosis adjustment\n\n\nmax_iterations\n150\n%s&gt;0\nint\nMaximum number of iterations: Maximum number of iterations\n\n\nmin_group_df\n1\n%s&gt;0\nint\nMinimum degrees of freedom: The smallest permissible number of observations in each group. Must be at least 1\n\n\nmulticoll_threshold_max\n1000\n%s&gt;0\nfloat\nMulticollinearity threshold: Threshold for imposing constraints on collineary variables\n\n\nmulticoll_threshold_report\n30\n%s&gt;0\nfloat\nMulticollinearity threshold: Threshold for reporting multicoll problems\n\n\npqdkm\n[1, 1, 0, 1, 1]\n%s&gt;=0\nint\nARIMA-GARCH orders: ARIMA-GARCH parameters:\n\n\nrobustcov_lags_statistics\n[100, 30]\n%s&gt;1\nint\nRobust covariance lags (time): Numer of lags used in calculation of the robust covariance matrix for the time dimension\n\n\nsubtract_means\nFalse\n[True, False]\nbool\nSubtract means: If True, subtracts the mean of all variables. This may be a remedy for multicollinearity if the mean is not of interest.\n\n\nsupress_output\nTrue\n[True, False]\nbool\nSupress output: If True, no output is printed.\n\n\ntobit_limits\n[None, None]\n[‘%s&gt;0’, None]\n[‘float’, ‘NoneType’]\nTobit-model limits: Determines the limits in a tobit regression. Element 0 is lower limit and element1 is upper limit. If None, the limit is not active\n\n\ntolerance\n0.0001\n%s&gt;0\nfloat\nTolerance: Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonalis smaller than the tolerance, the procedure is Tolerance in maximum likelihood\n\n\nuse_analytical\n1\n[0, 1, 2]\nint\nAnalytical Hessian: Use analytical Hessian\n\n\nuser_constraints\nNone\nNone\n[‘str’, ‘dict’]\nUser constraints: Constraints on the regression coefficient estimates. Must be a dict with groups of coefficients where each element can either be None (no constraint), a tuple with a range (min, max) or a single lenght list as a float representing a fixed constraint. Se example in README.md. You can extract the arguments dict from result.args, and substitute the elements with range restrictions or None, or remove groups.If you for example put in the dict in result.args as it is, you will restrict all parameters to be equal to the result.\n\n\nvariance_RE_norm\n5e-06\n%s&gt;0\nfloat\nVariance RE/FE normalization point in log function: This parameter determines at which point the log function involved in the variance RE/FE calculations, will be extrapolate by a linear function for smaller values",
+    "crumbs": [
+      "Options"
+    ]
+  },
+  {
+    "objectID": "options.html#optionsobj-attributes",
+    "href": "options.html#optionsobj-attributes",
+    "title": "Options",
+    "section": "",
+    "text": "Attribute name\nDefaultvalue\nPermissiblevalues*\nDatatype\nDescription\n\n\n\n\nARMA_constraint\n1000\n%s&gt;0\nfloat\nARMA coefficient constraint: Maximum absolute value of ARMA coefficients\n\n\nARMA_round\n14\n%s&gt;0\nint\n# of signficant digits: Number og digits to round elements in the ARMA matrices by. Small differences in these values can change the optimization path and makes the estimate less robustNumber of significant digits in ARMA\n\n\nEGARCH\nFalse\n[True, False]\nbool\nEstimate GARCH directly: Normal GARCH, as opposed to EGARCH if True\n\n\nGARCH_assist\n0\n%s&gt;=0\nfloat\nGARCH assist: Amount of weight put on assisting GARCH variance to be close to squared residuals\n\n\naccuracy\n0\n%s&gt;0\nint\nAccuracy: Accuracy of the optimization algorithm. 0 = fast and inaccurate, 3=slow and maximum accuracy\n\n\nadd_intercept\nTrue\n[True, False]\nbool\nAdd intercept: If True, adds intercept if not all ready in the data\n\n\narguments\nNone\nNone\n[‘str’, ‘dict’, ‘list’, ‘ndarray’]\nInitial arguments: A dict or string defining a dictionary in python syntax containing the initial arguments.An example can be obtained by printing ll.args.args_d\n\n\nconstraints_engine\nTrue\n[True, False]\nbool\nUses constraints engine: Determines whether to use the constraints engine\n\n\nfixed_random_group_eff\n0\n[0, 1, 2]\nint\nGroup fixed random effect: No, fixed or random group effects\n\n\nfixed_random_time_eff\n0\n[0, 1, 2]\nint\nTime fixed random effect: No, fixed or random time effects\n\n\nfixed_random_variance_eff\n0\n[0, 1, 2]\nint\nVariance fixed random effects: No, fixed or random group effects for variance\n\n\nh_function\ndef h(e,z…\nNone\nstr\nGARCH function: You can supply your own heteroskedasticity function. It must be a function ofresiduals e and a shift parameter z that is determined by the maximization procedurethe function must return the value and its computation in the following order:h, dh/de, (d2)h/de2, dh/dz, (d2)h/dz2,(d^2)h/(dz*de)\n\n\ninclude_initvar\nTrue\n[True, False]\nbool\nInclude initial variance: If True, includes an initaial variance term\n\n\ninitial_arima_garch_params\n0.1\n%s&gt;=0\nfloat\ninitial size of arima-garch parameters: The initial size of arima-garch parameters (all directions will be attempted\n\n\nkurtosis_adj\n0\n%s&gt;=0\nfloat\nAmount of kurtosis adjustment: Amount of kurtosis adjustment\n\n\nmax_iterations\n150\n%s&gt;0\nint\nMaximum number of iterations: Maximum number of iterations\n\n\nmin_group_df\n1\n%s&gt;0\nint\nMinimum degrees of freedom: The smallest permissible number of observations in each group. Must be at least 1\n\n\nmulticoll_threshold_max\n1000\n%s&gt;0\nfloat\nMulticollinearity threshold: Threshold for imposing constraints on collineary variables\n\n\nmulticoll_threshold_report\n30\n%s&gt;0\nfloat\nMulticollinearity threshold: Threshold for reporting multicoll problems\n\n\npqdkm\n[1, 1, 0, 1, 1]\n%s&gt;=0\nint\nARIMA-GARCH orders: ARIMA-GARCH parameters:\n\n\nrobustcov_lags_statistics\n[100, 30]\n%s&gt;1\nint\nRobust covariance lags (time): Numer of lags used in calculation of the robust covariance matrix for the time dimension\n\n\nsubtract_means\nFalse\n[True, False]\nbool\nSubtract means: If True, subtracts the mean of all variables. This may be a remedy for multicollinearity if the mean is not of interest.\n\n\nsupress_output\nTrue\n[True, False]\nbool\nSupress output: If True, no output is printed.\n\n\ntobit_limits\n[None, None]\n[‘%s&gt;0’, None]\n[‘float’, ‘NoneType’]\nTobit-model limits: Determines the limits in a tobit regression. Element 0 is lower limit and element1 is upper limit. If None, the limit is not active\n\n\ntolerance\n0.0001\n%s&gt;0\nfloat\nTolerance: Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonalis smaller than the tolerance, the procedure is Tolerance in maximum likelihood\n\n\nuse_analytical\n1\n[0, 1, 2]\nint\nAnalytical Hessian: Use analytical Hessian\n\n\nuser_constraints\nNone\nNone\n[‘str’, ‘dict’]\nUser constraints: Constraints on the regression coefficient estimates. Must be a dict with groups of coefficients where each element can either be None (no constraint), a tuple with a range (min, max) or a single lenght list as a float representing a fixed constraint. Se example in README.md. You can extract the arguments dict from result.args, and substitute the elements with range restrictions or None, or remove groups.If you for example put in the dict in result.args as it is, you will restrict all parameters to be equal to the result.\n\n\nvariance_RE_norm\n5e-06\n%s&gt;0\nfloat\nVariance RE/FE normalization point in log function: This parameter determines at which point the log function involved in the variance RE/FE calculations, will be extrapolate by a linear function for smaller values",
+    "crumbs": [
+      "Options"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "About",
+    "section": "",
+    "text": "Paneltime is a statistical tool for estimating regressions on datasets that:\nUnlike any other statistical tool currently available, Paneltime simultaneously estimates random/fixed effects, ARIMA, and GARCH parameters.\nThe package can also be used on non-panel data or datasets that only exhibit ARIMA or GARCH characteristics. However, if your data has none of these issues, OLS is the preferred method.\nAuthor: Espen Sirnes\nCurrent version: 1.2.63",
+    "crumbs": [
+      "About"
+    ]
+  },
+  {
+    "objectID": "index.html#the-model-string",
+    "href": "index.html#the-model-string",
+    "title": "About",
+    "section": "The model string",
+    "text": "The model string\nThe model string can contain operations supported by the numpy package, using np as alias for numpy. For example np.abs(x) will result in a variable that is the absolute value of x.",
+    "crumbs": [
+      "About"
+    ]
+  },
+  {
+    "objectID": "attributes.html",
+    "href": "attributes.html",
+    "title": "Output",
+    "section": "",
+    "text": "paneltime.execute() returns a Summary-object. In addition, printing the Summary object, prints out the regression table and related information.\nThis object has the following attributes:\n\n\n\n\n\n\n\n\n\n\n\nAttribute\nSub attributes\nData Type\nExplanation\n\n\n\n\ncount\n\nCounting instance\nContains counts of the sample\n\n\n\ncount_dates\nfloat\nThe number of time observations in the sample after filtering\n\n\n\ncount_deg_freedom\nfloat\nDegrees of freedom\n\n\n\ncount_groups\nfloat\nThe number of groups in the sample after filtering\n\n\n\ncount_samp_size_after_filter\nfloat\nThe number of observations after filtering\n\n\n\ncount_samp_size_orig\nfloat\nThe number of original observations\n\n\ngeneral\n\nGeneral instance\nContains various information of interest\n\n\n\nci\nfloat\nThe condition index\n\n\n\nci_n\nint\nThe number of variables being dependent (more than 50% of variance) of a high ci&gt;30 factor\n\n\n\nconverged\nfloat\nIndicates whether the maximization procedure converged (True) or not (False)\n\n\n\ndx_norm\nfloat\nThe normalized direction for the next iteration. Should be close to 0 for all variables.\n\n\n\ngradient_matrix\nfloat\nThe gradient matrix of vectors for each observation, calculated analytically at the final regression coefficients point.\n\n\n\ngradient_vector\nfloat\nThe gradient vector, calculated analytically at the final regression coefficients point.\n\n\n\nhessian\nfloat\nThe Hessian matrix, calculated analytically at the point of the final regression coefficients point.\n\n\n\nits\nint\nNumber of iterations used before the maximum was identified\n\n\n\nlog_likelihood\nfloat\nThe log-likelihood of the regression\n\n\n\nlog_likelihood_object\nLL instance\nAn object containing the log-likelihood function and data needed to calculate the gradient and Hessian\n\n\n\nmsg\nfloat\nMessage from the maximization procedure\n\n\n\npanel\nfloat\nAn object containing the data and information about the panel\n\n\n\nt0\nfloat\nStart time for the maximization\n\n\n\nt1\nfloat\nEnd time for the maximization\n\n\n\ntime\nfloat\nThe time the regression took\n\n\nnames\n\nNames instance\nContains names of variables in various formats\n\n\n\ncaptions\nlist\nList containing captions for each variable, as displayed in the output table\n\n\n\ngroups\nlist\nList containing the names of each variable group. For example, ‘beta’ is the regression coefficient group and ‘lambda’ is the MA-coefficients group\n\n\n\nvarnames\nlist\nList containing the internal variable names used in the code\n\n\noutput\n\nOutput instance\nFor internal use\n\n\nrandom_effects\n\nRandomEffects instance\nEstimated random/fixed effects\n\n\n\nresiduals_i\nnumpy.ndarray\nEstimated random/fixed effects for the group dimensions\n\n\n\nresiduals_t\nnumpy.ndarray\nEstimated random/fixed effects for the time dimensions\n\n\n\nstd_i\nnumpy.ndarray\nEstimated volatilities for the group dimensions\n\n\n\nstd_t\nnumpy.ndarray\nEstimated volatilities for the time dimensions\n\n\nresults\n\nResults instance\nContains regression statistics seen in the regression output table\n\n\n\nargs\ndict\nDictionary with the variable groups in results.names.groups as keys, containing nx1 matrices of parameter estimates\n\n\n\ncodes\nfloat\nSignificance codes as displayed in the table\n\n\n\nconf_025\nfloat\nLower 5% confidence interval\n\n\n\nconf_0975\nfloat\nUpper 5% confidence interval\n\n\n\nparams\nfloat\nList of regression parameter estimates in the same order as results.names.captions\n\n\n\nse\nfloat\nStandard errors\n\n\n\ntstat\nfloat\nT-statistics\n\n\n\ntsign\nfloat\nT-test significance levels\n\n\ntable\n\nRegTableObj instance\nAn object that generates tables. Mostly for internal use.",
+    "crumbs": [
+      "Output"
+    ]
+  },
+  {
+    "objectID": "attributes.html#attributes-available-in-the-summary-object",
+    "href": "attributes.html#attributes-available-in-the-summary-object",
+    "title": "Output",
+    "section": "",
+    "text": "Attribute\nSub attributes\nData Type\nExplanation\n\n\n\n\ncount\n\nCounting instance\nContains counts of the sample\n\n\n\ncount_dates\nfloat\nThe number of time observations in the sample after filtering\n\n\n\ncount_deg_freedom\nfloat\nDegrees of freedom\n\n\n\ncount_groups\nfloat\nThe number of groups in the sample after filtering\n\n\n\ncount_samp_size_after_filter\nfloat\nThe number of observations after filtering\n\n\n\ncount_samp_size_orig\nfloat\nThe number of original observations\n\n\ngeneral\n\nGeneral instance\nContains various information of interest\n\n\n\nci\nfloat\nThe condition index\n\n\n\nci_n\nint\nThe number of variables being dependent (more than 50% of variance) of a high ci&gt;30 factor\n\n\n\nconverged\nfloat\nIndicates whether the maximization procedure converged (True) or not (False)\n\n\n\ndx_norm\nfloat\nThe normalized direction for the next iteration. Should be close to 0 for all variables.\n\n\n\ngradient_matrix\nfloat\nThe gradient matrix of vectors for each observation, calculated analytically at the final regression coefficients point.\n\n\n\ngradient_vector\nfloat\nThe gradient vector, calculated analytically at the final regression coefficients point.\n\n\n\nhessian\nfloat\nThe Hessian matrix, calculated analytically at the point of the final regression coefficients point.\n\n\n\nits\nint\nNumber of iterations used before the maximum was identified\n\n\n\nlog_likelihood\nfloat\nThe log-likelihood of the regression\n\n\n\nlog_likelihood_object\nLL instance\nAn object containing the log-likelihood function and data needed to calculate the gradient and Hessian\n\n\n\nmsg\nfloat\nMessage from the maximization procedure\n\n\n\npanel\nfloat\nAn object containing the data and information about the panel\n\n\n\nt0\nfloat\nStart time for the maximization\n\n\n\nt1\nfloat\nEnd time for the maximization\n\n\n\ntime\nfloat\nThe time the regression took\n\n\nnames\n\nNames instance\nContains names of variables in various formats\n\n\n\ncaptions\nlist\nList containing captions for each variable, as displayed in the output table\n\n\n\ngroups\nlist\nList containing the names of each variable group. For example, ‘beta’ is the regression coefficient group and ‘lambda’ is the MA-coefficients group\n\n\n\nvarnames\nlist\nList containing the internal variable names used in the code\n\n\noutput\n\nOutput instance\nFor internal use\n\n\nrandom_effects\n\nRandomEffects instance\nEstimated random/fixed effects\n\n\n\nresiduals_i\nnumpy.ndarray\nEstimated random/fixed effects for the group dimensions\n\n\n\nresiduals_t\nnumpy.ndarray\nEstimated random/fixed effects for the time dimensions\n\n\n\nstd_i\nnumpy.ndarray\nEstimated volatilities for the group dimensions\n\n\n\nstd_t\nnumpy.ndarray\nEstimated volatilities for the time dimensions\n\n\nresults\n\nResults instance\nContains regression statistics seen in the regression output table\n\n\n\nargs\ndict\nDictionary with the variable groups in results.names.groups as keys, containing nx1 matrices of parameter estimates\n\n\n\ncodes\nfloat\nSignificance codes as displayed in the table\n\n\n\nconf_025\nfloat\nLower 5% confidence interval\n\n\n\nconf_0975\nfloat\nUpper 5% confidence interval\n\n\n\nparams\nfloat\nList of regression parameter estimates in the same order as results.names.captions\n\n\n\nse\nfloat\nStandard errors\n\n\n\ntstat\nfloat\nT-statistics\n\n\n\ntsign\nfloat\nT-test significance levels\n\n\ntable\n\nRegTableObj instance\nAn object that generates tables. Mostly for internal use.",
+    "crumbs": [
+      "Output"
+    ]
+  },
+  {
+    "objectID": "hfunc.html",
+    "href": "hfunc.html",
+    "title": "GARCH heteroskedasticity function syntax guide",
+    "section": "",
+    "text": "The option pt.options.h_func allows you to define your own GARCH heteroskedasticity function. It must be a dict with keys ‘h’, ‘h_e’, ‘h_e2’, ‘h_z’,‘h_z2’ and ‘h_e_z’, defining the function h(e,z) and its derivatives \\(\\frac{\\partial h}{\\partial e}\\), \\(\\frac{\\partial^2 h}{{\\partial e}^2}\\), \\(\\frac{\\partial h}{\\partial z}\\), \\(\\frac{\\partial^2 h}{{\\partial z}^2}\\) and \\(\\frac{\\partial^2 h}{\\partial e \\partial z}\\) respectively.\nThe function h(e,z) must be a string with the variable e and optionally z. Hence, you define the string of the mathemtical function to be performed, and not the function itself. Correspondingly, the derivatives must be strings represeting mathematical expressions, and not function defitions. Se ‘GARCH heteroskedasticity function syntax guide’ in the documentation for information on how to write the mathematical expressions.\nFor example, you could define the function as",
+    "crumbs": [
+      "GARCH heteroskedasticity function syntax guide"
+    ]
+  },
+  {
+    "objectID": "hfunc.html#allowed-variables",
+    "href": "hfunc.html#allowed-variables",
+    "title": "GARCH heteroskedasticity function syntax guide",
+    "section": "Allowed Variables",
+    "text": "Allowed Variables\nUse named variables such as x, y, z.\nYou must declare these variables on the Python or C++ side before evaluating the expression.",
+    "crumbs": [
+      "GARCH heteroskedasticity function syntax guide"
+    ]
+  },
+  {
+    "objectID": "hfunc.html#supported-operators",
+    "href": "hfunc.html#supported-operators",
+    "title": "GARCH heteroskedasticity function syntax guide",
+    "section": "Supported Operators",
+    "text": "Supported Operators\n\n\n\nOperator\nDescription\nExample\n\n\n\n\n+ -\nAddition / Subtraction\nx + y - 2\n\n\n* / %\nMultiplication, Division, Modulo\nx * y / 2\n\n\n^\nExponentiation\nx^2\n\n\n==, !=\nEquality / Inequality\nx == y\n\n\n&lt; &gt; &lt;= &gt;=\nComparisons\nx &lt; y ? x : y\n\n\n&&, ||, !\nLogical AND, OR, NOT\nx &gt; 0 && y &gt; 0",
+    "crumbs": [
+      "GARCH heteroskedasticity function syntax guide"
+    ]
+  },
+  {
+    "objectID": "hfunc.html#built-in-functions",
+    "href": "hfunc.html#built-in-functions",
+    "title": "GARCH heteroskedasticity function syntax guide",
+    "section": "Built-in Functions",
+    "text": "Built-in Functions\n\n\n\nFunction\nDescription\n\n\n\n\nabs(x)\nAbsolute value\n\n\nsqrt(x)\nSquare root\n\n\nlog(x)\nNatural logarithm\n\n\nexp(x)\nExponential\n\n\nsin(x) cos(x) tan(x)\nTrigonometry\n\n\nfloor(x) ceil(x)\nRounding\n\n\nmin(x, y) max(x, y)\nMinimum / Maximum\n\n\nsign(x)\nReturns -1, 0, or +1",
+    "crumbs": [
+      "GARCH heteroskedasticity function syntax guide"
+    ]
+  },
+  {
+    "objectID": "hfunc.html#conditionals",
+    "href": "hfunc.html#conditionals",
+    "title": "GARCH heteroskedasticity function syntax guide",
+    "section": "Conditionals",
+    "text": "Conditionals\nYou can use the ternary operator for branching:\nx &gt; y ? x : y\nThis returns x if the condition is true, otherwise y.",
+    "crumbs": [
+      "GARCH heteroskedasticity function syntax guide"
+    ]
+  },
+  {
+    "objectID": "hfunc.html#example-expressions",
+    "href": "hfunc.html#example-expressions",
+    "title": "GARCH heteroskedasticity function syntax guide",
+    "section": "Example Expressions",
+    "text": "Example Expressions\nx^2 + 2*x + 1\nlog(x) + y^2\nx &gt; y ? x - y : y - x\nmin(x, y) + sqrt(abs(z))",
+    "crumbs": [
+      "GARCH heteroskedasticity function syntax guide"
+    ]
+  },
+  {
+    "objectID": "hfunc.html#notes",
+    "href": "hfunc.html#notes",
+    "title": "GARCH heteroskedasticity function syntax guide",
+    "section": "Notes",
+    "text": "Notes\n\nDo not use Python syntax like ** for powers — use ^ instead.\nDo not use math. prefix for functions (just write log(x), not math.log(x)).\nThe expression should be a single line and not contain Python def, if, for, etc.",
+    "crumbs": [
+      "GARCH heteroskedasticity function syntax guide"
+    ]
+  },
+  {
+    "objectID": "hfunc.html#reference",
+    "href": "hfunc.html#reference",
+    "title": "GARCH heteroskedasticity function syntax guide",
+    "section": "Reference",
+    "text": "Reference\nExprTk is an open-source C++ math expression parser.\nDocumentation: https://github.com/ArashPartow/exprtk",
+    "crumbs": [
+      "GARCH heteroskedasticity function syntax guide"
+    ]
+  }
+]
