@@ -3,10 +3,7 @@ title: Home
 nav_order: 1
 has_toc: true
 ---
-<script type="text/javascript"
-  async
-  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
-</script>
+
 
 # About
 

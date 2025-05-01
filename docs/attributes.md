@@ -1,7 +1,8 @@
 ---
-title: Output
-nav_order: 3
-has_toc: true
+title: "Output"
+format:
+  html:
+    toc: true
 ---
 # Output
 
