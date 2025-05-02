@@ -40,14 +40,30 @@ You can define mathematical expressions using this syntax. The expressions will 
 
 ---
 
-## Allowed Variables
+# Temporary Calculations and Scripting
 
-Use named variables such as `x`, `y`, `z`.  
-You must declare these variables on the Python or C++ side before evaluating the expression.
+You can perform temporary calculations or scripting by separating commands with a semicolon (`;`). The function will return the result of the **last** command. For example:
+
+```
+x0 = (e + z)^2; log(x0);
+```
+
+This will return the result of `log(x0)`.
 
 ---
 
-## Supported Operators
+# Allowed Variables
+
+You can refer to:
+
+* Residuals as `e`
+* The shape parameter as `z`
+
+In addition, you may use the temporary variables `x0`, `x1`, `x2`, `x3`, and `x4` for intermediate calculations.
+
+---
+
+# Supported Operators
 
 | Operator      | Description              | Example           |
 |---------------|--------------------------|-------------------|
@@ -60,7 +76,7 @@ You must declare these variables on the Python or C++ side before evaluating the
 
 ---
 
-## Built-in Functions
+# Built-in Functions
 
 | Function      | Description              |
 |---------------|--------------------------|
@@ -75,7 +91,7 @@ You must declare these variables on the Python or C++ side before evaluating the
 
 ---
 
-## Conditionals
+# Conditionals
 
 You can use the ternary operator for branching:
 
@@ -87,7 +103,7 @@ This returns `x` if the condition is true, otherwise `y`.
 
 ---
 
-## Example Expressions
+# Example Expressions
 
 ```text
 x^2 + 2*x + 1
@@ -98,7 +114,7 @@ min(x, y) + sqrt(abs(z))
 
 ---
 
-## Notes
+# Notes
 
 - Do not use Python syntax like `**` for powers — use `^` instead.
 - Do not use `math.` prefix for functions (just write `log(x)`, not `math.log(x)`).
@@ -107,7 +123,7 @@ min(x, y) + sqrt(abs(z))
 
 ---
 
-## Reference
+# Reference
 
 ExprTk is an open-source C++ math expression parser.  
 Documentation: [https://github.com/ArashPartow/exprtk](https://github.com/ArashPartow/exprtk)
