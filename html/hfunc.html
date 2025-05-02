@@ -204,8 +204,8 @@ window.Quarto = {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#exprtk-expression-syntax-guide" id="toc-exprtk-expression-syntax-guide" class="nav-link active" data-scroll-target="#exprtk-expression-syntax-guide"><code>exprtk</code> Expression Syntax Guide</a>
-  <ul class="collapse">
+  <li><a href="#exprtk-expression-syntax-guide" id="toc-exprtk-expression-syntax-guide" class="nav-link active" data-scroll-target="#exprtk-expression-syntax-guide"><code>exprtk</code> Expression Syntax Guide</a></li>
+  <li><a href="#temporary-calculations-and-scripting" id="toc-temporary-calculations-and-scripting" class="nav-link" data-scroll-target="#temporary-calculations-and-scripting">Temporary Calculations and Scripting</a></li>
   <li><a href="#allowed-variables" id="toc-allowed-variables" class="nav-link" data-scroll-target="#allowed-variables">Allowed Variables</a></li>
   <li><a href="#supported-operators" id="toc-supported-operators" class="nav-link" data-scroll-target="#supported-operators">Supported Operators</a></li>
   <li><a href="#built-in-functions" id="toc-built-in-functions" class="nav-link" data-scroll-target="#built-in-functions">Built-in Functions</a></li>
@@ -213,7 +213,6 @@ window.Quarto = {
   <li><a href="#example-expressions" id="toc-example-expressions" class="nav-link" data-scroll-target="#example-expressions">Example Expressions</a></li>
   <li><a href="#notes" id="toc-notes" class="nav-link" data-scroll-target="#notes">Notes</a></li>
   <li><a href="#reference" id="toc-reference" class="nav-link" data-scroll-target="#reference">Reference</a></li>
-  </ul></li>
   </ul>
 </nav>
     </div>
@@ -255,14 +254,26 @@ window.Quarto = {
 <h1><code>exprtk</code> Expression Syntax Guide</h1>
 <p>You can define mathematical expressions using this syntax. The expressions will be evaluated efficiently in C++ using the <a href="https://github.com/ArashPartow/exprtk">ExprTk library</a>.</p>
 <hr>
-<section id="allowed-variables" class="level2">
-<h2 class="anchored" data-anchor-id="allowed-variables">Allowed Variables</h2>
-<p>Use named variables such as <code>x</code>, <code>y</code>, <code>z</code>.<br>
-You must declare these variables on the Python or C++ side before evaluating the expression.</p>
+</section>
+<section id="temporary-calculations-and-scripting" class="level1">
+<h1>Temporary Calculations and Scripting</h1>
+<p>You can perform temporary calculations or scripting by separating commands with a semicolon (<code>;</code>). The function will return the result of the <strong>last</strong> command. For example:</p>
+<pre><code>x0 = (e + z)^2; log(x0);</code></pre>
+<p>This will return the result of <code>log(x0)</code>.</p>
 <hr>
 </section>
-<section id="supported-operators" class="level2">
-<h2 class="anchored" data-anchor-id="supported-operators">Supported Operators</h2>
+<section id="allowed-variables" class="level1">
+<h1>Allowed Variables</h1>
+<p>You can refer to:</p>
+<ul>
+<li>Residuals as <code>e</code></li>
+<li>The shape parameter as <code>z</code></li>
+</ul>
+<p>In addition, you may use the temporary variables <code>x0</code>, <code>x1</code>, <code>x2</code>, <code>x3</code>, and <code>x4</code> for intermediate calculations.</p>
+<hr>
+</section>
+<section id="supported-operators" class="level1">
+<h1>Supported Operators</h1>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -306,8 +317,8 @@ You must declare these variables on the Python or C++ side before evaluating the
 </table>
 <hr>
 </section>
-<section id="built-in-functions" class="level2">
-<h2 class="anchored" data-anchor-id="built-in-functions">Built-in Functions</h2>
+<section id="built-in-functions" class="level1">
+<h1>Built-in Functions</h1>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -352,23 +363,23 @@ You must declare these variables on the Python or C++ side before evaluating the
 </table>
 <hr>
 </section>
-<section id="conditionals" class="level2">
-<h2 class="anchored" data-anchor-id="conditionals">Conditionals</h2>
+<section id="conditionals" class="level1">
+<h1>Conditionals</h1>
 <p>You can use the ternary operator for branching:</p>
 <pre class="text"><code>x &gt; y ? x : y</code></pre>
 <p>This returns <code>x</code> if the condition is true, otherwise <code>y</code>.</p>
 <hr>
 </section>
-<section id="example-expressions" class="level2">
-<h2 class="anchored" data-anchor-id="example-expressions">Example Expressions</h2>
+<section id="example-expressions" class="level1">
+<h1>Example Expressions</h1>
 <pre class="text"><code>x^2 + 2*x + 1
 log(x) + y^2
 x &gt; y ? x - y : y - x
 min(x, y) + sqrt(abs(z))</code></pre>
 <hr>
 </section>
-<section id="notes" class="level2">
-<h2 class="anchored" data-anchor-id="notes">Notes</h2>
+<section id="notes" class="level1">
+<h1>Notes</h1>
 <ul>
 <li>Do not use Python syntax like <code>**</code> for powers — use <code>^</code> instead.</li>
 <li>Do not use <code>math.</code> prefix for functions (just write <code>log(x)</code>, not <code>math.log(x)</code>).</li>
@@ -376,14 +387,13 @@ min(x, y) + sqrt(abs(z))</code></pre>
 </ul>
 <hr>
 </section>
-<section id="reference" class="level2">
-<h2 class="anchored" data-anchor-id="reference">Reference</h2>
+<section id="reference" class="level1">
+<h1>Reference</h1>
 <p>ExprTk is an open-source C++ math expression parser.<br>
 Documentation: <a href="https://github.com/ArashPartow/exprtk">https://github.com/ArashPartow/exprtk</a></p>
 
 
 
-</section>
 </section>
 
 </main> <!-- /main -->

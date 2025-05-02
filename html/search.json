@@ -64,77 +64,7 @@
     "href": "hfunc.html",
     "title": "GARCH heteroskedasticity function syntax guide",
     "section": "",
-    "text": "The option pt.options.h_func allows you to define your own GARCH heteroskedasticity function. It must be a dict with keys ‘h’, ‘h_e’, ‘h_e2’, ‘h_z’,‘h_z2’ and ‘h_e_z’, defining the function h(e,z) and its derivatives \\(\\frac{\\partial h}{\\partial e}\\), \\(\\frac{\\partial^2 h}{{\\partial e}^2}\\), \\(\\frac{\\partial h}{\\partial z}\\), \\(\\frac{\\partial^2 h}{{\\partial z}^2}\\) and \\(\\frac{\\partial^2 h}{\\partial e \\partial z}\\) respectively.\nThe function h(e,z) must be a string with the variable e and optionally z. Hence, you define the string of the mathemtical function to be performed, and not the function itself. Correspondingly, the derivatives must be strings represeting mathematical expressions, and not function defitions. Se ‘GARCH heteroskedasticity function syntax guide’ in the documentation for information on how to write the mathematical expressions.\nFor example, you could define the function as",
-    "crumbs": [
-      "GARCH heteroskedasticity function syntax guide"
-    ]
-  },
-  {
-    "objectID": "hfunc.html#allowed-variables",
-    "href": "hfunc.html#allowed-variables",
-    "title": "GARCH heteroskedasticity function syntax guide",
-    "section": "Allowed Variables",
-    "text": "Allowed Variables\nUse named variables such as x, y, z.\nYou must declare these variables on the Python or C++ side before evaluating the expression.",
-    "crumbs": [
-      "GARCH heteroskedasticity function syntax guide"
-    ]
-  },
-  {
-    "objectID": "hfunc.html#supported-operators",
-    "href": "hfunc.html#supported-operators",
-    "title": "GARCH heteroskedasticity function syntax guide",
-    "section": "Supported Operators",
-    "text": "Supported Operators\n\n\n\nOperator\nDescription\nExample\n\n\n\n\n+ -\nAddition / Subtraction\nx + y - 2\n\n\n* / %\nMultiplication, Division, Modulo\nx * y / 2\n\n\n^\nExponentiation\nx^2\n\n\n==, !=\nEquality / Inequality\nx == y\n\n\n&lt; &gt; &lt;= &gt;=\nComparisons\nx &lt; y ? x : y\n\n\n&&, ||, !\nLogical AND, OR, NOT\nx &gt; 0 && y &gt; 0",
-    "crumbs": [
-      "GARCH heteroskedasticity function syntax guide"
-    ]
-  },
-  {
-    "objectID": "hfunc.html#built-in-functions",
-    "href": "hfunc.html#built-in-functions",
-    "title": "GARCH heteroskedasticity function syntax guide",
-    "section": "Built-in Functions",
-    "text": "Built-in Functions\n\n\n\nFunction\nDescription\n\n\n\n\nabs(x)\nAbsolute value\n\n\nsqrt(x)\nSquare root\n\n\nlog(x)\nNatural logarithm\n\n\nexp(x)\nExponential\n\n\nsin(x) cos(x) tan(x)\nTrigonometry\n\n\nfloor(x) ceil(x)\nRounding\n\n\nmin(x, y) max(x, y)\nMinimum / Maximum\n\n\nsign(x)\nReturns -1, 0, or +1",
-    "crumbs": [
-      "GARCH heteroskedasticity function syntax guide"
-    ]
-  },
-  {
-    "objectID": "hfunc.html#conditionals",
-    "href": "hfunc.html#conditionals",
-    "title": "GARCH heteroskedasticity function syntax guide",
-    "section": "Conditionals",
-    "text": "Conditionals\nYou can use the ternary operator for branching:\nx &gt; y ? x : y\nThis returns x if the condition is true, otherwise y.",
-    "crumbs": [
-      "GARCH heteroskedasticity function syntax guide"
-    ]
-  },
-  {
-    "objectID": "hfunc.html#example-expressions",
-    "href": "hfunc.html#example-expressions",
-    "title": "GARCH heteroskedasticity function syntax guide",
-    "section": "Example Expressions",
-    "text": "Example Expressions\nx^2 + 2*x + 1\nlog(x) + y^2\nx &gt; y ? x - y : y - x\nmin(x, y) + sqrt(abs(z))",
-    "crumbs": [
-      "GARCH heteroskedasticity function syntax guide"
-    ]
-  },
-  {
-    "objectID": "hfunc.html#notes",
-    "href": "hfunc.html#notes",
-    "title": "GARCH heteroskedasticity function syntax guide",
-    "section": "Notes",
-    "text": "Notes\n\nDo not use Python syntax like ** for powers — use ^ instead.\nDo not use math. prefix for functions (just write log(x), not math.log(x)).\nThe expression should be a single line and not contain Python def, if, for, etc.",
-    "crumbs": [
-      "GARCH heteroskedasticity function syntax guide"
-    ]
-  },
-  {
-    "objectID": "hfunc.html#reference",
-    "href": "hfunc.html#reference",
-    "title": "GARCH heteroskedasticity function syntax guide",
-    "section": "Reference",
-    "text": "Reference\nExprTk is an open-source C++ math expression parser.\nDocumentation: https://github.com/ArashPartow/exprtk",
+    "text": "The option pt.options.h_func allows you to define your own GARCH heteroskedasticity function. It must be a dict with keys ‘h’, ‘h_e’, ‘h_e2’, ‘h_z’,‘h_z2’ and ‘h_e_z’, defining the function h(e,z) and its derivatives \\(\\frac{\\partial h}{\\partial e}\\), \\(\\frac{\\partial^2 h}{{\\partial e}^2}\\), \\(\\frac{\\partial h}{\\partial z}\\), \\(\\frac{\\partial^2 h}{{\\partial z}^2}\\) and \\(\\frac{\\partial^2 h}{\\partial e \\partial z}\\) respectively.\nThe function h(e,z) must be a string with the variable e and optionally z. Hence, you define the string of the mathemtical function to be performed, and not the function itself. Correspondingly, the derivatives must be strings represeting mathematical expressions, and not function defitions. Se ‘GARCH heteroskedasticity function syntax guide’ in the documentation for information on how to write the mathematical expressions. \nFor example, you could define the function as\nimport paneltime as pt\npt.options.h_func = {\n    'h': 'e^2 + 0.5*e^4 + z',\n    'h_e': '2*e + 2*e^3',\n    'h_e2': '2 + 6*e^2',\n    'h_z': '1',\n    'h_z2': '0',\n    'h_e_z': '0'\n}\n\nexprtk Expression Syntax Guide\nYou can define mathematical expressions using this syntax. The expressions will be evaluated efficiently in C++ using the ExprTk library.\n\n\n\nTemporary Calculations and Scripting\nYou can perform temporary calculations or scripting by separating commands with a semicolon (;). The function will return the result of the last command. For example:\nx0 = (e + z)^2; log(x0);\nThis will return the result of log(x0).\n\n\n\nAllowed Variables\nYou can refer to:\n\nResiduals as e\nThe shape parameter as z\n\nIn addition, you may use the temporary variables x0, x1, x2, x3, and x4 for intermediate calculations.\n\n\n\nSupported Operators\n\n\n\nOperator\nDescription\nExample\n\n\n\n\n+ -\nAddition / Subtraction\nx + y - 2\n\n\n* / %\nMultiplication, Division, Modulo\nx * y / 2\n\n\n^\nExponentiation\nx^2\n\n\n==, !=\nEquality / Inequality\nx == y\n\n\n&lt; &gt; &lt;= &gt;=\nComparisons\nx &lt; y ? x : y\n\n\n&&, ||, !\nLogical AND, OR, NOT\nx &gt; 0 && y &gt; 0\n\n\n\n\n\n\nBuilt-in Functions\n\n\n\nFunction\nDescription\n\n\n\n\nabs(x)\nAbsolute value\n\n\nsqrt(x)\nSquare root\n\n\nlog(x)\nNatural logarithm\n\n\nexp(x)\nExponential\n\n\nsin(x) cos(x) tan(x)\nTrigonometry\n\n\nfloor(x) ceil(x)\nRounding\n\n\nmin(x, y) max(x, y)\nMinimum / Maximum\n\n\nsign(x)\nReturns -1, 0, or +1\n\n\n\n\n\n\nConditionals\nYou can use the ternary operator for branching:\nx &gt; y ? x : y\nThis returns x if the condition is true, otherwise y.\n\n\n\nExample Expressions\nx^2 + 2*x + 1\nlog(x) + y^2\nx &gt; y ? x - y : y - x\nmin(x, y) + sqrt(abs(z))\n\n\n\nNotes\n\nDo not use Python syntax like ** for powers — use ^ instead.\nDo not use math. prefix for functions (just write log(x), not math.log(x)).\nThe expression should be a single line and not contain Python def, if, for, etc.\n\n\n\n\nReference\nExprTk is an open-source C++ math expression parser.\nDocumentation: https://github.com/ArashPartow/exprtk",
     "crumbs": [
       "GARCH heteroskedasticity function syntax guide"
     ]
