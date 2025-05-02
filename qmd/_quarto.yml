@@ -2,6 +2,7 @@ project:
   type: website
   resources:
     - example.py
+    - working_example.zip
   output-dir: ../html
 
 
