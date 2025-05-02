@@ -1,19 +1,16 @@
 ---
 title: GARCH heteroskedasticity function syntax guide
-nav_order: 4
-has_toc: true
+format:
+  html:
+    toc: true
 ---
 The option `pt.options.h_func` allows you to define your own GARCH heteroskedasticity function. It must be a dict with keys 
- 'h', 'h\_e', 'h\_e2', 'h\_z','h\_z2' and 'h\_e\_z', defining the function h(e,z) and 
-its derivatives 
-
-$\frac{\partial h}{\partial e}$,  
+ 'h', 'h_e', 'h_e2', 'h_z','h_z2' and 'h_e_z', defining the function h(e,z) and its derivatives 
+$\frac{\partial h}{\partial e}$, 
 $\frac{\partial^2 h}{{\partial e}^2}$,
-$\frac{\partial h}{\partial z}$
-$\frac{\partial^2 h}{{\partial z}^2}$, 
-$\frac{\partial^2 h}{\partial e \partial ez}$ 
-
-
+$\frac{\partial h}{\partial z}$, 
+$\frac{\partial^2 h}{{\partial z}^2}$ and
+$\frac{\partial^2 h}{\partial e \partial z}$ 
 respectively. 
 
 The function h(e,z) must be a string with the variable e and optionally z. 

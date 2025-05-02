@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Options – paneltime.github.io</title>
+<title>Output – paneltime.github.io</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -110,7 +110,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./options.html">Options</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./attributes.html">Output</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -143,13 +143,13 @@ window.Quarto = {
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./attributes.html" class="sidebar-item-text sidebar-link">
+  <a href="./attributes.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Output</span></a>
   </div>
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./options.html" class="sidebar-item-text sidebar-link active">
+  <a href="./options.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Options</span></a>
   </div>
 </li>
@@ -169,10 +169,7 @@ window.Quarto = {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#setting-options" id="toc-setting-options" class="nav-link active" data-scroll-target="#setting-options">Setting options</a>
-  <ul class="collapse">
-  <li><a href="#optionsobj-attributes" id="toc-optionsobj-attributes" class="nav-link" data-scroll-target="#optionsobj-attributes"><code>OptionsObj</code> attributes</a></li>
-  </ul></li>
+  <li><a href="#attributes-available-in-the-summary-object" id="toc-attributes-available-in-the-summary-object" class="nav-link active" data-scroll-target="#attributes-available-in-the-summary-object">Attributes available in the <code>Summary</code> object</a></li>
   </ul>
 </nav>
     </div>
@@ -181,7 +178,7 @@ window.Quarto = {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Options</h1>
+<h1 class="title">Output</h1>
 </div>
 
 
@@ -198,233 +195,283 @@ window.Quarto = {
 </header>
 
 
-<section id="setting-options" class="level1">
-<h1>Setting options</h1>
-<p>You can set various options by setting attributes of the <code>options</code> attribute, for example:</p>
-<pre><code>import paneltime as pt
-pt.options.accuracy = 1e-10</code></pre>
-<section id="optionsobj-attributes" class="level2">
-<h2 class="anchored" data-anchor-id="optionsobj-attributes"><code>OptionsObj</code> attributes</h2>
+<p><code>paneltime.execute()</code> returns a <code>Summary</code>-object. In addition, printing the <code>Summary</code> object, prints out the regression table and related information.</p>
+<p>This object has the following attributes:</p>
+<section id="attributes-available-in-the-summary-object" class="level2">
+<h2 class="anchored" data-anchor-id="attributes-available-in-the-summary-object">Attributes available in the <code>Summary</code> object</h2>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 23%">
-<col style="width: 21%">
-<col style="width: 18%">
-<col style="width: 18%">
-<col style="width: 18%">
+<col style="width: 10%">
+<col style="width: 17%">
+<col style="width: 12%">
+<col style="width: 59%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Attribute name</th>
-<th>Default<br>value</th>
-<th>Permissible<br>values*</th>
-<th>Data<br>type</th>
-<th>Description</th>
+<th>Attribute</th>
+<th>Sub attributes</th>
+<th>Data Type</th>
+<th>Explanation</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>ARMA_constraint</td>
-<td>1000</td>
-<td>%s&gt;0</td>
-<td>float</td>
-<td><b>ARMA coefficient constraint:</b> Maximum absolute value of ARMA coefficients</td>
+<td><code>count</code></td>
+<td></td>
+<td><code>Counting</code> instance</td>
+<td>Contains counts of the sample</td>
 </tr>
 <tr class="even">
-<td>ARMA_round</td>
-<td>14</td>
-<td>%s&gt;0</td>
-<td>int</td>
-<td><b># of signficant digits:</b> Number og digits to round elements in the ARMA matrices by. Small differences in these values can change the optimization path and makes the estimate less robustNumber of significant digits in ARMA</td>
+<td></td>
+<td><code>count_dates</code></td>
+<td><code>float</code></td>
+<td>The number of time observations in the sample after filtering</td>
 </tr>
 <tr class="odd">
-<td>EGARCH</td>
-<td>False</td>
-<td>[True, False]</td>
-<td>bool</td>
-<td><b>Estimate GARCH directly:</b> Normal GARCH, as opposed to EGARCH if True</td>
+<td></td>
+<td><code>count_deg_freedom</code></td>
+<td><code>float</code></td>
+<td>Degrees of freedom</td>
 </tr>
 <tr class="even">
-<td>GARCH_assist</td>
-<td>0</td>
-<td>%s&gt;=0</td>
-<td>float</td>
-<td><b>GARCH assist:</b> Amount of weight put on assisting GARCH variance to be close to squared residuals</td>
+<td></td>
+<td><code>count_groups</code></td>
+<td><code>float</code></td>
+<td>The number of groups in the sample after filtering</td>
 </tr>
 <tr class="odd">
-<td>accuracy</td>
-<td>0</td>
-<td>%s&gt;0</td>
-<td>int</td>
-<td><b>Accuracy:</b> Accuracy of the optimization algorithm. 0 = fast and inaccurate, 3=slow and maximum accuracy</td>
+<td></td>
+<td><code>count_samp_size_after_filter</code></td>
+<td><code>float</code></td>
+<td>The number of observations after filtering</td>
 </tr>
 <tr class="even">
-<td>add_intercept</td>
-<td>True</td>
-<td>[True, False]</td>
-<td>bool</td>
-<td><b>Add intercept:</b> If True, adds intercept if not all ready in the data</td>
+<td></td>
+<td><code>count_samp_size_orig</code></td>
+<td><code>float</code></td>
+<td>The number of original observations</td>
 </tr>
 <tr class="odd">
-<td>arguments</td>
-<td>None</td>
-<td>None</td>
-<td>[‘str’, ‘dict’, ‘list’, ‘ndarray’]</td>
-<td><b>Initial arguments:</b> A dict or string defining a dictionary in python syntax containing the initial arguments.An example can be obtained by printing ll.args.args_d</td>
+<td><code>general</code></td>
+<td></td>
+<td><code>General</code> instance</td>
+<td>Contains various information of interest</td>
 </tr>
 <tr class="even">
-<td>constraints_engine</td>
-<td>True</td>
-<td>[True, False]</td>
-<td>bool</td>
-<td><b>Uses constraints engine:</b> Determines whether to use the constraints engine</td>
+<td></td>
+<td><code>ci</code></td>
+<td><code>float</code></td>
+<td>The condition index</td>
 </tr>
 <tr class="odd">
-<td>fixed_random_group_eff</td>
-<td>0</td>
-<td>[0, 1, 2]</td>
-<td>int</td>
-<td><b>Group fixed random effect:</b> No, fixed or random group effects</td>
+<td></td>
+<td><code>ci_n</code></td>
+<td><code>int</code></td>
+<td>The number of variables being dependent (more than 50% of variance) of a high ci&gt;30 factor</td>
 </tr>
 <tr class="even">
-<td>fixed_random_time_eff</td>
-<td>0</td>
-<td>[0, 1, 2]</td>
-<td>int</td>
-<td><b>Time fixed random effect:</b> No, fixed or random time effects</td>
+<td></td>
+<td><code>converged</code></td>
+<td><code>float</code></td>
+<td>Indicates whether the maximization procedure converged (<code>True</code>) or not (<code>False</code>)</td>
 </tr>
 <tr class="odd">
-<td>fixed_random_variance_eff</td>
-<td>0</td>
-<td>[0, 1, 2]</td>
-<td>int</td>
-<td><b>Variance fixed random effects:</b> No, fixed or random group effects for variance</td>
+<td></td>
+<td><code>dx_norm</code></td>
+<td><code>float</code></td>
+<td>The normalized direction for the next iteration. Should be close to 0 for all variables.</td>
 </tr>
 <tr class="even">
-<td>h_function</td>
-<td>def h(e,z…</td>
-<td>None</td>
-<td>str</td>
-<td><b>GARCH function:</b> You can supply your own heteroskedasticity function. It must be a function of<br>residuals e and a shift parameter z that is determined by the maximization procedure<br>the function must return the value and its computation in the following order:<br>h, dh/de, (d<sup>2)h/de</sup>2, dh/dz, (d<sup>2)h/dz</sup>2,(d^2)h/(dz*de)</td>
+<td></td>
+<td><code>gradient_matrix</code></td>
+<td><code>float</code></td>
+<td>The gradient matrix of vectors for each observation, calculated analytically at the final regression coefficients point.</td>
 </tr>
 <tr class="odd">
-<td>include_initvar</td>
-<td>True</td>
-<td>[True, False]</td>
-<td>bool</td>
-<td><b>Include initial variance:</b> If True, includes an initaial variance term</td>
+<td></td>
+<td><code>gradient_vector</code></td>
+<td><code>float</code></td>
+<td>The gradient vector, calculated analytically at the final regression coefficients point.</td>
 </tr>
 <tr class="even">
-<td>initial_arima_garch_params</td>
-<td>0.1</td>
-<td>%s&gt;=0</td>
-<td>float</td>
-<td><b>initial size of arima-garch parameters:</b> The initial size of arima-garch parameters (all directions will be attempted</td>
+<td></td>
+<td><code>hessian</code></td>
+<td><code>float</code></td>
+<td>The Hessian matrix, calculated analytically at the point of the final regression coefficients point.</td>
 </tr>
 <tr class="odd">
-<td>kurtosis_adj</td>
-<td>0</td>
-<td>%s&gt;=0</td>
-<td>float</td>
-<td><b>Amount of kurtosis adjustment:</b> Amount of kurtosis adjustment</td>
+<td></td>
+<td><code>its</code></td>
+<td><code>int</code></td>
+<td>Number of iterations used before the maximum was identified</td>
 </tr>
 <tr class="even">
-<td>max_iterations</td>
-<td>150</td>
-<td>%s&gt;0</td>
-<td>int</td>
-<td><b>Maximum number of iterations:</b> Maximum number of iterations</td>
+<td></td>
+<td><code>log_likelihood</code></td>
+<td><code>float</code></td>
+<td>The log-likelihood of the regression</td>
 </tr>
 <tr class="odd">
-<td>min_group_df</td>
-<td>1</td>
-<td>%s&gt;0</td>
-<td>int</td>
-<td><b>Minimum degrees of freedom:</b> The smallest permissible number of observations in each group. Must be at least 1</td>
+<td></td>
+<td><code>log_likelihood_object</code></td>
+<td><code>LL</code> instance</td>
+<td>An object containing the log-likelihood function and data needed to calculate the gradient and Hessian</td>
 </tr>
 <tr class="even">
-<td>multicoll_threshold_max</td>
-<td>1000</td>
-<td>%s&gt;0</td>
-<td>float</td>
-<td><b>Multicollinearity threshold:</b> Threshold for imposing constraints on collineary variables</td>
+<td></td>
+<td><code>msg</code></td>
+<td><code>float</code></td>
+<td>Message from the maximization procedure</td>
 </tr>
 <tr class="odd">
-<td>multicoll_threshold_report</td>
-<td>30</td>
-<td>%s&gt;0</td>
-<td>float</td>
-<td><b>Multicollinearity threshold:</b> Threshold for reporting multicoll problems</td>
+<td></td>
+<td><code>panel</code></td>
+<td><code>float</code></td>
+<td>An object containing the data and information about the panel</td>
 </tr>
 <tr class="even">
-<td>pqdkm</td>
-<td>[1, 1, 0, 1, 1]</td>
-<td>%s&gt;=0</td>
-<td>int</td>
-<td><b>ARIMA-GARCH orders:</b> ARIMA-GARCH parameters:</td>
+<td></td>
+<td><code>t0</code></td>
+<td><code>float</code></td>
+<td>Start time for the maximization</td>
 </tr>
 <tr class="odd">
-<td>robustcov_lags_statistics</td>
-<td>[100, 30]</td>
-<td>%s&gt;1</td>
-<td>int</td>
-<td><b>Robust covariance lags (time):</b> Numer of lags used in calculation of the robust <br>covariance matrix for the time dimension</td>
+<td></td>
+<td><code>t1</code></td>
+<td><code>float</code></td>
+<td>End time for the maximization</td>
 </tr>
 <tr class="even">
-<td>subtract_means</td>
-<td>False</td>
-<td>[True, False]</td>
-<td>bool</td>
-<td><b>Subtract means:</b> If True, subtracts the mean of all variables. This may be a remedy for multicollinearity if the mean is not of interest.</td>
+<td></td>
+<td><code>time</code></td>
+<td><code>float</code></td>
+<td>The time the regression took</td>
 </tr>
 <tr class="odd">
-<td>supress_output</td>
-<td>True</td>
-<td>[True, False]</td>
-<td>bool</td>
-<td><b>Supress output:</b> If True, no output is printed.</td>
+<td><code>names</code></td>
+<td></td>
+<td><code>Names</code> instance</td>
+<td>Contains names of variables in various formats</td>
 </tr>
 <tr class="even">
-<td>tobit_limits</td>
-<td>[None, None]</td>
-<td>[‘%s&gt;0’, None]</td>
-<td>[‘float’, ‘NoneType’]</td>
-<td><b>Tobit-model limits:</b> Determines the limits in a tobit regression. Element 0 is lower limit and element1 is upper limit. If None, the limit is not active</td>
+<td></td>
+<td><code>captions</code></td>
+<td><code>list</code></td>
+<td>List containing captions for each variable, as displayed in the output table</td>
 </tr>
 <tr class="odd">
-<td>tolerance</td>
-<td>0.0001</td>
-<td>%s&gt;0</td>
-<td>float</td>
-<td><b>Tolerance:</b> Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonalis smaller than the tolerance, the procedure is Tolerance in maximum likelihood</td>
+<td></td>
+<td><code>groups</code></td>
+<td><code>list</code></td>
+<td>List containing the names of each variable group. For example, ‘beta’ is the regression coefficient group and ‘lambda’ is the MA-coefficients group</td>
 </tr>
 <tr class="even">
-<td>use_analytical</td>
-<td>1</td>
-<td>[0, 1, 2]</td>
-<td>int</td>
-<td><b>Analytical Hessian:</b> Use analytical Hessian</td>
+<td></td>
+<td><code>varnames</code></td>
+<td><code>list</code></td>
+<td>List containing the internal variable names used in the code</td>
 </tr>
 <tr class="odd">
-<td>user_constraints</td>
-<td>None</td>
-<td>None</td>
-<td>[‘str’, ‘dict’]</td>
-<td><b>User constraints:</b> Constraints on the regression coefficient estimates. Must be a dict with groups of coefficients where each element can either be None (no constraint), a tuple with a range (min, max) or a single lenght list as a float representing a fixed constraint. Se example in README.md. You can extract the arguments dict from <code>result.args</code>, and substitute the elements with range restrictions or None, or remove groups.If you for example put in the dict in <code>result.args</code> as it is, you will restrict all parameters to be equal to the result.</td>
+<td><code>output</code></td>
+<td></td>
+<td><code>Output</code> instance</td>
+<td>For internal use</td>
 </tr>
 <tr class="even">
-<td>variance_RE_norm</td>
-<td>5e-06</td>
-<td>%s&gt;0</td>
-<td>float</td>
-<td><b>Variance RE/FE normalization point in log function:</b> This parameter determines at which point the log function involved in the variance RE/FE calculations, will be extrapolate by a linear function for smaller values</td>
+<td><code>random_effects</code></td>
+<td></td>
+<td><code>RandomEffects</code> instance</td>
+<td>Estimated random/fixed effects</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>residuals_i</code></td>
+<td><code>numpy.ndarray</code></td>
+<td>Estimated random/fixed effects for the group dimensions</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>residuals_t</code></td>
+<td><code>numpy.ndarray</code></td>
+<td>Estimated random/fixed effects for the time dimensions</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>std_i</code></td>
+<td><code>numpy.ndarray</code></td>
+<td>Estimated volatilities for the group dimensions</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>std_t</code></td>
+<td><code>numpy.ndarray</code></td>
+<td>Estimated volatilities for the time dimensions</td>
+</tr>
+<tr class="odd">
+<td><code>results</code></td>
+<td></td>
+<td><code>Results</code> instance</td>
+<td>Contains regression statistics seen in the regression output table</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>args</code></td>
+<td><code>dict</code></td>
+<td>Dictionary with the variable groups in <code>results.names.groups</code> as keys, containing nx1 matrices of parameter estimates</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>codes</code></td>
+<td><code>float</code></td>
+<td>Significance codes as displayed in the table</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>conf_025</code></td>
+<td><code>float</code></td>
+<td>Lower 5% confidence interval</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>conf_0975</code></td>
+<td><code>float</code></td>
+<td>Upper 5% confidence interval</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>params</code></td>
+<td><code>float</code></td>
+<td>List of regression parameter estimates in the same order as <code>results.names.captions</code></td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>se</code></td>
+<td><code>float</code></td>
+<td>Standard errors</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>tstat</code></td>
+<td><code>float</code></td>
+<td>T-statistics</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>tsign</code></td>
+<td><code>float</code></td>
+<td>T-test significance levels</td>
+</tr>
+<tr class="even">
+<td><code>table</code></td>
+<td></td>
+<td><code>RegTableObj</code> instance</td>
+<td>An object that generates tables. Mostly for internal use.</td>
 </tr>
 </tbody>
 </table>
 
 
 
-</section>
 </section>
 
 </main> <!-- /main -->

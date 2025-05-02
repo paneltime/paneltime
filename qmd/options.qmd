@@ -1,11 +1,10 @@
 ---
-title: Setting options
-nav_order: 2
-has_toc: true
+title: Options
+format:
+  html:
+    toc: true
 ---
 
-
-# Setting options
 
 
 You can set various options by setting attributes of the `options` attribute, for example:

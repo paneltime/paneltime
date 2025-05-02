@@ -1,11 +1,9 @@
 ---
-title: "Output"
+title: Output
 format:
   html:
     toc: true
 ---
-# Output
-
 
 `paneltime.execute()` returns a `Summary`-object. In addition, printing the `Summary` object, prints out the regression table and related information.
 

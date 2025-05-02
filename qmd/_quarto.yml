@@ -1,0 +1,24 @@
+project:
+  type: website
+  resources:
+    - example.py
+  output-dir: ../html
+
+
+website:
+  title: "paneltime.github.io"
+  sidebar:
+    style: floating
+    contents:
+      - index.qmd           # appears first
+      - attributes.qmd           # appears second
+      - options.qmd 
+      - hfunc.qmd
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+    math: mathjax
+    template-engine: jinja

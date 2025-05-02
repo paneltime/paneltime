@@ -8,11 +8,14 @@ import sys
 import glob
 import psutil
 from paneltime import opt_module
+import zipfile
+import platform
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
+	system = platform.system()
 
 	push_git = '-g' in sys.argv
 	push_pip = '-p' in sys.argv
@@ -32,13 +35,23 @@ def main():
 	if push_git or push_pip:
 		version = add_version(wd, addver)
 		print(f"Incrementet to version {version}")
+	
+	# Creating example zip and rendering html files
+	zip_example()
+	os.system("quarto render qmd/")
+	
+	# Building
+	if system == 'Darwin':
+		os.system('python3 -m build')
+	else:
+		os.system('python -m build')
 
+	#Pushing
 	if push_git:
 		gitpush(version)
 	else:
 		print('Not pushed to git - use "-g" to push to git')
-	
-	os.system('python -m build')
+
 
 	if push_pip:
 		os.system("twine upload dist/*")
@@ -49,8 +62,9 @@ def main():
 
 def gitpush(version):
 	print(f"Packaging paneltime version {version}")
-	r = sp.check_output('git pull')
-	if r != b'Already up to date.\n':
+	r = sp.check_output('git pull', shell=True, text=True)
+
+	if not r in [b'Already up to date.\n', 'Already up to date.\n']:
 		raise RuntimeError(f'Not up to date after git pull. Fix any conflicts and check that the repository is up to date\nPull output:\n{r})')
 	os.system('git add .')
 	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit (without quotation marks): ")}"')
@@ -59,7 +73,7 @@ def gitpush(version):
 def add_version(wd, add=True):
 	srchtrm = r"(\d+\.\d+\.\d+)"
 	version = re_replace('pyproject.toml', srchtrm, wd, add=add)
-	re_replace('index.md', srchtrm, wd, version)
+	re_replace('qmd/index.qmd', srchtrm, wd, version)
 	re_replace('paneltime/info.py', srchtrm, wd, version)
 	return version
 
@@ -115,7 +129,7 @@ def nukedir(dir):
 		return
 
 def create_readme():
-	src=f"{CUR_DIR}/index.md"
+	src=f"{CUR_DIR}/qmd/index.qmd"
 	dest=f"{CUR_DIR}/README.md"
 	with open(src, "r", encoding="utf-8") as f:
 		lines = f.readlines()
@@ -137,6 +151,16 @@ def remove_pycache_dirs(root):
 			pycache_path = os.path.join(dirpath, '__pycache__')
 			print(f"Removing {pycache_path}")
 			nukedir(pycache_path)
+
+def zip_example():
+	import zipfile
+
+	# Create ZIP file
+	with zipfile.ZipFile('qmd/working_example.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
+		for file in [	'qmd/example.py', 
+			   			'qmd/wb.dmp', 
+						'qmd/loadwb.py']:
+			zipf.write(file)
 
 
 main()

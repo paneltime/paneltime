@@ -20,51 +20,11 @@
     ]
   },
   {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "About",
-    "section": "",
-    "text": "Paneltime is a statistical tool for estimating regressions on datasets that:\nUnlike any other statistical tool currently available, Paneltime simultaneously estimates random/fixed effects, ARIMA, and GARCH parameters.\nThe package can also be used on non-panel data or datasets that only exhibit ARIMA or GARCH characteristics. However, if your data has none of these issues, OLS is the preferred method.\nAuthor: Espen Sirnes\nCurrent version: 1.2.63",
-    "crumbs": [
-      "About"
-    ]
-  },
-  {
-    "objectID": "index.html#the-model-string",
-    "href": "index.html#the-model-string",
-    "title": "About",
-    "section": "The model string",
-    "text": "The model string\nThe model string can contain operations supported by the numpy package, using np as alias for numpy. For example np.abs(x) will result in a variable that is the absolute value of x.",
-    "crumbs": [
-      "About"
-    ]
-  },
-  {
-    "objectID": "attributes.html",
-    "href": "attributes.html",
-    "title": "Output",
-    "section": "",
-    "text": "paneltime.execute() returns a Summary-object. In addition, printing the Summary object, prints out the regression table and related information.\nThis object has the following attributes:\n\n\n\n\n\n\n\n\n\n\n\nAttribute\nSub attributes\nData Type\nExplanation\n\n\n\n\ncount\n\nCounting instance\nContains counts of the sample\n\n\n\ncount_dates\nfloat\nThe number of time observations in the sample after filtering\n\n\n\ncount_deg_freedom\nfloat\nDegrees of freedom\n\n\n\ncount_groups\nfloat\nThe number of groups in the sample after filtering\n\n\n\ncount_samp_size_after_filter\nfloat\nThe number of observations after filtering\n\n\n\ncount_samp_size_orig\nfloat\nThe number of original observations\n\n\ngeneral\n\nGeneral instance\nContains various information of interest\n\n\n\nci\nfloat\nThe condition index\n\n\n\nci_n\nint\nThe number of variables being dependent (more than 50% of variance) of a high ci&gt;30 factor\n\n\n\nconverged\nfloat\nIndicates whether the maximization procedure converged (True) or not (False)\n\n\n\ndx_norm\nfloat\nThe normalized direction for the next iteration. Should be close to 0 for all variables.\n\n\n\ngradient_matrix\nfloat\nThe gradient matrix of vectors for each observation, calculated analytically at the final regression coefficients point.\n\n\n\ngradient_vector\nfloat\nThe gradient vector, calculated analytically at the final regression coefficients point.\n\n\n\nhessian\nfloat\nThe Hessian matrix, calculated analytically at the point of the final regression coefficients point.\n\n\n\nits\nint\nNumber of iterations used before the maximum was identified\n\n\n\nlog_likelihood\nfloat\nThe log-likelihood of the regression\n\n\n\nlog_likelihood_object\nLL instance\nAn object containing the log-likelihood function and data needed to calculate the gradient and Hessian\n\n\n\nmsg\nfloat\nMessage from the maximization procedure\n\n\n\npanel\nfloat\nAn object containing the data and information about the panel\n\n\n\nt0\nfloat\nStart time for the maximization\n\n\n\nt1\nfloat\nEnd time for the maximization\n\n\n\ntime\nfloat\nThe time the regression took\n\n\nnames\n\nNames instance\nContains names of variables in various formats\n\n\n\ncaptions\nlist\nList containing captions for each variable, as displayed in the output table\n\n\n\ngroups\nlist\nList containing the names of each variable group. For example, ‘beta’ is the regression coefficient group and ‘lambda’ is the MA-coefficients group\n\n\n\nvarnames\nlist\nList containing the internal variable names used in the code\n\n\noutput\n\nOutput instance\nFor internal use\n\n\nrandom_effects\n\nRandomEffects instance\nEstimated random/fixed effects\n\n\n\nresiduals_i\nnumpy.ndarray\nEstimated random/fixed effects for the group dimensions\n\n\n\nresiduals_t\nnumpy.ndarray\nEstimated random/fixed effects for the time dimensions\n\n\n\nstd_i\nnumpy.ndarray\nEstimated volatilities for the group dimensions\n\n\n\nstd_t\nnumpy.ndarray\nEstimated volatilities for the time dimensions\n\n\nresults\n\nResults instance\nContains regression statistics seen in the regression output table\n\n\n\nargs\ndict\nDictionary with the variable groups in results.names.groups as keys, containing nx1 matrices of parameter estimates\n\n\n\ncodes\nfloat\nSignificance codes as displayed in the table\n\n\n\nconf_025\nfloat\nLower 5% confidence interval\n\n\n\nconf_0975\nfloat\nUpper 5% confidence interval\n\n\n\nparams\nfloat\nList of regression parameter estimates in the same order as results.names.captions\n\n\n\nse\nfloat\nStandard errors\n\n\n\ntstat\nfloat\nT-statistics\n\n\n\ntsign\nfloat\nT-test significance levels\n\n\ntable\n\nRegTableObj instance\nAn object that generates tables. Mostly for internal use.",
-    "crumbs": [
-      "Output"
-    ]
-  },
-  {
-    "objectID": "attributes.html#attributes-available-in-the-summary-object",
-    "href": "attributes.html#attributes-available-in-the-summary-object",
-    "title": "Output",
-    "section": "",
-    "text": "Attribute\nSub attributes\nData Type\nExplanation\n\n\n\n\ncount\n\nCounting instance\nContains counts of the sample\n\n\n\ncount_dates\nfloat\nThe number of time observations in the sample after filtering\n\n\n\ncount_deg_freedom\nfloat\nDegrees of freedom\n\n\n\ncount_groups\nfloat\nThe number of groups in the sample after filtering\n\n\n\ncount_samp_size_after_filter\nfloat\nThe number of observations after filtering\n\n\n\ncount_samp_size_orig\nfloat\nThe number of original observations\n\n\ngeneral\n\nGeneral instance\nContains various information of interest\n\n\n\nci\nfloat\nThe condition index\n\n\n\nci_n\nint\nThe number of variables being dependent (more than 50% of variance) of a high ci&gt;30 factor\n\n\n\nconverged\nfloat\nIndicates whether the maximization procedure converged (True) or not (False)\n\n\n\ndx_norm\nfloat\nThe normalized direction for the next iteration. Should be close to 0 for all variables.\n\n\n\ngradient_matrix\nfloat\nThe gradient matrix of vectors for each observation, calculated analytically at the final regression coefficients point.\n\n\n\ngradient_vector\nfloat\nThe gradient vector, calculated analytically at the final regression coefficients point.\n\n\n\nhessian\nfloat\nThe Hessian matrix, calculated analytically at the point of the final regression coefficients point.\n\n\n\nits\nint\nNumber of iterations used before the maximum was identified\n\n\n\nlog_likelihood\nfloat\nThe log-likelihood of the regression\n\n\n\nlog_likelihood_object\nLL instance\nAn object containing the log-likelihood function and data needed to calculate the gradient and Hessian\n\n\n\nmsg\nfloat\nMessage from the maximization procedure\n\n\n\npanel\nfloat\nAn object containing the data and information about the panel\n\n\n\nt0\nfloat\nStart time for the maximization\n\n\n\nt1\nfloat\nEnd time for the maximization\n\n\n\ntime\nfloat\nThe time the regression took\n\n\nnames\n\nNames instance\nContains names of variables in various formats\n\n\n\ncaptions\nlist\nList containing captions for each variable, as displayed in the output table\n\n\n\ngroups\nlist\nList containing the names of each variable group. For example, ‘beta’ is the regression coefficient group and ‘lambda’ is the MA-coefficients group\n\n\n\nvarnames\nlist\nList containing the internal variable names used in the code\n\n\noutput\n\nOutput instance\nFor internal use\n\n\nrandom_effects\n\nRandomEffects instance\nEstimated random/fixed effects\n\n\n\nresiduals_i\nnumpy.ndarray\nEstimated random/fixed effects for the group dimensions\n\n\n\nresiduals_t\nnumpy.ndarray\nEstimated random/fixed effects for the time dimensions\n\n\n\nstd_i\nnumpy.ndarray\nEstimated volatilities for the group dimensions\n\n\n\nstd_t\nnumpy.ndarray\nEstimated volatilities for the time dimensions\n\n\nresults\n\nResults instance\nContains regression statistics seen in the regression output table\n\n\n\nargs\ndict\nDictionary with the variable groups in results.names.groups as keys, containing nx1 matrices of parameter estimates\n\n\n\ncodes\nfloat\nSignificance codes as displayed in the table\n\n\n\nconf_025\nfloat\nLower 5% confidence interval\n\n\n\nconf_0975\nfloat\nUpper 5% confidence interval\n\n\n\nparams\nfloat\nList of regression parameter estimates in the same order as results.names.captions\n\n\n\nse\nfloat\nStandard errors\n\n\n\ntstat\nfloat\nT-statistics\n\n\n\ntsign\nfloat\nT-test significance levels\n\n\ntable\n\nRegTableObj instance\nAn object that generates tables. Mostly for internal use.",
-    "crumbs": [
-      "Output"
-    ]
-  },
-  {
     "objectID": "hfunc.html",
     "href": "hfunc.html",
     "title": "GARCH heteroskedasticity function syntax guide",
     "section": "",
-    "text": "The option pt.options.h_func allows you to define your own GARCH heteroskedasticity function. It must be a dict with keys ‘h’, ‘h_e’, ‘h_e2’, ‘h_z’,‘h_z2’ and ‘h_e_z’, defining the function h(e,z) and its derivatives \\(\\frac{\\partial h}{\\partial e}\\), \\(\\frac{\\partial^2 h}{{\\partial e}^2}\\), \\(\\frac{\\partial h}{\\partial z}\\), \\(\\frac{\\partial^2 h}{{\\partial z}^2}\\) and \\(\\frac{\\partial^2 h}{\\partial e \\partial z}\\) respectively.\nThe function h(e,z) must be a string with the variable e and optionally z. Hence, you define the string of the mathemtical function to be performed, and not the function itself. Correspondingly, the derivatives must be strings represeting mathematical expressions, and not function defitions. Se ‘GARCH heteroskedasticity function syntax guide’ in the documentation for information on how to write the mathematical expressions.\nFor example, you could define the function as",
+    "text": "The option pt.options.h_func allows you to define your own GARCH heteroskedasticity function. It must be a dict with keys ‘h’, ‘h_e’, ‘h_e2’, ‘h_z’,‘h_z2’ and ‘h_e_z’, defining the function h(e,z) and \\(\\frac{\\partial h}{\\partial e}\\) its derivatives\n\\(\\frac{\\partial h}{\\partial e}\\),\n\\(\\frac{\\partial^2 h}{{\\partial e}^2}\\), \\(\\frac{\\partial h}{\\partial z}\\) \\(\\frac{\\partial^2 h}{{\\partial z}^2}\\), \\(\\frac{\\partial^2 h}{\\partial e \\partial z}\\)\nrespectively.\nThe function h(e,z) must be a string with the variable e and optionally z. Hence, you define the string of the mathemtical function to be performed, and not the function itself. Correspondingly, the derivatives must be strings represeting mathematical expressions, and not function defitions. Se ‘GARCH heteroskedasticity function syntax guide’ in the documentation for information on how to write the mathematical expressions.\nFor example, you could define the function as",
     "crumbs": [
       "GARCH heteroskedasticity function syntax guide"
     ]
@@ -137,6 +97,56 @@
     "text": "Reference\nExprTk is an open-source C++ math expression parser.\nDocumentation: https://github.com/ArashPartow/exprtk",
     "crumbs": [
       "GARCH heteroskedasticity function syntax guide"
+    ]
+  },
+  {
+    "objectID": "attributes.html",
+    "href": "attributes.html",
+    "title": "Output",
+    "section": "",
+    "text": "paneltime.execute() returns a Summary-object. In addition, printing the Summary object, prints out the regression table and related information.\nThis object has the following attributes:\n\n\n\n\n\n\n\n\n\n\n\nAttribute\nSub attributes\nData Type\nExplanation\n\n\n\n\ncount\n\nCounting instance\nContains counts of the sample\n\n\n\ncount_dates\nfloat\nThe number of time observations in the sample after filtering\n\n\n\ncount_deg_freedom\nfloat\nDegrees of freedom\n\n\n\ncount_groups\nfloat\nThe number of groups in the sample after filtering\n\n\n\ncount_samp_size_after_filter\nfloat\nThe number of observations after filtering\n\n\n\ncount_samp_size_orig\nfloat\nThe number of original observations\n\n\ngeneral\n\nGeneral instance\nContains various information of interest\n\n\n\nci\nfloat\nThe condition index\n\n\n\nci_n\nint\nThe number of variables being dependent (more than 50% of variance) of a high ci&gt;30 factor\n\n\n\nconverged\nfloat\nIndicates whether the maximization procedure converged (True) or not (False)\n\n\n\ndx_norm\nfloat\nThe normalized direction for the next iteration. Should be close to 0 for all variables.\n\n\n\ngradient_matrix\nfloat\nThe gradient matrix of vectors for each observation, calculated analytically at the final regression coefficients point.\n\n\n\ngradient_vector\nfloat\nThe gradient vector, calculated analytically at the final regression coefficients point.\n\n\n\nhessian\nfloat\nThe Hessian matrix, calculated analytically at the point of the final regression coefficients point.\n\n\n\nits\nint\nNumber of iterations used before the maximum was identified\n\n\n\nlog_likelihood\nfloat\nThe log-likelihood of the regression\n\n\n\nlog_likelihood_object\nLL instance\nAn object containing the log-likelihood function and data needed to calculate the gradient and Hessian\n\n\n\nmsg\nfloat\nMessage from the maximization procedure\n\n\n\npanel\nfloat\nAn object containing the data and information about the panel\n\n\n\nt0\nfloat\nStart time for the maximization\n\n\n\nt1\nfloat\nEnd time for the maximization\n\n\n\ntime\nfloat\nThe time the regression took\n\n\nnames\n\nNames instance\nContains names of variables in various formats\n\n\n\ncaptions\nlist\nList containing captions for each variable, as displayed in the output table\n\n\n\ngroups\nlist\nList containing the names of each variable group. For example, ‘beta’ is the regression coefficient group and ‘lambda’ is the MA-coefficients group\n\n\n\nvarnames\nlist\nList containing the internal variable names used in the code\n\n\noutput\n\nOutput instance\nFor internal use\n\n\nrandom_effects\n\nRandomEffects instance\nEstimated random/fixed effects\n\n\n\nresiduals_i\nnumpy.ndarray\nEstimated random/fixed effects for the group dimensions\n\n\n\nresiduals_t\nnumpy.ndarray\nEstimated random/fixed effects for the time dimensions\n\n\n\nstd_i\nnumpy.ndarray\nEstimated volatilities for the group dimensions\n\n\n\nstd_t\nnumpy.ndarray\nEstimated volatilities for the time dimensions\n\n\nresults\n\nResults instance\nContains regression statistics seen in the regression output table\n\n\n\nargs\ndict\nDictionary with the variable groups in results.names.groups as keys, containing nx1 matrices of parameter estimates\n\n\n\ncodes\nfloat\nSignificance codes as displayed in the table\n\n\n\nconf_025\nfloat\nLower 5% confidence interval\n\n\n\nconf_0975\nfloat\nUpper 5% confidence interval\n\n\n\nparams\nfloat\nList of regression parameter estimates in the same order as results.names.captions\n\n\n\nse\nfloat\nStandard errors\n\n\n\ntstat\nfloat\nT-statistics\n\n\n\ntsign\nfloat\nT-test significance levels\n\n\ntable\n\nRegTableObj instance\nAn object that generates tables. Mostly for internal use.",
+    "crumbs": [
+      "Output"
+    ]
+  },
+  {
+    "objectID": "attributes.html#attributes-available-in-the-summary-object",
+    "href": "attributes.html#attributes-available-in-the-summary-object",
+    "title": "Output",
+    "section": "",
+    "text": "Attribute\nSub attributes\nData Type\nExplanation\n\n\n\n\ncount\n\nCounting instance\nContains counts of the sample\n\n\n\ncount_dates\nfloat\nThe number of time observations in the sample after filtering\n\n\n\ncount_deg_freedom\nfloat\nDegrees of freedom\n\n\n\ncount_groups\nfloat\nThe number of groups in the sample after filtering\n\n\n\ncount_samp_size_after_filter\nfloat\nThe number of observations after filtering\n\n\n\ncount_samp_size_orig\nfloat\nThe number of original observations\n\n\ngeneral\n\nGeneral instance\nContains various information of interest\n\n\n\nci\nfloat\nThe condition index\n\n\n\nci_n\nint\nThe number of variables being dependent (more than 50% of variance) of a high ci&gt;30 factor\n\n\n\nconverged\nfloat\nIndicates whether the maximization procedure converged (True) or not (False)\n\n\n\ndx_norm\nfloat\nThe normalized direction for the next iteration. Should be close to 0 for all variables.\n\n\n\ngradient_matrix\nfloat\nThe gradient matrix of vectors for each observation, calculated analytically at the final regression coefficients point.\n\n\n\ngradient_vector\nfloat\nThe gradient vector, calculated analytically at the final regression coefficients point.\n\n\n\nhessian\nfloat\nThe Hessian matrix, calculated analytically at the point of the final regression coefficients point.\n\n\n\nits\nint\nNumber of iterations used before the maximum was identified\n\n\n\nlog_likelihood\nfloat\nThe log-likelihood of the regression\n\n\n\nlog_likelihood_object\nLL instance\nAn object containing the log-likelihood function and data needed to calculate the gradient and Hessian\n\n\n\nmsg\nfloat\nMessage from the maximization procedure\n\n\n\npanel\nfloat\nAn object containing the data and information about the panel\n\n\n\nt0\nfloat\nStart time for the maximization\n\n\n\nt1\nfloat\nEnd time for the maximization\n\n\n\ntime\nfloat\nThe time the regression took\n\n\nnames\n\nNames instance\nContains names of variables in various formats\n\n\n\ncaptions\nlist\nList containing captions for each variable, as displayed in the output table\n\n\n\ngroups\nlist\nList containing the names of each variable group. For example, ‘beta’ is the regression coefficient group and ‘lambda’ is the MA-coefficients group\n\n\n\nvarnames\nlist\nList containing the internal variable names used in the code\n\n\noutput\n\nOutput instance\nFor internal use\n\n\nrandom_effects\n\nRandomEffects instance\nEstimated random/fixed effects\n\n\n\nresiduals_i\nnumpy.ndarray\nEstimated random/fixed effects for the group dimensions\n\n\n\nresiduals_t\nnumpy.ndarray\nEstimated random/fixed effects for the time dimensions\n\n\n\nstd_i\nnumpy.ndarray\nEstimated volatilities for the group dimensions\n\n\n\nstd_t\nnumpy.ndarray\nEstimated volatilities for the time dimensions\n\n\nresults\n\nResults instance\nContains regression statistics seen in the regression output table\n\n\n\nargs\ndict\nDictionary with the variable groups in results.names.groups as keys, containing nx1 matrices of parameter estimates\n\n\n\ncodes\nfloat\nSignificance codes as displayed in the table\n\n\n\nconf_025\nfloat\nLower 5% confidence interval\n\n\n\nconf_0975\nfloat\nUpper 5% confidence interval\n\n\n\nparams\nfloat\nList of regression parameter estimates in the same order as results.names.captions\n\n\n\nse\nfloat\nStandard errors\n\n\n\ntstat\nfloat\nT-statistics\n\n\n\ntsign\nfloat\nT-test significance levels\n\n\ntable\n\nRegTableObj instance\nAn object that generates tables. Mostly for internal use.",
+    "crumbs": [
+      "Output"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "About",
+    "section": "",
+    "text": "Paneltime is a statistical tool for estimating regressions on datasets that:\n\nAre panels (have both a time and a group dimension)\n\nAre non-stationary in means (ARIMA)\n\nAre non-stationary in variance (GARCH)\n\nUnlike any other statistical tool currently available, Paneltime simultaneously estimates random/fixed effects, ARIMA, and GARCH parameters.\nThe package can also be used on non-panel data or datasets that only exhibit ARIMA or GARCH characteristics. However, if your data has none of these issues, OLS is the preferred method.\nAuthor: Espen Sirnes\nCurrent version: 1.2.63",
+    "crumbs": [
+      "About"
+    ]
+  },
+  {
+    "objectID": "index.html#the-model-string",
+    "href": "index.html#the-model-string",
+    "title": "About",
+    "section": "The model string",
+    "text": "The model string\nThe model string can contain operations supported by the numpy package, using np as alias for numpy. For example np.abs(x) will result in a variable that is the absolute value of x.",
+    "crumbs": [
+      "About"
+    ]
+  },
+  {
+    "objectID": "test.html",
+    "href": "test.html",
+    "title": "Test Math",
+    "section": "",
+    "text": "Inline math: \\(\\frac{\\partial h}{\\partial e}\\)\nDisplay math:\n\\[\\frac{\\partial h}{\\partial e}\\]",
+    "crumbs": [
+      "Test Math"
     ]
   }
 ]

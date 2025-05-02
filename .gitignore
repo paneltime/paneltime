@@ -6,6 +6,7 @@
 *.lib
 *.c
 *.obj
+*.log
 .vs/
 .vscode/
 __pycache__/

@@ -1,9 +1,0 @@
-
-
-remote_theme: just-the-docs/just-the-docs
-markdown: kramdown
-
-# Enable Table of Contents in Sidebar
-just_the_docs:
-  toc: true
-  toc_levels: 2..3  # Show H2 and H3 in TOC

@@ -31,7 +31,7 @@ def options_to_txt():
 
 	sorted_list = sorted(a, key=lambda x: x[0])
 	path = os.sep.join(__file__.split(os.sep)[:-2])
-	with open(f'{path}{os.sep}docs{os.sep}options.md','w') as f:
+	with open(f'{path}{os.sep}html{os.sep}options.md','w') as f:
 		f.write(	"---\n"
 					"title: Setting options\n"
 					"nav_order: 2\n"
