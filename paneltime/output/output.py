@@ -27,7 +27,7 @@ class Output:
 		
 		self.define_table_size()
 		self.statistics_decimals = 3 
-		self.update(0, ll, self.incr, dx_norm, 0)
+		self.update(0, ll, self.incr, dx_norm, 0, None, None)
 		self.describe()
 
 	def describe(self):
@@ -38,13 +38,16 @@ class Output:
 		s = "Regression model:\n" + s 
 		self.model_desc = s
 
-	def update(self,its, ll,incr, dx_norm, delta_time):
+	def update(self,its, ll,incr, dx_norm, delta_time, conv, msg):
 		self.iterations=its
 		self.ll=ll
 		self.dx_norm = dx_norm
 		self.incr=incr
 		self.delta_time = delta_time
+		self.conv = conv
+		self.msg = msg
 		self.stats = Statistics(self.ll,self.panel) 
+
 		
 
 	
@@ -102,7 +105,7 @@ class Output:
 				('Method:',method), 
 				('Date:',datetime.now().strftime('%a, %d %b %Y')), 
 				('Time:',datetime.now().strftime('%H:%M:%S')), 
-				(f'Run time (its):', f'{run_time} ({self.iterations})'), 
+				(f'Run time (its) [conv]:', f'{run_time} ({self.iterations}) [{self.conv}]'), 
 				('Observations count:',panel.NT), 
 				('Df Residuals:',s.df), 
 				('Df Model:',k-1), 

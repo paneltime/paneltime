@@ -31,7 +31,7 @@ def options_to_txt():
 
 	sorted_list = sorted(a, key=lambda x: x[0])
 	path = os.sep.join(__file__.split(os.sep)[:-2])
-	with open(f'{path}{os.sep}html{os.sep}options.md','w') as f:
+	with open(f'{path}{os.sep}qmd{os.sep}options.qmd','w') as f:
 		f.write(	"---\n"
 					"title: Setting options\n"
 					"nav_order: 2\n"
@@ -67,7 +67,7 @@ class options_item:
 		elif type(dtype)==list or type(dtype)==tuple:
 			self.dtype_str=str(dtype).replace('<class ','').replace('[','').replace(']','').replace('>','').replace("'",'')
 		else:
-			self.dtype_str=dtype.__name__
+			self.dtype_str= 'NA'
 
 		self.permissible_values=permissible_values
 		self.value_description=value_description
@@ -93,6 +93,11 @@ class options_item:
 
 	def valid(self,value):
 		if self.permissible_values is None:
+			if self.dtype is type:
+				isclass = isinstance(value, self.dtype)
+				if not isclass:
+					raise TypeError(f"Expected type 'type' (class type) for option {self.name} but got {type(value)}")
+				return True
 			try:
 				if self.dtype(value)==value:
 					return True
@@ -142,7 +147,7 @@ class OptionsObj:
 			try:
 				self.__dict__[_name].set(value)
 			except Exception as e:
-				raise RuntimeError(f"A custom option failed with error message:  e")
+				raise RuntimeError(f"A custom option failed with error message:  {e}")
 			value = self.__dict__[_name].value
 		elif not name in ['make_category_tree', 'categories','categories_srtd' ]:
 			raise RuntimeError(f"'{name}' is not a valid options attribute.")
@@ -230,11 +235,8 @@ def options_dict():
 
 
 
-	options['h_dict']						= options_item({'h':'', 'h_e':'', 'h_e2':'', 'h_z':'','h_z2':'', 'h_e_z':''}, 	
-
-																"You can supply your own GARCH heteroskedasticity function. Se 'GARCH heteroskedasticity function syntax guide' "
-																"in the documentation for information on how to write the mathematical expressions."
-																, dict,"GARCH function",category='Regression')
+	options['custom_model']						= options_item(None,	"Custom model class. Must be a class with porperties and methods as definedin the documentation. "
+																, type,"Custom model class", category='Regression')
 	
 	options['include_initvar']					= options_item(True,	"If True, includes an initaial variance term",
 																	 	bool,'Include initial variance', [True,False],['Include','Do not include'],category='Regression')

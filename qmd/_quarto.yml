@@ -3,7 +3,7 @@ project:
   resources:
     - example.py
     - working_example.zip
-  output-dir: ../html
+  output-dir: ../../paneltime.github.io
 
 
 website:

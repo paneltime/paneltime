@@ -65,7 +65,8 @@ def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
 	return ddL
 
 def test_c_armas(u_RE, var, e_RE, panel, ll, G):
-	var2 = fu.arma_dot(ll.GAR_1, G,ll) + fu.arma_dot(ll.GAR_1MA, ll.h_val,ll)
+	var2 = fu.arma_dot(ll.GAR_1, G,ll) + fu.arma_dot(ll.GAR_1MA, ll.llfunc.h_val,ll)
+	var2 = var2*panel.included[3]
 	e_RE2 = fu.arma_dot(ll.AMA_1AR,u_RE,ll)	
 	print(f"Testsums arma: c:{np.sum(var**2)}, py:{np.sum(var2**2)}")
 	print(f"Testsums e: c:{np.sum(e_RE**2)}, py:{np.sum(e_RE2**2)}")
@@ -104,7 +105,7 @@ def save_reg_data(ll, panel, fname = 'repr.csv', heading=True):
 	heading = [f'X{i}' for i in range(k)]
 	heading += [f'W{i}' for i in range(m)]
 	heading += ['Y', 'e','u', 'var', 'LL','AMA_1AR', 'GAR_1MA' , 'GAR_1', 'coefs_names', 'coefs']
-	a = np.concatenate((panel.X, panel.W_a, panel.Y, ll.e, ll.u, ll.var), 2)
+	a = np.concatenate((panel.X, panel.W_a, panel.Y, ll.e, ll.u, ll.llfunc.var), 2)
 	a = a.reshape((T, a.shape[2]))
 	coefs = np.zeros((T,1))
 	coef_names = np.array([['']]*T, dtype='<U20')
@@ -112,7 +113,7 @@ def save_reg_data(ll, panel, fname = 'repr.csv', heading=True):
 	coefs[:len(ll.args.args_v),0] = ll.args.args_v
 	coef_names[:len(ll.args.args_v),0] = ll.args.names_v
 	a = np.concatenate((a, 
-														ll.LL_full[0].reshape((T,1)),
+														ll.llfunc.ll_value[0].reshape((T,1)),
 																								ll.AMA_1AR[0].reshape((T,1))[::-1],
 																								ll.GAR_1MA[0].reshape((T,1))[::-1],
 																								ll.GAR_1[0].reshape((T,1))[::-1],

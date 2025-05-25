@@ -1,10 +1,11 @@
 ---
-title: Options
-format:
-  html:
-    toc: true
+title: Setting options
+nav_order: 2
+has_toc: true
 ---
 
+
+# Setting options
 
 
 You can set various options by setting attributes of the `options` attribute, for example:
@@ -26,10 +27,10 @@ pt.options.accuracy = 1e-10
 |add_intercept|True|[True, False]|bool|<b>Add intercept:</b> If True, adds intercept if not all ready in the data|
 |arguments|None|None|['str', 'dict', 'list', 'ndarray']|<b>Initial arguments:</b> A dict or string defining a dictionary in python syntax containing the initial arguments.An example can be obtained by printing ll.args.args_d|
 |constraints_engine|True|[True, False]|bool|<b>Uses constraints engine:</b> Determines whether to use the constraints engine|
+|custom_model|None|None|type|<b>Custom model class:</b> Custom model class. Must be a class with porperties and methods as definedin the documentation. |
 |fixed_random_group_eff|0|[0, 1, 2]|int|<b>Group fixed random effect:</b> No, fixed or random group effects|
 |fixed_random_time_eff|0|[0, 1, 2]|int|<b>Time fixed random effect:</b> No, fixed or random time effects|
 |fixed_random_variance_eff|0|[0, 1, 2]|int|<b>Variance fixed random effects:</b> No, fixed or random group effects for variance|
-|h_function|def h(e,z...|None|str|<b>GARCH function:</b> You can supply your own heteroskedasticity function. It must be a function of<br>residuals e and a shift parameter z that is determined by the maximization procedure<br>the function must return the value and its computation in the following order:<br>h, dh/de, (d^2)h/de^2, dh/dz, (d^2)h/dz^2,(d^2)h/(dz*de)|
 |include_initvar|True|[True, False]|bool|<b>Include initial variance:</b> If True, includes an initaial variance term|
 |initial_arima_garch_params|0.1|%s>=0|float|<b>initial size of arima-garch parameters:</b> The initial size of arima-garch parameters (all directions will be attempted|
 |kurtosis_adj|0|%s>=0|float|<b>Amount of kurtosis adjustment:</b> Amount of kurtosis adjustment|

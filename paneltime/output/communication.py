@@ -67,10 +67,10 @@ class web_output:
     self.output_set = True
 
 
-  def update(self,comput, its, ll, incr, dx_norm):
+  def update(self,comput, its, ll, incr, dx_norm, conv, msg):
     if self.panel.options.supress_output:
       return
-    self.output.update(its, ll, incr, dx_norm, time.time() - self.t0)
+    self.output.update(its, ll, incr, dx_norm, time.time() - self.t0, conv, msg)
     self.reg_table = output.RegTableObj(self.panel, ll, comput.g, comput.H, comput.G, comput.constr, dx_norm, self.output.model_desc) 
     tbl,llength=self.reg_table.table(4,'(','HTML',True,
                                                  show_direction=True,
@@ -102,7 +102,7 @@ class console:
   def set_output_obj(self,ll, comput, dx_norm):
     return
 
-  def update(self, compute, its,ll,incr, dx_norm):
+  def update(self, compute, its,ll,incr, dx_norm, conv, msg):
     return
 
 
@@ -119,10 +119,10 @@ class tk_widget:
     self.output = self.tab.output
     self.output_set = True
 
-  def update(self,comput, its, ll, incr, dx_norm):
+  def update(self,comput, its, ll, incr, dx_norm, conv, msg):
     if self.panel.options.supress_output:
       return
-    self.tab.update(self.panel, comput,its, ll, incr, dx_norm)
+    self.tab.update(self.panel, comput,its, ll, incr, dx_norm, conv, msg)
 
 
 def get_web_page(LL, args, comput,tbl,auto_update):

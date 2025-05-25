@@ -16,6 +16,7 @@ import time
 
 
 
+
 #todo: split up panel in sub classes
 
 class Panel:
@@ -56,8 +57,9 @@ class Panel:
 
 
 
+
 	def final_defs(self):
-		self.h_func = cfunctions.hFunction(self.options.h_dict, self.included[3])
+		
 		self.W_a=self.W*self.included[3]
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT=np.sum(self.included[3])

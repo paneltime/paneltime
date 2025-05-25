@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from ..output import stat_functions
 from .. import random_effects as re
 from .. import functions as fu
-from . import function
+from . import model_function
 from ..output import stat_dist
 from ..processing import model_parser
 from . import arma
@@ -63,7 +63,7 @@ class LL:
 		X=panel.XIV
 		N, T, k = X.shape
 		incl = panel.included[3]
-		self.set_var_bounds(panel)
+
 		
 		G = fu.dot(panel.W_a, self.args.args_d['omega'])
 		G[:,0,0] = panel.args.init_var
@@ -76,7 +76,7 @@ class LL:
 		u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*incl
 
 
-		matrices=self.arma_calc(panel, u_RE, self.h_add, G)
+		matrices=self.arma_calc(panel, u_RE, G)
 
 		if matrices is None:
 			return None		
@@ -84,54 +84,74 @@ class LL:
 
 		#NOTE: self.h_val itself is also set in ctypes.cpp/ctypes.c. If you change self.h_val below, you need to 
 		#change it in the c-scripts too. self.h_val must be calcualted below as well for later calulcations. 
-		e_REsq =e_RE**2 + self.h_add
-
 		
-		hf = panel.h_func
-		if hf.h_func_str == '':
+
+		if False:
+			e2 =e_RE**2 + 1e-8
+
 			if panel.options.EGARCH==0:
-				self.h_val, self.h_e_val, self.h_2e_val = (e_REsq)*incl, 2*e_RE*incl, 2*incl
+				var = np.maximum(np.minimum(var, 1e-30), 1e+30)
+				self.h_val, self.h_e_val, self.h_2e_val = (e2)*incl, 2*e_RE*incl, 2*incl
 				self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
 			else:
-				self.h_val = np.log(e_REsq)*incl
-				self.h_e_val = 2*incl*e_RE/(e_REsq)
-				self.h_2e_val = incl*2/(e_REsq) - incl*2*e_RE**2/(e_REsq**2)
+				var = np.maximum(np.minimum(var, -500), 500)
+				self.h_val = np.log(e2)*incl
+				self.h_e_val = 2*incl*e_RE/(e2)
+				self.h_2e_val = incl*(2/(e2) - 4*e_RE**2/(e2**2))
 				self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
-		else:
 
-			z=0
-			if panel.h_func.z_active:
-				z = self.args.args_d['z']
-			self.h_val, self.h_e_val, self.h_2e_val = hf.h(e_RE, z), hf.h_e(e_RE, z), hf.h_e2(e_RE, z)
-			self.h_z_val, self.h_2z_val,  self.h_ez_val = hf.h_z(e_RE, z), hf.h_z2(e_RE, z), hf.h_e_z(e_RE, z)	#possibility of additional parameter in sq res function	
 
-		self.variance_RE(panel,e_REsq)
+		self.llfunc = model_function.LLFunction(panel,  e_RE, var)
+
 		if False:#debug
 			from .. import debug
-			if np.any(h!=self.h_val):
+			if np.any(h!=self.llfunc.h_val):
 				print('the h calculated in the c function and the self.h_val calcualted here do not match')
 			debug.test_c_armas(u_RE, var, e_RE, panel, self, G)
 
-		LL_full,v,v_inv,self.dvar_pos=function.LL(panel,var,e_REsq, e_RE, self.minvar, self.maxvar)
 
-		self.tobit(panel,LL_full)
-		LL=np.sum(LL_full*incl)
 
-		self.LL_all=np.sum(LL_full)
+		
 
-		self.add_variables(panel,matrices, u, u_RE, var, v, G,e_RE,e_REsq,v_inv,LL_full)
+		self.variance_RE(panel,self.llfunc.e2)
+
+		for k in model_function.HFUNC_ITEMS:
+			setattr(self, k, getattr(self.llfunc, k))
+
+		ll_value = self.llfunc.ll()
+
+
+		self.tobit(panel,ll_value)
+		LL=np.sum(ll_value*incl)
+
+		self.LL_all=np.sum(ll_value)
+
+		#self.add_variables_old(panel,matrices, u, u_RE, var, v, G,e_RE,e2,v_inv,LL_full)
+		self.add_variables(panel, u, u_RE, G,e_RE,self.llfunc.e2, var)
+		
 
 		if abs(LL)>1e+100: 
 			return None				
 		return LL
+	
 
-	def set_var_bounds(self, panel):
-		self.minvar = 1e-30
-		self.maxvar = 1e+30
-		self.h_add = 1e-8
+
 
 			
-	def add_variables(self,panel,matrices,u, u_RE,var,v,G,e_RE,e_REsq,v_inv,LL_full):
+	def add_variables(self,panel,u, u_RE,G,e_RE,e2, var):
+
+		self.e_norm=e_RE*self.llfunc.v_inv05	
+		self.e_RE_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
+		self.u, self.u_RE      = u,  u_RE
+		self.G=G
+		self.e_RE=e_RE
+		self.e2=e2
+		self.ll_value = self.llfunc.ll_value
+		self.v = self.llfunc.v
+		self.var = var
+
+	def add_variables_old(self,panel,matrices,u, u_RE,var,v,G,e_RE,e2,v_inv,LL_full):
+
 		self.v_inv05=v_inv**0.5
 		self.e_norm=e_RE*self.v_inv05	
 		self.e_RE_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
@@ -139,8 +159,22 @@ class LL:
 		self.var,  self.v,    self.LL_full = var,       v,    LL_full
 		self.G=G
 		self.e_RE=e_RE
-		self.e_REsq=e_REsq
+		self.e2=e2
 		self.v_inv=v_inv
+		class LL_Function:
+			def __init__(self, ll, v_inv05, e2, e_RE, incl, var, v):
+				self.v_inv05 = ll.llfunc2.v_inv05
+				self.e2 = ll.llfunc2.e2
+				self.e_RE = ll.llfunc2.e_RE
+				self.incl = ll.llfunc2.incl
+				self.var = ll.llfunc2.var
+				self.v = ll.llfunc2.v
+
+				for i, (a, b) in enumerate(zip([self.v_inv05, self.e2, self.e_RE, self.incl, self.var, self.v], [v_inv05, e2, e_RE, incl, var, v])):
+					if not np.all(a == b):
+						aa=0
+
+		self.llfunc = LL_Function(self, self.v_inv05, e2, e_RE, panel.included[3], var, v)
 
 	def tobit(self,panel,LL):
 		if sum(panel.tobit_active)==0:
@@ -154,7 +188,7 @@ class LL:
 				LL[I]=np.log(self.F[i])
 
 
-	def variance_RE(self,panel,e_REsq):
+	def variance_RE(self,panel,e2):
 		"""Calculates random/fixed effects for variance."""
 		#not in use, expermental. Intended for a variance version of RE/FE
 		self.vRE,self.varRE,self.dvarRE=panel.zeros[3],panel.zeros[3],panel.zeros[3]
@@ -211,7 +245,7 @@ class LL:
 		if (not panel.undiff is None) and reverse_difference:
 			X=fu.dot(panel.undiff,X)*panel.included[3]		
 		if norm:
-			X=X*self.v_inv05
+			X=X*self.llfunc.v_inv05
 		X_long=self.stretch_variable(panel,X)
 		return X,X_long		
 
@@ -229,8 +263,8 @@ class LL:
 		return copy_array_dict(self.args.args_d)
 
 
-	def arma_calc(self,panel, u, h_add, G):
-		matrices = arma.set_garch_arch(panel,self.args.args_d, u, h_add, G)
+	def arma_calc(self,panel, u, G):
+		matrices = arma.set_garch_arch(panel,self.args.args_d, u, G)
 		self.AMA_1,self.AMA_1AR,self.GAR_1,self.GAR_1MA, self.e, self.var, self.h = matrices
 		self.AMA_dict={'AMA_1':None,'AMA_1AR':None,'GAR_1':None,'GAR_1MA':None}		
 		return matrices
@@ -267,7 +301,7 @@ class LL:
 			f'Observed {panel.input.Y_names[0]}': panel.Y[incl][:,0], 
 			f'Fitted {panel.input.Y_names[0]}': self.Y_fitted[incl][:,0], 
 			'Fitted residual':self.u[incl][:,0],
-			'Fitted variance': self.v[incl][:,0] 	
+			'Fitted variance': self.llfunc.v[incl][:,0] 	
 							}, index=index)
 		
 

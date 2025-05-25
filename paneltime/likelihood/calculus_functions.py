@@ -66,8 +66,8 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 		ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl
 		dd_input=(dd_e_RE_sq-ddmeane2)*incl
 
-		ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2,panel),
-																							ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.varRE_input,vname1,vname2,panel)),True)
+		ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.llfunc.varRE_input,vname1,vname2,panel),
+																							ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.llfunc.varRE_input,vname1,vname2,panel)),True)
 	else:
 		ddvRE_d_xi_zeta=None
 
@@ -83,11 +83,11 @@ def dd_func_garch(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,de2_zeta_xi,dd_re_vari
 		return None, None	
 	(N,T,m)=g.__dict__['de_'+vname1+'_RE'].shape
 	(N,T,k)=g.__dict__['de_'+vname2+'_RE'].shape
-	DLL_e=g.DLL_e.reshape(N,T,1,1)
+	dLL_e=g.dLL_e.reshape(N,T,1,1)
 
 	d2LL_d2e_zeta_xi_RE=None
 	if not de2_zeta_xi_RE is None:	
-		d2LL_d2e_zeta_xi_RE = de2_zeta_xi_RE * DLL_e	
+		d2LL_d2e_zeta_xi_RE = de2_zeta_xi_RE * dLL_e	
 		d2LL_d2e_zeta_xi_RE = np.sum(np.sum(d2LL_d2e_zeta_xi_RE*incl,0),0)
 
 	RE_suffix=''
@@ -140,6 +140,11 @@ def dd_func_lags(panel,ll,L,d,dLL,transpose=False):
 	x = np.minimum(np.maximum(x,-1e+100), 1e+100)
 	dLL = np.minimum(np.maximum(dLL,-1e+100), 1e+100)
 	return np.sum(np.sum(dLL*x,1),0)#and sum it	
+
+def dd_func_z(ll,d_arma):
+	x = fu.arma_dot(ll.GAR_1MA,ll.h_ez_val, ll)
+	N,T, k = d_arma.shape
+	return np.sum(np.sum(prod((x,d_arma)),1),0).reshape(1,k)
 
 
 def add(iterable,ignore=False):

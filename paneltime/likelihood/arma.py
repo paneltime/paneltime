@@ -10,7 +10,7 @@ import os
 from .. import cfunctions
 import sys
 
-def set_garch_arch(panel,args,u, h_add, G):
+def set_garch_arch(panel,args,u, G):
 	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
 	the diagonal band"""
 	N, T, _ = u.shape
@@ -22,13 +22,16 @@ def set_garch_arch(panel,args,u, h_add, G):
 	lmbda = args['lambda'].flatten()
 	gmma =  -args['gamma'].flatten()
 
+	z = 0
+	if 'z' in args:
+		z = args['z']
+
 	parameters = np.array(( N , T , 
 									len(lmbda), len(rho), len(gmma), len(psi), 
-									panel.options.EGARCH, 
-									h_add))
+									panel.options.EGARCH, z))
 
 	AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_c(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr, 
-												 panel.h_func.h_func_bstr)
+												 b'')
 	r=[]
 	#Creating nympy arrays with name properties. 
 	for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:

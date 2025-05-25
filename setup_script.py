@@ -15,6 +15,7 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
+
 	system = platform.system()
 
 	push_git = '-g' in sys.argv
@@ -29,6 +30,7 @@ def main():
 	nukedir(f'{CUR_DIR}/paneltime.egg-info')
 	remove_pycache_dirs(CUR_DIR)
 	create_readme()
+	os.system('quarto render qmd')
 
 	wd = os.path.dirname(__file__)
 	os.chdir(wd)
@@ -38,7 +40,6 @@ def main():
 	
 	# Creating example zip and rendering html files
 	zip_example()
-	os.system("quarto render qmd/")
 	
 	# Building
 	if system == 'Darwin':
@@ -60,15 +61,29 @@ def main():
 	
 
 
-def gitpush(version):
-	print(f"Packaging paneltime version {version}")
-	r = sp.check_output('git pull', shell=True, text=True)
+def push_repo(path, message):
+    """Pushes a git repository at `path` with the given commit message."""
+    print(f"Pushing repository at {path}")
 
-	if not r in [b'Already up to date.\n', 'Already up to date.\n']:
-		raise RuntimeError(f'Not up to date after git pull. Fix any conflicts and check that the repository is up to date\nPull output:\n{r})')
-	os.system('git add .')
-	os.system(f'git commit -m "New version {version} committed: {input("Write reason for commit (without quotation marks): ")}"')
-	os.system('git push')	
+    r = sp.check_output('git pull', shell=True, text=True, cwd=path)
+    if r.strip() != 'Already up to date.':
+        raise RuntimeError(
+            f'Repository at {path} not up to date after git pull.\nFix any conflicts.\nPull output:\n{r}')
+
+    sp.run('git add .', shell=True, check=True, cwd=path)
+    sp.run(f'git commit -m "{message}"', shell=True, cwd=path)
+    sp.run('git push', shell=True, check=True, cwd=path)
+
+def gitpush(version):
+    print(f"Pushing paneltime version {version}")
+    reason = input("Write reason for commit (without quotation marks): ")
+    message = f"Version {version} committed: {reason}"
+
+    current_repo = os.getcwd()
+    sibling_repo = os.path.abspath(os.path.join(current_repo, "..", "paneltime.github.io"))
+
+    push_repo(current_repo, message)
+    push_repo(sibling_repo, message)
 	
 def add_version(wd, add=True):
 	srchtrm = r"(\d+\.\d+\.\d+)"

@@ -152,14 +152,14 @@ class Computation:
 
 		
 	def calc_gradient(self,ll):
-		dLL_lnv, DLL_e=logl.func_gradent(ll,self.panel)
+		dLL_lnv, DLL_e=ll.llfunc.gradient()
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
 		g, G = self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
 		return g, G
 
 
 	def calc_hessian(self, ll):
-		d2LL_de2, d2LL_dln_de, d2LL_dln2 = logl.func_hessian(ll,self.panel)
+		d2LL_de2, d2LL_dln_de, d2LL_dln2 = ll.llfunc.hessian()
 		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
 		H = self.hessian.get(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)	
 		return H
@@ -173,8 +173,8 @@ class Computation:
 				I=self.panel.tobit_I[i]
 				self.f[i]=stat_dist.norm(g[i]*ll.e_norm[I], cdf = False)
 				self.f_F[i]=(ll.F[i]!=0)*self.f[i]/(ll.F[i]+(ll.F[i]==0))
-				self.v_inv05=ll.v_inv**0.5
-				DLL_e[I]=g[i]*self.f_F[i]*self.v_inv05[I]
+
+				DLL_e[I]=g[i]*self.f_F[i]*self.llfunc.v_inv05[I]
 				dLL_lnv[I]=-0.5*DLL_e[I]*ll.e_RE[I]
 				a=0
 
@@ -185,18 +185,18 @@ class Computation:
 			return
 		self.f=[None,None]
 		e1s1=ll.e_norm
-		e2s2=ll.e_REsq*ll.v_inv
+		e2s2=ll.e2*ll.llfunc.v_inv
 		e3s3=e2s2*e1s1
-		e1s2=e1s1*self.v_inv05
-		e1s3=e1s1*ll.v_inv
-		e2s3=e2s2*self.v_inv05
+		e1s2=e1s1*self.llfunc.v_inv05
+		e1s3=e1s1*ll.llfunc.v_inv
+		e2s3=e2s2*self.llfunc.v_inv05
 		f_F=self.f_F
 		for i in [0,1]:
 			if self.panel.tobit_active[i]:
 				I=self.panel.tobit_I[i]
 				f_F2=self.f_F[i]**2
-				d2LL_de2[I]=      -(g[i]*f_F[i]*e1s3[I] + f_F2*ll.v_inv[I])
-				d2LL_dln_de[I] =   0.5*(f_F2*e1s2[I]  +  g[i]*f_F[i]*(e2s3[I]-self.v_inv05[I]))
+				d2LL_de2[I]=      -(g[i]*f_F[i]*e1s3[I] + f_F2*ll.llfunc.v_inv[I])
+				d2LL_dln_de[I] =   0.5*(f_F2*e1s2[I]  +  g[i]*f_F[i]*(e2s3[I]-self.llfunc.v_inv05[I]))
 				d2LL_dln2[I] =     0.25*(f_F2*e2s2[I]  +  g[i]*f_F[i]*(e1s1[I]-e3s3[I]))
 
 

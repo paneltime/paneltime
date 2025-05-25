@@ -21,7 +21,7 @@ def go(panel, args, mp, window, exe_tab, console_output):
 class Summary:
 	def __init__(self, comm, panel, t0):
 		self.output = output.Output(comm.ll, panel, comm.dx_norm)
-		self.output.update(comm.its, comm.ll, 0, comm.dx_norm, time.time()-t0)
+		self.output.update(comm.its, comm.ll, 0, comm.dx_norm, time.time()-t0, comm.conv, comm.msg)
 		self.table = output.RegTableObj(panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm, self.output.model_desc)
 		c = comm.ll.args
 		self.names = Names(list(c.args_d), list(c.caption_v), list(c.names_v) )
@@ -168,11 +168,11 @@ class Comm:
 	def get(self, d):
 		for attr in d:
 			setattr(self, attr, d[attr])  
-		self.print_to_channel(self.msg, self.its, self.incr, self.ll,  self.dx_norm)
+		self.print_to_channel(self.msg, self.its, self.incr, self.ll,  self.dx_norm, self.conv)
 
-	def print_to_channel(self, msg, its, incr, ll, dx_norm):
+	def print_to_channel(self, msg, its, incr, ll, dx_norm, conv):
 		self.channel.set_output_obj(ll, self, dx_norm)
-		self.channel.update(self,its,ll,incr, dx_norm)
+		self.channel.update(self,its,ll,incr, dx_norm, conv, msg)
 		ev = np.abs(np.linalg.eigvals(self.H))**0.5
 		try:
 			det = np.linalg.det(self.H)

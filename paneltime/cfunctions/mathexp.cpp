@@ -3,6 +3,8 @@
 #include <iostream>
 #include <cstdio>
 #include <algorithm>
+#include <sstream>
+#include <iomanip>
 
 extern "C" {
 
@@ -23,6 +25,8 @@ struct evaluator_handle {
     double x2 = 0.0;
     double x3 = 0.0;
 
+    std::string error_message; 
+
     exprtk::symbol_table<double> symbol_table;
     exprtk::expression<double> expression;
     exprtk::parser<double> parser;
@@ -36,9 +40,7 @@ struct evaluator_handle {
         symbol_table.add_variable("x3", x3);
         expression.register_symbol_table(symbol_table);
         if (!parser.compile(expr_str, expression)) {
-            std::cerr << "ExprTk parse error:\n" << parser.error() << "\n";
-            std::cerr << "Expression was:\n" << expr_str << "\n";
-            throw std::runtime_error("ExprTk parse error");
+            error_message = parser.error() + "\n";
         }
     }
 
@@ -68,24 +70,20 @@ extern "C" void exprtk_destroy(evaluator_handle* handle) {
 
 
 EXPORT const char* expression_test(double e, double z, const char* h_expr) {
-    try {
-        std::string expr_str(h_expr);
-        auto* h_func = exprtk_create_from_string(expr_str);
-        if (!h_func) {
-            last_result = "error: failed to create expression";
-            return last_result.c_str();
-        }
+    static std::string last_result;
+    evaluator_handle handle(h_expr);
 
-        double x = exprtk_eval(h_func, e, z);
-        exprtk_destroy(h_func);
-
-        last_result = std::to_string(x);
-        return last_result.c_str();
-    } catch (const std::exception& ex) {
-        last_result = std::string("error: ") + ex.what();
-        return last_result.c_str();
-    } catch (...) {
-        last_result = "error: unknown exception";
-        return last_result.c_str();
+    if (!handle.error_message.empty()) {
+        last_result = std::string("Error:") + handle.error_message;
+        return last_result.c_str();  // Return error message immediately
     }
+
+    double res = handle.eval(e, z);
+    //printf("Result1: %f\n\n", handle.x0);
+    //printf("Result2: %f\n\n", handle.x1);
+    //printf("Result3: %f\n\n", handle.x2);
+    std::ostringstream oss;
+    oss << std::setprecision(17) << res;
+    last_result = oss.str();
+    return last_result.c_str();  // Return result as string
 }

@@ -74,16 +74,16 @@ EXPORT int  armas(double *parameters,
 	long ngm = (int) parameters[4];
 	long npsi = (int) parameters[5];
 	long egarch = (int) parameters[6];
-	double h_add = parameters[7];
-	double z = parameters[8];
+	double z = parameters[7];
 	long rw;
 
+
+	
 	inverse(T, lambda, nlm, rho, nrh, AMA_1, AMA_1AR);
 	inverse(T, gamma, ngm, psi, npsi, GAR_1, GAR_1MA);
 
 	if(h_expr != NULL && *h_expr != '\0'){
 	//if(false){
-
 		auto* h_func = exprtk_create_from_string(h_expr);
 		for(k=0;k<N;k++){//individual dimension
 			for(i=0;i<(int) T_array[k];i++){//time dimension
@@ -93,8 +93,10 @@ EXPORT int  armas(double *parameters,
 					sum += AMA_1AR[j]*u[(i-j) + k*T];
 					}
 				e[i + k*T] = sum;
+
 				//GARCH:
 				esq = exprtk_eval(h_func, sum, z);
+				
 				h[i + k*T] = esq;
 
 				sum =0;
@@ -116,7 +118,7 @@ EXPORT int  armas(double *parameters,
 				e[i + k*T] = sum;
 				
 				//GARCH:
-				esq = sum*sum + h_add;
+				esq = sum*sum + 1e-8;
 				esq = esq + (esq==0)*1e-18;
 				
 				//EGARCH:
@@ -141,7 +143,7 @@ EXPORT int  armas(double *parameters,
 				e[i + k*T] = sum;
 
 				//GARCH:
-				esq = sum*sum + h_add;
+				esq = sum*sum + 1e-8;
 				esq = esq + (esq==0)*1e-18;
 				
 				h[i + k*T] = esq;

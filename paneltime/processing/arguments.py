@@ -24,7 +24,8 @@ class arguments:
 		self.categories=['beta','rho','lambda','gamma','psi','omega']
 		if panel.options.include_initvar:
 			self.categories+=['initvar']
-		if panel.h_func.z_active:
+		z_active = False
+		if z_active:
 			self.categories+=['z']
 		self.mu_removed=True
 		if not self.mu_removed:
@@ -101,8 +102,8 @@ class arguments:
 			args['initvar']=np.zeros((1,1))
 		args['z']=np.array([[]])			
 
-
-		if m>0 and panel.h_func.z_active:
+		z_active = False
+		if m>0 and z_active:
 			args['z']=np.array([[1e-09]])	
 
 		if panel.N>1 and not self.mu_removed:
@@ -235,7 +236,8 @@ class arguments:
 				names_d['mu']=['mu']
 				names.extend(d['mu'])				
 				c.append(d['mu'])
-			if panel.h_func.z_active:
+			z_active = False
+			if z_active:
 				d['z']=['z in h(e,z)']
 				captions.extend(d['z'])
 				names_d['z']=['z']
