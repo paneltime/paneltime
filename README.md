@@ -12,7 +12,7 @@ Unlike any other statistical tool currently available, **Paneltime** simultaneou
 The package can also be used on **non-panel data** or datasets that only exhibit ARIMA or GARCH characteristics. However, if your data has none of these issues, **OLS is the preferred method**.  
 
 **Author:** Espen Sirnes  
-**Current version:** 1.2.66  
+**Current version:** 1.2.67  
 
 
 # Installation

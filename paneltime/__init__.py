@@ -50,7 +50,7 @@ def execute(model_string,dataframe, timevar = None, idvar = None, het_factors=No
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window', 'geometry')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab', 'isrunning')
 
-	r = main.execute(model_string, dataframe, timevar, idvar, het_factors, options, window, exe_tab, instruments, console_output, mp)
+	r = main.execute(model_string, dataframe, timevar, idvar, het_factors, options, window, exe_tab, instruments, True, mp)
 
 	return r
 
