@@ -2,15 +2,14 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from . import models
-from . import hfunc
 
 HFUNC_ITEMS = ['h_val', 'h_e_val', 'h_2e_val', 'h_z_val', 'h_2z_val', 'h_ez_val']
-EXPORT_ITEMS = ['var', 'v', 'v_inv', 'e', 'e2', ]
+EXPORT_ITEMS = ['var', 'e', 'e2']
 
 class LLFunction:
-	def __init__(self, panel, e, v):
+	def __init__(self, panel, e, v, z, hyp = False):
 
-		model = self.get(panel)
+		model = self.get(panel, hyp)
 
 		a = panel.options.GARCH_assist
 		k = panel.options.kurtosis_adj
@@ -21,7 +20,7 @@ class LLFunction:
 
 		with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
 
-			self.model = model(e, v, a, k)
+			self.model = model(e, v, a, k, z)
 
 		for key, x in [('a', a), ('k', k), ('incl', incl)]:
 			setattr(self, key, x)
@@ -41,9 +40,6 @@ class LLFunction:
 
 		self.v_inv05 = self.model.v**0.5
 
-
-		self.z_active = self.z_active()
-
 		self.test()
 
 		self.ll_value = self.ll()
@@ -51,13 +47,19 @@ class LLFunction:
 
 
 
-	def get(self, panel):
+
+	def get(self, panel, hyp):
 		"Selects model based on options. Called by the panel module."
 
 		if not panel.options.custom_model is None:
 			model = panel.options.custom_model
-		if panel.options.EGARCH == 0:
-			model = models.Hyperbolic
+		elif panel.options.EGARCH == 0:
+			a = panel.options.GARCH_assist
+			k = panel.options.kurtosis_adj
+			if a == 0 and k == 0 and not hyp:
+				model = models.Normal
+			else:
+				model = models.Hyperbolic
 		elif panel.options.EGARCH==1:
 			model = models.Exponential
 
@@ -100,12 +102,6 @@ class LLFunction:
 		
 
 
-
-
-
-
-
-
 	def test(self):
 
 		model = self.model
@@ -120,8 +116,8 @@ class LLFunction:
 
 	def z_active(self):
 		"""Check if the z-derivative keys are present in the h_func dictionary."""
-		if not np.all((getattr(self.model,k) == None) 
-					or (getattr(self.model,k) == '') 
+		if not np.all((getattr(self.model,k, None) == None) 
+					or (getattr(self.model,k, '') == '') 
 						for k in HFUNC_ITEMS[4:]  ):
 			return True
 		return False

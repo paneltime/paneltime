@@ -24,8 +24,8 @@ class arguments:
 		self.categories=['beta','rho','lambda','gamma','psi','omega']
 		if panel.options.include_initvar:
 			self.categories+=['initvar']
-		z_active = False
-		if z_active:
+
+		if panel.z_active:
 			self.categories+=['z']
 		self.mu_removed=True
 		if not self.mu_removed:
@@ -75,7 +75,7 @@ class arguments:
 				print(e)
 				self.user_constraints={}
 				return
-		if not panel.h_func.z_active and 'z' in self.user_constraints:
+		if not panel.z_active and 'z' in self.user_constraints:
 			self.user_constraints.pop('z')	
 		if panel.options.include_initvar  and 'initvar' in self.user_constraints:
 			self.user_constraints.pop('initvar')
@@ -102,8 +102,7 @@ class arguments:
 			args['initvar']=np.zeros((1,1))
 		args['z']=np.array([[]])			
 
-		z_active = False
-		if m>0 and z_active:
+		if m>0 and panel.z_active:
 			args['z']=np.array([[1e-09]])	
 
 		if panel.N>1 and not self.mu_removed:
@@ -136,12 +135,8 @@ class arguments:
 		args_OLS['beta']=beta
 		
 		v = panel.var(panel.Y)
-		if panel.options.EGARCH==0:
-			args_restricted['omega'][0][0]= v
-			args_OLS['omega'][0][0]=omega
-		else:
-			args_restricted['omega'][0][0]=np.log(v)
-			args_OLS['omega'][0][0]=np.log(omega)
+		args_restricted['omega'][0][0]= panel.h_func(0, v, v)
+		args_OLS['omega'][0][0]= panel.h_func(0,omega, omega)
 			
 		self.args_restricted=self.create_args(args_restricted,panel)
 		self.args_OLS=self.create_args(args_OLS,panel)
@@ -236,8 +231,8 @@ class arguments:
 				names_d['mu']=['mu']
 				names.extend(d['mu'])				
 				c.append(d['mu'])
-			z_active = False
-			if z_active:
+
+			if panel.z_active:
 				d['z']=['z in h(e,z)']
 				captions.extend(d['z'])
 				names_d['z']=['z']

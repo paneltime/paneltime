@@ -31,10 +31,8 @@ def start_values(panel, X = None, Y = None):
 	psi, gamma = 0.05, 0.95
 	v = panel.var(u) 
 	v = v
-	if panel.options.EGARCH:
-		vreg = np.log(v)
-	else:
-		vreg = v
+	vreg = panel.h_func(0, v, v)
+
 
 	if panel.options.include_initvar:
 		initvar = vreg*0.25

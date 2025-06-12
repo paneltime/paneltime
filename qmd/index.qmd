@@ -18,7 +18,7 @@ Unlike any other statistical tool currently available, **Paneltime** simultaneou
 The package can also be used on **non-panel data** or datasets that only exhibit ARIMA or GARCH characteristics. However, if your data has none of these issues, **OLS is the preferred method**.  
 
 **Author:** Espen Sirnes  
-**Current version:** 1.2.66  
+**Current version:** 1.2.67  
 
 
 # Installation
@@ -34,7 +34,7 @@ Datasets are estimated with
 ```
 paneltime.execute(model_string, dataframe, T,
 						ID=None, HF=None,
-						instruments=None, console_output=True)
+						instruments=None)
 ```
 It takes the following arguments:
 

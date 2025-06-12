@@ -174,7 +174,8 @@ def zip_example():
 	with zipfile.ZipFile('qmd/working_example.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
 		for file in [	'qmd/example.py', 
 			   			'qmd/wb.dmp', 
-						'qmd/loadwb.py']:
+						'qmd/loadwb.py', 
+						'qmd/mymodel.py']:
 			zipf.write(file)
 
 

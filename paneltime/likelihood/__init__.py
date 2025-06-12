@@ -4,7 +4,7 @@
 
 from . import calculus
 from . import calculus_functions
-from . import model_function
+from . import function
 from . import main
 from . import arma
 

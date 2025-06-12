@@ -1,0 +1,154 @@
+---
+title: Custom Model
+format:
+  html:
+    toc: true
+---
+
+
+You can define your own custom model likelihood model for use in `paneltime` by creating a Python class with specific properties and methods. Once defined, assign the **class itself (not an instance)** to:
+
+```python
+import paneltime as pt
+pt.options.custom_model = MyModel
+```
+
+::: {.callout-important}
+Do **not** instantiate the class yourself. `paneltime` will create and manage instances internally.
+:::
+
+With the custom class, you can change the following:
+* The likelihood function, which is by defalut either 
+
+## Required Structure
+
+Your custom model class **must** define the following methods:
+* `__init__(self, e, init_var, a, k, z)`: Initializes the model and stores all necessary variables.
+* `ll(self)`: Computes the log-likelihood.
+* `dll(self)`: Computes first derivatives of the log-likelihood.
+* `ddll(self)`: Computes second derivatives of the log-likelihood.
+
+Additionally, important variables must be initialized using the following functions:
+* `variance_bounds(self, init_var)`: Sets bounds for the variance parameter.
+* `variance_definitions(self)`: Defines the internal variance variables.
+* `set_h_function(self)`: Defines the heteroskedasticity function and its derivatives.
+
+These functions may be renamed or their logic reorganized. However, they **must** assign the attributes `self.var` and `self.e`, and if used in core methods (`ll`, `dll`, `ddll`), also `self.z`, `self.v`, and `self.v_inv`.
+
+
+## Initialization
+
+In `__init__`, store inputs and call initialization methods:
+
+```python
+self.k, self.a, self.z, self.e = k, a, z, e
+self.variance_bounds(init_var)
+self.variance_definitions()
+self.set_h_function(init_var)
+```
+
+## `variance_bounds(self, init_var)`
+
+Set bounds for the variance parameter. For example:
+
+```python
+self.minvar = -500
+self.maxvar = 500
+```
+
+Then apply bounds to the variance mask:
+
+```python
+self.var_pos = (init_var < self.maxvar) * (init_var > self.minvar)
+```
+
+`self.var` is the variance passed to the optimizer. You may define additional internal variables (e.g., `self.v`, `self.v_inv`) but ensure all derivatives relate back to `self.var`. Multiply all derivatives by `self.var_pos` before returning.
+
+## `variance_definitions(self)`
+
+Define internal representations of variance:
+
+```python
+self.v = np.exp(var)
+self.v_inv = np.exp(-var)
+self.e2 = e**2 + 1e-8  # Variance innovation, typically unmodified
+```
+
+## `set_h_function(self)`
+
+This method defines the heteroskedasticity function and its derivatives.
+
+* `self.h_val`: Heteroskedasticity function, usually a transformation of squared residuals.
+* `self.h_val_cpp`: A C++-compliant string version of `self.h_val` used in a C++ extension  ([See how to write c++ compliant functions here](hfunc.qmd)).
+* `self.h_e_val`: First derivative with respect to `e`.
+* `self.h_2e_val`: Second derivative with respect to `e`.
+* `self.h_z_val`, `self.h_2z_val`, `self.h_ez_val`: Optional derivatives with respect to `z`.
+
+**Example:**
+
+```python
+self.h_val = np.log(self.e2)
+self.h_val_cpp = 'log(e2)'
+self.h_e_val = 2 * e / self.e2
+self.h_2e_val = (2 / self.e2) - (4 * e**2 / self.e2**2)
+self.h_z_val = None
+self.h_2z_val = None
+self.h_ez_val = None
+```
+
+See [GARCH Heteroskedasticity Function Syntax Guide](hfunc.qmd) for more about the C++ version of the function value, `self.h_val_cpp`.
+
+## Log-Likelihood and Derivatives
+
+### `ll(self)`
+
+Returns log-likelihood per observation:
+
+```python
+ll = -0.5 * np.log(2 * np.pi) - 0.5 * (self.var + self.e2 * self.v_inv)
+return ll
+```
+
+### `dll(self)`
+
+Returns a tuple of first derivatives:
+
+```python
+dll_e = -e * self.v_inv
+dll_var = -0.5 * (1 - self.e2 * self.v_inv)
+dll_var *= self.var_pos
+return dll_var, dll_e
+```
+
+### `ddll(self)`
+
+Returns a tuple of second derivatives:
+
+```python
+d2ll_de2 = -self.v_inv
+d2ll_dvar_de = e * self.v_inv * self.var_pos
+d2ll_dvar2 = -0.5 * self.e2 * self.v_inv * self.var_pos
+return d2ll_de2, d2ll_dvar_de, d2ll_dvar2
+```
+
+## Derivative Responsibility
+
+You are responsible for ensuring that:
+
+* `ll`
+* `dll`
+* `ddll`
+* All derivatives in `set_h_function`
+
+are mathematically **consistent**. Inconsistencies can cause biased results, convergence issues, or crashes.
+
+## World Bank Example
+
+This example demonstrates how to implement EGARCH as a custom model class. It replicates the internal EGARCH specification used by `paneltime`, and is provided as a starting point for users who wish to modify or extend the model to define their own custom likelihood functions.
+
+
+```python
+{{< include mymodel.py >}}
+```
+
+[Download working example ZIP](working_example.zip)

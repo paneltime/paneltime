@@ -32,7 +32,7 @@ mp = None
 
 
 
-def execute(model_string,dataframe, timevar = None, idvar = None, het_factors=None, instruments=None, console_output=True):
+def execute(model_string,dataframe, timevar = None, idvar = None, het_factors=None, instruments=None):
 
 	"""Maximizes the likelihood of an ARIMA/GARCH model with random/fixed effects (RE/FE)\n
 	model_string: a string on the form 'Y ~ X1 + X2 + X3\n

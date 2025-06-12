@@ -9,6 +9,7 @@ import numpy as np
 import os
 from .. import cfunctions
 import sys
+from . import hfunc
 
 def set_garch_arch(panel,args,u, G):
 	"""Solves X*a=b for a where X is a banded matrix with 1 or zero, and args along
@@ -23,7 +24,7 @@ def set_garch_arch(panel,args,u, G):
 	gmma =  -args['gamma'].flatten()
 
 	z = 0
-	if 'z' in args:
+	if panel.z_active:
 		z = args['z']
 
 	parameters = np.array(( N , T , 
@@ -31,7 +32,7 @@ def set_garch_arch(panel,args,u, G):
 									panel.options.EGARCH, z))
 
 	AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h = inv_c(parameters, lmbda, rho, gmma, psi, N, T, u, G, panel.T_arr, 
-												 b'')
+												 panel.h_func_cpp)
 	r=[]
 	#Creating nympy arrays with name properties. 
 	for i in ['AMA_1','AMA_1AR','GAR_1','GAR_1MA']:
@@ -41,6 +42,8 @@ def set_garch_arch(panel,args,u, G):
 	for i in ['e', 'var', 'h']:
 		r.append(locals()[i])
 	return r
+
+
 
 def inv_c(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr, h_expr):
 

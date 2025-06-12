@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from ..output import stat_functions
 from .. import random_effects as re
 from .. import functions as fu
-from . import model_function
+from . import function
 from ..output import stat_dist
 from ..processing import model_parser
 from . import arma
@@ -82,40 +82,19 @@ class LL:
 			return None		
 		AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var, h=matrices
 
-		#NOTE: self.h_val itself is also set in ctypes.cpp/ctypes.c. If you change self.h_val below, you need to 
-		#change it in the c-scripts too. self.h_val must be calcualted below as well for later calulcations. 
+
+		z = getattr(self.args.args_d, 'z', None)
+		self.llfunc = function.LLFunction(panel,  e_RE, var, z)
 		
-
-		if False:
-			e2 =e_RE**2 + 1e-8
-
-			if panel.options.EGARCH==0:
-				var = np.maximum(np.minimum(var, 1e-30), 1e+30)
-				self.h_val, self.h_e_val, self.h_2e_val = (e2)*incl, 2*e_RE*incl, 2*incl
-				self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
-			else:
-				var = np.maximum(np.minimum(var, -500), 500)
-				self.h_val = np.log(e2)*incl
-				self.h_e_val = 2*incl*e_RE/(e2)
-				self.h_2e_val = incl*(2/(e2) - 4*e_RE**2/(e2**2))
-				self.h_z_val, self.h_2z_val,  self.h_ez_val = None,None,None	#possibility of additional parameter in sq res function		
-
-
-		self.llfunc = model_function.LLFunction(panel,  e_RE, var)
-
 		if False:#debug
 			from .. import debug
 			if np.any(h!=self.llfunc.h_val):
 				print('the h calculated in the c function and the self.h_val calcualted here do not match')
 			debug.test_c_armas(u_RE, var, e_RE, panel, self, G)
 
-
-
-		
-
 		self.variance_RE(panel,self.llfunc.e2)
 
-		for k in model_function.HFUNC_ITEMS:
+		for k in function.HFUNC_ITEMS:
 			setattr(self, k, getattr(self.llfunc, k))
 
 		ll_value = self.llfunc.ll()
@@ -147,34 +126,7 @@ class LL:
 		self.e_RE=e_RE
 		self.e2=e2
 		self.ll_value = self.llfunc.ll_value
-		self.v = self.llfunc.v
 		self.var = var
-
-	def add_variables_old(self,panel,matrices,u, u_RE,var,v,G,e_RE,e2,v_inv,LL_full):
-
-		self.v_inv05=v_inv**0.5
-		self.e_norm=e_RE*self.v_inv05	
-		self.e_RE_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
-		self.u, self.u_RE      = u,  u_RE
-		self.var,  self.v,    self.LL_full = var,       v,    LL_full
-		self.G=G
-		self.e_RE=e_RE
-		self.e2=e2
-		self.v_inv=v_inv
-		class LL_Function:
-			def __init__(self, ll, v_inv05, e2, e_RE, incl, var, v):
-				self.v_inv05 = ll.llfunc2.v_inv05
-				self.e2 = ll.llfunc2.e2
-				self.e_RE = ll.llfunc2.e_RE
-				self.incl = ll.llfunc2.incl
-				self.var = ll.llfunc2.var
-				self.v = ll.llfunc2.v
-
-				for i, (a, b) in enumerate(zip([self.v_inv05, self.e2, self.e_RE, self.incl, self.var, self.v], [v_inv05, e2, e_RE, incl, var, v])):
-					if not np.all(a == b):
-						aa=0
-
-		self.llfunc = LL_Function(self, self.v_inv05, e2, e_RE, panel.included[3], var, v)
 
 	def tobit(self,panel,LL):
 		if sum(panel.tobit_active)==0:

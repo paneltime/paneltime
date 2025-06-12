@@ -14,6 +14,7 @@ website:
       - index.qmd           # appears first
       - attributes.qmd           # appears second
       - options.qmd 
+      - custom_model.qmd
       - hfunc.qmd
 
 format:

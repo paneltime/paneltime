@@ -93,9 +93,10 @@ EXPORT int  armas(double *parameters,
 					sum += AMA_1AR[j]*u[(i-j) + k*T];
 					}
 				e[i + k*T] = sum;
-
+				
+				esq = sum*sum + 1e-8;
 				//GARCH:
-				esq = exprtk_eval(h_func, sum, z);
+				esq = exprtk_eval(h_func, sum, esq, z);
 				
 				h[i + k*T] = esq;
 
@@ -119,7 +120,6 @@ EXPORT int  armas(double *parameters,
 				
 				//GARCH:
 				esq = sum*sum + 1e-8;
-				esq = esq + (esq==0)*1e-18;
 				
 				//EGARCH:
 				h[i + k*T] = log(esq);
@@ -144,7 +144,6 @@ EXPORT int  armas(double *parameters,
 
 				//GARCH:
 				esq = sum*sum + 1e-8;
-				esq = esq + (esq==0)*1e-18;
 				
 				h[i + k*T] = esq;
 

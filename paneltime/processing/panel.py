@@ -12,6 +12,8 @@ import numpy as np
 from .. import debug
 from .. import cfunctions
 import time
+from .. likelihood import hfunc
+from .. likelihood import function as llfunc
 
 
 
@@ -73,11 +75,23 @@ class Panel:
 		else:
 			self.number_of_RE_coef=self.N*(self.options.fixed_random_group_eff>0)+self.n_dates*(self.options.fixed_random_time_eff>0)
 			self.number_of_RE_coef_in_variance=(self.N*(self.options.fixed_random_group_eff>0)
-																														+self.n_dates*(self.options.fixed_random_time_eff>0))*(self.options.fixed_random_variance_eff>0)
+					+self.n_dates*(self.options.fixed_random_time_eff>0))*(self.options.fixed_random_variance_eff>0)
+		
+		
+		# Extracting model information by running a test run.
+		llf = llfunc.LLFunction(self, -10, 10, 10)
+		self.z_active = llf.z_active()
+		self.h_func_cpp = hfunc.get_model_string(llf.model, -10, 1e+5,  100)
+		self.h_func = llf.model.h
+																
+		# Adding arguments and dfs																																										+self.n_dates*(self.options.fixed_random_time_eff>0))*(self.options.fixed_random_variance_eff>0)
 		self.args=arguments.arguments(self)
 		self.df=self.NT-self.args.n_args-self.number_of_RE_coef-self.number_of_RE_coef_in_variance
+
 		self.set_instrumentals()
 		self.tobit()
+
+
 
 	def diff_transform(self):
 		T=self.max_T

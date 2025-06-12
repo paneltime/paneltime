@@ -1,98 +1,35 @@
 ---
-title: GARCH Heteroskedasticity Function Syntax Guide
+title: C++ heteroskedasticity function syntax guide
 format:
   html:
     toc: true
 ---
 
-This guide explains how to define a custom GARCH heteroskedasticity function in `paneltime` using the option `paneltime.options.h_dict`.
 
-## Defining the Function
+If you [define a custom model](custom_model.qmd), you must implement the heteroskedasticity function `h(e, z)` in both Python and C++.
 
-The `h_dict` option must be a dictionary containing the following keys:
-
-- `'h'`: the function \( h(e, z) \)
-- `'h_e'`: the partial derivative \( \frac{\partial h}{\partial e} \)
-- `'h_e2'`: the second derivative \( \frac{\partial^2 h}{\partial e^2} \)
-- `'h_z'`: the partial derivative \( \frac{\partial h}{\partial z} \)
-- `'h_z2'`: the second derivative \( \frac{\partial^2 h}{\partial z^2} \)
-- `'h_e_z'`: the mixed derivative \( \frac{\partial^2 h}{\partial e \partial z} \)
-
-Each entry must be a **string representing a mathematical expression**, not a Python function. The variables `e` and `z` represent the residual and shape parameter, respectively.
-
-As an example, here is an E-GARCH specification that safeguards the input to the logarithmic function to ensure it remains valid:
+In C++, define the function by assigning a valid string to `self.h_val_cpp` within your custom model class. For example, in the provided model class example, this is accomplished by the assignment:
 
 ```python
-import paneltime as pt
-pt.options.h_dict = {
-    'h': 		'x0 = (e + z)^2; x1 = x0*(x0>0) + (x0<=0)*1e-18; log(x1)',
-    'h_e': 		'x0 = (e + z);   x1 = x0*(x0!=0) + (x0==0)*1e-18; (x0!=0)*2/x1',
-    'h_e2': 	'x0 = (e + z);   x1 = x0*(x0!=0) + (x0==0)*1e-18; -(x0!=0)*2/(x1^2)',
-    'h_z': 		'x0 = (e + z);   x1 = x0*(x0!=0) + (x0==0)*1e-18; (x0!=0)*2/x1',
-    'h_z2': 	'x0 = (e + z);   x1 = x0*(x0!=0) + (x0==0)*1e-18; -(x0!=0)*2/(x1^2)',
-    'h_e_z': 	'x0 = (e + z);   x1 = x0*(x0!=0) + (x0==0)*1e-18; -(x0!=0)*2/(x1^2)'
-}
+self.h_val_cpp = 'log(e)'
 ```
 
-These expressions are evaluated in C++ for performance using the [ExprTk](https://github.com/ArashPartow/exprtk) library. Your expressions must follow its syntax with a few custom modifications, described below.
+Most of the `paneltime` package is implemented in pure Python, leveraging NumPy's efficient linear algebra routines. However, the iterative computation of ARIMA and GARCH matrices must be executed in C++ to achieve acceptable performance. This includes the evaluation of the heteroskedasticity function.
+
+The C++ expression assigned to `self.h_val_cpp` is parsed and evaluated using the [ExprTk](https://github.com/ArashPartow/exprtk) library. Your expressions must conform to ExprTk syntax, with some adaptations described below.
 
 # ExprTk Syntax Adaptations
 
-To align with common Python expectations, we make the following automatic substitutions before passing expressions to the ExprTk parser:
+You may use the following variables:
 
-* `=` is interpreted as **assignment**, and automatically rewritten to `:=`, the correct ExprTk assignment operator.
-* `==` is interpreted as **relaxed equality** (tolerant of small floating-point differences) and rewritten to `=`.
-* `**` is automatically converted to `^` for exponentiation.
+* `e`: The residuals.
+* `z`: Shape parameter (optional). Is set to maximize the LL if used.
+* temporary variables that can be used: `x0`, `x1`, `x2`, `x3`, and `x4`.
 
+Additional rules:
 
-Furthermore, logical operations in ExprTk are not supported, as supporting them would require building a reverse Python parser, which is currently not implemented.
-Use mathematical expressions like `x0*(x0>0) + (x0<=0)*e-18` in stead.
-
-# Temporary Variables and Scripting
-
-You can perform multiple operations in a single expression using semicolons. Only the result of the **last** statement is returned.
-
-Example:
-
-```
-x0 = (e + z)^2; x0 + (x0<=0)*e-18;
-```
-
-This computes `x0` as the square of `(e + z)` and returns the log of `x0`.
-
-
-
-## Allowed Variables
-
-* `e` – residual
-* `z` – shape parameter (optional)
-  
-
-
-### Temporary Variables
-
-You may use the temporary variables: `x0`, `x1`, `x2`, `x3`, and `x4`.
-
-If your function does not depend on `z`, you may omit it and leave the related derivative entries as empty strings (`''`).
-
-
-
----
-
-# Supported Operators
-
-| Operator             | Description                      | Example             |                      |                  |
-| -------------------- | -------------------------------- | ------------------- | -------------------- | ---------------- |
-| `+`, `-`             | Addition, subtraction            | `x + y - 2`         |                      |                  |
-| `*`, `/`, `%`        | Multiplication, division, modulo | `x * y / 2`         |                      |                  |
-| `**`, `^`            | Exponentiation                   | `x**2`, `x^2`       |                      |                  |
-| `==`, `!=`           | Relaxed equality, inequality     | `x == y`, `x != 0`  |                      |                  |
-| `<`, `>`, `<=`, `>=` | Comparisons                      | `x0 = x < y `     |                      |                  |
-| `=`                  | Assignment (converted to `:=`)   | `x0 = e^2; log(x0)` |                      |                  |
-
----
-
-# Built-in Functions
+* Python's exponent operator `**` is automatically translated to the C++ equivalent `^`. Other common operators are iden tical in C++ and Python.
+* The following functions are supported:
 
 | Function                     | Description             |
 | ---------------------------- | ----------------------- |
@@ -101,12 +38,33 @@ If your function does not depend on `z`, you may omit it and leave the related d
 | `log(x)`                     | Natural logarithm       |
 | `exp(x)`                     | Exponential             |
 | `sin(x)`, `cos(x)`, `tan(x)` | Trigonometric functions |
-| `floor(x)`, `ceil(x)`        | Rounding                |
+| `floor(x)`, `ceil(x)`        | Rounding operations     |
 | `min(x, y)`, `max(x, y)`     | Minimum / Maximum       |
 | `sign(x)`                    | Returns -1, 0, or +1    |
 
----
 
+If your function does not depend on `z`, you may omit it and provide empty strings (`''`) for the corresponding derivatives.
+
+# Temporary Variables and Scripting
+
+You can include multiple statements using `;` to separate them. Only the result of the **last** statement is returned.
+
+To maintain consistency with Python syntax, the following automatic substitutions are made before parsing the expression with ExprTk:
+
+* `=` is interpreted as **assignment**, and rewritten to `:=`, the correct ExprTk assignment operator.
+* `==` is interpreted as **relaxed equality** (tolerant of small floating-point differences) and rewritten to `=`.
+
+For example, the following code forces the exponent of `(e + z)` to be 4 when its value is ≤ 1, and 2 otherwise:
+
+```python
+x0 = (e + z)^2; (x0 <= 1) * x0^2 + (x0 > 1) * x0
+```
+
+Logical operations (e.g. `and`, `or`, `not`) are not supported. To emulate conditionals, use arithmetic expressions:
+
+```python
+x0 * (x0 > 0) + (x0 <= 0) * 1e-18
+```
 
 # Reference
 
@@ -114,4 +72,3 @@ ExprTk is a fast C++ mathematical expression parser.
 
 * GitHub: [https://github.com/ArashPartow/exprtk](https://github.com/ArashPartow/exprtk)
 * Documentation: [https://www.partow.net/programming/exprtk/](https://www.partow.net/programming/exprtk/)
-

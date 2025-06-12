@@ -60,11 +60,12 @@ class gradient:
 		u, e_RE,u_RE,h_e_val,var,h_val=ll.u, ll.e_RE,ll.u_RE,ll.h_e_val,ll.llfunc.var,ll.h_val
 		p,q,d,k,m = panel.pqdkm
 		nW = panel.nW
-		self.X_RE = (panel.XIV+re_obj_i.RE(panel.XIV, panel)+re_obj_t.RE(panel.XIV, panel))*panel.included[3]
+		self.X_RE = (panel.XIV+re_obj_i.RE(panel.XIV, panel)+re_obj_t.RE(panel.XIV, panel))*incl
+
 		#ARIMA:
 		de_rho_RE=self.arima_grad(p,u_RE,ll,-1,ll.AMA_1)
 		de_lambda_RE=self.arima_grad(q,e_RE,ll,-1,ll.AMA_1)
-		de_beta_RE=-fu.arma_dot(ll.AMA_1AR,self.X_RE,ll)*panel.included[3]
+		de_beta_RE=-fu.arma_dot(ll.AMA_1AR,self.X_RE,ll)*incl
 
 		(self.de_rho_RE,self.de_lambda_RE,self.de_beta_RE)=(de_rho_RE,de_lambda_RE,de_beta_RE)		
 
