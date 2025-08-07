@@ -20,7 +20,7 @@ Unlike any other statistical tool currently available, **Paneltime** simultaneou
 The package can also be used on pure **panel data** sets without ARIMA/GARCH or single time series data with ARIMA/GARCH problems. 
 
 **Author:** Espen Sirnes  
-**Current version:** 1.2.68  
+**Current version:** 1.2.69  
 
 
 # Installation
