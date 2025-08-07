@@ -13,7 +13,7 @@ from . import initreg
 import numpy as np
 
 
-
+INITVAR = 'initvar'
 
 
 class arguments:
@@ -23,7 +23,7 @@ class arguments:
 		self.initial_user_defined = False
 		self.categories=['beta','rho','lambda','gamma','psi','omega']
 		if panel.options.include_initvar:
-			self.categories+=['initvar']
+			self.categories+=[INITVAR]
 
 		if panel.z_active:
 			self.categories+=['z']
@@ -41,7 +41,7 @@ class arguments:
 		p, q, d, k, m=panel.pqdkm
 
 		if panel.options.include_initvar:
-			initargs['initvar'][0][0] = initvar
+			initargs[INITVAR][0][0] = initvar
 		initargs['omega'][0][0] = omega
 		initargs['beta']=beta
 
@@ -77,8 +77,8 @@ class arguments:
 				return
 		if not panel.z_active and 'z' in self.user_constraints:
 			self.user_constraints.pop('z')	
-		if panel.options.include_initvar  and 'initvar' in self.user_constraints:
-			self.user_constraints.pop('initvar')
+		if panel.options.include_initvar  and INITVAR in self.user_constraints:
+			self.user_constraints.pop(INITVAR)
 
 		for grp in self.user_constraints:
 			if not grp in self.caption_d:
@@ -99,7 +99,7 @@ class arguments:
 		args['omega'][0][0]=0
 		args['mu']=np.array([[]])
 		if panel.options.include_initvar:
-			args['initvar']=np.zeros((1,1))
+			args[INITVAR]=np.zeros((1,1))
 		args['z']=np.array([[]])			
 
 		if m>0 and panel.z_active:
@@ -209,20 +209,21 @@ class arguments:
 		add_names(k,'gamma%s  GARCH k','gamma',d,c,captions, names, names_d)
 		add_names(m,'psi%s    ARCH  m','psi',d,c,captions, names, names_d)
 
-
-		d['omega']=list(panel.input.W.keys())
-		captions.extend(panel.input.W.keys())
+		omegas = [str(s) for s in panel.input.W.keys()]
+		omegas[0] = 'Variance constant'
+		d['omega'] = omegas
+		captions.extend(omegas)
 
 		names_d['omega'] = [f'omega{i}' for i in range(panel.nW)]
 		names.extend(names_d['omega'])
 
 		c.append(d['omega'])
 		if panel.options.include_initvar:
-			d['initvar'] = ['Initial variance']
-			captions.extend(d['initvar'])
-			names_d['initvar'] = d['initvar']
-			names.extend(names_d['initvar'])
-			c.append(d['initvar'])
+			d[INITVAR] = ['Initial variance']
+			captions.extend(d[INITVAR])
+			names_d[INITVAR] = [INITVAR]
+			names.extend([INITVAR])
+			c.append(d[INITVAR])
 		
 		if m>0:
 			if panel.N>1 and not self.mu_removed:

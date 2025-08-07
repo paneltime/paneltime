@@ -4,7 +4,6 @@
 #contains the log likelihood object
 
 #for debug. comment out!
-import matplotlib.pyplot as plt
 
 from ..output import stat_functions
 from .. import random_effects as re

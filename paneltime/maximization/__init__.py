@@ -20,14 +20,15 @@ def go(panel, args, mp, window, exe_tab, console_output):
 
 class Summary:
 	def __init__(self, comm, panel, t0):
-		self.output = output.Output(comm.ll, panel, comm.dx_norm)
-		self.output.update(comm.its, comm.ll, 0, comm.dx_norm, time.time()-t0, comm.conv, comm.msg)
-		self.table = output.RegTableObj(panel, comm.ll, comm.g, comm.H, comm.G, comm.constr, comm.dx_norm, self.output.model_desc)
+		self.output = output.Output(comm, panel)
+		self.output.update(comm, time.time()-t0)
+		self.table = output.RegTableObj(panel, comm, self.output.model_desc)
 		c = comm.ll.args
 		self.names = Names(list(c.args_d), list(c.caption_v), list(c.names_v) )
 		self.count = Counting(panel)
 		self.panel = panel
 		self.ll = comm.ll
+		self.stats = self.output.stats #contains clases info and diag with information about the regression and diagnostics
 		self.results = Results(panel, comm, self.table)
 		self.general = General(panel, comm, t0, self.output)
 		self.random_effects = RandomEffects(panel, comm.ll)
@@ -37,29 +38,35 @@ class Summary:
 						   		 'Predicted':f'Predicted {name_y}', 
 								 'Fitted':f'Fitted {name_y}'}		
 
-	def __str__(self, statistics = True, diagnostics = True, df_accounting = True):
+	def __str__(self):
 		return '\n\n'.join([
 			self.statistics(), 
 			self.results_table(), 
 			self.diagnostics(), 
 			self.accounting()]
 			)
+	
+	def latex(self):
+		return self.results_table(fmt='LATEX')
+	
+	def html(self):
+		return self.results_table(fmt='HTML')
 
-	def results_table(self):
-		tbl,llength = self.table.table(5,'(','CONSOLE',False,
-																			show_direction=False,
-																			show_constraints=False, 
-																			show_confidence = True)	      
+	def results_table(self, fmt='CONSOLE'):
+		tbl,llength = self.table.table(5,fmt,False,
+												show_direction=False,
+												show_constraints=False, 
+												show_confidence = True)	      
 		return tbl
 
 	def statistics(self):
 		return self.output.statistics()		
 
 	def diagnostics(self):
-		return self.output.diagnostics(self.general.comm.constr)
+		return self.output.diagnostics()
 
 	def accounting(self):
-		return self.output.df_accounting(self.general.panel)
+		return self.output.df_accounting()
 		
 		
 	def predict(self, signals=None):
@@ -129,7 +136,7 @@ class General:
 		self.hessian = comm.H
 		self.gradient_vector = comm.g
 		self.gradient_matrix = comm.G
-		self.ci , self.ci_n = output.get_CI(comm.constr)
+		self.ci , self.ci_n = output.stats.diag.get_CI(comm.constr)
 
 		self.its = comm.its
 		self.dx_norm = comm.dx_norm

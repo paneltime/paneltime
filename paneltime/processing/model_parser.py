@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 DEFAULT_INTERCEPT_NAME='Intercept'
-VAR_INTERCEPT_NAME='log_variance_constant'
+VAR_INTERCEPT_NAME='var_const'
 INSTRUMENT_INTERCEPT_NAME='instrument_intercept'
 CONST_NAME='one'
 ORIG_SUFIX = '_orig'
@@ -620,10 +620,11 @@ def numberize_idvar(ip,df,timevar, idvar):
 	timevar = timevar[0]
 
 	if df.duplicated(subset=[idvar, timevar]).any():
-		raise ValueError(f"Check your data! {timevar} and {idvar} needs to be jointly unique.\n"
-			 	   f"there are non-unique '{timevar}'-items for some or all '{idvar}'-items. "
-				   f"Make sure the dates are unique and define the group and time identifiers "
-				   "explicitly, if these were not those you intended. ")
+		print(f"Warning: Check your data! {timevar} and {idvar} needs to be jointly unique.\n"
+			 	   f"there are non-unique '{timevar}'-items for some or all '{idvar}'-items. Following dupliates are deleted. "
+				   f"\n{df[df.duplicated(subset=[idvar, timevar])][[idvar, timevar]]}"
+				   )	
+		df.drop_duplicates(subset=[idvar, timevar], inplace=True)
 	
 	dtype = np.array(df[idvar]).dtype
 	df[idvar + ORIG_SUFIX] = df[idvar]

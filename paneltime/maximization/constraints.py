@@ -249,13 +249,15 @@ class Constraints(dict):
 
 	def constraint_multicoll(self, k,computation,incl, H):
 		cimax = {}
+		ciall = []
 		for i in range(k-1):
 			ci = self.multicoll_problems(computation, H, incl, cimax)
+			ciall.append(ci)
 			if len(self.mc_report)==0:
 				break
 			incl[list(self.mc_constr)]=False
 		if len(cimax)==0:
-			self.ci, self.ci_n = None, None
+			self.ci, self.ci_n = max(ciall), 0
 		else:
 			self.ci = max(cimax, key = cimax.get)
 			self.ci_n = cimax[self.ci]

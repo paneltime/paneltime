@@ -5,6 +5,7 @@
 
 import time
 import os
+from .output import latex
 
 import inspect
 
@@ -53,6 +54,12 @@ def execute(model_string,dataframe, timevar = None, idvar = None, het_factors=No
 	r = main.execute(model_string, dataframe, timevar, idvar, het_factors, options, window, exe_tab, instruments, True, mp)
 
 	return r
+
+def format(summaries, heading='', col_headings = [], variable_groups = {}, digits=3, fmt='latex', size = 1):
+	"""Prints the results of a set of summaries .\n"""
+	s = latex.format(summaries, fmt, heading, col_headings, variable_groups, digits, size)
+
+	return s
 
 
 __version__ = info.version

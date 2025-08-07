@@ -5,6 +5,7 @@
 
 from . import stat_functions as stat
 from . import stat_dist
+from ..processing import arguments
 import textwrap
 
 import numpy as np
@@ -13,21 +14,23 @@ from datetime import datetime
 
 STANDARD_LENGTH=8
 
+INITVAR = arguments.INITVAR
 
 
 class Output:
 	#This class handles auxilliary statistics (regression info, diagnostics, df accounting)
-	def __init__(self,ll,panel, dx_norm):
-		self.ll=ll
+	def __init__(self,comm,panel):
+
+		self.ll=comm.ll
 		self.panel=panel
 		self.delta_time = 0
 		self.incr=0
-		self.dx_norm = dx_norm
+		self.dx_norm = comm.dx_norm
 
 		
 		self.define_table_size()
 		self.statistics_decimals = 3 
-		self.update(0, ll, self.incr, dx_norm, 0, None, None)
+		self.update(comm, 0)
 		self.describe()
 
 	def describe(self):
@@ -38,136 +41,91 @@ class Output:
 		s = "Regression model:\n" + s 
 		self.model_desc = s
 
-	def update(self,its, ll,incr, dx_norm, delta_time, conv, msg):
-		self.iterations=its
-		self.ll=ll
-		self.dx_norm = dx_norm
-		self.incr=incr
+	def update(self,comm, delta_time):
+		self.iterations = comm.its
+		self.ll = comm.ll
+		self.dx_norm = comm.dx_norm
+		self.incr = comm.incr
 		self.delta_time = delta_time
-		self.conv = conv
-		self.msg = msg
-		self.stats = Statistics(self.ll,self.panel) 
+		self.conv = comm.conv
+		self.msg = comm.msg
+		self.constr = comm.constr
+		self.stats = Statistics(comm,self.panel, delta_time) 
 
-		
-
-	
-	def get_model(self):
-		p, q, d, k, m = self.panel.pqdkm
-		s = ""
-		if d>0:
-			s+=f"ARIMA{(p, d, q)}"
-		elif (p*q):
-			s+=f"ARMA{(p,q)}"
-		elif (p==0)&(q>0):
-			s+=f"MA{q}"
-		elif (p>0)&(q==0):
-			s+=f"AR{p}"
-
-		if (k*m):
-			if s!='': s += ', '
-			s += f"GARCH{(k,m)}"
-		t = self.panel.options.fixed_random_time_eff
-		i = self.panel.options.fixed_random_group_eff
-		if t+i:
-			if s!='': s += ' '      
-			if (t==2)&(i==2):
-				s += '2-way RE'
-			elif (t==1)&(i==1):
-				s += '2-way FE'  
-			elif (t==2)|(i==2):
-				s += 'FE'  
-			elif (t==1)|(i==1):
-				s += 'RE'     
-				
-		if s == '':
-			s = 'OLS'
-			method = 'Least Squares'
-		else:
-			method = 'Maximum Likelihood'
-		
-		return s, method
 		
 	def statistics(self):
 		s = self.stats
-		panel = self.panel
 		heading = 'Statistics:'
-		model, method = self.get_model()
-		n,T,k=self.panel.X.shape
-		rob = panel.options.robustcov_lags_statistics[1]>0
-		run_time = np.round(self.delta_time)
 
+		# Construct c0 and c1 tuples using the assigned variables
+		c0 = (
+			('Dep. Variable:', s.info.dep_var), 
+			('Model:', s.info.model), 
+			('Method:', s.info.method), 
+			('Date:', s.info.date_str), 
+			('Time:', s.info.time_str), 
+			('Run time (its) [conv]:', s.info.run_time_str), 
+			('Observations count:', s.info.obs_count), 
+			('Df Residuals:', s.info.df), 
+			('Df Model:', s.info.df_model), 
+			('Covariance Type:', s.info.cov_type)
+		)
 
-
-		
-		c0 =(
-				('Dep. Variable:',panel.input.Y_names[0]), 
-				('Model:',model), 
-				('Method:',method), 
-				('Date:',datetime.now().strftime('%a, %d %b %Y')), 
-				('Time:',datetime.now().strftime('%H:%M:%S')), 
-				(f'Run time (its) [conv]:', f'{run_time} ({self.iterations}) [{self.conv}]'), 
-				('Observations count:',panel.NT), 
-				('Df Residuals:',s.df), 
-				('Df Model:',k-1), 
-				('Covariance Type:', rob)
-		)   
-		
-		c1 =(
-				('R-squared:',s.Rsq), 
-				('Adj R-squared:',s.Rsqadj), 
-				('F-statistic:',s.F), 
-				('Prob (F-statistic):',s.F_p), 
-				('Log-Likelihood:',self.ll.LL), 
-				('AIC:', 2*k - 2*self.ll.LL), 
-				('BIC:', panel.NT*k - 2*self.ll.LL), 
-				('Panel groups:', n), 
-				('Panel dates:', T), 
-				('', '')
-		)    
+		c1 = (
+			('R-squared:', s.diag.Rsq), 
+			('Adj R-squared:', s.diag.Rsqadj), 
+			('F-statistic:', s.diag.F), 
+			('Prob (F-statistic):', s.diag.F_p), 
+			('Log-Likelihood:', s.info.log_lik), 
+			('AIC:', s.info.aic), 
+			('BIC:', s.info.bic), 
+			('Panel groups:', s.info.panel_groups), 
+			('Panel dates:', s.info.panel_dates), 
+			('Initial variance:', s.info.initvar)
+		)
 
 		tbl = [(c0[i],c1[i]) for i in range(len(c0))]
 		return heading + '\n' + self.parse_tbl(tbl)  
 	
 	
-	def diagnostics(self, constr):
+	def diagnostics(self):
 
 		s = self.stats
 		heading = 'Diagnostics:'
-		ci, n_ci = self.get_CI(constr)
 		c0 =(	('Distribution:',''),
-				('  Omnibus:',s.Omnibus_st),
-				('  Prob(Omnibus):',s.Omnibus_pval),
-				('  Jarque-Bera (JB):',s.JB_st),
-				('  Prob(JB):',s.JB_prob_st),
-				('  Skew:',s.skewness_st),
-				('  Kurtosis:',s.kurtosis),
+				('  Omnibus:',s.diag.Omnibus_st),
+				('  Prob(Omnibus):',s.diag.Omnibus_pval),
+				('  Jarque-Bera (JB):',s.diag.JB_st),
+				('  Prob(JB):',s.diag.JB_prob_st),
+				('  Skew:',s.diag.skewness_st),
+				('  Kurtosis:',s.diag.kurtosis),
 				('','')
 				
 		)   
 		
 		c1 =(	('Stationarity:',''),
-				('  Durbin-Watson:',s.DW),
-				('  ADF statistic:',s.ADF_stat),
-				('  ADF crit.val 1%:',s.c1),
-				('  ADF crit.val 5%:',s.c5),
+				('  Durbin-Watson:',s.diag.DW),
+				('  ADF statistic:',s.diag.ADF_stat),
+				('  ADF crit.val 1%:',s.diag.c1),
+				('  ADF crit.val 5%:',s.diag.c5),
 				('Singularity:',''),
-				('  Cond. No.:',ci),
-				('  Cond. var count.:', n_ci),
+				('  Cond. No.:',s.diag.ci),
+				('  Cond. var count.:', s.diag.n_ci),
 
 		)     
 		
 		tbl = [(c0[i],c1[i]) for i in range(len(c0))]
 		return heading + '\n' + self.parse_tbl(tbl)  
 	
-	def df_accounting(self,panel):
+	def df_accounting(self):
 
 		N,T,k=self.panel.X.shape
 		heading = 'Df accounting:'
 		samsum = [
 			('SAMPLE SIZE SUMMARY:',''),
-			('Original sample size:',panel.orig_size),
-			('Sample size after removals:',panel.NT_before_loss),
-			('Degrees of freedom:',panel.df),
+			('Original sample size:',self.panel.orig_size),
+			('Sample size after removals:',self.panel.NT_before_loss),
+			('Degrees of freedom:',self.panel.df),
 			('Number of variables:',k),
 			('Number of groups:',N),
 			('Number of dates (maximum):',T)
@@ -176,25 +134,25 @@ class Output:
 		grpremv = [
 				 ('GROUP REMOVAL:',''),
 				 ('Lost observations:',''), 
-				 ('A) ARIMA/GARCH:', panel.lost_obs), 
-				 ('B) min obs (user preferences):',panel.options.min_group_df),
-				 ('Required obs (A+B):',panel.lost_obs+panel.options.min_group_df),
+				 ('A) ARIMA/GARCH:', self.panel.lost_obs), 
+				 ('B) min obs (user preferences):',self.panel.options.min_group_df),
+				 ('Required obs (A+B):',self.panel.lost_obs+self.panel.options.min_group_df),
 				 
 				 ('Groups removed:',''),
-				 ('A) total # of groups:',len(panel.idincl)),
-				 ('B) # of groups removed:',sum(panel.idincl==False)), 
-				 ('# of groups remaining (A-B):',sum(panel.idincl==True)), 
-				 ('# of observations removed:',panel.orig_size-panel.NT_before_loss)
+				 ('A) total # of groups:',len(self.panel.idincl)),
+				 ('B) # of groups removed:',sum(self.panel.idincl==False)), 
+				 ('# of groups remaining (A-B):',sum(self.panel.idincl==True)), 
+				 ('# of observations removed:',self.panel.orig_size-self.panel.NT_before_loss)
 				 ]    
 		
 
 		
 		df = [('DEGREES OF FREEDOM:',''), 
-				 ('A) sample size:', panel.NT_before_loss), 
-				 ('B) lost to GARCH/ARIMA:',panel.tot_lost_obs),
-				 ('C) lost to FE/RE:', panel.number_of_RE_coef),
-				 ('D) coefficients in regr:',panel.args.n_args), 
-				 ('Degrees of freedom (A-B-C-D):',panel.df)
+				 ('A) sample size:', self.panel.NT_before_loss), 
+				 ('B) lost to GARCH/ARIMA:',self.panel.tot_lost_obs),
+				 ('C) lost to FE/RE:', self.panel.number_of_RE_coef),
+				 ('D) coefficients in regr:',self.panel.args.n_args), 
+				 ('Degrees of freedom (A-B-C-D):',self.panel.df)
 				 ]    
 		
 		tbl = [
@@ -262,44 +220,38 @@ class Output:
 			value = str(value)
 		return "{:<{}}{}".format(description, length - len(value), value) 
 
-	def get_CI(self, constr):
-		ci ='None'
-		ci_n = 'None'
-		if not constr is None:
-			if not constr.ci is None:
-				ci = np.round(constr.ci)
-				ci_n = constr.ci_n
-		return ci, ci_n
+
 
 
 
 
 class RegTableObj(dict):
 	#This class handles the regression table itself
-	def __init__(self, panel, ll, g, H, G, constr, dx_norm, model_desc):
+	def __init__(self, panel, comm, model_desc):
 		dict.__init__(self)
 		try:
-			self.set(panel, ll, g, H, G, constr, dx_norm, model_desc)
+			self.set(panel, comm, model_desc)
 		except Exception as e:
 			if not panel.options.supress_output:
 				print(f'Exception while getting statistics: {e}')
 		
-	def set(self, panel, ll, g, H, G, constr, dx_norm, model_desc):
+	def set(self, panel, comm, model_desc):
 		self.model_desc = model_desc
 		self.Y_names = panel.input.Y_names
 		self.X_names = panel.input.X_names
-		self.args = ll.args.dict_string
+		self.args = comm.ll.args.dict_string
 		self.n_variables = panel.args.n_args
 		self.lags = panel.options.robustcov_lags_statistics[1]
-		self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{ll.err_msg}"	
-		self.dx_norm = dx_norm
-		self.t_stats(panel, ll, H, G, g, constr)
-		self.constraints_formatting(panel, constr)    
+		self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{comm.ll.err_msg}"	
+		self.dx_norm = comm.dx_norm
+		self.t_stats(panel, comm.ll, comm.H, comm.G, comm.g, comm.constr)
+		self.constraints_formatting(panel, comm.constr)    
 		
 		
 		
 	def t_stats(self, panel, ll, H, G, g, constr):
 		self.d={'names':np.array(panel.args.caption_v),
+		  				'names_int':panel.args.names_v,
 						'count':range(self.n_variables),
 						'args':ll.args.args_v}
 		d = self.d
@@ -352,63 +304,21 @@ class RegTableObj(dict):
 			d['multicoll'][i]='|'
 			d['assco'][i]=panel.args.caption_v[mc_report[i]]	  
 
-	def table(self,n_digits = 3,brackets = '(',fmt = 'NORMAL',stacked = True, show_direction = False, show_constraints = True, show_confidence = False):
+	def table(self,n_digits = 3,fmt = 'NORMAL',stacked = True, show_direction = False, show_constraints = True, show_confidence = False):
 		include_cols,llength=self.get_cols(stacked, show_direction, show_constraints, show_confidence)
 		if fmt=='INTERNAL':
 			self.X=None
 			return str(self.args),None
 		self.include_cols=include_cols
 		self.n_cols=len(include_cols)		
-		for a, l,is_string,name,neg,just,sep,default_digits in pr:		
-			self[a]=column(self.d,a,l, is_string, name, neg, just, sep, default_digits,self.n_variables)
-		self.X=self.output_matrix(n_digits,brackets)
-		s=format_table(self.X, include_cols,fmt,
-															 "Paneltime GARCH-ARIMA panel regression",
-																					 self.footer, self.model_desc)
+		for a, l,is_string,name,neg,just,sep,default_digits in TABLE_FORMAT:		
+			self[a] = Column(self.d,a,l, is_string, name, neg, just, sep, default_digits,self.n_variables)
+		self.X=self.output_matrix(n_digits)
+		s = format_table(self.X, self.footer, self.d)
 		return s,llength
 
 
-	def output_matrix(self,digits,brackets):
-		structured=False
-		for i in range(self.n_cols):
-			if type(self.include_cols[i])==list:
-				structured=True
-				break
-		if structured:
-			return self.output_matrix_structured(digits, brackets)
-		else:
-			return self.output_matrix_flat(digits, brackets)
-
-
-	def output_matrix_structured(self,digits,brackets):
-		X=[['']*self.n_cols for i in range(3*(self.n_variables+1)-1)]
-		for i in range(self.n_cols):
-			a=self.include_cols[i]
-			if type(a)==list:
-				h=self[a[0]].name.replace(':',' ')
-				if brackets=='[':
-					X[0][i]=f"{h}[{self[a[1]].name}]:"
-				elif brackets=='(':
-					X[0][i]=f"{h}({self[a[1]].name}):"
-				else:
-					X[0][i]=f"{h}/{self[a[1]].name}:"
-				v=[self[a[j]].values(digits) for j in range(3)]
-				for j in range(self.n_variables):
-					X[(j+1)*3-1][i]=v[0][j]
-					if brackets=='[':
-						X[(j+1)*3][i]=f"[{v[1][j]}]{v[2][j]}"
-					elif brackets=='(':
-						X[(j+1)*3][i]=f"({v[1][j]}){v[2][j]}"
-					else:
-						X[(j+1)*3][i]=f"{v[1][j]}{v[2][j]}"
-			else:
-				X[0][i]=self[a].name
-				v=self[a].values(digits)
-				for j in range(self.n_variables):
-					X[(j+1)*3-1][i]=v[j]
-		return X	
-
-	def output_matrix_flat(self,digits,brackets):
+	def output_matrix(self,digits):
 		X=[['']*self.n_cols for i in range(self.n_variables+1)]
 		for i in range(self.n_cols):
 			a=self.include_cols[i]
@@ -445,7 +355,7 @@ class RegTableObj(dict):
 		return cols,llength
 
 
-class column:
+class Column:
 	def __init__(self,d,a,l,is_string,name,neg,just,sep,default_digits,n_variables):		
 		self.length=l
 		self.is_string=is_string
@@ -559,29 +469,18 @@ def get_sign_codes(tsign):
 	sc=np.array(sc,dtype='<U3')
 	return sc
 
-def remove_illegal_signs(name):
-	illegals=['#', 	'<', 	'$', 	'+', 
-									'%', 	'>', 	'!', 	'`', 
-									'&', 	'*', 	'‘', 	'|', 
-									'{', 	'?', 	'“', 	'=', 
-									'}', 	'/', 	':', 	
-									'\\', 	'b']
-	for i in illegals:
-		if i in name:
-			name=name.replace(i,'_')
-	return name
-
 
 class Statistics:
-	def __init__(self,ll,panel):
-		self.set(ll, panel)
+	def __init__(self, comm, panel, delta_time):
+		self.diag = Diagnostics(comm, panel)
+		self.info = Information(panel, comm, delta_time)
 
-
-
-	def set(self, ll, panel):
+class Diagnostics:
+	#This class handles the diagnostics of the regression	
+	def __init__(self, comm, panel):
+		ll = comm.ll
 		ll.standardize(panel)
-		self.df=panel.df
-		self.N,self.T,self.k=panel.X.shape
+
 		self.Rsq_st, self.Rsqadj_st, self.LL_ratio,self.LL_ratio_OLS_st, self.F_st, self.F_p_st=stat.goodness_of_fit(ll,True,panel)	
 		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS, self.F, self.F_p=stat.goodness_of_fit(ll,False,panel)	
 		self.no_ac_prob,self.rhos,self.RSqAC=stat.breusch_godfrey_test(panel,ll,10)
@@ -589,76 +488,91 @@ class Statistics:
 		self.JB_prob, self.JB, self.skewness, self.kurtosis, self.Omnibus, self.Omnibus_pval = stat.JB_normality_test(ll.u_long,panel)
 		self.JB_prob_st, self.JB_st, self.skewness_st, self.kurtosis_st, self.Omnibus_st,  self.Omnibus_pval_st = stat.JB_normality_test(ll.e_RE_norm_centered_long,panel)
 		self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
-		self.instruments=panel.input.Z_names[1:]
+		self.ci, self.n_ci = self.get_CI(comm.constr)
+
+	def get_CI(self, constr):
+		ci ='None'
+		ci_n = 'None'
+		if not constr is None:
+			if not constr.ci is None:
+				ci = np.round(constr.ci)
+				ci_n = constr.ci_n
+		return ci, ci_n
+		
+class Information:
+	#This class handles the information about the regression
+	def __init__(self, panel, comm, delta_time):
+
+		model, method = self.get_model(panel)
+		n,T,k = panel.X.shape
+		rob = panel.options.robustcov_lags_statistics[1]>0
+		run_time = np.round(delta_time)
+		ll = comm.ll
+
 		self.pqdkm=panel.pqdkm
+		self.delta_time = delta_time
+		self.instruments=panel.input.Z_names[1:]
+		self.df=panel.df
+		self.N,self.T,self.k = n,T,k
+		self.dep_var       = panel.input.Y_names[0]
+		self.model         = model
+		self.method        = method
+		self.date_str      = datetime.now().strftime('%a, %d %b %Y')
+		self.time_str      = datetime.now().strftime('%H:%M:%S')
+		self.run_time_str  = f'{run_time} ({comm.its}) [{comm.conv}]'
+		self.obs_count     = panel.NT
+		self.df_model      = k - 1
+		self.cov_type      = rob
+		self.log_lik       = ll.LL
+		self.aic           = 2 * k - 2 * comm.ll.LL
+		self.bic           = panel.NT * k - 2 * comm.ll.LL
+		self.panel_groups  = n
+		self.panel_dates   = T
+		self.initvar 	   = ll.args.args_v[panel.args.names_v.index(INITVAR)]
+
+	def get_model(self, panel):
+		p, q, d, k, m = panel.pqdkm
+		s = ""
+		if d>0:
+			s+=f"ARIMA{(p, d, q)}"
+		elif (p*q):
+			s+=f"ARMA{(p,q)}"
+		elif (p==0)&(q>0):
+			s+=f"MA{q}"
+		elif (p>0)&(q==0):
+			s+=f"AR{p}"
+
+		if (k*m):
+			if s!='': s += ', '
+			s += f"GARCH{(k,m)}"
+		t = panel.options.fixed_random_time_eff
+		i = panel.options.fixed_random_group_eff
+		if t+i:
+			if s!='': s += ' '      
+			if (t==2)&(i==2):
+				s += '2-way RE'
+			elif (t==1)&(i==1):
+				s += '2-way FE'  
+			elif (t==2)|(i==2):
+				s += 'FE'  
+			elif (t==1)|(i==1):
+				s += 'RE'     
+				
+		if s == '':
+			s = 'OLS'
+			method = 'Least Squares'
+		else:
+			method = 'Maximum Likelihood'
+		
+		return s, method
 
 
 
 
-def get_tab_stops(X,f):
+def format_table(X, tail, d):
 
-	m_len = f.measure("m")
-	counter=2*m_len
-	tabs=[f"{counter}",'numeric']
-	r,c=np.array(X).shape
-	for i in range(c):
-		t=1
-		num_max=0
-		for j in range(r):
-			s=str(X[j][i])
-			if '.' in s:
-				a=s.split('.')
-				num_max=max((len(a[0]),num_max))
-			t=max((f.measure(X[j][i])+(num_max+2)*m_len,t))
-		counter+=t
-		tabs.extend([f"{counter}",'numeric'])			
-	return tabs
-
-l=STANDARD_LENGTH
-#python variable name,	length,		is string,  display name,		neg. values,	justification	next tab space		round digits (None=no rounding,-1=set by user)
-pr=[
-								['count',		2,			False,		'',					False,			'right', 		2,					None],
-								['names',		None,		True,		'Variable names',	False,			'right', 		2, 					None],
-								['args',		None,		False,		'coef',			True,			'right', 		2, 					-1],
-								['se_robust',	None,		False,		'std err',			True,			'right', 		3, 					-1],
-								['sign_codes',	5,			True,		'',					False,			'left', 		2, 					-1],
-								['dx_norm',		None,		False,		'direction',		True,			'right', 		2, 					None],
-								['tstat',		2,			False,		't',			True,			'right', 		2, 					2],
-								['tsign',		None,		False,		'P>|t|',			False,			'right', 		2, 					3],
-								['conf_low',		None,		False,		'[0.025',			False,			'right', 		2, 					3],
-								['conf_high',		None,		False,		'0.975]',			False,			'right', 		2, 					3],
-								['multicoll',	1,			True,		'',					False,			'left', 		2, 					None],
-								['assco',		20,			True,		'collinear with',	False,			'center', 		2, 					None],
-								['set_to',		6,			True,		'set to',			False,			'center', 		2, 					None],
-								['cause',		50,			True,		'cause',			False,			'right', 		2, 					None]]		
-
-
-def format_table(X,cols,fmt,heading,tail, mod):
-	if fmt=='NORMAL':
-		return format_normal(X,[1],cols)+tail
-	if fmt=='LATEX':
-		return format_latex(X,cols,heading)+tail
-	if fmt=='HTML':
-		return format_html(X,cols,heading, mod)+tail	
-	if fmt=='CONSOLE':
-		return format_console(X)+tail
-
-
-def format_normal(X,add_rows=[],cols=[]):
-	p=''
-	if 'multicoll' in cols:
-		constr_pos=cols.index('multicoll')+1
-		p="\t"*constr_pos+"constraints:".center(38)
-	p+="\n"
-	for i in range(len(X)):
-		p+='\n'*(i in add_rows)
-		p+='\n'
-		for j in range(len(X[0])):
-			p+=f'\t{X[i][j]}'
-
-	return p	
-
-def format_console(X):
+	remove_init_var(X, d)
+	
 	p=''
 	X = np.array(X)
 	dcol = 2
@@ -667,6 +581,9 @@ def format_console(X):
 					[len(s) for s in X[:,i]])
 									 for i in range(k)
 													 ]
+	
+	
+
 	for i in range(n):
 		p+='\n'
 		for j in range(k):
@@ -682,164 +599,31 @@ def format_console(X):
 	p = p[:2] + ['-'*n] + p[2:] + ['='*n]
 	p = '\n'.join(p)
 	p = 'Regression results:\n' + p
-	return p	
+	return p + tail
 
-def format_latex(X,cols,heading):
-	X=np.array(X,dtype='U128')
-	n,k=X.shape
-	p="""
-\\begin{table}[ht]
-\\caption{%s} 
-\\centering
-\\begin{tabular}{""" %(heading,)
-	p+=' c'*k+' }\n\\hline'
-	p+='\t'+' &\t'.join(X[0])+'\\\\\n\\hline\\hline'
-	for i in range(1,len(X)):
-		p+='\t'+ ' &\t'.join(X[i])+'\\\\\n'
-	p+="""
-\\hline %inserts single line
-\\end{tabular}
-\\label{table:nonlin} % is used to refer this table in the text
-\\end{table}"""
-	return p	
+		
 
-def format_html(X,cols,heading,head, mod):
-	X=np.array(X,dtype='U128')
-	n,k=X.shape
-	if head[-1:] == '\n':
-		head = head[:-1]
-	head = head.replace('\n',"</td></tr>\n<td class='h'>")
-	head = head.replace('\t',"</td><td class='h'>")
-	mod = mod.replace('\n','<br>')
-	spaces = '&nbsp'*4
-	p=(f"<br><br><h1>{heading}</h1><br><br>"
-					 f"<p>{mod}<br>"
-				f"<table class='head'></tr><td class='h'>{head}</td></table><br><br>\n\n"
-				f"<p><table>\t<tr><th>"
-				)
-	p += ('\t</th><th>'+spaces).join(X[0])+'</th></tr>\n'
-	for i in range(1,len(X)):
-		p+='\t<tr><td>'+'\t</td><td>'.join(X[i])+'</td></tr>\n'
-	p+='</table></p>'
-	return p		
-
-alphabet='abcdefghijklmnopqrstuvwxyz'
-class join_table(dict):
-	"""Creates a  joint table of several regressions with columns of the join_table_column class.
-	See join_table_column for data handling."""
-	def __init__(self,args,panel,varnames=[]):
-		dict.__init__(self)
-		self.names_category_list=list([list(i) for i in args.names_category_list])#making a copy
-		k=0
-		for i in varnames:
-			if i in self.names_category_list[0]:
-				k=self.names_category_list[0].index(i)+1
-			else:
-				self.names_category_list[0].insert(k,i)
-				k+=1
-		self.caption_v=[itm for s in self.names_category_list for itm in s]#flattening
-		self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear"	
-
-	def update(self,ll,stats,desc,panel):
-		if not desc in self:
-			for i in range(len(ll.args.names_category_list)):
-				for j in ll.args.names_category_list[i]:
-					if not j in self.names_category_list[i]:
-						self.names_category_list[i].append(j)
-			self.caption_v=[itm for s in self.names_category_list for itm in s]#flattening
-		self[desc]=join_table_column(stats, ll,panel)
-
-
-	def make_table(self, stacked, brackets,digits,caption):
-		keys=list(self.keys())
-		k=len(keys)
-		n=len(self.caption_v)
-		if stacked:
-			X=[['' for j in range(2+k)] for i in range(4+3*n)]
-			for i in range(n):
-				X[3*i+1][1]=self.caption_v[i]		
-				X[3*i+1][0]=i
-			X[1+3*n][1]='Log likelihood'
-			X[2+3*n][1]='Degrees of freedom'	
-			X[3+3*n][1]='Adjusted R-squared'	
-		else:
-			X=[['' for j in range(2+2*k)] for i in range(4+n)]
-			for i in range(n):
-				X[i+1][1]=self.caption_v[i]	
-				X[i+1][0]=i
-			X[1+n][1]='Log likelihood'
-			X[2+n][1]='Degrees of freedom'		
-			X[3+n][1]='Adjusted R-squared'	
-		for i in range(k):
-			self.make_column(i,keys[i],X,stacked, brackets,digits,caption)
-		s = format_normal(X,[1,(1+stacked*2)*n+1,(1+stacked*2)*n+4])
-		s += self.footer
-		max_mod=0
-		models=[]
-		for i in range(len(keys)):
-			key=self[keys[i]]
-			p,q,d,k,m=key.pqdkm
-			models.append(f"\n{alphabet[i]}: {keys[i]}")
-			max_mod=max(len(models[i]),max_mod)
-		for i in range(len(keys)):
-			s+=models[i].ljust(max_mod+2)
-			if len(key.instruments):
-				s+=f"\tInstruments: {key.instruments}"
-			s+=f"\tARIMA({p},{d},{q})-GARCH({k},{m})"
-		return s,X
-
-	def make_column(self,col,key,X,stacked, brackets,digits,caption):
-		if not 'se_robust' in self[key].stats:
-			return
-
-		if caption=='JOINED LONG':
-			X[0][(2-stacked)*col+2]+=f"{self[key].Y_name} ({alphabet[col]})"
-		else:
-			X[0][(2-stacked)*col+2]=alphabet[col]
-		n=len(self.caption_v)
-		m=len(self[key].args.caption_v)
-		ix=[self.caption_v.index(i) for i in self[key].args.caption_v]
-		se=np.round(self[key].stats['se_robust'],digits)
-		sgn=self[key].stats['sign_codes']
-		args=np.round(self[key].args.args_v,digits)
-		if brackets=='[':
-			se_sgn=[f"[{se[i]}]{sgn[i]}" for i in range(m)]
-		elif brackets=='(':
-			se_sgn=[f"({se[i]}){sgn[i]}" for i in range(m)]
-		else:
-			se_sgn=[f"{se[i]}{sgn[i]}" for i in range(m)]				
-		if stacked:
-			for i in range(m):
-				X[3*ix[i]+1][col+2]=args[i]
-				X[3*ix[i]+2][col+2]=se_sgn[i]
-			X[1+3*n][col+2]=round_sign_digits(self[key].LL,5,1)
-			X[2+3*n][col+2]=self[key].df	
-			X[3+3*n][col+2]=f"{round(self[key].Rsqadj*100,1)}%"
-		else:
-			for i in range(m):
-				X[ix[i]+1][col*2+2]=args[i]
-				X[ix[i]+1][col*2+3]=se_sgn[i]		
-			X[1+n][col*2+3]=round_sign_digits(self[key].LL,5,1)
-			X[2+n][col*2+3]=self[key].df
-			X[3+n][col*2+3]=f"{round(self[key].Rsqadj*100,1)}%"
+def remove_init_var(X,d):
+	if not INITVAR in d['names_int']:
+		return
+	i = d['names_int'].index(INITVAR)+1
+	X.pop(i)
 
 
 
-class join_table_column:
-	def __init__(self,stats,ll,panel):
-		self.stats=stats
-		self.LL=ll.LL
-		self.df=panel.df
-		self.args=ll.args
-		self.Rsq, self.Rsqadj, self.LL_ratio,self.LL_ratio_OLS=stat.goodness_of_fit(ll,True,panel)
-		self.instruments=panel.input.Z_names[1:]
-		self.pqdkm=panel.pqdkm		
-		self.Y_name=panel.input.Y_names
-
-
-
-
-
-def round_sign_digits(x,digits,min_digits=0):
-	d=int(np.log10(abs(x)))
-	return np.round(x,max((digits-1,d+min_digits))-d)
+TABLE_FORMAT =[
+#python variable name,	length,		is string,  display name,		neg. values,	justification	next tab space		round digits (None=no rounding,-1=set by user)
+['count',				2,			False,		'',					False,			'right', 		2,					None],
+['names',				None,		True,		'Variable names',	False,			'right', 		2, 					None],
+['args',				None,		False,		'coef',				True,			'right', 		2, 					-1],
+['se_robust',			None,		False,		'std err',			True,			'right', 		3, 					-1],
+['sign_codes',			5,			True,		'',					False,			'left', 		2, 					-1],
+['dx_norm',				None,		False,		'direction',		True,			'right', 		2, 					None],
+['tstat',				2,			False,		't',				True,			'right', 		2, 					2],
+['tsign',				None,		False,		'P>|t|',			False,			'right', 		2, 					3],
+['conf_low',			None,		False,		'[0.025',			False,			'right', 		2, 					3],
+['conf_high',			None,		False,		'0.975]',			False,			'right', 		2, 					3],
+['multicoll',			1,			True,		'',					False,			'left', 		2, 					None],
+['assco',				20,			True,		'collinear with',	False,			'center', 		2, 					None],
+['set_to',				6,			True,		'set to',			False,			'center', 		2, 					None],
+['cause',				50,			True,		'cause',			False,			'right', 		2, 					None]]		
