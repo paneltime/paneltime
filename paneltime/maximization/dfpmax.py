@@ -7,6 +7,8 @@ import sys
 
 import numpy as np
 import time
+import cProfile
+import pstats
 
 #This module finds the array of arguments that minimizes some function. The derivative 
 #of the function also needs to be supplied. 
@@ -38,10 +40,8 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 	dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
 
 	for its in range(MAXITER):  	#Main loop over the iterations.
-
 		res = calc(g, x, H, comput, f, hessin, 
-							panel, step, its, fdict, ll, armaconstr, dx)
-			
+								panel, step, its, fdict, ll, armaconstr, dx)
 
 		(g, G, x, H, comput, f, ll, hessin, 
 			conv, incr, step, g_norm, dx) = res

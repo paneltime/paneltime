@@ -233,7 +233,7 @@ class Normal:
 
 		# Defining verious variables:
 		self.v = self.var
-		self.v_inv = 1/v
+		self.v_inv = 1/self.var
 		
 		self.e = e
 		self.e2 = e**2 + 1e-8

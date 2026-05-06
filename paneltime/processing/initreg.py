@@ -21,8 +21,8 @@ def start_values(panel, X = None, Y = None):
 		Y = panel.Y
 	gfre=panel.options.fixed_random_group_eff
 	tfre=panel.options.fixed_random_time_eff
-	re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
-	re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
+	re_obj_i=re.REObj(panel,True,panel.T_i,panel.T_i,gfre)
+	re_obj_t=re.REObj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
 
 	X=(X+re_obj_i.RE(X, panel)+re_obj_t.RE(X, panel))*panel.included[3]
 	Y=(Y+re_obj_i.RE(Y, panel)+re_obj_t.RE(Y, panel))*panel.included[3]

@@ -14,6 +14,7 @@ from .. import cfunctions
 import time
 from .. likelihood import hfunc
 from .. likelihood import function as llfunc
+import copy
 
 
 
@@ -24,9 +25,9 @@ from .. likelihood import function as llfunc
 class Panel:
 	def __init__(self,datainput,settings):
 
-		self.input=datainput
-		self.options=settings
-		self.dataframe=datainput.dataframe
+		self.input = datainput
+		self.options = copy.deepcopy(settings)
+		self.dataframe = datainput.dataframe
 
 	def init(self):
 		self.initial_defs()
@@ -53,6 +54,10 @@ class Panel:
 			k=0
 			print("Warning: GARCH term removed since ARCH terms was set to 0")
 		self.pqdkm=p,q,d,k,m
+		self.sign_codes = [["'", 0.1], ["*", 0.05], ["**", 0.01], ["***", 0.001]]
+		self.sign_codes_plain = ', '.join(f"{s[0]}p<{s[1]}" for s in self.sign_codes)
+		self.sign_codes_tex = '$' + '$, $'.join(f"^{{{s[0]}}}p<{s[1]}" for s in self.sign_codes) + '$'
+		self.sign_codes_tex = self.sign_codes_tex.replace("$^{'}", "'$")	
 
 		if k == 0:
 			self.options.include_initvar = False
@@ -380,7 +385,7 @@ class Panel:
 		n=len(tcnt)
 		self.n_dates=n
 		self.date_count=np.array(tcnt).reshape(n,1,1)
-		self.date_map=t_map_tuple
+		self.date_map=t_map_tuple #each element represents a unique date, and contains all groups observed at that date.
 
 		self.dmap_all =(
 		[t_map_tuple[i][0] for i in range(self.n_dates)],
@@ -491,7 +496,12 @@ def arrayize(X, N, max_T, T, id_included, selections, dtype = None):
 	
 	if not (np.issubdtype(X.dtype, np.integer) or 
 			np.issubdtype(X.dtype, np.floating)):
-		X = np.array(X, dtype=float)
+		try:
+			X = np.array(X, dtype=float)
+		except TypeError as e:
+			if not 'Timestamp' in str(e):
+				raise TypeError(e)
+
 	
 	# Initialize the 3D output array
 	if dtype is None:

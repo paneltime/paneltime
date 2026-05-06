@@ -14,6 +14,8 @@ import numpy as np
 
 
 INITVAR = 'initvar'
+VARIANCE_CONSTANT = 'Variance constant'
+INITVAR_LONG = 'Initial variance'
 
 
 class arguments:
@@ -197,6 +199,7 @@ class arguments:
 		"""Creates a vector of the names of all regression varaibles, 
 		including variables, ARIMA and GARCH terms. This defines the positions
 		of the variables througout the estimation."""
+
 		d, names_d = {}, {}
 		captions=list(panel.input.X.keys())#copy variable names
 		d['beta']=list(captions)
@@ -210,7 +213,7 @@ class arguments:
 		add_names(m,'psi%s    ARCH  m','psi',d,c,captions, names, names_d)
 
 		omegas = [str(s) for s in panel.input.W.keys()]
-		omegas[0] = 'Variance constant'
+		omegas[0] = VARIANCE_CONSTANT
 		d['omega'] = omegas
 		captions.extend(omegas)
 
@@ -219,7 +222,7 @@ class arguments:
 
 		c.append(d['omega'])
 		if panel.options.include_initvar:
-			d[INITVAR] = ['Initial variance']
+			d[INITVAR] = [INITVAR_LONG]
 			captions.extend(d[INITVAR])
 			names_d[INITVAR] = [INITVAR]
 			names.extend([INITVAR])

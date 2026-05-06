@@ -34,6 +34,8 @@ def get_variables(ip, df, model_string, idvar, timevar, heteroscedasticity_facto
 					  or the model_string is incorrectly formatted.
 	"""
 
+	model_string = model_string.replace(' ', '')
+	
 	if not settings.supress_output:
 		print("Analyzing variables ...")
 
@@ -258,14 +260,14 @@ def check_var(df, df_pred, x, input_type, numeric):
 
 	const_found = False
 
-	for var in x:
-		if ' ' in var:
-			raise RuntimeError(f"Spaces are not allowed in variable names, but found in '{var}' from {input_type}")
-
+	for i, var in enumerate(x):
+		x[i].replace(' ','')
 		try:
 			variance = np.var(dfx[var])
 		except TypeError as e:
 			raise TypeError(f"All variables except time and ID must be numeric. {e}")
+		except RuntimeWarning as e:
+			raise TypeError(f"{var} contains invalid values. {e}")
 
 		if variance == 0:
 			if const_found:
@@ -387,96 +389,98 @@ def concatenate(new_df, df_last):
 	return df_pred
 
 def convert_datetime_columns_to_float(df):
-    df_converted = df.copy()
-    for col in df_converted.columns:
-        if np.issubdtype(df_converted[col].dtype, np.datetime64):
-            df_converted[col] = df_converted[col].astype('int64') / 1e9  # Convert nanoseconds to seconds
-        elif pd.api.types.is_object_dtype(df_converted[col]):
-            try:
-                df_converted[col] = pd.to_datetime(df_converted[col])
-                df_converted[col] = df_converted[col].astype('int64') / 1e9
-            except (ValueError, TypeError):
-                pass  # Leave non-datetime strings unchanged
-    return df_converted.astype('Float64')
+	df_converted = df.copy()
+	for col in df_converted.columns:
+		if np.issubdtype(df_converted[col].dtype, np.datetime64):
+			df_converted[col] = df_converted[col].astype('int64') / 1e9  # Convert nanoseconds to seconds
+		elif pd.api.types.is_object_dtype(df_converted[col]):
+			try:
+				df_converted[col] = pd.to_datetime(df_converted[col])
+				df_converted[col] = df_converted[col].astype('int64') / 1e9
+			except (ValueError, TypeError):
+				pass  # Leave non-datetime strings unchanged
+	return df_converted.astype('Float64')
 
 def eval_variables(df, x, idvar_orig, dropna=True):
-    """
-    Evaluates variables by handling lags and differences in a DataFrame.
+	"""
+	Evaluates variables by handling lags and differences in a DataFrame.
 
-    Parameters:
-        df (pd.DataFrame): Input DataFrame (potentially with MultiIndex).
-        x (list): List of variable names (including lagged/differenced expressions).
-        idvar_orig (list): ID variable(s) for panel data grouping.
-        dropna (bool): Whether to drop NaN values from the dataset.
+	Parameters:
+		df (pd.DataFrame): Input DataFrame (potentially with MultiIndex).
+		x (list): List of variable names (including lagged/differenced expressions).
+		idvar_orig (list): ID variable(s) for panel data grouping.
+		dropna (bool): Whether to drop NaN values from the dataset.
 
-    Returns:
-        tuple: (new_df, lost_na_obs, max_lags, max_history, n)
-            - new_df (pd.DataFrame): Transformed DataFrame with evalnew_dfuated variables.
-            - lost_na_obs (int): Number of observations lost due to NaN removal.
-            - max_lags (int): Maximum lag required across all expressions.
-            - max_history (int): Total historical data needed for computations.
-            - n (int): Original number of rows in `df`.
-    """
+	Returns:
+		tuple: (new_df, lost_na_obs, max_lags, max_history, n)
+			- new_df (pd.DataFrame): Transformed DataFrame with evalnew_dfuated variables.
+			- lost_na_obs (int): Number of observations lost due to NaN removal.
+			- max_lags (int): Maximum lag required across all expressions.
+			- max_history (int): Total historical data needed for computations.
+			- n (int): Original number of rows in `df`.
+	"""
 
-    # Initialize the transformed DataFrame
-    new_df = pd.DataFrame()
-    
-    # Convert to panel format if `idvar_orig` is provided
-    pd_panel = df.groupby(level=idvar_orig) if idvar_orig else df
-    lag_obj = LagObject(pd_panel)  # Create lag object for time-series operations
+	# Initialize the transformed DataFrame
+	new_df = pd.DataFrame()
+	
+	# Convert to panel format if `idvar_orig` is provided
+	pd_panel = df.groupby(level=idvar_orig) if idvar_orig else df
+	lag_obj = LagObject(pd_panel)  # Create lag object for time-series operations
 
-    # Track original row count
-    n = len(df)
+	# Track original row count
+	n = len(df)
 
-    # Drop NaN values if specified
-    if dropna:
-        df = df.dropna()
-    lost_na_obs = n - len(df)
+	# Drop NaN values if specified
+	if dropna:
+		df = df.dropna()
+	lost_na_obs = n - len(df)
 
-    # Define namespaces for evaluating lagged/differenced expressions
-    namespace = {'D': lag_obj.diff, 'L': lag_obj.lag, 'np': np}
-    namespace_lags = {
-        'D': lambda x, lag=1: diffs.append(lag),
-        'L': lambda x, lag=1: lags.append(lag),
-        'np': np
-    }
+	# Define namespaces for evaluating lagged/differenced expressions
+	namespace = {'D': lag_obj.diff, 'L': lag_obj.lag, 'np': np}
+	namespace_lags = {
+		'D': lambda x, lag=1: diffs.append(lag),
+		'L': lambda x, lag=1: lags.append(lag),
+		'np': np
+	}
 
-    # Initialize tracking lists
-    lags, diffs = [], []
-    max_lags, max_history = [], []
+	# Initialize tracking lists
+	lags, diffs = [], []
+	max_lags, max_history = [], []
 
-    # Add all DataFrame columns to namespaces
-    for column in df.columns:
-        namespace[column] = df[column]
-        namespace_lags[column] = 0  # Ensures column names are recognized in eval
+	# Add all DataFrame columns to namespaces
+	for column in df.columns:
+		namespace[column] = df[column]
+		namespace_lags[column] = df[column].iloc[0]  # Ensures column names are recognized in eval
 
-    # Process each variable/expression in `x`
-    for var in x:
-        if var in df:
-            # Directly copy existing columns
-            new_df[var] = df[var]
-        else:
-            # Reset tracking lists before evaluating expressions
-            lags.clear()
-            diffs.clear()
-            try:
-                # Evaluate expression to track required lags and diffs
-                eval(var, namespace_lags)
-                
-                # Compute and store evaluated expression
-                new_df[var] = eval(var, namespace)
+	# Process each variable/expression in `x`
+	for var in x:
+		if var in df:
+			# Directly copy existing columns
+			new_df[var] = df[var]
+		else:
+			# Reset tracking lists before evaluating expressions
+			lags.clear()
+			diffs.clear()
+			try:
+				# Evaluate expression to track required lags and diffs
+				eval(var, namespace_lags)
+				
+				# Compute and store evaluated expression
+				new_df[var] = eval(var, namespace)
 
-                # Store max lag and history depth needed
-                max_lags.append(max(lags) if lags else 0)
-                max_history.append(sum(lags) + sum(diffs))
-            except NameError:
-                raise NameError(f"{var} not defined in data frame or function")
+				# Store max lag and history depth needed
+				max_lags.append(max(lags) if lags else 0)
+				max_history.append(sum(lags) + sum(diffs))
+			except NameError:
+				raise NameError(f"{var} not defined in data frame or function")
+			except Exception as e:
+				raise RuntimeError(f"Problem with variable '{var}': {e}")
 
-    # Get the max required lag and total historical data needed
-    max_lags = max(max_lags) if max_lags else 0
-    max_history = max(max_history) if max_history else 0
+	# Get the max required lag and total historical data needed
+	max_lags = max(max_lags) if max_lags else 0
+	max_history = max(max_history) if max_history else 0
 
-    return new_df, lost_na_obs, max_lags, max_history, n
+	return new_df, lost_na_obs, max_lags, max_history, n
 
 
 
@@ -512,7 +516,7 @@ def parse_model(model_string,settings):
 	if split is None:#No dependent
 		return [model_string],[DEFAULT_INTERCEPT_NAME]
 	Y,X=model_string.split(split)
-	X=[i.strip() for i in X.split('+')]
+	X = split_regression(X)
 	Y = Y.strip()
 	if X==['']:
 		X=[DEFAULT_INTERCEPT_NAME]
@@ -520,6 +524,29 @@ def parse_model(model_string,settings):
 		X=[DEFAULT_INTERCEPT_NAME]+X
 	return [Y], ordered_unique(X)
 
+def split_regression(expr: str):
+    parts = []
+    buf = []
+    depth = 0  # parentheses nesting level
+    
+    for ch in expr:
+        if ch == '(':
+            depth += 1
+            buf.append(ch)
+        elif ch == ')':
+            depth -= 1
+            buf.append(ch)
+        elif ch == '+' and depth == 0:
+            # split point only if not inside parentheses
+            parts.append(''.join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+    
+    if buf:  # last part
+        parts.append(''.join(buf).strip())
+    
+    return parts
 
 def ordered_unique(X):
 	unique = []
@@ -557,7 +584,7 @@ def numberize_time(df, timevar, idvar):
 	timevar=timevar[0]
 	timevar_orig = timevar+ ORIG_SUFIX
 
-	#if number:
+	# if number:
 	dtype = np.array(df[timevar]).dtype
 
 	if np.issubdtype(dtype, np.number):
@@ -569,7 +596,7 @@ def numberize_time(df, timevar, idvar):
 				time_delta = 1
 		return [timevar_orig], time_delta, time_delta
 
-	#Not number:
+	# not number:
 	try:
 		x_dt=pd.to_datetime(df[timevar])
 	except ValueError as e:
@@ -592,9 +619,9 @@ def numberize_time(df, timevar, idvar):
 
 
 def datetime_to_float_year(d):
-    year_start = pd.to_datetime(f'{d.year}-01-01')
-    next_year_start = pd.to_datetime(f'{d.year + 1}-01-01')
-    return d.year + ((d - year_start).total_seconds() / (next_year_start - year_start).total_seconds())
+	year_start = pd.to_datetime(f'{d.year}-01-01')
+	next_year_start = pd.to_datetime(f'{d.year + 1}-01-01')
+	return d.year + ((d - year_start).total_seconds() / (next_year_start - year_start).total_seconds())
 
 
 
@@ -618,11 +645,12 @@ def get_mean_diff(df, timevar, idvar):
 def numberize_idvar(ip,df,timevar, idvar):
 	idvar=idvar[0]
 	timevar = timevar[0]
-
-	if df.duplicated(subset=[idvar, timevar]).any():
+	duplicated = df.duplicated(subset=[idvar, timevar])
+	if duplicated.any():
 		print(f"Warning: Check your data! {timevar} and {idvar} needs to be jointly unique.\n"
-			 	   f"there are non-unique '{timevar}'-items for some or all '{idvar}'-items. Following dupliates are deleted. "
-				   f"\n{df[df.duplicated(subset=[idvar, timevar])][[idvar, timevar]]}"
+			 	   f"there are non-unique '{timevar}'-items for some or all '{idvar}'-items. "
+				   f"Following dupliates are deleted ({sum(duplicated)} items). "
+				   f"\n{df[duplicated][[idvar, timevar]]}"
 				   )	
 		df.drop_duplicates(subset=[idvar, timevar], inplace=True)
 	

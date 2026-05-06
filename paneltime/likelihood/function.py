@@ -38,7 +38,7 @@ class LLFunction:
 				setattr(self, key, x)
 
 
-		self.v_inv05 = self.model.v**0.5
+		self.v_inv05 = self.model.v_inv**0.5
 
 		self.test()
 

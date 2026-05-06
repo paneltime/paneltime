@@ -17,6 +17,7 @@ STANDARD_LENGTH=8
 INITVAR = arguments.INITVAR
 
 
+
 class Output:
 	#This class handles auxilliary statistics (regression info, diagnostics, df accounting)
 	def __init__(self,comm,panel):
@@ -50,7 +51,9 @@ class Output:
 		self.conv = comm.conv
 		self.msg = comm.msg
 		self.constr = comm.constr
-		self.stats = Statistics(comm,self.panel, delta_time) 
+		self.random_effects = RandomEffects(self.panel, self.ll)
+		self.stats = Statistics(comm,self.panel, delta_time, self.random_effects) 
+		
 
 		
 	def statistics(self):
@@ -77,8 +80,8 @@ class Output:
 			('F-statistic:', s.diag.F), 
 			('Prob (F-statistic):', s.diag.F_p), 
 			('Log-Likelihood:', s.info.log_lik), 
-			('AIC:', s.info.aic), 
-			('BIC:', s.info.bic), 
+			('cAIC:', s.info.caic), 
+			('cBIC:', s.info.cbic), 
 			('Panel groups:', s.info.panel_groups), 
 			('Panel dates:', s.info.panel_dates), 
 			('Initial variance:', s.info.initvar)
@@ -150,7 +153,7 @@ class Output:
 		df = [('DEGREES OF FREEDOM:',''), 
 				 ('A) sample size:', self.panel.NT_before_loss), 
 				 ('B) lost to GARCH/ARIMA:',self.panel.tot_lost_obs),
-				 ('C) lost to FE/RE:', self.panel.number_of_RE_coef),
+				 ('C) lost to FE/RE (effective):', self.panel.number_of_RE_coef),
 				 ('D) coefficients in regr:',self.panel.args.n_args), 
 				 ('Degrees of freedom (A-B-C-D):',self.panel.df)
 				 ]    
@@ -222,12 +225,53 @@ class Output:
 
 
 
+class RandomEffects:
+	def __init__(self, panel, ll):
+		self.residuals_i = None
+		self.residuals_t = None
+		self.residuals_std_i = None
+		self.residuals_std_t = None
+		self.effective_df = 0
+
+		if (panel.options.fixed_random_time_eff + 
+				panel.options.fixed_random_group_eff) == 0:
+			return
+		
+
+		self.residuals_i = ll.re_obj_i.RE(ll.u_RE, panel)
+		self.residuals_t = ll.re_obj_t.RE(ll.u_RE, panel)
+
+		self.residuals_std_i = np.std(self.residuals_i, ddof=1)
+		self.residuals_std_t = np.std(self.residuals_t, ddof=1)
+
+		
+		if panel.options.fixed_random_time_eff == 0:
+			self.effective_df = 0
+		elif panel.options.fixed_random_time_eff == 1:
+			self.effective_df = panel.max_T
+		else:
+			self.theta_t = ll.re_obj_t.theta.mean(axis=0)
+			s_t = (2*self.theta_t-self.theta_t**2).sum()
+			self.effective_df = (s_t +(s_t>0)*2)
+
+		if panel.options.fixed_random_group_eff == 0:
+			self.effective_df += 0
+		elif panel.options.fixed_random_group_eff == 1:
+			self.effective_df += panel.N
+		else:
+			self.theta_i = ll.re_obj_i.theta.mean(axis=1)
+			s_i = (2*self.theta_i-self.theta_i**2).sum()
+			self.effective_df += (s_i +(s_i>0)*2)
+		
+	# calc of self.effective_df: Vaida & Blanchard (2005) , Greven & Kneib (2010) ,Hodges & Sargent (2001), Cui et al. (2010).
 
 
 
 class RegTableObj(dict):
 	#This class handles the regression table itself
-	def __init__(self, panel, comm, model_desc):
+	def __init__(self, panel, comm, output):
+		model_desc = output.model_desc
+		self.df_effective = output.stats.info.df_effective
 		dict.__init__(self)
 		try:
 			self.set(panel, comm, model_desc)
@@ -242,7 +286,7 @@ class RegTableObj(dict):
 		self.args = comm.ll.args.dict_string
 		self.n_variables = panel.args.n_args
 		self.lags = panel.options.robustcov_lags_statistics[1]
-		self.footer=f"\nSignificance codes: '=0.1, *=0.05, **=0.01, ***=0.001,    |=collinear\n\n{comm.ll.err_msg}"	
+		self.footer = f"\nSignificance codes: {(panel.sign_codes_plain)}\n"	
 		self.dx_norm = comm.dx_norm
 		self.t_stats(panel, comm.ll, comm.H, comm.G, comm.g, comm.constr)
 		self.constraints_formatting(panel, comm.constr)    
@@ -259,8 +303,8 @@ class RegTableObj(dict):
 		T=len(d['names'])
 		if H is None:
 			return
-		d['se_robust'],d['se_st']=sandwich(H, G, g, constr, panel, self.lags)
-		d['se_robust_oposite'],d['se_st_oposite']=sandwich(H, G, g, constr, panel, self.lags,oposite=True)
+		d['se_robust'],d['se_st'], d['cov_robust'], d['cov'] =sandwich(H, G, g, constr, panel, self.lags)
+		d['se_robust_oposite'],d['se_st_oposite'], _, _ = sandwich(H, G, g, constr, panel, self.lags,oposite=True)
 		d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
 		d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
 
@@ -387,6 +431,7 @@ class Column:
 				return np.array([str(i).ljust(self.length)[:self.length] for i in self.input])
 
 def sandwich(H, G, g, constr, panel,lags,oposite=False,resize=True):
+	k, k = H.shape
 	H,G,idx=reduce_size(H, G, g, constr,oposite,resize)
 	lags=lags+panel.lost_obs
 	onlynans = np.array(len(idx)*[np.nan])
@@ -395,13 +440,14 @@ def sandwich(H, G, g, constr, panel,lags,oposite=False,resize=True):
 	except np.linalg.LinAlgError as e:
 		print(e)
 		return np.array(onlynans),np.array(onlynans)
-	se_robust,se,V=stat.robust_se(panel,lags,hessin,G)
-	se_robust,se,V=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True)
+	se_robust,se,V, W=stat.robust_se(panel,lags,hessin,G)
+	se_robust,se,V, W=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True), expand_x(W, idx,True)
 	if se_robust is None:
 		se_robust = np.array(onlynans)
+		#V = np.fill((k,k), np.nan)
 	if se is None:
 		se = np.array(onlynans)
-	return se_robust,se
+	return se_robust,se, V, W
 
 def reduce_size(H, G, g, constr, oposite,resize):
 	#this looks unneccessary complicated
@@ -412,18 +458,13 @@ def reduce_size(H, G, g, constr, oposite,resize):
 	m=len(H)
 	if not resize:
 		return H,G,np.ones(m,dtype=bool)
-	mc_report=constr.mc_report.keys()
 	c = list(constr.fixed.keys())	
 	if oposite:
-		mc_report=[constr.mc_report[i] for i in constr.mc_report]
 		c = []
 		for i in constr.fixed:
 			if not constr.fixed[i].assco_ix is None:
 				c.append(constr.fixed[i].assco_ix)
-	if False:#not sure why this is here
-		for i in mc_report:
-			if not i in c:
-				c.append(i)
+
 	idx=np.ones(m,dtype=bool)
 	if len(c)>0:#removing fixed constraints from the matrix
 		idx[c]=False
@@ -471,9 +512,9 @@ def get_sign_codes(tsign):
 
 
 class Statistics:
-	def __init__(self, comm, panel, delta_time):
+	def __init__(self, comm, panel, delta_time, re):
 		self.diag = Diagnostics(comm, panel)
-		self.info = Information(panel, comm, delta_time)
+		self.info = Information(panel, comm, delta_time, re)
 
 class Diagnostics:
 	#This class handles the diagnostics of the regression	
@@ -501,7 +542,7 @@ class Diagnostics:
 		
 class Information:
 	#This class handles the information about the regression
-	def __init__(self, panel, comm, delta_time):
+	def __init__(self, panel, comm, delta_time, re):
 
 		model, method = self.get_model(panel)
 		n,T,k = panel.X.shape
@@ -513,7 +554,8 @@ class Information:
 		self.delta_time = delta_time
 		self.instruments=panel.input.Z_names[1:]
 		self.df=panel.df
-		self.N,self.T,self.k = n,T,k
+		self.N,self.T,_ = n,T,k
+		self.k = panel.args.n_args
 		self.dep_var       = panel.input.Y_names[0]
 		self.model         = model
 		self.method        = method
@@ -522,13 +564,19 @@ class Information:
 		self.run_time_str  = f'{run_time} ({comm.its}) [{comm.conv}]'
 		self.obs_count     = panel.NT
 		self.df_model      = k - 1
+		self.df 		   = panel.df
+		self.df_effective  = self.df - (0 if re is None else re.effective_df)
 		self.cov_type      = rob
 		self.log_lik       = ll.LL
-		self.aic           = 2 * k - 2 * comm.ll.LL
-		self.bic           = panel.NT * k - 2 * comm.ll.LL
+		self.aic           = 2 * (self.k) - 2 * comm.ll.LL
+		self.caic           = 2 * (self.k + re.effective_df) - 2 * comm.ll.LL
+		self.bic           = np.log(panel.NT) * (self.k) - 2 * comm.ll.LL
+		self.cbic           = np.log(panel.NT) * (self.k + re.effective_df) - 2 * comm.ll.LL
 		self.panel_groups  = n
 		self.panel_dates   = T
-		self.initvar 	   = ll.args.args_v[panel.args.names_v.index(INITVAR)]
+		self.initvar 	   = None
+		if INITVAR in panel.args.names_v:
+			self.initvar   = ll.args.args_v[panel.args.names_v.index(INITVAR)]
 
 	def get_model(self, panel):
 		p, q, d, k, m = panel.pqdkm

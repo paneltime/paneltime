@@ -108,7 +108,7 @@ class Computation:
 
 		if its<len(self.constr.constr_matrix)+2:
 			conv = 0
-		elif abs(g_norm*max_pgain*totpgain) < self.gtol and its>50:
+		elif abs(g_norm*max_pgain*totpgain) < self.gtol and its>300:
 			conv = 1
 		elif abs(g_norm)<self.gtol:
 			conv = 2
@@ -122,7 +122,7 @@ class Computation:
 			conv = 0
 
 		if (its>100 and (incr<0.01 or ls.alam<1e-5 or sum(self.errs[-3:])==3) 
-	  			and (self.multicoll_threshold_max != 1000)):
+				  and (self.multicoll_threshold_max != 1000)):
 			self.multicoll_threshold_max = 1000
 		elif its>100:
 			self.multicoll_threshold_max = self.panel.options.multicoll_threshold_max
@@ -154,7 +154,8 @@ class Computation:
 	def calc_gradient(self,ll):
 		dLL_lnv, DLL_e=ll.llfunc.gradient()
 		self.LL_gradient_tobit(ll, DLL_e, dLL_lnv)
-		g, G = self.gradient.get(ll,DLL_e,dLL_lnv,return_G=True)
+
+		g, G = self.gradient.get(ll,DLL_e,dLL_lnv)
 		return g, G
 
 

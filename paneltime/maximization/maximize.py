@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from . import init
+from ..processing import arguments
 
 import numpy as np
 import time
@@ -91,7 +92,7 @@ def maximize_node(panel, args, gtol = 1e-5, slave_id =0 , slave_server = None):
 			avoid_first_arma(coll, c, f, panel, constr)
 
 		k = coll[np.argsort([f[k].ci for k in coll])[-1]]
-		if not panel.args.names_v[k]=='initvar':
+		if not panel.args.names_v[k]==arguments.INITVAR:
 			args[k] = 0
 		print(f'Added multicollinearity constraint for {panel.args.names_v[k]}')
 		constr.append(k)

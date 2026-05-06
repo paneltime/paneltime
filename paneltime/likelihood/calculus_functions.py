@@ -66,8 +66,7 @@ def dd_func_re_variance(panel,ll,g,vname1,vname2,de2_zeta_xi_RE,u_gradient):
 		ddmeane2= panel.mean(dd_e_RE_sq,(0,1))*incl
 		dd_input=(dd_e_RE_sq-ddmeane2)*incl
 
-		ddvRE_d_xi_zeta=ddmeane2-add((ll.re_obj_i_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.llfunc.varRE_input,vname1,vname2,panel),
-																							ll.re_obj_t_v.ddRE(dd_input,d_xi_input,d_zeta_input,ll.llfunc.varRE_input,vname1,vname2,panel)),True)
+		ddvRE_d_xi_zeta=ddmeane2
 	else:
 		ddvRE_d_xi_zeta=None
 

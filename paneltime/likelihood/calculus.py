@@ -4,6 +4,7 @@
 
 from .. import functions as fu
 from . import calculus_functions as cf
+from ..processing import arguments
 import numpy as np
 import time
 
@@ -33,8 +34,9 @@ class gradient:
 			d_eRE_sq=2*ll.e_RE*dRE
 			dmeane2=panel.mean(d_eRE_sq,(0,1))
 			d_input=(d_eRE_sq-dmeane2)*panel.included[3]
-			dvRE_dx=dmeane2*panel.included[3]-ll.re_obj_i_v.dRE(d_input,ll.llfunc.varRE_input,varname,panel)-ll.re_obj_t_v.dRE(d_input,ll.llfunc.varRE_input,varname,panel)
-			groupeffect=ll.dvarRE*dvRE_dx*panel.included[3]
+
+			dvRE_dx=dmeane2*panel.included[3]
+
 
 
 		dvar_sigma=None
@@ -42,12 +44,12 @@ class gradient:
 			((N,T,k))=dRE.shape
 			x=cf.prod((ll.h_e_val,dRE))	
 			dvar_sigma=fu.arma_dot(ll.GAR_1MA,x,ll)*self.panel.included[3]
-		dvar_e=cf.add((dvar_sigma,groupeffect),True)
-
-		return dvar_e, dvar_sigma, dvRE_dx, d_input
 
 
-	def get(self,ll,dLL_e=None,dLL_var=None,return_G=False):
+		return dvar_sigma, dvRE_dx, d_input
+
+
+	def get(self,ll,dLL_e=None,dLL_var=None):
 
 
 		(self.dLL_e, self.dLL_var)=(dLL_e, dLL_var)
@@ -56,11 +58,11 @@ class gradient:
 		panel=self.panel
 		(N,T,k) = self.panel.X.shape
 		incl=self.panel.included[3]
-		re_obj_i,re_obj_t=ll.re_obj_i,ll.re_obj_t
+
 		u, e_RE,u_RE,h_e_val,var,h_val=ll.u, ll.e_RE,ll.u_RE,ll.h_e_val,ll.llfunc.var,ll.h_val
 		p,q,d,k,m = panel.pqdkm
 		nW = panel.nW
-		self.X_RE = (panel.XIV+re_obj_i.RE(panel.XIV, panel)+re_obj_t.RE(panel.XIV, panel))*incl
+		self.X_RE = (panel.XIV + ll.re_obj_i.RE(panel.XIV, panel) + ll.re_obj_t.RE(panel.XIV, panel))*incl
 
 		#ARIMA:
 		de_rho_RE=self.arima_grad(p,u_RE,ll,-1,ll.AMA_1)
@@ -69,13 +71,13 @@ class gradient:
 
 		(self.de_rho_RE,self.de_lambda_RE,self.de_beta_RE)=(de_rho_RE,de_lambda_RE,de_beta_RE)		
 
-		dvar_sigma_rho,		dvar_sigma_rho_G,		dvRE_rho	, d_rho_input		=	self.garch_arima_grad(ll,	self.de_rho_RE,		'rho')
-		dvar_sigma_lambda, 	dvar_sigma_lambda_G,	dvRE_lambda	, d_lambda_input	=	self.garch_arima_grad(ll,	self.de_lambda_RE,	'lambda')
-		dvar_sigma_beta,	dvar_sigma_beta_G,		dvRE_beta	, d_beta_input		=	self.garch_arima_grad(ll,	self.de_beta_RE,	'beta')
+		dvar_sigma_rho,	dvRE_rho	, d_rho_input		=	self.garch_arima_grad(ll,	self.de_rho_RE,		'rho')
+		dvar_sigma_lambda, dvRE_lambda	, d_lambda_input	=	self.garch_arima_grad(ll,	self.de_lambda_RE,	'lambda')
+		dvar_sigma_beta,   dvRE_beta	, d_beta_input		=	self.garch_arima_grad(ll,	self.de_beta_RE,	'beta')
 
 
 		(self.dvar_sigma_rho,self.dvar_sigma_lambda,self.dvar_sigma_beta)=(dvar_sigma_rho,dvar_sigma_lambda,dvar_sigma_beta)
-		(self.dvar_sigma_rho_G,self.dvar_sigma_lambda_G,self.dvar_sigma_beta_G)=(dvar_sigma_rho_G,dvar_sigma_lambda_G,dvar_sigma_beta_G)
+		(self.dvar_sigma_rho,self.dvar_sigma_lambda,self.dvar_sigma_beta)=(dvar_sigma_rho,dvar_sigma_lambda,dvar_sigma_beta)
 		(self.dvRE_rho,self.dvRE_lambda,self.dvRE_beta)=(dvRE_rho,dvRE_lambda,dvRE_beta)
 		(self.d_rho_input,self.d_lambda_input,self.d_beta_input)=(d_rho_input,d_lambda_input,d_beta_input)
 
@@ -85,7 +87,7 @@ class gradient:
 		dG[:,0,0] = 0
 		self.dvar_omega=fu.arma_dot(ll.GAR_1,dG,ll)
 		self.dvar_initvar = None
-		if 'initvar' in ll.args.args_d:
+		if arguments.INITVAR in ll.args.args_d:
 			self.dvar_initvar = np.tile(ll.GAR_1[0], (N, 1)).reshape((N,T,1))
 
 			
@@ -135,7 +137,9 @@ class gradient:
 			print(g)
 			diff = np.abs(a-g)
 			m=np.max(diff)
-			print(m/a[np.nonzero(m==diff)])
+			den = a[np.nonzero(m==diff)]
+			discrepancy = abs(m/(den + (den==0)*1e-100))
+			print(discrepancy)
 			a=debug.grad_debug_detail(ll, panel, 0.00000001, 'var', 'beta',0)
 			a=0
 		#if np.sum((g-gn)**2)>10000000:
@@ -144,13 +148,8 @@ class gradient:
 		#a=debug.grad_debug_detail(ll, panel, 0.00000001, 'LL', 'beta',0)
 		#dLLeREn,deREn=debug.LL_calc_custom(ll, panel, 0.0000001)  
 
-		
+		return  g,G
 
-
-		if return_G:
-			return  g,G
-		else:	
-			return g
 
 class hessian:
 	def __init__(self,panel,g):
@@ -167,7 +166,7 @@ class hessian:
 
 	def hessian(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):
 		panel=self.panel
-		tic=time.perf_counter()
+
 		g=self.g
 		p,q,d,k,m=panel.pqdkm
 		incl=self.panel.included[3]
@@ -179,9 +178,9 @@ class hessian:
 		d2var_gamma2			=   cf.prod((2,  
 							  		cf.dd_func_lags(panel,ll,GARK, 	g.dvar_gamma,			g.dLL_var,  transpose=True)))
 		d2var_gamma_psi			=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_psi,				g.dLL_var)
-		d2var_gamma_rho			=	cf.dd_func_lags(panel,ll,GARK,	g.dvar_sigma_rho_G,		g.dLL_var)
-		d2var_gamma_lambda		=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_sigma_lambda_G,	g.dLL_var)
-		d2var_gamma_beta		=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_sigma_beta_G,	g.dLL_var)
+		d2var_gamma_rho			=	cf.dd_func_lags(panel,ll,GARK,	g.dvar_sigma_rho,		g.dLL_var)
+		d2var_gamma_lambda		=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_sigma_lambda,	g.dLL_var)
+		d2var_gamma_beta		=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_sigma_beta,	g.dLL_var)
 		d2var_gamma_initvar 	= 	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_initvar,			g.dLL_var)
 		d2var_gamma_omega 		= 	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_omega,			g.dLL_var)
 		d2var_gamma_z			=	cf.dd_func_lags(panel,ll,GARK, 	g.dvar_z,				g.dLL_var)

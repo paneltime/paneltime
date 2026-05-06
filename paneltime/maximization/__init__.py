@@ -22,7 +22,7 @@ class Summary:
 	def __init__(self, comm, panel, t0):
 		self.output = output.Output(comm, panel)
 		self.output.update(comm, time.time()-t0)
-		self.table = output.RegTableObj(panel, comm, self.output.model_desc)
+		self.table = output.RegTableObj(panel, comm, self.output)
 		c = comm.ll.args
 		self.names = Names(list(c.args_d), list(c.caption_v), list(c.names_v) )
 		self.count = Counting(panel)
@@ -31,7 +31,7 @@ class Summary:
 		self.stats = self.output.stats #contains clases info and diag with information about the regression and diagnostics
 		self.results = Results(panel, comm, self.table)
 		self.general = General(panel, comm, t0, self.output)
-		self.random_effects = RandomEffects(panel, comm.ll)
+		self.random_effects = self.output.random_effects
 		
 		name_y = panel.input.Y_names[0]
 		self.prediction_names = {'Observed':f'Observed {name_y}', 
@@ -111,12 +111,17 @@ class Results:
 
 		self.params = comm.ll.args.args_v
 		self.args = comm.ll.args.args_d
-		self.se, self.coef_se_robust = output.sandwich(comm.H, comm.G, comm.g, comm.constr, panel, 100)
+		self.se = table.d.get('se_st',None)
+		self.coef_se_robust = table.d.get('se_robust',None)
+		self.cov = table.d.get('cov',None)
+		self.cov_robust = table.d.get('cov_robust',None)
 		self.tstat = table.d.get('tstat',None)
 		self.tsign = table.d.get('tsign',None)
 		self.codes = table.d.get('sign_codes',None)
 		self.conf_025 = table.d.get('conf_low' ,None)
 		self.conf_0975 = table.d.get('conf_high',None)
+		self.codes_def = panel.sign_codes
+		self.codes_def_tex = panel.sign_codes_tex
 
 
 class General:
@@ -142,23 +147,6 @@ class General:
 		self.dx_norm = comm.dx_norm
 		self.msg = comm.msg
 
-
-
-class RandomEffects:
-	def __init__(self, panel, ll):
-		self.residuals_i = None
-		self.residuals_t = None
-
-		if (panel.options.fixed_random_time_eff + 
-				panel.options.fixed_random_group_eff) == 0:
-			return
-		
-		i, t = self.ll.get_re(panel)
-		self.residuals_i = None
-		self.residuals_t = None
-
-		self.std_i = np.std(i, ddof=1)
-		self.std_t = np.std(t, ddof=1)
 
 class Comm:
 	def __init__(self, panel, args, mp, window, exe_tab, console_output, t0):

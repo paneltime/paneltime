@@ -3,7 +3,7 @@
 
 import numpy as np
 
-class re_obj:
+class REObj:
   def __init__(self,panel,group,T_i,T_i_count,fixed_random_eff):
     """Following Greene(2012) p. 413-414"""
     if fixed_random_eff==0:
@@ -41,7 +41,10 @@ class re_obj:
     return eRE
 
   def dRE(self,dx,x,vname,panel):
-    """Returns the first and second derivative of RE"""
+    """Computes the first and second derivatives of the random effects (RE) transformation.
+    Note: These methods are currently unused, as the RE transformation is applied to 'u' prior to ARIMA/GARCH modeling.
+    """
+
     if dx is None:
       return None
     if self.FE_RE==0:
@@ -77,7 +80,9 @@ class re_obj:
     return ret
 
   def ddRE(self,ddx,dx1,dx2,x,vname1,vname2,panel):
-    """Returns the first and second derivative of RE"""
+    """Returns the first and second derivative of RE
+    Note: These methods are currently unused, as the RE transformation is applied to 'u' prior to ARIMA/GARCH modeling.
+    """
     if self.FE_RE==0:
       return 0*panel.included[4]		
     if dx1 is None or dx2 is None:

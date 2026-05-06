@@ -62,29 +62,31 @@ def main():
 
 
 def push_repo(path, message):
-    """Pushes a git repository at `path` with the given commit message."""
-    print(f"Pushing repository at {path}")
+	"""Pushes a git repository at `path` with the given commit message."""
+	print(f"Pushing repository at {path}")
 
-    r = sp.check_output('git pull', shell=True, text=True, cwd=path)
-    if r.strip() != 'Already up to date.':
-        raise RuntimeError(
-            f'Repository at {path} not up to date after git pull.\nFix any conflicts.\nPull output:\n{r}')
+	r = sp.check_output('git pull', shell=True, text=True, cwd=path)
+	if r.strip() != 'Already up to date.':
+		raise RuntimeError(
+			f'Repository at {path} not up to date after git pull.\nFix any conflicts.\nPull output:\n{r}')
 
-    sp.run('git add .', shell=True, check=True, cwd=path)
-    sp.run(f'git commit -m "{message}"', shell=True, cwd=path)
-    sp.run('git push', shell=True, check=True, cwd=path)
+	sp.run('git add .', shell=True, check=True, cwd=path)
+	sp.run(f'git commit -m "{message}"', shell=True, cwd=path)
+	sp.run('git push', shell=True, check=True, cwd=path)
 
 def gitpush(version):
-    print(f"Pushing paneltime version {version}")
-    reason = input("Write reason for commit (without quotation marks): ")
-    message = f"Version {version} committed: {reason}"
+	print(f"Pushing paneltime version {version}")
+	reason = input("Write reason for commit (without quotation marks): ")
+	message = f"Version {version} committed: {reason}"
 
-    current_repo = os.getcwd()
-    sibling_repo = os.path.abspath(os.path.join(current_repo, "..", "paneltime.github.io"))
+	current_repo = os.getcwd()
+	pages_repo = os.path.abspath(os.path.join(current_repo, "..", "paneltime.github.io"))
+	sitegen_repo = os.path.abspath(os.path.join(current_repo, "..", "paneltime.sitegen"))
 
-    push_repo(current_repo, message)
-    push_repo(sibling_repo, message)
-	
+	push_repo(current_repo, message)
+	push_repo(pages_repo, message)
+	push_repo(sitegen_repo, message)
+
 def add_version(wd, add=True):
 	srchtrm = r"(\d+\.\d+\.\d+)"
 	version = re_replace('pyproject.toml', srchtrm, wd, add=add)

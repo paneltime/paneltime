@@ -11,6 +11,7 @@ from .. import functions as fu
 from . import function
 from ..output import stat_dist
 from ..processing import model_parser
+from ..processing import arguments
 from . import arma
 
 import numpy as np
@@ -37,11 +38,12 @@ class LL:
 		tfre=panel.options.fixed_random_time_eff
 		vfre=panel.options.fixed_random_variance_eff
 
-		self.re_obj_i=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre)
-		self.re_obj_t=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
-		self.re_obj_i_v=re.re_obj(panel,True,panel.T_i,panel.T_i,gfre*vfre)
-		self.re_obj_t_v=re.re_obj(panel,False,panel.date_count_mtrx,panel.date_count,tfre*vfre)
-
+		self.re_obj_i=re.REObj(panel,True,panel.T_i,panel.T_i,gfre)
+		self.re_obj_t=re.REObj(panel,False,panel.date_count_mtrx,panel.date_count,tfre)
+		#Experimental:
+		#self.re_obj_i_v=re.REObj(panel,True,panel.T_i,panel.T_i,gfre*vfre)
+		#self.re_obj_t_v=re.REObj(panel,False,panel.date_count_mtrx,panel.date_count,tfre*vfre)
+		
 		self.args=panel.args.create_args(args,panel,constraints)
 		self.h_err=""
 		self.LL=None
@@ -67,8 +69,8 @@ class LL:
 		G = fu.dot(panel.W_a, self.args.args_d['omega'])
 		G[:,0,0] = panel.args.init_var
 		if True:
-			if 'initvar' in self.args.args_d:
-				G[:,0,0] = self.args.args_d['initvar'][0][0]
+			if arguments.INITVAR in self.args.args_d:
+				G[:,0,0] = self.args.args_d[arguments.INITVAR][0][0]
 
 		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-fu.dot(X,self.args.args_d['beta'])
@@ -126,6 +128,7 @@ class LL:
 		self.e2=e2
 		self.ll_value = self.llfunc.ll_value
 		self.var = var
+	
 
 	def tobit(self,panel,LL):
 		if sum(panel.tobit_active)==0:
@@ -146,11 +149,6 @@ class LL:
 		self.ddvarRE,self.dvarRE_mu,self.ddvarRE_mu_vRE=panel.zeros[3],None,None
 		self.varRE_input, self.ddvarRE_input, self.dvarRE_input = None, None, None
 		return
-
-	def get_re(self, panel, x = None):
-		if x == None:
-			x = self.u
-		return self.re_obj_i.RE(x, panel), self.re_obj_t.RE(x, panel)
 
 
 	def standardize(self,panel,reverse_difference=False):
@@ -177,9 +175,9 @@ class LL:
 		#e_norm=self.standardize_variable(panel,self.u,reverse_difference)
 		self.Y_long = panel.input.Y
 		self.X_long = panel.input.X
-		self.Y_st,   self.Y_st_long   = self.standardize_variable(panel,panel.Y,reverse_difference)
-		self.X_st,   self.X_st_long   = self.standardize_variable(panel,panel.X,reverse_difference)
-		self.XIV_st, self.XIV_st_long = self.standardize_variable(panel,panel.XIV,reverse_difference)
+		self.Y_st,   self.Y_st_long   = self.standardize_variable(panel,panel.Y, True, reverse_difference)
+		self.X_st,   self.X_st_long   = self.standardize_variable(panel,panel.X, True, reverse_difference)
+		self.XIV_st, self.XIV_st_long = self.standardize_variable(panel,panel.XIV, True, reverse_difference)
 		self.Y_fitted_st=fu.dot(self.X_st,self.args.args_d['beta'])
 		self.Y_fitted=fu.dot(panel.X,self.args.args_d['beta'])	
 		self.e_RE_norm_centered_long=self.stretch_variable(panel,self.e_RE_norm_centered)
@@ -228,7 +226,8 @@ class LL:
 		self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'], panel)
 		#u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], panel)#test
 		self.y_pred = pred_y(panel.X, panel.X_pred[:,0], d['beta'], self.u_pred, d['rho'], d['lambda'], panel)
-		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], self.minvar, self.maxvar, panel)
+		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], 
+						   self.llfunc.model.minvar, self.llfunc.model.maxvar, panel)
 		#var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar, panel)#test
 		if not hasattr(self,'Y_fitted'):
 			self.standardize()
@@ -252,7 +251,7 @@ class LL:
 			f'Observed {panel.input.Y_names[0]}': panel.Y[incl][:,0], 
 			f'Fitted {panel.input.Y_names[0]}': self.Y_fitted[incl][:,0], 
 			'Fitted residual':self.u[incl][:,0],
-			'Fitted variance': self.llfunc.v[incl][:,0] 	
+			'Fitted variance': self.llfunc.model.v[incl][:,0] 	
 							}, index=index)
 		
 

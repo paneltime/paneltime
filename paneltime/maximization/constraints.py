@@ -6,6 +6,7 @@ import os
 from itertools import combinations
 path = os.path.dirname(__file__)
 from ..output import stat_functions as stat
+from ..processing import arguments
 
 
 import numpy as np
@@ -204,7 +205,7 @@ class Constraints(dict):
 
 		constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
 		if panel.options.include_initvar:
-			constraints.append(('initvar',1e-50,1e+10))
+			constraints.append((arguments.INITVAR,1e-50,1e+10))
 		for name, min_, max_ in constraints:
 				self.add(name,None,'ARMA/GARCH extreme bounds', [min_,max_])
 		self.add_custom_constraints(panel, pargs.user_constraints, True, 'user constraints')
@@ -215,11 +216,11 @@ class Constraints(dict):
 			for name in constr:
 				self.add(name, None,'user constraint')
 
-		if not comput.constr_old is None:
+		if (not comput.constr_old is None) and (arguments.INITVAR in panel.args.caption_v):
 			if not comput.constr_old.ci is None:
 				if comput.constr_old.ci > 15 or self.initvar_set:
 					self.initvar_set = True
-					self.add('initvar', None,'initial variance set')
+					self.add(arguments.INITVAR, None,'initial variance set')
 		a=0
 		
 			
@@ -279,7 +280,7 @@ class Constraints(dict):
 					   						True, var_prop[-cix], includemap, cimax)
 			
 			report = self.add_collinear(limit_report, self.mc_report, c_index[-cix], 
-					   						True, var_prop[-cix], includemap, cimax)
+					   						False, var_prop[-cix], includemap, cimax)
 			if constr:
 				break
 		return c_index[-1]

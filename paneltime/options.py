@@ -80,32 +80,27 @@ class options_item:
 
 
 	def set(self,value):
-		try:
-			if not self.valid(value):
-				return False
-		except Exception as e:
-			a=self.valid(value)
-			print(e)
-			return False
+		self.valid(value)
 		if str(self.value)!=str(value):
 			self.value=value
-		return True
 
 	def valid(self,value):
 		if self.permissible_values is None:
 			if self.dtype is type:
 				isclass = isinstance(value, self.dtype)
 				if not isclass:
-					raise TypeError(f"Expected type 'type' (class type) for option {self.name} but got {type(value)}")
-				return True
+					raise TypeError(f"Expected type 'type' (class type) for option {self.code_name} but got {type(value)}")
+				return
 			try:
 				if self.dtype(value)==value:
-					return True
-			except:
-				pass
+					return
+			except Exception as e:
+				raise RuntimeError(f'Checking correct type of {self.code_name} failed with error message: {e}')
 			if type(value) in self.dtype:
-				return True
-		return self.valid_test(value, self.permissible_values)
+				return
+			else:
+				raise TypeError(f'Cannot set option {self.code_name}, expected type {self.dtype}, got {type(value)} ')
+		self.valid_test(value, self.permissible_values)
 
 
 	def valid_test(self,value,permissible):
@@ -115,14 +110,17 @@ class options_item:
 			try:
 				if not type(value)==list or type(value)==tuple:
 					value=self.dtype(value)
-					return value in permissible
+					if value in permissible:
+						return
+					else:
+						raise RuntimeError(f'Setting option {self.code_name} failed. Value {value} not in permissible values {permissible}')
 				else:
 					valid=True
 					for i in range(len(value)):
 						value[i]=self.dtype(value[i])
 						valid=valid*eval(permissible[i] %(value[i],))
-			except:
-				return False
+			except Exception as e:
+				raise RuntimeError(f'Setting option {self.code_name} failed with error message: {e}')
 			return valid
 		elif type(permissible)==str:
 			if type(value) == list or type(value)== tuple:
@@ -144,10 +142,7 @@ class OptionsObj:
 		# Trigger a custom function when an attribute is set
 		_name = '_' + name
 		if _name in self.__dict__:
-			try:
-				self.__dict__[_name].set(value)
-			except Exception as e:
-				raise RuntimeError(f"A custom option failed with error message:  {e}")
+			self.__dict__[_name].set(value)
 			value = self.__dict__[_name].value
 		elif not name in ['make_category_tree', 'categories','categories_srtd' ]:
 			raise RuntimeError(f"'{name}' is not a valid options attribute.")
@@ -160,33 +155,15 @@ class OptionsObj:
 		keys=np.array(list(opt.keys()))
 		keys=keys[keys.argsort()]
 		for i in opt:
-			if i[0]=='_':
+			is_object = i[0]=='_'
+			# No options item can have underscore in the beginning of its name, as it defines
+			# the internal object version of the option
+			if is_object:
 				if opt[i].category in d:
 					d[opt[i].category].append(opt[i])
 				else:
 					d[opt[i].category]=[opt[i]]
-				opt[i].code_name=i
-		self.categories=d	
-		keys=np.array(list(d.keys()))
-		self.categories_srtd=keys[keys.argsort()]
-
-
-class options():
-	def __init__(self):
-		pass
-
-
-	def make_category_tree(self):
-		opt=self.__dict__
-		d=dict()
-		keys=np.array(list(opt.keys()))
-		keys=keys[keys.argsort()]
-		for i in opt:
-			if opt[i].category in d:
-				d[opt[i].category].append(opt[i])
-			else:
-				d[opt[i].category]=[opt[i]]
-			opt[i].code_name=i
+				opt[i].code_name=i[1:]
 		self.categories=d	
 		keys=np.array(list(d.keys()))
 		self.categories_srtd=keys[keys.argsort()]
@@ -315,29 +292,4 @@ def options_dict():
 
 
 	return options
-
-
-def application_preferences():
-	opt=options()
-
-	opt.save_datasets	= options_item(True, "If True, all loaded datasets are saved on exit and will reappear when the application is restarted", 
-																								bool,"Save datasets on exit", [False,True],
-																																				['Save on exit',
-																																				 'No thanks'])
-
-	opt.n_round	= options_item(4, "Sets the number of digits the results are rounded to", 
-																					str,"Rounding digits", ['no rounding','0 digits','1 digits','2 digits','3 digits',
-																																																'4 digits','5 digits','6 digits','7 digits','8 digits',
-																																																																																								 '9 digits','10 digits'])
-
-	opt.n_digits	= options_item(10, "Sets the maximum number of digits (for scientific format) if 'Rounding digits' is not set (-1)", 
-																					 int,"Number of digits", ['0 digits','1 digits','2 digits','3 digits',
-																																																 '4 digits','5 digits','6 digits','7 digits','8 digits',
-																																																																																								 '9 digits','10 digits'])	
-	opt.round_scientific	= options_item(True, "Determines if small numbers that are displayed in scientific format shall be rounded", 
-																									 bool,"Round Scientific", [True,False],['Round Scientific','Do not round scientific'])		
-	opt.make_category_tree()
-
-	return opt
-
 
