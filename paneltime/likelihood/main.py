@@ -29,10 +29,11 @@ class LL:
 	determined from the dictionary. If args is a vector, the ARMA-GARCH order needs to be consistent
 	with the  panel object
 	"""
-	def __init__(self,args,panel,constraints=None,print_err=False):
+	def __init__(self,args,panel,X=None, constraints=None,print_err=False):
 		self.err_msg = ''
 		self.errmsg_h = ''
-
+		if X is None:
+			X = panel.XIV
 		#checking settings. If the FE/RE is done on the data before LL
 		gfre=panel.options.fixed_random_group_eff
 		tfre=panel.options.fixed_random_time_eff
@@ -47,9 +48,9 @@ class LL:
 		self.args=panel.args.create_args(args,panel,constraints)
 		self.h_err=""
 		self.LL=None
-		self.LL=self.LL_calc(panel) #For debugging
+		self.LL=self.LL_calc(panel, X) #For debugging
 		try:
-			self.LL=self.LL_calc(panel)
+			self.LL=self.LL_calc(panel, X)
 			if np.isnan(self.LL):
 				self.LL=None						
 		except Exception as e:
@@ -60,8 +61,8 @@ class LL:
 
 
 
-	def LL_calc(self,panel):
-		X=panel.XIV
+	def LL_calc(self,panel, X):
+		
 		N, T, k = X.shape
 		incl = panel.included[3]
 
@@ -89,7 +90,8 @@ class LL:
 		
 		if False:#debug
 			from .. import debug
-			if np.any(h!=self.llfunc.h_val):
+			if not np.all(np.isclose(h, self.llfunc.h_val, atol=1e-12, equal_nan=True)):
+
 				print('the h calculated in the c function and the self.h_val calcualted here do not match')
 			debug.test_c_armas(u_RE, var, e_RE, panel, self, G)
 

@@ -15,6 +15,44 @@ def save_csv(fname, array, sep = ','):
 		np.savetxt(fname,array,fmt='%s', delimiter=sep)
 	f.close()
 
+import numpy as np
+
+def solve(H, g, cond_limit=1e12, lam0=None, max_iter=20):
+    """
+    Solve H x =  g. If H is ill-conditioned, add damping: H + lambda*I.
+    """
+
+    if not np.isfinite(H).all() or not np.isfinite(g).all():
+        raise ValueError("H or g contains NaN/Inf")
+
+    n = H.shape[0]
+    I = np.eye(n)
+
+    cond = np.linalg.cond(H)
+
+    # Try ordinary Newton step first
+    if cond < cond_limit:
+        try:
+            return np.linalg.solve(H, g)
+        except np.linalg.LinAlgError:
+            pass
+
+    # Damped solve
+    if lam0 is None:
+        lam = 1e-8 * np.linalg.norm(H, ord=2)
+    else:
+        lam = lam0
+
+    for _ in range(max_iter):
+        try:
+            H_damped = H + lam * I
+            return np.linalg.solve(H_damped, g)
+        except np.linalg.LinAlgError:
+            lam *= 10
+
+    # Fallback
+    return np.linalg.lstsq(H, g, rcond=None)[0]
+
 
 def dot(a,b,reduce_dims=True):
 	"""Matrix multiplication. Returns the dot product of a*b where either a or be or both to be
@@ -73,12 +111,12 @@ def fast_dot_c(a,b):
 	r = r.swapaxes(1,len(s0)-1)
 	s1 = b.shape
 	
-	r = r.flatten()
-	b = b.flatten()
+	r = r.reshape(-1)
+	b = b.reshape(-1)
 
 	cols = int(np.prod(s1[:-1]))
 
-	r, a, b = cfunctions.fast_dot(r, a, b, cols)
+	r = cfunctions.fast_dot(r, a, b, cols)
 
 	r = r.reshape(s1)
 	r = r.swapaxes(1,len(s0)-1)

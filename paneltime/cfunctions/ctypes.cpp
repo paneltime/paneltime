@@ -1,28 +1,68 @@
-/* File : ctypes.cpp */
+// File : ctypes.cpp //
 
-/*Use "cl /bigobj /LD /O2 /Oi /fp:fast /GL /arch:AVX2 /DNDEBUG /EHsc ctypes.cpp /link /LTCG /OPT:REF /OPT:ICF" 
-/*to compile for windows */
-/*Linux suggestion (check): gcc -O3 and march=native */
-/*Linux: g++ -shared -o ctypes.so -fPIC ctypes.cpp*/
-/*Mac: clang++ -O3 -shared -o ctypes.dylib -fPIC ctypes.cpp*/
-/*include <cstdio>
-FILE *fp = fopen("coutput.txt","w"); */
+//Use "cl /bigobj /LD /O2 /Oi /fp:fast /GL /arch:AVX2 /DNDEBUG /EHsc ctypes.cpp /link /LTCG /OPT:REF /OPT:ICF" 
+//to compile for windows //
+//Linux suggestion (check): gcc -O3 and march=native //
+//Linux: g++ -shared -o ctypes.so -fPIC ctypes.cpp//
+//Mac: clang++ -O3 -shared -o ctypes.dylib -fPIC ctypes.cpp//
+#define LOGGING_ENABLED 0 
 
 #include <cmath>
 #include <cstdio>
 #include <cctype>
 #include <iostream>
+#include <cstdint>
+#include <cstring>   // strerror
+#include <cerrno>
+
+// ── Logging ───────────────────────────────────────────────────────────────────
+// All functions write to this file before and after every operation.
+// If the process crashes, the last completed line tells you exactly where.
+// Flush after every write so the log is intact even on a hard crash.
+static FILE* fp = nullptr;
+
+static void log_open() {
+    if (!fp) {
+        fp = fopen("coutput.txt", "w");
+        if (!fp) fp = stderr;   // fallback: at least write somewhere
+    }
+}
+
+#if LOGGING_ENABLED
+  #define LOG(...) do { \
+      log_open(); \
+      fprintf(fp, __VA_ARGS__); \
+      fflush(fp); \
+  } while(0)
+#else
+  #define LOG(...) do {} while(0)   // compiles to nothing
+#endif
+
+// Log a pointer + first/last values so you can spot null or garbage arrays
+static void log_array(const char* name, const double* p, long len) {
+    if (!p) {
+        LOG("  %s = NULL  <-- LIKELY CRASH CAUSE\n", name);
+        return;
+    }
+    if (len <= 0) {
+        LOG("  %s ptr=%p  len=%ld  (empty)\n", name, (void*)p, len);
+        return;
+    }
+    LOG("  %s ptr=%p  len=%ld  first=%.6g  last=%.6g\n",
+        name, (void*)p, len, p[0], p[len-1]);
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 #if defined(_MSC_VER)
     // Microsoft
-    #define RESTRICT __restrict
+    #define RESTRICT 
     #define EXPORT extern "C" __declspec(dllexport)
 #elif defined(__GNUC__)
     // GCC / Clang
-    #define RESTRICT __restrict
+    #define RESTRICT 
     #define EXPORT extern "C"
 #else
-    #define RESTRICT __restrict
+    #define RESTRICT 
     #define EXPORT extern "C"
 #endif
 
@@ -31,45 +71,46 @@ FILE *fp = fopen("coutput.txt","w"); */
 
 
 inline void inverse(long n,
-                         const double* RESTRICT x, long nx,
-                         const double* RESTRICT b, long nb,
-                         double* RESTRICT a,
-                         double* RESTRICT ab)
+                    const double* RESTRICT x, long nx,
+                    const double* RESTRICT b, long nb,
+                    double* RESTRICT a,
+                    double* RESTRICT ab)
 {
-    if (n <= 0) return;
+    LOG("  inverse() n=%ld nx=%ld nb=%ld  x=%p b=%p a=%p ab=%p\n",
+        n, nx, nb, (void*)x, (void*)b, (void*)a, (void*)ab);
 
-    // a[0] = 1, ab[0] = b[0] (or 0 if nb==0)
+    if (!a || !ab)       { LOG("  inverse ERROR: null output pointer\n"); return; }
+    if (!x && nx > 0)    { LOG("  inverse ERROR: x is NULL but nx=%ld\n", nx); return; }
+    if (!b && nb > 0)    { LOG("  inverse ERROR: b is NULL but nb=%ld\n", nb); return; }
+    if (n <= 0)          { LOG("  inverse ERROR: n=%ld\n", n); return; }
+
     a[0]  = 1.0;
     ab[0] = (nb > 0) ? b[0] : 0.0;
+    LOG("  inverse() initial writes OK\n");
 
-    // Main recursion
     for (long i = 1; i < n; ++i) {
-        // a[i] = - sum_{j=0..min(i-1,nx-1)} x[j] * a[i-j-1]
-        const long mx = (i < nx) ? i : (nx - 1);   // note: when i>=1, mx>=0 if nx>0
-        double sum_ax = 0.0;
+        if (i % 100 == 0) LOG("  inverse() i=%ld\n", i);
 
-        if (nx > 0) {
-            const double* px = x;          // x[0]
-            const double* pa = a + (i - 1); // a[i-1]
-            for (long j = 0; j <= mx; ++j) {
-                sum_ax += (*px++) * (*pa--);
-            }
+        // a[i] = -sum_{j=1..min(i,nx)} x[j-1] * a[i-j]
+        // j starts at 1 so a[i-j] is always a[i-1] down to a[0]: never out of bounds
+        double sum_ax = 0.0;
+        const long lim_a = (i < nx) ? i : nx;
+        for (long j = 1; j <= lim_a; ++j) {
+            sum_ax += x[j - 1] * a[i - j];
         }
         a[i] = -sum_ax;
 
         // ab[i] = sum_{j=0..min(i,nb-1)} b[j] * a[i-j]
-        const long mb = (i < nb) ? i : (nb - 1);
+        // a[i-j] is always >= a[0] since j <= i: never out of bounds
         double sum_ab = 0.0;
-
-        if (nb > 0) {
-            const double* pb = b;      // b[0]
-            const double* pa2 = a + i; // a[i]
-            for (long j = 0; j <= mb; ++j) {
-                sum_ab += (*pb++) * (*pa2--);
-            }
+        const long lim_b = (i < nb) ? i : (nb - 1);
+        for (long j = 0; j <= lim_b; ++j) {
+            sum_ab += b[j] * a[i - j];
         }
         ab[i] = sum_ab;
     }
+
+    LOG("  inverse() done\n");
 }
 
 //---------------------------------------------------------------------
@@ -78,26 +119,53 @@ inline void inverse(long n,
 EXPORT int armas(double* parameters,
                  double* lambda, double* rho,
                  double* gamma,  double* psi,
-                 double* AMA_1,  double* AMA_1AR,   // kept for API compatibility
-                 double* GAR_1,  double* GAR_1MA,   // kept for API compatibility
+                 double* AMA_1,  double* AMA_1AR,
+                 double* GAR_1,  double* GAR_1MA,
                  double* u,      double* e,
                  double* var,    double* h,
-                 double* W,      double* T_array,
+                 double* W,      const int64_t* T_array,
                  char*  h_expr)
 {
+    LOG("\n=== armas ENTER ===\n");
+
+    if (!parameters) { LOG("  ERROR: parameters is NULL\n"); return -1; }
+
     const long N      = static_cast<long>(parameters[0]);
     const long T      = static_cast<long>(parameters[1]);
-    const long nlm    = static_cast<long>(parameters[2]); // lambda length (lags 1..nlm)
-    const long nrh    = static_cast<long>(parameters[3]); // rho length (lags 0..nrh-1)
-    const long ngm    = static_cast<long>(parameters[4]); // gamma length (lags 1..ngm)
-    const long npsi   = static_cast<long>(parameters[5]); // psi length (lags 0..npsi-1)
+    const long nlm    = static_cast<long>(parameters[2]);
+    const long nrh    = static_cast<long>(parameters[3]);
+    const long ngm    = static_cast<long>(parameters[4]);
+    const long npsi   = static_cast<long>(parameters[5]);
     const long egarch = static_cast<long>(parameters[6]);
     const double z    = parameters[7];
 
-    // Optional: If callers rely on these arrays being filled, keep this.
-    // (But this is NOT used for the fast computation below.)
+    LOG("  N=%ld T=%ld nlm=%ld nrh=%ld ngm=%ld npsi=%ld egarch=%ld z=%.6g\n",
+        N, T, nlm, nrh, ngm, npsi, egarch, z);
+    LOG("  h_expr=%s\n", (h_expr && *h_expr) ? h_expr : "(none)");
+
+    // Validate all pointers up front
+    if (!lambda)  { LOG("  ERROR: lambda  is NULL\n"); return -1; }
+    if (!rho)     { LOG("  ERROR: rho     is NULL\n"); return -1; }
+    if (!gamma)   { LOG("  ERROR: gamma   is NULL\n"); return -1; }
+    if (!psi)     { LOG("  ERROR: psi     is NULL\n"); return -1; }
+    if (!AMA_1)   { LOG("  ERROR: AMA_1   is NULL\n"); return -1; }
+    if (!AMA_1AR) { LOG("  ERROR: AMA_1AR is NULL\n"); return -1; }
+    if (!GAR_1)   { LOG("  ERROR: GAR_1   is NULL\n"); return -1; }
+    if (!GAR_1MA) { LOG("  ERROR: GAR_1MA is NULL\n"); return -1; }
+    if (!u)       { LOG("  ERROR: u       is NULL\n"); return -1; }
+    if (!e)       { LOG("  ERROR: e       is NULL\n"); return -1; }
+    if (!var)     { LOG("  ERROR: var     is NULL\n"); return -1; }
+    if (!h)       { LOG("  ERROR: h       is NULL\n"); return -1; }
+    if (!W)       { LOG("  ERROR: W       is NULL\n"); return -1; }
+    if (!T_array) { LOG("  ERROR: T_array is NULL\n"); return -1; }
+
+    LOG("  All pointers OK\n");
+    LOG("  Calling inverse() for AMA...\n");
     inverse(T, lambda, nlm, rho,  nrh,  AMA_1,  AMA_1AR);
+    LOG("  inverse AMA done\n");
+    LOG("  Calling inverse() for GAR...\n");
     inverse(T, gamma,  ngm, psi,  npsi, GAR_1,  GAR_1MA);
+    LOG("  inverse GAR done\n");
 
     // Decide how to compute h
     int mode = 0; // 0 plain, 1 exprtk, 2 egarch
@@ -115,6 +183,12 @@ EXPORT int armas(double* parameters,
     for (long k = 0; k < N; ++k) {
         const long Tk   = static_cast<long>(T_array[k]);
         const long base = k * T;
+
+        LOG("  series k=%ld  Tk=%ld  base=%ld\n", k, Tk, base);
+
+        if (Tk <= 0 || Tk > T) {
+            LOG("  WARNING: Tk=%ld out of range [1, T=%ld] for series k=%ld\n", Tk, T, k);
+        }
 
         double*       e_k   = e   + base;
         double*       h_k   = h   + base;
@@ -200,113 +274,11 @@ EXPORT int armas(double* parameters,
         exprtk_destroy(h_func);
     }
 
+    LOG("=== armas EXIT  OK ===\n");
     return 0;
 }
 
-//---------------------------------------------------------------------
-// armas: main exported routine
-//---------------------------------------------------------------------
-EXPORT int armas_debug(double* parameters,
-                 double* lambda, double* rho,
-                 double* gamma,  double* psi,
-                 double* AMA_1,  double* AMA_1AR,
-                 double* GAR_1,  double* GAR_1MA,
-                 double* u,      double* e,
-                 double* var,    double* h,
-                 double* W,      double* T_array,
-                 char*  h_expr)
-{
-    const long N      = static_cast<long>(parameters[0]);
-    const long T      = static_cast<long>(parameters[1]);
-    const long nlm    = static_cast<long>(parameters[2]);
-    const long nrh    = static_cast<long>(parameters[3]);
-    const long ngm    = static_cast<long>(parameters[4]);
-    const long npsi   = static_cast<long>(parameters[5]);
-    const long egarch = static_cast<long>(parameters[6]);
-    const double z    = parameters[7];
 
-    // Precompute inverse filters
-    inverse(T, lambda, nlm, rho,  nrh,  AMA_1,  AMA_1AR);
-    inverse(T, gamma,  ngm, psi,  npsi, GAR_1,  GAR_1MA);
-
-    // Decide how to compute h:
-    //  mode = 0 -> plain GARCH (h = esq)
-    //  mode = 1 -> custom expression via exprtk
-    //  mode = 2 -> EGARCH (h = log(esq))
-    int mode = 0;
-    evaluator_handle* h_func = nullptr;
-
-    if (h_expr != nullptr && *h_expr != '\0') {
-        mode   = 1; // exprtk
-        h_func = exprtk_create_from_string(h_expr);
-        // If compilation failed, h_func may still be non-null but with error_message inside.
-        // armas() keeps behaviour identical to your original: just calls exprtk_eval().
-    } else if (egarch) {
-        mode = 2;   // EGARCH
-    } else {
-        mode = 0;   // plain GARCH
-    }
-
-    // Main loops
-    for (long k = 0; k < N; ++k) {          // individual dimension
-        const long Tk   = static_cast<long>(T_array[k]);
-        const long base = k * T;
-
-        double*       e_k   = e   + base;
-        double*       h_k   = h   + base;
-        double*       var_k = var + base;
-        const double* u_k   = u   + base;
-        const double* W_k   = W   + base;
-
-        for (long i = 0; i < Tk; ++i) {     // time dimension
-            // ---------- ARMA part ----------
-            double sum = 0.0;
-            for (long j = 0; j <= i; ++j) {
-                sum += AMA_1AR[j] * u_k[i - j];
-            }
-            e_k[i] = sum;
-
-            // ---------- base GARCH term (esq) ----------
-            double esq = sum * sum + 1e-8;
-
-            // ---------- h[i] ----------
-            switch (mode) {
-                case 1: // custom exprtk
-                    if (h_func) {
-                        esq    = exprtk_eval(h_func, sum, esq, z);
-                        h_k[i] = esq;
-                    } else {
-                        // If exprtk failed to create a handle, fall back to plain GARCH
-                        h_k[i] = esq;
-                    }
-                    break;
-
-                case 2: // EGARCH
-                    h_k[i] = std::log(esq);
-                    break;
-
-                default: // plain GARCH
-                    h_k[i] = esq;
-                    break;
-            }
-
-            // ---------- GARCH/VAR part ----------
-            double gsum = 0.0;
-            for (long j = 0; j <= i; ++j) {
-                gsum += GAR_1[j]   * W_k[i - j]
-                      + GAR_1MA[j] * h_k[i - j];
-            }
-            var_k[i] = gsum;
-        }
-    }
-
-    // Clean up exprtk handle if we created one
-    if (h_func) {
-        exprtk_destroy(h_func);
-    }
-
-    return 0;
-}
 
 void print(double *r){
 		int i;
@@ -320,38 +292,66 @@ void print(double *r){
 
 
 
-EXPORT int fast_dot(double* __restrict r,
-                    const double* __restrict a,
-                    const double* __restrict b,
+EXPORT int fast_dot(double* r,
+                    const double* a,
+                    const double* b,
                     long n, long m)
 {
-    // Find first zero (assumes tail is all zeros)
-    long n_a = n;
-    for (long i = 1; i < n; ++i) {
-        if (a[i] == 0.0) { n_a = i; break; }
+    LOG("\n=== fast_dot ENTER  n=%ld  m=%ld ===\n", n, m);
+    log_array("r", r, n * m);
+    log_array("a", a, n);
+    log_array("b", b, n * m);
+
+    // ── Input validation ──────────────────────────────────────────────────────
+    if (!r || !a || !b) {
+        LOG("  ERROR: null pointer  r=%p a=%p b=%p\n", (void*)r, (void*)a, (void*)b);
+        return -1;
+    }
+    if (n <= 0 || m <= 0) {
+        LOG("  ERROR: bad dimensions  n=%ld m=%ld\n", n, m);
+        return -2;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Find last non-zero in a[1..n-1] to skip trailing zeros
+    long n_a = 1;   // default: inner loop won't execute
+    for (long i = n - 1; i >= 1; --i) {
+        if (a[i] != 0.0) { n_a = i + 1; break; }
+    }
+    LOG("  n_a (effective lag length) = %ld\n", n_a);
+
+    if (n_a <= 1) {
+        LOG("  a[1..n-1] all zero – nothing to do, returning early\n");
+        return 0;
     }
 
     for (long j = 0; j < m; ++j) {
-        double* __restrict rcol       = r + j * n;
-        const double* __restrict bcol = b + j * n;
+        LOG("  column j=%ld\n", j);
+        double*       rcol = r + j * n;
+        const double* bcol = b + j * n;
 
         for (long i = 1; i < n_a; ++i) {
-            const double ai = a[i];
+            const double  ai  = a[i];
+            double*       rptr = rcol + i;
+            const double* bptr = bcol;
+            const long    len  = n - i;
 
-            double* __restrict       rptr = rcol + i;
-            const double* __restrict bptr = bcol;
-            const long len = n - i;
+            LOG("    i=%ld  ai=%.6g  rptr offset=%ld  len=%ld\n",
+                i, ai, (long)(rptr - r), len);
 
-            // Hint compiler for vectorization
-            #if defined(__GNUC__)
-            #pragma GCC ivdep
-            #elif defined(_MSC_VER)
-            #pragma loop(ivdep)
-            #endif
+#if defined(__GNUC__)
+#pragma GCC ivdep
+#elif defined(_MSC_VER)
+//#pragma loop(ivdep)
+#endif
             for (long k = 0; k < len; ++k) {
                 rptr[k] += ai * bptr[k];
             }
+
+            LOG("    i=%ld  done\n", i);
         }
     }
+
+    LOG("=== fast_dot EXIT  OK ===\n");
     return 0;
 }

@@ -128,7 +128,7 @@ class LineSearch:
 				self.step=1.0
 
 	def func(self,x):	
-		ll = logl.LL(x, self.panel, self.comput.constr)
+		ll = logl.LL(x, self.panel, constraints=self.comput.constr)
 		if ll is None:
 			return None, None
 		elif ll.LL is None:

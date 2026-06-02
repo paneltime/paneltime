@@ -64,14 +64,18 @@ def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
 		ddL=(f1.__dict__[llname]-f0.__dict__[llname])/d
 	return ddL
 
-def test_c_armas(u_RE, var, e_RE, panel, ll, G):
+def test_c_armas_unhandled(u_RE, var, e_RE, panel, ll, G):
 	var2 = fu.arma_dot(ll.GAR_1, G,ll) + fu.arma_dot(ll.GAR_1MA, ll.llfunc.h_val,ll)
 	var2 = var2*panel.included[3]
 	e_RE2 = fu.arma_dot(ll.AMA_1AR,u_RE,ll)	
 	print(f"Testsums arma: c:{np.sum(var**2)}, py:{np.sum(var2**2)}")
 	print(f"Testsums e: c:{np.sum(e_RE**2)}, py:{np.sum(e_RE2**2)}")
 
-
+def test_c_armas(u_RE, var, e_RE, panel, ll, G):
+	try:
+		test_c_armas_unhandled(u_RE, var, e_RE, panel, ll, G)
+	except Exception as ex:		
+		print("Error in test_c_armas:", ex)
 
 def hess_debug_detail(f0,panel,d,llname,varname1,varname2,pos1=0,pos2=0):
 	args1=lgl.copy_array_dict(f0.args.args_d)

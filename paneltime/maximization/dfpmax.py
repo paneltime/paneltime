@@ -9,6 +9,7 @@ import numpy as np
 import time
 import cProfile
 import pstats
+from ..processing import model_parser as prsr
 
 #This module finds the array of arguments that minimizes some function. The derivative 
 #of the function also needs to be supplied. 
@@ -81,12 +82,10 @@ def srvr_terminated(slave_server, its):
 	return kill
 
 
-
 def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr, dx):
 		dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
 		ls = linesearch.LineSearch(x, comput, panel, ll, step)
-		ls.lnsrch(x, f, g, H, dx)	
-
+		ls.lnsrch(x, f, g, H, dx)
 		step = ls.step
 		dx_realized = ls.x - x
 		incr = ls.f - f

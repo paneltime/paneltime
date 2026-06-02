@@ -8,6 +8,7 @@ from . import stat_dist
 from .. import functions as fu
 import mpmath as mp
 import numpy as np
+from .. import functions as fn
 
 
 
@@ -281,7 +282,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
 	XX=np.array(fu.dot(X,X),dtype=np.float64)
 	XY=np.array(fu.dot(X,Y),dtype=np.float64)
 	try:
-		beta=np.linalg.solve(XX,XY)
+		beta=fn.solve(XX, XY)
 	except np.linalg.LinAlgError:
 		s=get_singular_list(panel,X)
 		print("The following variables caused singularity runtime and must be removed: "+s)

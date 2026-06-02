@@ -60,7 +60,7 @@ def inv_c(parameters,lmbda, rho,gmma, psi, N, T, u, G, T_arr, h_expr):
 	u = np.array(u,dtype = np.float64)
 	
 	T_arr = np.array(T_arr.flatten(),dtype = float)
-	cfunctions.armas(parameters, lmbda, rho, gmma, psi, 
+	AMA_1, AMA_1AR, GAR_1, GAR_1MA, e, var, h = cfunctions.armas(parameters, lmbda, rho, gmma, psi, 
 										AMA_1, AMA_1AR, GAR_1, GAR_1MA, 
 										u, e, var, h, G, T_arr, h_expr)   
 

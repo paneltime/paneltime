@@ -3,6 +3,7 @@
 
 from ..output import stat_functions as stat
 import numpy as np
+from .. import functions as fn
 import itertools
 
 
@@ -59,7 +60,7 @@ def solve(constr,H, g, x, f):
 	try:
 		list(constr.keys())[0]
 	except:
-		dx = -np.linalg.solve(H, g)
+		dx = -fn.solve(H, g)
 		return dx, H, []
 
 	H_orig = np.array(H)
@@ -105,7 +106,7 @@ def add_constraints(constr, H, g):
 
 	n, g_new, H_new, delmap, keys =  remove_and_enlarge(constr, H, g, include_copy)
 
-	dx = -np.linalg.solve(H_new, g_new)
+	dx = -fn.solve(H_new, g_new)
 
 	for k in list(keys):
 		if not include_copy[k]:#Remove all keys (interval constraints) that are all ready removed by 'False' in idx (fixed constraints)
@@ -158,7 +159,7 @@ def kuhn_tucker(constr,key,j,n,H,g,x, f, dx,delmap, OK,recalc=True):
 		H[n+j,n+j]=0
 		g[n+j]=q
 		if recalc:
-			dx = -np.linalg.solve(H, g)
+			dx = -fn.solve(H, g)
 	return dx, H
 
 def normalize(dx, x):

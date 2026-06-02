@@ -3,7 +3,7 @@
 
 
 from .. import functions as fu
-from . import calculus_functions as cf
+from . import calculus_functions_new as cf
 from ..processing import arguments
 import numpy as np
 import time

@@ -250,7 +250,7 @@ class arguments:
 		self.names_category_list=c
 
 	def create_args(self,args,panel,constraints=None):
-		if isinstance(args,arguments_set):
+		if isinstance(args,ArgumentsSet):
 			self.test_consistency(args)
 			return args
 		args_v=self.conv_to_vector(args)
@@ -258,16 +258,16 @@ class arguments:
 			constraints.within(args_v,True)	
 			constraints.set_fixed(args_v)
 		args_d=self.conv_to_dict(args_v)
-		dict_string=[]
+		args_d_named={}
+		self.positions_named={}
 		for c in self.categories:
 			s=[]
 			captions=self.caption_d[c]
+			indicies = list(self.positions[c])
 			a=args_d[c].flatten()
-			for i in range(len(captions)):
-				s.append(f"'{captions[i]}':{a[i]}")
-			dict_string.append(f"'{c}':\n"+"{"+",\n".join(s)+"}")
-		dict_string="{"+",\n".join(dict_string)+"}"
-		return arguments_set(args_d, args_v, dict_string, self,panel)
+			args_d_named[c]={captions[i]:a[i] for i in range(len(captions))}
+			self.positions_named[c] = {captions[i]:indicies[i] for i in range(len(captions))}
+		return ArgumentsSet(args_d, args_v, args_d_named, self,panel)
 
 	def test_consistency(self,args):
 		#for debugging only
@@ -369,13 +369,14 @@ def add_names(T,captionstr,category,d,c,captions, names, names_d):
 	c.append(a)
 
 
-class arguments_set:
+class ArgumentsSet:
 	"""A class that contains the numeric arguments used in the maximization
 	in all shapes and forms needed."""
-	def __init__(self,args_d,args_v,dict_string,arguments,panel):
+	def __init__(self,args_d,args_v,args_d_named,arguments,panel):
 		self.args_d=args_d#dictionary of arguments
 		self.args_v=args_v#vector of arguments
-		self.dict_string=dict_string#a string defining a dictionary of named arguments. For user input of initial arguments
+		self.dict_string= str(args_d_named)#a string defining a dictionary of named arguments. For user input of initial arguments
+		self.args_d_named=args_d_named#dictionary of arguments with names as keys. For user input of initial arguments
 		self.caption_v=arguments.caption_v#vector of captions
 		self.caption_d=arguments.caption_d#dict of captions
 		self.names_v=arguments.names_v#vector of names

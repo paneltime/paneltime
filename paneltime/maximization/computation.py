@@ -228,12 +228,12 @@ class Computation:
 
 		try:
 			hessin=self.hessin_num(hessin_orig, g-g_old, dx_realized)
-			Hn = np.linalg.inv(hessin)
+			Hn = np.linalg.pinv(hessin)
 		except:
 			pass
 		if hessin is None or Hn is None:
 			if np.linalg.det(H)<0:
-				hessin = np.linalg.inv(H)
+				hessin = np.linalg.pinv(H)
 				Hn = H
 			else:
 				if np.sum((g-g_old)*dx_realized)==0:
@@ -242,7 +242,7 @@ class Computation:
 					hessin=self.hessin_num(np.identity(len(hessin_orig)), g-g_old, dx_realized)
 					if abs(np.linalg.det(hessin))<1e-100:
 						hessin = - np.identity(len(hessin_orig))
-				Hn = np.linalg.inv(hessin)
+				Hn = np.linalg.pinv(hessin)
 		if H is None:
 			H = Hn
 
@@ -266,7 +266,7 @@ class Computation:
 		elif self.panel.options.use_analytical==1:
 			H = 0.5* H + 0.5*Hn
 		try:
-			hessin = np.linalg.inv(H)
+			hessin = np.linalg.pinv(H)
 		except:
 			pass
 
@@ -282,7 +282,7 @@ def det_managed(H):
 
 def inv_hess(hessian):
 	try:
-		h=-np.linalg.inv(hessian)
+		h=-np.linalg.pinv(hessian)
 	except:
 		return None	
 	return h
@@ -299,7 +299,7 @@ def condition_index(H):
 
 def hess_inv(h, hessin):
 	try:
-		h_inv = np.linalg.inv(h)
+		h_inv = np.linalg.pinv(h)
 	except Exception as e:
 		print(e)
 		return hessin

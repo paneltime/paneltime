@@ -1,184 +1,169 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import shutil
-import os
-import re
-import subprocess as sp
-import sys
-import glob
-import psutil
-from paneltime import opt_module
-import zipfile
-import platform
 
-CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+from pathlib import Path
+import argparse
+import platform
+import re
+import shutil
+import subprocess as sp
+import zipfile
+import os
+
+from paneltime import opt_module
+
+
+CUR_DIR = Path(__file__).resolve().parent
+
+
+def run(cmd, cwd=CUR_DIR):
+    print(f"\nRunning: {' '.join(cmd)}")
+    sp.run(cmd, cwd=cwd, check=True)
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Build, render, publish and deploy paneltime.")
+    parser.add_argument("-g", "--git", action="store_true", help="Push paneltime, paneltime.github.io and paneltime.sitegen to GitHub")
+    parser.add_argument("-p", "--pypi", action="store_true", help="Upload package to PyPI")
+    parser.add_argument("-k", "--keep-version", action="store_true", help="Do not increment patch version")
+    args = parser.parse_args()
 
-	system = platform.system()
+    opt_module.options_to_txt()
 
-	push_git = '-g' in sys.argv
-	push_pip = '-p' in sys.argv
-	addver = not ('-k' in sys.argv)
+    clean()
+    create_readme()
+    zip_example()
 
+    run(["quarto", "render", "qmd"])
 
-	opt_module.options_to_txt()
+    version = None
+    if args.git or args.pypi:
+        version = add_version(CUR_DIR, add=not args.keep_version)
+        print(f"Version is now {version}")
 
-	nukedir(f'{CUR_DIR}/dist')
-	nukedir(f'{CUR_DIR}/build')
-	nukedir(f'{CUR_DIR}/paneltime.egg-info')
-	remove_pycache_dirs(CUR_DIR)
-	create_readme()
-	os.system('quarto render qmd')
+    build_package()
 
-	wd = os.path.dirname(__file__)
-	os.chdir(wd)
-	if push_git or push_pip:
-		version = add_version(wd, addver)
-		print(f"Incrementet to version {version}")
-	
-	# Creating example zip and rendering html files
-	zip_example()
-	
-	# Building
-	if system == 'Darwin':
-		os.system('python3 -m build')
-	else:
-		os.system('python -m build')
+    if args.git or args.pypi:
+        gitpush(version)
+    else:
+        print('Not pushed to GitHub. Use "-g" to push.')
 
-	#Pushing
-	if push_git:
-		gitpush(version)
-	else:
-		print('Not pushed to git - use "-g" to push to git')
+    if args.pypi:
+        os.system("twine upload dist/*")
+    else:
+        print('Not uploaded to PyPI. Use "-p" to upload.')
 
 
-	if push_pip:
-		os.system("twine upload dist/*")
-	else:
-		print('Not pushed to pypi - use "-p" to push to pypi (pip)')
-	
+def clean():
+    for folder in ["dist", "build", "paneltime.egg-info"]:
+        shutil.rmtree(CUR_DIR / folder, ignore_errors=True)
+
+    remove_pycache_dirs(CUR_DIR)
 
 
-def push_repo(path, message):
-	"""Pushes a git repository at `path` with the given commit message."""
-	print(f"Pushing repository at {path}")
+def build_package():
+    python_cmd = "python3" if platform.system() == "Darwin" else "python"
+    run([python_cmd, "-m", "build"])
 
-	r = sp.check_output('git pull', shell=True, text=True, cwd=path)
-	if r.strip() != 'Already up to date.':
-		raise RuntimeError(
-			f'Repository at {path} not up to date after git pull.\nFix any conflicts.\nPull output:\n{r}')
 
-	sp.run('git add .', shell=True, check=True, cwd=path)
-	sp.run(f'git commit -m "{message}"', shell=True, cwd=path)
-	sp.run('git push', shell=True, check=True, cwd=path)
+def push_repo(path: Path, message: str):
+    print(f"\nPushing repository: {path}")
 
-def gitpush(version):
-	print(f"Pushing paneltime version {version}")
-	reason = input("Write reason for commit (without quotation marks): ")
-	message = f"Version {version} committed: {reason}"
+    run(["git", "pull"], cwd=path)
+    run(["git", "add", "."], cwd=path)
 
-	current_repo = os.getcwd()
-	pages_repo = os.path.abspath(os.path.join(current_repo, "..", "paneltime.github.io"))
-	sitegen_repo = os.path.abspath(os.path.join(current_repo, "..", "paneltime.sitegen"))
+    result = sp.run(
+        ["git", "status", "--porcelain"],
+        cwd=path,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
 
-	push_repo(current_repo, message)
-	push_repo(pages_repo, message)
-	push_repo(sitegen_repo, message)
+    if not result.stdout.strip():
+        print(f"No changes to commit in {path}")
+    else:
+        run(["git", "commit", "-m", message], cwd=path)
 
-def add_version(wd, add=True):
-	srchtrm = r"(\d+\.\d+\.\d+)"
-	version = re_replace('pyproject.toml', srchtrm, wd, add=add)
-	re_replace('qmd/index.qmd', srchtrm, wd, version)
-	re_replace('paneltime/info.py', srchtrm, wd, version)
-	return version
+    run(["git", "push"], cwd=path)
 
-def re_replace(fname, searchterm, wd, version = None, add=True):
-	fname = os.path.join(wd, fname)
-	f = open(fname, 'r')
-	s = f.read()
-	m = re.search(searchterm, s, re.MULTILINE)
-	if version is None:
-		v = s[m.start(0):m.end(0)]
-		v = v.split('.')
-		v = v[0], v[1], str(int(v[2])+add)
-		version = '.'.join(v)
-	s = s[:m.start(0)] +  version + s[m.end(0):]
-	tmpname = fname.replace('.', '~.')
-	save(tmpname, s)
-	save(fname,s)
-	os.remove(tmpname)
 
-	return version
+def gitpush(version: str):
+    reason = input("Write reason for commit: ").strip()
+    message = f"Version {version} committed"
+    if reason:
+        message += f": {reason}"
 
-	
-def save(file, string):
-	f = open(file,'w')
-	f.write(string)
-	f.close()
-	
-	
-	
-	
-def rm(fldr):
-	try:
-		shutil.rmtree(fldr)
-	except Exception as e:
-		print(e)
+    pages_repo = CUR_DIR.parent / "paneltime.github.io"
+    sitegen_repo = CUR_DIR.parent / "paneltime.sitegen"
 
-def nukedir(dir):
-	try:
-		if dir[-1] == os.sep: dir = dir[:-1]
-		if os.path.isfile(dir):
-			return
-		files = os.listdir(dir)
-		for file in files:
-			if file == '.' or file == '..': continue
-			path = dir + os.sep + file
-			if os.path.isdir(path):
-				nukedir(path)
-			else:
-				os.unlink(path)
-		os.rmdir(dir)
-		return
-	except (FileNotFoundError, PermissionError):
-		return
+    push_repo(CUR_DIR, message)
+    push_repo(pages_repo, message)
+    push_repo(sitegen_repo, message)
+
+
+def add_version(wd: Path, add=True):
+    srchtrm = r"(\d+\.\d+\.\d+)"
+
+    version = re_replace(wd / "pyproject.toml", srchtrm, add=add)
+    re_replace(wd / "qmd/index.qmd", srchtrm, version=version)
+    re_replace(wd / "paneltime/info.py", srchtrm, version=version)
+
+    return version
+
+
+def re_replace(path: Path, searchterm: str, version=None, add=True):
+    text = path.read_text(encoding="utf-8")
+    match = re.search(searchterm, text, re.MULTILINE)
+
+    if not match:
+        raise RuntimeError(f"No version number found in {path}")
+
+    if version is None:
+        major, minor, patch = match.group(0).split(".")
+        patch = str(int(patch) + int(add))
+        version = ".".join([major, minor, patch])
+
+    text = text[:match.start()] + version + text[match.end():]
+    path.write_text(text, encoding="utf-8")
+
+    return version
+
 
 def create_readme():
-	src=f"{CUR_DIR}/qmd/index.qmd"
-	dest=f"{CUR_DIR}/README.md"
-	with open(src, "r", encoding="utf-8") as f:
-		lines = f.readlines()
+    src = CUR_DIR / "qmd/index.qmd"
+    dest = CUR_DIR / "README.md"
 
-	if lines[0].strip() == "---":
-		# Skip until closing '---'
-		end = next(i for i, line in enumerate(lines[1:], 1) if line.strip() == "---")
-		content = lines[end+1:]
-	else:
-		content = lines
+    lines = src.read_text(encoding="utf-8").splitlines(keepends=True)
 
-	with open(dest, "w", encoding="utf-8") as f:
-		f.writelines(content)
+    if lines and lines[0].strip() == "---":
+        end = next(i for i, line in enumerate(lines[1:], 1) if line.strip() == "---")
+        lines = lines[end + 1:]
+
+    dest.write_text("".join(lines), encoding="utf-8")
 
 
-def remove_pycache_dirs(root):
-	for dirpath, dirnames, filenames in os.walk(root):
-		if '__pycache__' in dirnames:
-			pycache_path = os.path.join(dirpath, '__pycache__')
-			print(f"Removing {pycache_path}")
-			nukedir(pycache_path)
+def remove_pycache_dirs(root: Path):
+    for path in root.rglob("__pycache__"):
+        print(f"Removing {path}")
+        shutil.rmtree(path, ignore_errors=True)
+
 
 def zip_example():
-	import zipfile
+    files = [
+        "example.py",
+        "wb.dmp",
+        "loadwb.py",
+        "mymodel.py",
+    ]
 
-	# Create ZIP file
-	with zipfile.ZipFile('qmd/working_example.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
-		for file in [	'qmd/example.py', 
-			   			'qmd/wb.dmp', 
-						'qmd/loadwb.py', 
-						'qmd/mymodel.py']:
-			zipf.write(file)
+    zip_path = CUR_DIR / "qmd/working_example.zip"
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for name in files:
+            file_path = CUR_DIR / "qmd" / name
+            zipf.write(file_path, arcname=name)
 
 
-main()
+if __name__ == "__main__":
+    main()
