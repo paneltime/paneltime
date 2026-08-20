@@ -48,7 +48,7 @@ class LL:
 		self.args=panel.args.create_args(args,panel,constraints)
 		self.h_err=""
 		self.LL=None
-		self.LL=self.LL_calc(panel, X) #For debugging
+		#self.LL=self.LL_calc(panel, X) #For debugging
 		try:
 			self.LL=self.LL_calc(panel, X)
 			if np.isnan(self.LL):

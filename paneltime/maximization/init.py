@@ -51,7 +51,7 @@ class InitialValues:
 		if ll.LL is None:
 			print("WARNING: Initial arguments failed, attempting default OLS-arguments ...")
 			self.panel.args.set_init_args(self.panel,default=True)
-			ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.constr,print_err=True)
+			ll=logl.LL(self.panel.args.args_OLS,self.panel,constraints=self.comput.constr,print_err=True)
 			if ll.LL is None:
 				raise RuntimeError("OLS-arguments failed too, you should check the data")
 			else:

@@ -19,11 +19,11 @@ def hess_debug(ll,panel,g,d):
 	dx=np.identity(n)*d
 	H=np.zeros((n,n))
 	ll0=lgl.LL(x,panel)
-	f0=g.get(ll0)
+	f0, _= g.get(ll0)
 	for i in range(n):
 		ll=lgl.LL(x+dx[i],panel)
 		if not ll is None:
-			f1=g.get(ll)
+			f1, _= g.get(ll)
 			H[i]=(f1-f0)/d
 
 

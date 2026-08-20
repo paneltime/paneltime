@@ -26,6 +26,8 @@ def main():
     parser.add_argument("-g", "--git", action="store_true", help="Push paneltime, paneltime.github.io and paneltime.sitegen to GitHub")
     parser.add_argument("-p", "--pypi", action="store_true", help="Upload package to PyPI")
     parser.add_argument("-k", "--keep-version", action="store_true", help="Do not increment patch version")
+    parser.add_argument("-s", "--skip-quarto", action="store_true", help="Skip Quarto rendering ")
+
     args = parser.parse_args()
 
     opt_module.options_to_txt()
@@ -34,7 +36,8 @@ def main():
     create_readme()
     zip_example()
 
-    run(["quarto", "render", "qmd"])
+    if not args.skip_quarto:
+        run(["quarto", "render", "qmd"])
 
     version = None
     if args.git or args.pypi:

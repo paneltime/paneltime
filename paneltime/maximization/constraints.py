@@ -61,15 +61,20 @@ class Constraints(dict):
 		self.pqdkm=panel.pqdkm
 		self.m_zero=panel.m_zero
 		self.ARMA_constraint = armaconstr
+		self.GARCH_min = panel.options.GARCH_min
 		self.H_correl_problem=False
 		self.is_collinear = False
 		self.constr_matrix_beta = [
+				 (0, 0, 0, 0, 0), 
+				 (0, 0, 0, 0, 0), 
 				 (1, 0, 0, 0, 1), 
 				 (0, 1, 0, 0, 1),
 				 (0, 0, 1, 0, 1), 
-				 (0, 0, 0, 1, 1)
+				 (0, 0, 0, 1, 1), 
+				 (0, 0, 0, 0, 1)
 		]
 		self.constr_matrix = [
+				 (0, 0, 0, 0, 0),
 				 (1, 0, 0, 0, 0), 
 				 (0, 1, 0, 0, 0),
 				 (0, 0, 1, 0, 0), 
@@ -197,20 +202,22 @@ class Constraints(dict):
 		pargs=self.panel_args
 		p, q, d, k, m=self.pqdkm
 
-		if its<-4:
-			c = 0.5
-		else:
-			c=self.ARMA_constraint
+
+		c=self.ARMA_constraint
+		g = self.GARCH_min
 
 
-		constraints=[('rho',-c,c),('lambda',-c,c),('gamma',-c,c),('psi',-c,c)]
+
+
+		constraints=[('rho',-c,c),('lambda',-c,c),('gamma',g,c),('psi',g,c)]
 		if panel.options.include_initvar:
 			constraints.append((arguments.INITVAR,1e-50,1e+10))
 		for name, min_, max_ in constraints:
 				self.add(name,None,'ARMA/GARCH extreme bounds', [min_,max_])
 		self.add_custom_constraints(panel, pargs.user_constraints, True, 'user constraints')
-	
-		c = self.constr_matrix
+
+
+		c = self.constr_matrix_beta
 		if its<len(c):
 			constr = self.get_init_constr(*c[its])
 			for name in constr:
@@ -232,7 +239,7 @@ class Constraints(dict):
 									 [f'gamma{i}' for i in range(k0,k)] +
 									 [f'psi{i}' for i in range(m0,m)])
 		if beta>0:
-			constr_list.append(('beta',None))
+			constr_list.append('beta')
 		return constr_list
 		
 		
@@ -423,7 +430,6 @@ def find_singular_combinations(matrix, evs):
 				return combo  # Found the combination causing singularity
 		
 	return None  # In case no combination found, though this should not happen
-
 
 
 

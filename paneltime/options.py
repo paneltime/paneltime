@@ -185,9 +185,10 @@ def options_dict():
 																	"An example can be obtained by printing ll.args.args_d"
 																																																																				, [str,dict, list, np.ndarray], 'Initial arguments')	
 
-	options['ARMA_constraint']		        = options_item(1000,'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
+	options['ARMA_constraint']		        = options_item(3,'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
 																	 '%s>0', None,category='ARIMA-GARCH')	
-
+	options['GARCH_min']		        = options_item(0,'Minimum absolute value of GARCH coefficients', float, 'GARCH coefficient constraint',
+																	 '%s>0', None,category='ARIMA-GARCH')	
 	options['constraints_engine']		        = options_item(True,'Determines whether to use the constraints engine', bool, 'Uses constraints engine',
 																		[True,False],['Use constraints','Do not use constraints'],category='Regression')	
 
@@ -195,7 +196,7 @@ def options_dict():
 	options['multicoll_threshold_report']	 = options_item(30,	'Threshold for reporting multicoll problems', float, 'Multicollinearity threshold',
 																	 '%s>0',None)		
 
-	options['multicoll_threshold_max']	    = options_item(1000,'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
+	options['multicoll_threshold_max']	    = options_item(200,'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
 																	'%s>0',None)			
 
 	options['EGARCH']		            = options_item(False,'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
@@ -215,7 +216,7 @@ def options_dict():
 	options['custom_model']						= options_item(None,	"Custom model class. Must be a class with porperties and methods as definedin the documentation. "
 																, type,"Custom model class", category='Regression')
 	
-	options['include_initvar']					= options_item(True,	"If True, includes an initaial variance term",
+	options['include_initvar']					= options_item(False,	"If True, includes an initaial variance term",
 																	 	bool,'Include initial variance', [True,False],['Include','Do not include'],category='Regression')
 
 	options['initial_arima_garch_params']	 = options_item(0.1,	'The initial size of arima-garch parameters (all directions will be attempted', 

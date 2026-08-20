@@ -19,10 +19,11 @@ pt.options.accuracy = 1e-10
 
 |Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|
 |--------------|-------------|-----------|-----------|-----------|
-|ARMA_constraint|1000|%s>0|float|<b>ARMA coefficient constraint:</b> Maximum absolute value of ARMA coefficients|
+|ARMA_constraint|3|%s>0|float|<b>ARMA coefficient constraint:</b> Maximum absolute value of ARMA coefficients|
 |ARMA_round|14|%s>0|int|<b># of signficant digits:</b> Number og digits to round elements in the ARMA matrices by. Small differences in these values can change the optimization path and makes the estimate less robustNumber of significant digits in ARMA|
 |EGARCH|False|[True, False]|bool|<b>Estimate GARCH directly:</b> Normal GARCH, as opposed to EGARCH if True|
 |GARCH_assist|0|%s>=0|float|<b>GARCH assist:</b> Amount of weight put on assisting GARCH variance to be close to squared residuals|
+|GARCH_min|0|%s>0|float|<b>GARCH coefficient constraint:</b> Minimum absolute value of GARCH coefficients|
 |accuracy|0|%s>0|int|<b>Accuracy:</b> Accuracy of the optimization algorithm. 0 = fast and inaccurate, 3=slow and maximum accuracy|
 |add_intercept|True|[True, False]|bool|<b>Add intercept:</b> If True, adds intercept if not all ready in the data|
 |arguments|None|None|['str', 'dict', 'list', 'ndarray']|<b>Initial arguments:</b> A dict or string defining a dictionary in python syntax containing the initial arguments.An example can be obtained by printing ll.args.args_d|
@@ -31,12 +32,12 @@ pt.options.accuracy = 1e-10
 |fixed_random_group_eff|0|[0, 1, 2]|int|<b>Group fixed random effect:</b> No, fixed or random group effects|
 |fixed_random_time_eff|0|[0, 1, 2]|int|<b>Time fixed random effect:</b> No, fixed or random time effects|
 |fixed_random_variance_eff|0|[0, 1, 2]|int|<b>Variance fixed random effects:</b> No, fixed or random group effects for variance|
-|include_initvar|True|[True, False]|bool|<b>Include initial variance:</b> If True, includes an initaial variance term|
+|include_initvar|False|[True, False]|bool|<b>Include initial variance:</b> If True, includes an initaial variance term|
 |initial_arima_garch_params|0.1|%s>=0|float|<b>initial size of arima-garch parameters:</b> The initial size of arima-garch parameters (all directions will be attempted|
 |kurtosis_adj|0|%s>=0|float|<b>Amount of kurtosis adjustment:</b> Amount of kurtosis adjustment|
 |max_iterations|150|%s>0|int|<b>Maximum number of iterations:</b> Maximum number of iterations|
 |min_group_df|1|%s>0|int|<b>Minimum degrees of freedom:</b> The smallest permissible number of observations in each group. Must be at least 1|
-|multicoll_threshold_max|1000|%s>0|float|<b>Multicollinearity threshold:</b> Threshold for imposing constraints on collineary variables|
+|multicoll_threshold_max|200|%s>0|float|<b>Multicollinearity threshold:</b> Threshold for imposing constraints on collineary variables|
 |multicoll_threshold_report|30|%s>0|float|<b>Multicollinearity threshold:</b> Threshold for reporting multicoll problems|
 |pqdkm|[1, 1, 0, 1, 1]|%s>=0|int|<b>ARIMA-GARCH orders:</b> ARIMA-GARCH parameters:|
 |robustcov_lags_statistics|[100, 30]|%s>1|int|<b>Robust covariance lags (time):</b> Numer of lags used in calculation of the robust <br>covariance matrix for the time dimension|

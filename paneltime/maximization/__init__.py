@@ -122,6 +122,9 @@ class Results:
 		self.conf_0975 = table.d.get('conf_high',None)
 		self.codes_def = panel.sign_codes
 		self.codes_def_tex = panel.sign_codes_tex
+		#NEED TO GO THROUGH HOW RESIDUALS ARE REPORTED 
+		#RESIDUALS MUST BE CONSTISTENT WITH RE/fe
+		self.residuals = comm.ll.e_RE_norm_centered_long
 
 
 class General:

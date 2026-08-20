@@ -27,19 +27,14 @@ def start_values(panel, X = None, Y = None):
 	X=(X+re_obj_i.RE(X, panel)+re_obj_t.RE(X, panel))*panel.included[3]
 	Y=(Y+re_obj_i.RE(Y, panel)+re_obj_t.RE(Y, panel))*panel.included[3]
 	beta,u=stat.OLS(panel,X,Y,return_e=True)
-	rho,lmbda=ARMA_process_calc(u,panel)
-	psi, gamma = 0.05, 0.95
+	rho,lmbda= 0,0#ARMA_process_calc(u,panel)
+	psi, gamma = 0.2, 0.8
 	v = panel.var(u) 
-	v = v
+
 	vreg = panel.h_func(0, v, v)
 
-
-	if panel.options.include_initvar:
-		initvar = vreg*0.25
-		omega = 0
-	else:
-		initvar = vreg
-		omega = vreg
+	initvar = v*0.5
+	omega = v*0.5
 
 	return beta,rho,lmbda, psi, gamma,v, initvar, omega
 
@@ -47,31 +42,10 @@ def start_values(panel, X = None, Y = None):
 
 
 def ARMA_process_calc(e,panel):
-	return 0,0
+
 	c=stat.correlogram(panel,e,2,center=True)[1:]
-	if abs(c[0])<0.1:
-		return 0,0
 	
-	rho = 0.5*(c[0] + c[1]/c[0])
-	if abs(rho)>0.99:
-		return 0,0
-
-	lmbda = 0
-	den = 2*(c[0]-rho)
-	rtexp = ( (rho**2 - 1)*(rho**2 - 1 + 4*c[0]**2 - 4*c[0]*rho) )
-	if den!=0 and rtexp>0:
-		lmbda1 = (1 - 2*c[0]*rho + rho**2)/den
-		lmbda2 = (rtexp**0.5) / den
-
-		if abs(lmbda1+lmbda2)>abs(lmbda1-lmbda2):
-			lmbda = max(min(lmbda1 - lmbda2,0.99), -0.99)
-		else:
-			lmbda = max(min(lmbda1 + lmbda2,0.99), -0.99)
-
-
-	rho = max(min(rho,0.5), -0.5)
-	lmbda = max(min(lmbda,0.5), -0.5)
-	return rho,lmbda
+	return 0, c[0]*0.5
 
 
 

@@ -2,11 +2,7 @@
 # -*- coding: utf-8 -*-
 """Gradient and Hessian construction for the panel ARIMA-GARCH likelihood.
 
-This refactor keeps the original public API (``gradient``, ``hessian`` and
-``T``), but makes the gradient side less repetitive and documents the shapes
-that the Hessian helper functions expect.  The Hessian formulae themselves are
-kept explicit because the block names are mathematically informative and useful
-when comparing against numerical derivatives.
+
 """
 
 import numpy as np
@@ -162,8 +158,27 @@ class gradient:
 			dLL_omega, dLL_initvar, dLL_mu, dLL_z,
 		))
 		g = _sum_over_panel(G)
+		
+		self.debug(ll, g, False)
 
 		return g, G
+	
+	def debug(self, ll, g, run=False):
+		if not run:
+			return
+		from .. import debug
+		print("\nNumerical:\n")
+		a = debug.grad_debug(ll,self.panel,0.000000001)
+		print(a)
+		print("\nAnalytical:\n")
+		print(g)
+		diff = np.abs(a-g)
+		m=np.max(diff)
+		den = a[np.nonzero(m==diff)]
+		discrepancy = abs(m/(den + (den==0)*1e-100))
+		print(discrepancy)
+		a=debug.grad_debug_detail(ll, self.panel, 0.00000001, 'var', 'beta',0)
+		a=0
 
 
 class hessian:
@@ -322,17 +337,26 @@ class hessian:
 		H=cf.concat_matrix(H)
 		if H[-1,-1]==0:
 			H[-1,-1]=1
-		#for debugging:
-		if False:
-			from .. import debug
-			Hn=debug.hess_debug(ll,panel,g,0.00000001)#debugging
+		
+		self.debug(ll, g, H, False)
 			
-
 		self.its+=1
 		if np.any(np.isnan(H)):
 			return None
-		#print(H[0]/1e+11)
+		
 		return H
+	
+	def debug(self, ll, g, H, debug=False):
+		
+		if not debug:
+			return
+		from .. import debug
+		Hn=debug.hess_debug(ll,self.panel,g,0.00000001)#debugging
+
+		print(H[0])
+		print(Hn[0])
+
+		a=0
 
 
 
