@@ -25,7 +25,6 @@ The script handles:
 parent/
 ├── paneltime/
 ├── paneltime.github.io/
-└── paneltime.sitegen/
 ```
 
 ## Typical workflow
@@ -36,15 +35,24 @@ Build the package and generate the website:
 python setup_script.py
 ```
 
-Generate and push GitHub repositories:
+Build and generate website, and push GitHub repositories:
 
 ```bash
 python setup_script.py -g
 ```
 
-Generate, push, and upload to PyPI:
+Build and generate website, and upload to PyPI:
 
 ```bash
 python setup_script.py -p
 ```
 
+## Web generation - under the hood
+The web page is generated in the qmd directory in this folder, with 
+```
+quarto render
+```
+This generate html files in `paneltime.github.io`, which hosts the website.
+
+You can manually change files under qmd, run `quarto render` there and push 
+`paneltime.github.io` to publish the changes.

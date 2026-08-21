@@ -36,14 +36,16 @@ def main():
     create_readme()
     zip_example()
 
-    if not args.skip_quarto:
-        run(["quarto", "render", "qmd"])
+
 
     version = None
     if args.git or args.pypi:
         version = add_version(CUR_DIR, add=not args.keep_version)
         print(f"Version is now {version}")
 
+    if not args.skip_quarto:
+        run(["quarto", "render", "qmd"])
+        
     build_package()
 
     if args.git or args.pypi:
