@@ -14,13 +14,13 @@ Unlike any other statistical tool currently available, **Paneltime** simultaneou
 The package can also be used on pure **panel data** sets without ARIMA/GARCH or single time series data with ARIMA/GARCH problems. 
 
 **Author:** Espen Sirnes  
-**Current version:** 1.2.70  
+**Current version:** 1.2.71  
 
 
 # Installation
 
 
-"pip install paneltime" for installation
+"pip install paneltime" for installation.
 
 
 # Usage

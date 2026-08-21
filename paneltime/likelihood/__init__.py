@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 
-from . import calculus_new as calculus
-from . import calculus_functions_new as calculus_functions
+from . import calculus as calculus
+from . import calculus_functions as calculus_functions
 from . import function
 from . import main
 from . import arma

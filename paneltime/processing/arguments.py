@@ -29,9 +29,7 @@ class arguments:
 
 		if panel.z_active:
 			self.categories+=['z']
-		self.mu_removed=True
-		if not self.mu_removed:
-			self.categories+=['mu']
+
 		self.make_namevector(panel,p, q, k, m)
 		initargs=self.initargs(p, d, q, m, k, panel)
 		self.position_defs(initargs)
@@ -99,16 +97,13 @@ class arguments:
 		args['psi']=np.zeros((m,1))
 		args['gamma']=np.zeros((k,1))
 		args['omega'][0][0]=0
-		args['mu']=np.array([[]])
 		if panel.options.include_initvar:
 			args[INITVAR]=np.zeros((1,1))
 		args['z']=np.array([[]])			
 
 		if m>0 and panel.z_active:
 			args['z']=np.array([[1e-09]])	
-
-		if panel.N>1 and not self.mu_removed:
-			args['mu']=np.array([[0.0001]])			
+		
 
 
 		return args
@@ -229,13 +224,6 @@ class arguments:
 			c.append(d[INITVAR])
 		
 		if m>0:
-			if panel.N>1 and not self.mu_removed:
-				d['mu']=['mu (var.ID eff.)']
-				captions.extend(d['mu'])
-				names_d['mu']=['mu']
-				names.extend(d['mu'])				
-				c.append(d['mu'])
-
 			if panel.z_active:
 				d['z']=['z in h(e,z)']
 				captions.extend(d['z'])

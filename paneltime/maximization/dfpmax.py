@@ -65,7 +65,7 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 		elif terminate or its + 1 == MAXITER:
 			msg = f"No convergence within {its} iterations" 
 
-		if terminate or (conv>0):
+		if (terminate or (conv>0)) and its>8:
 			break
 
 	constr = comput.constr

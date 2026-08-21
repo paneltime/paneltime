@@ -64,23 +64,7 @@ class Constraints(dict):
 		self.GARCH_min = panel.options.GARCH_min
 		self.H_correl_problem=False
 		self.is_collinear = False
-		self.constr_matrix_beta = [
-				 (0, 0, 0, 0, 0), 
-				 (0, 0, 0, 0, 0), 
-				 (1, 0, 0, 0, 1), 
-				 (0, 1, 0, 0, 1),
-				 (0, 0, 1, 0, 1), 
-				 (0, 0, 0, 1, 1), 
-				 (0, 0, 0, 0, 1)
-		]
-		self.constr_matrix = [
-				 (0, 0, 0, 0, 0),
-				 (1, 0, 0, 0, 0), 
-				 (0, 1, 0, 0, 0),
-				 (0, 0, 1, 0, 0), 
-				 (0, 0, 0, 1, 0)
-              
-				]  
+
 
 		#self.constr_matrix = []
 
@@ -118,7 +102,7 @@ class Constraints(dict):
 				value=self.args[index]
 			if index in self.intervals:
 				c=self[index]
-				if not (c.min<value<c.max):
+				if not (c.min<=value<=c.max):
 					return False
 				else:
 					self.intervals.pop(index)
@@ -217,30 +201,35 @@ class Constraints(dict):
 		self.add_custom_constraints(panel, pargs.user_constraints, True, 'user constraints')
 
 
-		c = self.constr_matrix_beta
-		if its<len(c):
-			constr = self.get_init_constr(*c[its])
-			for name in constr:
-				self.add(name, None,'user constraint')
+		self.set_init_constr(its)
 
-		if (not comput.constr_old is None) and (arguments.INITVAR in panel.args.caption_v):
-			if not comput.constr_old.ci is None:
-				if comput.constr_old.ci > 15 or self.initvar_set:
-					self.initvar_set = True
-					self.add(arguments.INITVAR, None,'initial variance set')
+
 		a=0
 		
 			
 			
-	def get_init_constr(self, p0,q0,k0,m0, beta):
+	def set_init_constr(self, its):
+
 		p, q, d, k, m = self.pqdkm
-		constr_list = ([f'rho{i}' for i in range(p0,p)] +
-									 [f'lambda{i}' for i in range(q0,q)] + 
-									 [f'gamma{i}' for i in range(k0,k)] +
-									 [f'psi{i}' for i in range(m0,m)])
-		if beta>0:
-			constr_list.append('beta')
-		return constr_list
+
+		j = its - 2
+
+		if j>= sum((p, q, k, m)):
+			return
+		
+		
+		constr = ([f'rho{i}' for i in range(p)] +
+									 [f'lambda{i}' for i in range(q)] + 
+									 [f'gamma{i}' for i in range(k)] +
+									 [f'psi{i}' for i in range(m)])
+		if j>=0:
+			constr.pop(j)
+			constr.append('beta')
+			constr.append('omega')
+
+		for name in constr:
+			self.add(name, None,'user constraint')
+
 		
 		
 

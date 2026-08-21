@@ -38,7 +38,8 @@ class Computation:
 		self.avg_incr = 0
 		self.errs = []
 		self.CI_anal = 2
-		p, q, d, k, m = panel.pqdkm
+		self.pqdkm = panel.pqdkm
+
 		self.init_arma_its = 0
 		self.multicoll_threshold_max = panel.options.multicoll_threshold_max
 		self.set_constr(args,  panel.options.ARMA_constraint)
@@ -106,7 +107,7 @@ class Computation:
 			print(f"its:{its}, f:{f}, gnorm: {abs(g_norm)}, totpgain: {abs(totpgain)}, max_pgain: {max(np.abs(pgain))}")
 			sys.stdout.flush()
 
-		if its<len(self.constr.constr_matrix)+2:
+		if its<sum(self.pqdkm[:2])+sum(self.pqdkm[3:])+2:
 			conv = 0
 		elif abs(g_norm*max_pgain*totpgain) < self.gtol and its>300:
 			conv = 1
