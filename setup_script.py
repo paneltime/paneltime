@@ -98,11 +98,10 @@ def gitpush(version: str):
         message += f": {reason}"
 
     pages_repo = CUR_DIR.parent / "paneltime.github.io"
-    sitegen_repo = CUR_DIR.parent / "paneltime.sitegen"
 
     push_repo(CUR_DIR, message)
     push_repo(pages_repo, message)
-    push_repo(sitegen_repo, message)
+
 
 
 def add_version(wd: Path, add=True):

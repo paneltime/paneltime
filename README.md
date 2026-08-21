@@ -14,7 +14,7 @@ Unlike any other statistical tool currently available, **Paneltime** simultaneou
 The package can also be used on pure **panel data** sets without ARIMA/GARCH or single time series data with ARIMA/GARCH problems. 
 
 **Author:** Espen Sirnes  
-**Current version:** 1.2.71  
+**Current version:** 1.2.72  
 
 
 # Installation
@@ -25,7 +25,7 @@ The package can also be used on pure **panel data** sets without ARIMA/GARCH or 
 
 # Usage
 
-Datasets are estimated with 
+Datasets are estimated with the following syntax:
 
 ```
 paneltime.execute(model_string, dataframe, T,
