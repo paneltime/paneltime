@@ -1,0 +1,17 @@
+---
+title: API reference
+---
+
+The v2 public API is organized around a model, a fit configuration, and a
+results object.
+
+| Object | Description |
+|---|---|
+| [`PanelARIMAGARCH`](../quickstart.qmd) | Constructs a panel ARIMA/GARCH model. |
+| [`Results`](results.qmd) | Stores estimates, diagnostics, and forecasts. |
+| [`LikelihoodModel`](../guide/custom-likelihood-models.qmd) | Base class for custom likelihoods. |
+| `Effects` | Groups fixed and random group, time, and variance effects. |
+| `OptimizerOptions` | Groups optimizer tolerances and numerical settings. |
+
+Start with the [Quickstart](../quickstart.qmd), then use the
+[fit options reference](fit-options.qmd) for configuration details.

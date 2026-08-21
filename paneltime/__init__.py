@@ -8,6 +8,7 @@ import os
 from .output import formatting
 
 import inspect
+import warnings
 
 from . import likelihood as logl
 from . import main
@@ -24,6 +25,9 @@ import pandas as pd
 
 import inspect
 
+from .api import PanelARIMAGARCH, Results
+from .options import Effects, FitOptions, OptimizerOptions
+
 
 mp = None 
 #multiprocessing module can be enabled here by importing the paneltime_mp package
@@ -33,20 +37,12 @@ mp = None
 
 
 
-def execute(model_string,dataframe, timevar = None, idvar = None, het_factors=None, instruments=None):
+def execute(model_string, dataframe, timevar=None, idvar=None, het_factors=None, instruments=None):
 
-	"""Maximizes the likelihood of an ARIMA/GARCH model with random/fixed effects (RE/FE)\n
-	model_string: a string on the form 'Y ~ X1 + X2 + X3\n
-	dataframe: a dataframe consisting of variables with the names usd in model_string\n
-	ID: The group identifier\n
-	T: the time identifier\n
-	HF: list with names of heteroskedasticity factors (additional regressors in GARCH)\n
-	instruments: list with names of instruments
-	console_output: if True, GUI output is turned off (GUI output is experimental)
-
-	Note that '++' will add two variables and treat the sum as a single variable
-	'+' separates variables
-	"""
+	"""Deprecated one-step interface; use ``PanelARIMAGARCH(...).fit()``."""
+	warnings.warn(
+		'execute() is deprecated; construct PanelARIMAGARCH and call fit().',
+		DeprecationWarning, stacklevel=2)
 	if type(dataframe) is not pd.DataFrame:
 		raise ValueError("Input is not a pandas DataFrame. Please provide a valid DataFrame.")
 	if dataframe.empty:
@@ -55,7 +51,8 @@ def execute(model_string,dataframe, timevar = None, idvar = None, het_factors=No
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window', 'geometry')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab', 'isrunning')
 
-	r = main.execute(model_string, dataframe, timevar, idvar, het_factors, options, window, exe_tab, instruments, True, mp)
+	model = PanelARIMAGARCH(model_string, dataframe, entity=idvar, time=timevar)
+	r = model.fit(_legacy_options=options, _het_factors=het_factors, _instruments=instruments)
 
 	return r
 
@@ -68,7 +65,7 @@ def format(summaries, heading, caption, col_headings = [], variable_groups = {},
 
 __version__ = info.version
 
-options=opt_module.create_options()
+options=opt_module.create_options(deprecated=True)
 
 
 

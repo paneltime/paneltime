@@ -1,5 +1,9 @@
 project:
   type: website
+  render:
+    - "*.qmd"
+    - "api/*.qmd"
+    - "guide/*.qmd"
   resources:
     - example.py
     - working_example.zip
@@ -7,20 +11,38 @@ project:
 
 
 website:
-  title: "paneltime.github.io"
+  title: "paneltime"
+  site-url: https://paneltime.github.io
   sidebar:
-    style: floating
+    style: docked
     contents:
-      - index.qmd           # appears first
-      - attributes.qmd           # appears second
-      - options.qmd 
-      - custom_model.qmd
-      - hfunc.qmd
+      - section: "Quickstart"
+        contents:
+          - quickstart.qmd
+      - section: "User Guide"
+        contents:
+          - about.qmd
+          - guide/custom-likelihood-models.qmd
+          - guide/heteroskedasticity-functions.qmd
+      - section: "API Reference"
+        contents:
+          - api/index.qmd
+          - api/results.qmd
+          - api/fit-options.qmd
+      - section: "Examples"
+        contents:
+          - examples.qmd
+      - migration.qmd
+      - changelog.qmd
+
+  navbar:
+    right:
+      - icon: github
+        href: https://github.com/paneltime/paneltime
 
 format:
   html:
     theme: cosmo
-    css: styles.css
     toc: true
     math: mathjax
     template-engine: jinja

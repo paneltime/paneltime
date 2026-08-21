@@ -1,0 +1,41 @@
+---
+title: About paneltime
+aliases:
+  - index.html
+format:
+  html:
+    toc: true
+---
+
+**Paneltime** estimates regressions on datasets that:
+
+- Are **panels** (have both a time and a group dimension)
+- Are **non-stationary in means** (ARIMA)
+- Are **non-stationary in variance** (GARCH)
+
+Paneltime jointly handles common time-series problems (**ARIMA**/**GARCH**) and
+panel data with group and time effects. To the best of our knowledge, no other
+package combines all three in one model.
+
+The package can also be used on pure **panel** datasets without ARIMA/GARCH or
+single time-series data with ARIMA/GARCH problems.
+
+**Author:** Espen Sirnes
+
+**Current version:** 1.2.73
+
+## Installation
+
+Install the package with:
+
+```{python}
+#| eval: false
+%pip install paneltime
+```
+
+## Formula syntax
+
+Model formulas use the form `Y ~ X1 + X2`. Expressions supported by NumPy can
+be used with `np` as the alias, for example `np.abs(x)`.
+
+See the [Quickstart](quickstart.qmd) for a complete model example.

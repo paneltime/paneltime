@@ -1,0 +1,32 @@
+---
+title: Migrating from options/execute (v1 to v2)
+---
+
+## The model/results split
+
+Replace global options and `execute()` with a model constructor followed by a
+fit call:
+
+```{python}
+#| eval: false
+# v1: pt.options.pqdkm = (2, 2, 1, 2, 2); pt.execute(formula, data, ...)
+model = pt.PanelARIMAGARCH(formula, data, entity="country", time="date")
+results = model.fit(order=(2, 2, 1), garch_order=(2, 2))
+```
+
+The constructor accepts a `(entity, time)` `MultiIndex` or flat columns named
+with `entity=` and `time=`. Public result statistics are available directly
+from `Results`, including `params`, `bse`, `conf_int()`, and `summary()`.
+
+## Name changes
+
+| v1 | v2 |
+|---|---|
+| `T`, `ID`, `HF` | `time`, `entity`, `het_factors` |
+| `Summary` | `Results` |
+| `ll`, `dll`, `ddll` | `loglike`, `score`, `hessian` |
+| `output`, `table` | `_output`, `_table` |
+| `supress_output` | `suppress_output` |
+
+The deprecated `pt.execute()` and `pt.options` compatibility layer remains
+available during migration and emits `DeprecationWarning`.

@@ -1,0 +1,51 @@
+---
+title: Heteroskedasticity functions
+---
+
+## Recommended: one SymPy expression
+
+Define a function in terms of `e` (the residual) and `z` (the optional shape
+parameter). Paneltime derives the Python derivatives and generates the
+ExprTk-compatible C++ expression.
+
+```{python}
+#| eval: false
+import sympy as sp
+
+e, z = sp.symbols("e z")
+h_function = sp.log(e**2 + 1e-8)
+results = model.fit(h_function=h_function)
+```
+
+At fit time, the Python and ExprTk implementations are evaluated on sample
+values and checked for agreement. Unsupported SymPy constructs produce a
+clear conversion error; use the manual dual implementation below as the
+escape hatch.
+
+## Advanced: hand-writing the C++ expression directly
+
+Custom likelihoods may still provide `h_val_cpp` and its Python counterpart.
+The expression is parsed by ExprTk. Use `e`, `z`, and temporary variables
+`x0` through `x4`. Python `**` becomes ExprTk `^`.
+
+Multiple statements use `;`; the final expression is returned. ExprTk uses
+`:=` for assignment. Logical `and`/`or` are unsupported, so arithmetic masks
+must express conditions.
+
+| Function | Meaning |
+|---|---|
+| `abs(x)` | Absolute value |
+| `sqrt(x)` | Square root |
+| `log(x)` | Natural logarithm |
+| `exp(x)` | Exponential |
+| `sin(x)`, `cos(x)`, `tan(x)` | Trigonometric functions |
+| `floor(x)`, `ceil(x)` | Rounding |
+| `min(x, y)`, `max(x, y)` | Bounds |
+| `sign(x)` | Sign of a value |
+
+```python
+x0 := (e + z)^2; (x0 <= 1) * x0^2 + (x0 > 1) * x0
+```
+
+See the [ExprTk documentation](https://www.partow.net/programming/exprtk/)
+for parser details.

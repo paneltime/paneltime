@@ -1,0 +1,44 @@
+---
+title: Results object
+aliases:
+  - attributes.html
+---
+
+`model.fit()` returns a `Results` object. Its everyday attributes are direct,
+named `pandas.Series` or scalar values; optimizer implementation details are
+kept under `optim_result`.
+
+## Results: everyday use
+
+| Attribute | Description |
+|---|---|
+| `params` | Estimated coefficients indexed by variable name. |
+| `bse` | Standard errors indexed like `params`. |
+| `tvalues` | Test statistics indexed like `params`. |
+| `pvalues` | Two-sided p-values indexed like `params`. |
+| `conf_int()` | Confidence intervals for the coefficients. |
+| `nobs` | Number of observations used in the fit. |
+| `df_resid` | Residual degrees of freedom. |
+| `llf` | Maximized log-likelihood. |
+| `aic`, `bic` | Information criteria. |
+| `converged` | Whether optimization converged. |
+| `random_effects` | Object exposing `.group` and `.time` residual effects and standard deviations. |
+| `resid` | Regression residuals. |
+| `fittedvalues` | Fitted dependent-variable values. |
+| `summary()` | Formats a human-readable regression summary. |
+
+```{python}
+#| eval: false
+results.params
+results.bse
+results.summary()
+```
+
+## Optimizer internals (advanced)
+
+Advanced diagnostics are available from `results.optim_result`, including
+`hessian`, `gradient_matrix`, `gradient_vector`, `dx_norm`, `its`, `msg`,
+`t0`, `t1`, and `log_likelihood_object`.
+
+The former `output` and `table` objects are implementation details and are
+private as `results._output` and `results._table`.

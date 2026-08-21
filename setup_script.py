@@ -110,7 +110,7 @@ def add_version(wd: Path, add=True):
     srchtrm = r"(\d+\.\d+\.\d+)"
 
     version = re_replace(wd / "pyproject.toml", srchtrm, add=add)
-    re_replace(wd / "qmd/index.qmd", srchtrm, version=version)
+    #re_replace(wd / "qmd/api/index.qmd", srchtrm, version=version)
     re_replace(wd / "paneltime/info.py", srchtrm, version=version)
 
     return version
@@ -135,7 +135,7 @@ def re_replace(path: Path, searchterm: str, version=None, add=True):
 
 
 def create_readme():
-    src = CUR_DIR / "qmd/index.qmd"
+    src = CUR_DIR / "qmd/api/index.qmd"
     dest = CUR_DIR / "README.md"
 
     lines = src.read_text(encoding="utf-8").splitlines(keepends=True)

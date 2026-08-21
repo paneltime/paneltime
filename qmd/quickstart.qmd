@@ -1,0 +1,51 @@
+---
+title: Quickstart
+---
+
+Paneltime jointly estimates panel, ARIMA, and GARCH structure. This is useful
+when observations have group and time dimensions and both the conditional mean
+and conditional variance are dynamic.
+
+## Install
+
+```{python}
+#| eval: false
+%pip install paneltime pandas
+```
+
+## Fit a model
+
+The v2 API follows the familiar model/results pattern used by `statsmodels`
+and `arch`.
+
+```{python}
+#| eval: false
+import paneltime as pt
+
+model = pt.PanelARIMAGARCH(
+    "Inflation ~ Gross_Savings + Interest_rate",
+    data,
+    entity="country",
+    time="date",
+)
+results = model.fit(
+    order=(2, 2, 1),
+    garch_order=(2, 2),
+    vol="EGARCH",
+)
+print(results.summary())
+```
+
+`data` may be a flat `DataFrame` with `entity` and `time` columns, or a
+`DataFrame` indexed by `(entity, time)`.
+
+## Inspect results
+
+```{python}
+#| eval: false
+print(results.params)
+print(results.conf_int())
+forecast = results.forecast(steps=4)
+```
+
+See [Results object](api/results.qmd) for the complete public result surface.

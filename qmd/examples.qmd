@@ -1,0 +1,26 @@
+---
+title: Examples
+---
+
+## World Bank data
+
+The downloadable example uses the same two-step API as the Quickstart.
+
+```{python}
+#| eval: false
+import paneltime as pt
+import loadwb
+
+data = loadwb.load_worldbank_data()
+data = data[data["Inflation"].abs() < 30]
+model = pt.PanelARIMAGARCH(
+    "Inflation ~ L(Gross_Savings) + L(Inflation) + L(Interest_rate)",
+    data,
+    entity="country",
+    time="date",
+)
+results = model.fit(order=(2, 2, 1), garch_order=(2, 2), vol="EGARCH")
+print(results.summary())
+```
+
+[Download the working example](working_example.zip).

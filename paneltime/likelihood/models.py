@@ -1,4 +1,86 @@
 import numpy as np
+from abc import ABC, abstractmethod
+
+
+class LikelihoodModel(ABC):
+	"""Base class for user-defined likelihood models.
+
+	Subclasses may implement only :meth:`loglike`; numerical score and Hessian
+	methods are then supplied by finite differences.
+	"""
+
+	def __init__(self, e, init_var, a=0, k=0, z=None):
+		self.e, self.z = np.asarray(e), z
+		self.a, self.k = a, k
+		self.variance_bounds(init_var)
+		self.variance_definitions()
+		self.set_h_function()
+		missing = [name for name in ('var', 'e', 'z', 'v', 'v_inv', 'var_pos')
+				   if not hasattr(self, name)]
+		if missing:
+			raise ValueError('LikelihoodModel is missing required attributes: ' + ', '.join(missing))
+
+	@abstractmethod
+	def variance_bounds(self, init_var):
+		"""Set ``var`` and its valid-region mask ``var_pos``."""
+
+	@abstractmethod
+	def variance_definitions(self):
+		"""Set the variance representation used by the likelihood."""
+
+	def set_h_function(self):
+		"""Set the heteroskedasticity function and its derivatives."""
+		self.h = lambda e, e2, v: e2
+		self.h_val = self.h(self.e, self.e ** 2 + 1e-8, self.v)
+		self.h_val_cpp = ''
+		self.h_e_val = 2 * self.e
+		self.h_2e_val = np.full_like(self.e, 2.0)
+		self.h_z_val = self.h_2z_val = self.h_ez_val = None
+
+	@abstractmethod
+	def loglike(self):
+		"""Return pointwise log-likelihood values."""
+
+	def score(self):
+		"""Return a finite-difference score when no analytic score is supplied."""
+		return _finite_difference(self, 'loglike', first=True)
+
+	def hessian(self):
+		"""Return a finite-difference Hessian when no analytic Hessian is supplied."""
+		return _finite_difference(self, 'loglike', first=False)
+
+	def ll(self):
+		return self.loglike()
+
+	def dll(self):
+		return self.score()
+
+	def ddll(self):
+		return self.hessian()
+
+
+def _finite_difference(model, method, first):
+	"""Numerically differentiate a pointwise likelihood with respect to e/var."""
+	h = 1e-6
+	original_e = np.array(model.e, copy=True)
+	original_var = np.array(model.var, copy=True)
+	def evaluate(e, var):
+		model.e = e
+		model.var = var
+		model.variance_definitions()
+		return np.asarray(getattr(model, method)())
+	try:
+		base = evaluate(original_e, original_var)
+		e_plus = evaluate(original_e + h, original_var)
+		e_minus = evaluate(original_e - h, original_var)
+		if first:
+			return (e_plus - e_minus) / (2 * h)
+		return (e_plus - 2 * base + e_minus) / (h * h)
+	finally:
+		model.e = original_e
+		model.var = original_var
+
+
 
 
 LL_CONST =-0.5*np.log(2*np.pi)
@@ -95,6 +177,9 @@ class Exponential:
 		d2ll_dvar2*=var_pos
 
 		return d2ll_de2, d2ll_dvar_de, d2ll_dvar2
+
+
+EGARCH = Exponential
 
 
 class Hyperbolic:

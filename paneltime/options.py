@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import os
+import warnings
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
-def create_options():
+def create_options(deprecated=False):
 	options = options_dict()
-	opt = OptionsObj(options)
+	opt = OptionsObj(options, deprecated=deprecated)
 	return opt
 
 def options_to_txt():
@@ -131,7 +134,9 @@ class options_item:
 			print('No method to handle this permissible')
 
 class OptionsObj:
-	def __init__(self, options):
+	def __init__(self, options, deprecated=False):
+		super().__setattr__('_deprecated', deprecated)
+		super().__setattr__('_warned', False)
 		for o in options:
 			super().__setattr__('_' + o, options[o]) 
 			super().__setattr__(o, options[o].value) 
@@ -142,6 +147,11 @@ class OptionsObj:
 		# Trigger a custom function when an attribute is set
 		_name = '_' + name
 		if _name in self.__dict__:
+			if self.__dict__.get('_deprecated') and not self.__dict__.get('_warned'):
+				warnings.warn(
+					'pt.options is deprecated; pass configuration to model.fit() instead.',
+					DeprecationWarning, stacklevel=2)
+				super().__setattr__('_warned', True)
 			self.__dict__[_name].set(value)
 			value = self.__dict__[_name].value
 		elif not name in ['make_category_tree', 'categories','categories_srtd' ]:
@@ -158,7 +168,7 @@ class OptionsObj:
 			is_object = i[0]=='_'
 			# No options item can have underscore in the beginning of its name, as it defines
 			# the internal object version of the option
-			if is_object:
+			if is_object and isinstance(opt[i], options_item):
 				if opt[i].category in d:
 					d[opt[i].category].append(opt[i])
 				else:
@@ -167,6 +177,110 @@ class OptionsObj:
 		self.categories=d	
 		keys=np.array(list(d.keys()))
 		self.categories_srtd=keys[keys.argsort()]
+
+
+@dataclass
+class Effects:
+	"""Fixed or random effects included in the mean or variance model."""
+
+	group: str = 'none'
+	time: str = 'none'
+	variance: str = 'none'
+
+	def validate(self):
+		for name in ('group', 'time', 'variance'):
+			value = getattr(self, name)
+			if value not in {'none', 'fixed', 'random'}:
+				raise ValueError(f"effects.{name} must be 'none', 'fixed', or 'random'; got {value!r}")
+
+
+@dataclass
+class OptimizerOptions:
+	"""Numerical optimizer settings used by :meth:`PanelARIMAGARCH.fit`."""
+
+	tolerance: float = 0.0001
+	max_iterations: int = 150
+	accuracy: int = 0
+	use_analytical_hessian: int = 1
+	constraints_engine: bool = True
+	initial_arima_garch_params: float = 0.1
+	arma_constraint: float = 3
+	arma_round: int = 14
+	garch_min: float = 0
+	garch_assist: float = 0
+	multicoll_threshold_max: float = 200
+	multicoll_threshold_report: float = 30
+	min_group_df: int = 1
+	robust_cov_lags: tuple[int, int] = (100, 30)
+	variance_re_norm: float = 0.000005
+	kurtosis_adj: float = 0
+
+	def validate(self):
+		if self.tolerance <= 0 or self.max_iterations <= 0:
+			raise ValueError('optimizer.tolerance and optimizer.max_iterations must be positive')
+		if self.accuracy < 0 or self.use_analytical_hessian not in (0, 1, 2):
+			raise ValueError('optimizer.accuracy must be non-negative and use_analytical_hessian must be 0, 1, or 2')
+		if any(value < 0 for value in (self.initial_arima_garch_params, self.garch_min, self.garch_assist, self.kurtosis_adj)):
+			raise ValueError('optimizer parameter magnitudes must be non-negative')
+
+
+@dataclass
+class FitOptions:
+	"""Per-call public configuration for a paneltime model fit."""
+
+	order: tuple[int, int, int] = (1, 1, 0)
+	garch_order: tuple[int, int] = (1, 1)
+	vol: str = 'GARCH'
+	effects: Effects = field(default_factory=Effects)
+	optimizer: OptimizerOptions = field(default_factory=OptimizerOptions)
+	constraints: Any = None
+	add_intercept: bool = True
+	subtract_means: bool = False
+	include_initvar: bool = False
+	tobit_limits: tuple[Optional[float], Optional[float]] = (None, None)
+	suppress_output: bool = True
+	likelihood: Any = None
+	h_function: Any = None
+
+	def validate(self):
+		if len(self.order) != 3 or any(not isinstance(value, int) or value < 0 for value in self.order):
+			raise ValueError('order must be a tuple of three non-negative integers')
+		if len(self.garch_order) != 2 or any(not isinstance(value, int) or value < 0 for value in self.garch_order):
+			raise ValueError('garch_order must be a tuple of two non-negative integers')
+		if self.vol.upper() not in {'GARCH', 'EGARCH'}:
+			raise ValueError("vol must be either 'GARCH' or 'EGARCH'")
+		self.effects.validate()
+		self.optimizer.validate()
+
+	def to_legacy(self):
+		self.validate()
+		legacy = create_options()
+		legacy.pqdkm = list(self.order) + list(self.garch_order)
+		legacy.EGARCH = self.vol.upper() == 'EGARCH'
+		legacy.fixed_random_group_eff = {'none': 0, 'fixed': 1, 'random': 2}[self.effects.group]
+		legacy.fixed_random_time_eff = {'none': 0, 'fixed': 1, 'random': 2}[self.effects.time]
+		legacy.fixed_random_variance_eff = {'none': 0, 'fixed': 1, 'random': 2}[self.effects.variance]
+		if self.constraints is not None:
+			legacy.user_constraints = self.constraints
+		legacy.add_intercept = self.add_intercept
+		legacy.subtract_means = self.subtract_means
+		legacy.include_initvar = self.include_initvar
+		if self.tobit_limits != (None, None):
+			legacy.tobit_limits = list(self.tobit_limits)
+		legacy.supress_output = self.suppress_output
+		optimizer_map = {
+			'tolerance': 'tolerance', 'max_iterations': 'max_iterations', 'accuracy': 'accuracy',
+			'constraints_engine': 'constraints_engine', 'initial_arima_garch_params': 'initial_arima_garch_params',
+			'arma_constraint': 'ARMA_constraint', 'arma_round': 'ARMA_round', 'garch_min': 'GARCH_min',
+			'garch_assist': 'GARCH_assist', 'multicoll_threshold_max': 'multicoll_threshold_max',
+			'multicoll_threshold_report': 'multicoll_threshold_report', 'min_group_df': 'min_group_df',
+			'robust_cov_lags': 'robustcov_lags_statistics', 'variance_re_norm': 'variance_RE_norm',
+			'kurtosis_adj': 'kurtosis_adj', 'use_analytical_hessian': 'use_analytical'}
+		for source, target in optimizer_map.items():
+			setattr(legacy, target, getattr(self.optimizer, source))
+		if self.likelihood is not None:
+			legacy.custom_model = self.likelihood
+		return legacy
 
 
 

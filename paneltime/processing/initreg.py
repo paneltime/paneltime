@@ -28,12 +28,12 @@ def start_values(panel, X = None, Y = None):
 	Y=(Y+re_obj_i.RE(Y, panel)+re_obj_t.RE(Y, panel))*panel.included[3]
 	beta,u=stat.OLS(panel,X,Y,return_e=True)
 	rho,lmbda= ARMA_process_calc(u,panel)
-	psi, gamma = 0.1,0.1
+	psi, gamma = 0.05,0.9
 	v = panel.var(u) 
 
 	vreg = panel.h_func(0, v, v)
 
-	initvar = vreg
+	initvar = vreg*0.9
 	omega = vreg*(1-gamma)
 
 	return beta,rho,lmbda, psi, gamma,v, initvar, omega

@@ -1,0 +1,46 @@
+---
+title: Custom likelihood models
+---
+
+Subclass `LikelihoodModel`, instantiate it, and pass that instance to
+`model.fit(likelihood=...)`.
+
+```{python}
+#| eval: false
+import numpy as np
+import paneltime as pt
+
+class GaussianLikelihood(pt.LikelihoodModel):
+    def loglike(self):
+        return -0.5 * (np.log(2 * np.pi) + self.var + self.e**2 * self.v_inv)
+
+    def variance_bounds(self, init_var):
+        self.var_pos = (init_var > -500) & (init_var < 500)
+        self.var = np.clip(init_var, -500, 500)
+
+    def variance_definitions(self):
+        self.v = np.exp(self.var)
+        self.v_inv = np.exp(-self.var)
+
+likelihood = GaussianLikelihood()
+results = model.fit(likelihood=likelihood)
+```
+
+Required lifecycle methods are `variance_bounds(init_var)`,
+`variance_definitions()`, `set_h_function()`, and `loglike()`. Override
+`score()` and `hessian()` when analytical derivatives are available.
+
+## Skipping analytical derivatives
+
+`score()` and `hessian()` are optional. The base class computes finite
+differences of `loglike()` when they are not overridden, which is convenient
+for prototyping and custom distributions.
+
+The constructor validates required state such as `var`, `e`, `z`, `v`,
+`v_inv`, and `var_pos` before optimization begins.
+
+## EGARCH and symbolic h-functions
+
+Use the built-in `EGARCH` model as a reference, or provide a SymPy expression
+through `h_function=`. The [heteroskedasticity guide](heteroskedasticity-functions.qmd)
+shows the recommended expression workflow.

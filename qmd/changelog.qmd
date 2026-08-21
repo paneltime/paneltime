@@ -1,0 +1,19 @@
+---
+title: Changelog
+---
+
+Release history is maintained in the [GitHub releases](https://github.com/paneltime/paneltime/releases).
+
+## 1.2.x
+
+The 1.2 series includes releases from 1.2.0 through 1.2.73. Consult the
+release history for the exact patch-level notes.
+
+## v2 (in development)
+
+- Introduces the constructor plus `.fit()` API.
+- Replaces `Summary` with the public `Results` object.
+- Groups fit configuration into explicit per-call options.
+- Adds symbolic SymPy heteroskedasticity functions and checked ExprTk codegen.
+- Adds an instantiable `LikelihoodModel` extension point with numerical
+  derivative fallback.

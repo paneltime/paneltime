@@ -1,0 +1,65 @@
+---
+title: Fit options
+aliases:
+  - options.html
+---
+
+All v2 configuration is passed to `fit()`, so separate model fits do not share
+mutable global state.
+
+## ARIMA/GARCH order
+
+`order=(p, d, q)` controls the ARIMA mean process. `garch_order=(k, m)`
+controls the GARCH variance process. Set `vol="GARCH"` or `vol="EGARCH"`.
+
+```{python}
+#| eval: false
+results = model.fit(order=(1, 1, 0), garch_order=(1, 1), vol="GARCH")
+```
+
+## Effects
+
+Pass an `Effects` instance with `group`, `time`, and `variance` set to
+`"none"`, `"fixed"`, or `"random"`.
+
+```{python}
+#| eval: false
+effects = pt.Effects(group="random", time="fixed", variance="none")
+results = model.fit(effects=effects)
+```
+
+## Optimizer and covariance
+
+Use `OptimizerOptions` for `tolerance`, `max_iterations`, `accuracy`,
+`use_analytical_hessian`, and the other optimizer controls. Select covariance
+behavior with `cov_type` and `robust_cov_lags`.
+
+```{python}
+#| eval: false
+optimizer = pt.OptimizerOptions(tolerance=1e-5, max_iterations=150)
+results = model.fit(optimizer=optimizer, cov_type="robust")
+```
+
+## Constraints
+
+Use `constraints=` for coefficient restrictions and `add_intercept`,
+`subtract_means`, `include_initvar`, `tobit_limits`, and `suppress_output` for
+fit behavior.
+
+## Custom model and h-function
+
+Pass a likelihood instance with `likelihood=` or a SymPy expression with
+`h_function=`. See the [custom likelihood guide](../guide/custom-likelihood-models.qmd)
+and [heteroskedasticity guide](../guide/heteroskedasticity-functions.qmd).
+
+## Migrating from `pt.options`
+
+| v1 | v2 |
+|---|---|
+| `pqdkm` | `order=` and `garch_order=` |
+| `EGARCH` | `vol="EGARCH"` |
+| `fixed_random_group_eff`, `fixed_random_time_eff`, `fixed_random_variance_eff` | `effects=pt.Effects(...)` |
+| `custom_model` | `likelihood=` (an instance) |
+| `user_constraints` | `constraints=` |
+| `use_analytical` | `optimizer.use_analytical_hessian` |
+| `supress_output` | `suppress_output=` |
