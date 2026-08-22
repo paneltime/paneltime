@@ -1,14 +1,33 @@
 
-The v2 public API is organized around a model, a fit configuration, and a
-results object.
+**Paneltime** estimates regressions on datasets that:
 
-| Object | Description |
-|---|---|
-| [`Model`](../quickstart.qmd) | Constructs a panel ARIMA/GARCH model. |
-| [`Results`](results.qmd) | Stores estimates, diagnostics, and forecasts. |
-| [`LikelihoodModel`](../guide/custom-likelihood-models.qmd) | Base class for custom likelihoods. |
-| `Effects` | Groups fixed and random group, time, and variance effects. |
-| `OptimizerOptions` | Groups optimizer tolerances and numerical settings. |
+- Are **panels** (have both a time and a group dimension)
+- Are **non-stationary in means** (ARIMA)
+- Are **non-stationary in variance** (GARCH)
 
-Start with the [Quickstart](../quickstart.qmd), then use the
-[fit options reference](fit-options.qmd) for configuration details.
+Paneltime jointly handles common time-series problems (**ARIMA**/**GARCH**) and
+panel data with group and time effects. To the best of our knowledge, no other
+package combines all three in one model.
+
+The package can also be used on pure **panel** datasets without ARIMA/GARCH or
+single time-series data with ARIMA/GARCH problems.
+
+**Author:** Espen Sirnes
+
+**Current version:** 1.2.73
+
+## Installation
+
+Install the package with:
+
+```{python}
+#| eval: false
+%pip install paneltime
+```
+
+## Formula syntax
+
+Model formulas use the form `Y ~ X1 + X2`. Expressions supported by NumPy can
+be used with `np` as the alias, for example `np.abs(x)`.
+
+See the [Quickstart](quickstart.qmd) for a complete model example.
