@@ -18,7 +18,7 @@ That is, you should **ONLY DO Task list 1**
 ## Task List 1 — Source code
 
 ### 1.1 Public API surface: `execute()` → constructor + `.fit()`
-- [ ] Add a `PanelARIMAGARCH` (naming TBD — could also be `Paneltime`)
+- [ ] Add a `Model` (naming TBD — could also be `Paneltime`)
       class with signature
       `__init__(self, formula, data, entity=None, time=None)`,
       accepting either a `pandas.DataFrame` with a `(entity, time)`
@@ -191,7 +191,7 @@ every code sample below can be written against the real new API.
 ### 2.2 New page: `quickstart.qmd`
 - [ ] One end-to-end example: install → construct model → `.fit()` →
       `.summary()`. Mirror the shape of `statsmodels`/`arch` quickstarts.
-- [ ] Show the *new* two-step API (`model = pt.PanelARIMAGARCH(...)`,
+- [ ] Show the *new* two-step API (`model = pt.Model(...)`,
       `results = model.fit(...)`), not the old `pt.execute(...)`.
 - [ ] Include one sentence stating what makes paneltime distinct
       (panel + ARIMA + GARCH jointly), carried over from the current
@@ -290,7 +290,7 @@ every code sample below can be written against the real new API.
       static fenced code blocks) so API drift breaks the docs build
       instead of silently going stale.
 - [ ] Add a single `api/` landing page listing all public classes
-      (`PanelARIMAGARCH`, `Results`, `LikelihoodModel`, `Effects`,
+      (`Model`, `Results`, `LikelihoodModel`, `Effects`,
       `Options`/config objects) with one-line descriptions and links.
 - [ ] Run a full site-wide link check after the restructure (page URLs
       are changing, e.g. `attributes.html` → `api/results.html`) and

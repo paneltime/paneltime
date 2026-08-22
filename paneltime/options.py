@@ -196,7 +196,7 @@ class Effects:
 
 @dataclass
 class OptimizerOptions:
-	"""Numerical optimizer settings used by :meth:`PanelARIMAGARCH.fit`."""
+	"""Numerical optimizer settings used by :meth:`Model.fit`."""
 
 	tolerance: float = 0.0001
 	max_iterations: int = 150

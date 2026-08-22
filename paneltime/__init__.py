@@ -25,7 +25,7 @@ import pandas as pd
 
 import inspect
 
-from .api import PanelARIMAGARCH, Results
+from .api import Model, Results
 from .options import Effects, FitOptions, OptimizerOptions
 
 
@@ -39,9 +39,9 @@ mp = None
 
 def execute(model_string, dataframe, timevar=None, idvar=None, het_factors=None, instruments=None):
 
-	"""Deprecated one-step interface; use ``PanelARIMAGARCH(...).fit()``."""
+	"""Deprecated one-step interface; use ``Model(...).fit()``."""
 	warnings.warn(
-		'execute() is deprecated; construct PanelARIMAGARCH and call fit().',
+		'execute() is deprecated; construct Model and call fit().',
 		DeprecationWarning, stacklevel=2)
 	if type(dataframe) is not pd.DataFrame:
 		raise ValueError("Input is not a pandas DataFrame. Please provide a valid DataFrame.")
@@ -51,7 +51,7 @@ def execute(model_string, dataframe, timevar=None, idvar=None, het_factors=None,
 	window=main.identify_global(inspect.stack()[1][0].f_globals,'window', 'geometry')
 	exe_tab=main.identify_global(inspect.stack()[1][0].f_globals,'exe_tab', 'isrunning')
 
-	model = PanelARIMAGARCH(model_string, dataframe, entity=idvar, time=timevar)
+	model = Model(model_string, dataframe, entity=idvar, time=timevar)
 	r = model.fit(_legacy_options=options, _het_factors=het_factors, _instruments=instruments)
 
 	return r

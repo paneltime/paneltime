@@ -22,7 +22,7 @@ and `arch`.
 #| eval: false
 import paneltime as pt
 
-model = pt.PanelARIMAGARCH(
+model = pt.Model(
     "Inflation ~ Gross_Savings + Interest_rate",
     data,
     entity="country",

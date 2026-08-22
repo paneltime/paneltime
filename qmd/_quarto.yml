@@ -16,12 +16,14 @@ website:
   sidebar:
     style: docked
     contents:
+      - section: "About"
+        contents: 
+          - index.qmd
       - section: "Quickstart"
         contents:
           - quickstart.qmd
       - section: "User Guide"
         contents:
-          - about.qmd
           - guide/custom-likelihood-models.qmd
           - guide/heteroskedasticity-functions.qmd
       - section: "API Reference"

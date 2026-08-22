@@ -7,7 +7,7 @@ results object.
 
 | Object | Description |
 |---|---|
-| [`PanelARIMAGARCH`](../quickstart.qmd) | Constructs a panel ARIMA/GARCH model. |
+| [`Model`](../quickstart.qmd) | Constructs a panel ARIMA/GARCH model. |
 | [`Results`](results.qmd) | Stores estimates, diagnostics, and forecasts. |
 | [`LikelihoodModel`](../guide/custom-likelihood-models.qmd) | Base class for custom likelihoods. |
 | `Effects` | Groups fixed and random group, time, and variance effects. |

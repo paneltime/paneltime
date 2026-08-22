@@ -10,7 +10,7 @@ fit call:
 ```{python}
 #| eval: false
 # v1: pt.options.pqdkm = (2, 2, 1, 2, 2); pt.execute(formula, data, ...)
-model = pt.PanelARIMAGARCH(formula, data, entity="country", time="date")
+model = pt.Model(formula, data, entity="country", time="date")
 results = model.fit(order=(2, 2, 1), garch_order=(2, 2))
 ```
 

@@ -22,7 +22,7 @@ class RandomEffectsResult:
 
 
 class Results:
-	"""Results from a fitted :class:`PanelARIMAGARCH` model.
+	"""Results from a fitted :class:`Model` model.
 
 	The legacy summary is retained privately to keep formatting and diagnostic
 	output compatible while the commonly used statistics are exposed directly.
@@ -140,7 +140,7 @@ class Results:
 		return np.asarray(self.predict())[-steps:]
 
     
-class PanelARIMAGARCH:
+class Model:
 	"""Panel ARIMA/GARCH model using a constructor followed by ``fit``."""
 
 	def __init__(self, formula: str, data: pd.DataFrame, entity: Optional[str] = None,

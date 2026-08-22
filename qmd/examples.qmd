@@ -13,7 +13,7 @@ import loadwb
 
 data = loadwb.load_worldbank_data()
 data = data[data["Inflation"].abs() < 30]
-model = pt.PanelARIMAGARCH(
+model = pt.Model(
     "Inflation ~ L(Gross_Savings) + L(Inflation) + L(Interest_rate)",
     data,
     entity="country",
