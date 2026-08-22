@@ -16,9 +16,7 @@ website:
   sidebar:
     style: docked
     contents:
-      - section: "About"
-        contents: 
-          - index.qmd
+      - index.qmd
       - section: "Quickstart"
         contents:
           - quickstart.qmd
@@ -31,9 +29,7 @@ website:
           - api/index.qmd
           - api/results.qmd
           - api/fit-options.qmd
-      - section: "Examples"
-        contents:
-          - examples.qmd
+      - examples.qmd
       - migration.qmd
       - changelog.qmd
 
