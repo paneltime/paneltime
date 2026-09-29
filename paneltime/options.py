@@ -18,19 +18,19 @@ def options_to_txt():
 
 	for o in options:
 		opt = options[o]
-		if type(opt.dtype) is list:
+		if isinstance(opt.dtype, list):
 			tp = [i.__name__ for i in opt.dtype]
 		else:
 			tp = opt.dtype.__name__
 		value = opt.value
-		if type(value)==str:
+		if isinstance(value, str):
 			value = value.replace('\n','<br>').replace('\t','a&#9;')
 			if len(value)>12:
 				value = value[:9]+"..."
 		perm = opt.permissible_values
 		if perm == None:
 			perm = 'Any'
-		a.append([o, value, tp, opt.permissible_values , f"<b>{opt.name}:</b> {opt.description}".replace('\n','<br>').replace('\t','a&#9;')])
+		a.append([o, value, tp, perm, f"<b>{opt.name}:</b> {opt.description}".replace('\n','<br>').replace('\t','a&#9;')])
 
 	sorted_list = sorted(a, key=lambda x: x[0])
 	path = os.sep.join(__file__.split(os.sep)[:-2])
@@ -53,7 +53,6 @@ def options_to_txt():
 		
 		for name, default, dtype, perm, desc in sorted_list:
 			f.write(f"|{name}|{default}|{perm}|{dtype}|{desc}|\n")
-	a=0
 
 class options_item:
 	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None, descr_for_input_boxes=[],category='General'):
@@ -65,9 +64,9 @@ class options_item:
 		self.description=description
 		self.value=value
 		self.dtype=dtype
-		if type(dtype)==str:
+		if isinstance(dtype, str):
 			self.dtype_str=dtype
-		elif type(dtype)==list or type(dtype)==tuple:
+		elif isinstance(dtype, (list, tuple)):
 			self.dtype_str=str(dtype).replace('<class ','').replace('[','').replace(']','').replace('>','').replace("'",'')
 		else:
 			self.dtype_str= 'NA'
@@ -77,7 +76,7 @@ class options_item:
 		self.descr_for_input_boxes=descr_for_input_boxes
 		self.category=category
 		self.name=name
-		self.selection_var= len(descr_for_input_boxes)==0 and type(permissible_values)==list
+		self.selection_var= len(descr_for_input_boxes)==0 and isinstance(permissible_values, list)
 		self.is_inputlist=len(self.descr_for_input_boxes)>0
 
 
@@ -99,7 +98,7 @@ class options_item:
 					return
 			except Exception as e:
 				raise RuntimeError(f'Checking correct type of {self.code_name} failed with error message: {e}')
-			if type(value) in self.dtype:
+			if isinstance(value, tuple(self.dtype)):
 				return
 			else:
 				raise TypeError(f'Cannot set option {self.code_name}, expected type {self.dtype}, got {type(value)} ')
@@ -109,9 +108,9 @@ class options_item:
 	def valid_test(self,value,permissible):
 		if permissible is None:
 			return True
-		if type(permissible)==list or type(permissible)==tuple:
+		if isinstance(permissible, (list, tuple)):
 			try:
-				if not type(value)==list or type(value)==tuple:
+				if not isinstance(value, list):
 					value=self.dtype(value)
 					if value in permissible:
 						return
@@ -120,13 +119,17 @@ class options_item:
 				else:
 					valid=True
 					for i in range(len(value)):
-						value[i]=self.dtype(value[i])
-						valid=valid*eval(permissible[i] %(value[i],))
+						dtype = self.dtype[i] if isinstance(self.dtype, (list, tuple)) else self.dtype
+						if value[i] is None:
+							continue
+						value[i] = dtype(value[i])
+						if permissible[i] is not None:
+							valid = valid * eval(permissible[i] % value[i])
 			except Exception as e:
 				raise RuntimeError(f'Setting option {self.code_name} failed with error message: {e}')
 			return valid
-		elif type(permissible)==str:
-			if type(value) == list or type(value)== tuple:
+		elif isinstance(permissible, str):
+			if isinstance(value, (list, tuple)):
 				return np.all([eval(permissible %(i,)) for i in value])
 			else:
 				return eval(permissible %(value,))
@@ -201,14 +204,11 @@ class OptimizerOptions:
 	tolerance: float = 0.0001
 	max_iterations: int = 150
 	accuracy: int = 0
-	use_analytical_hessian: int = 1
-	constraints_engine: bool = True
 	initial_arima_garch_params: float = 0.1
 	arma_constraint: float = 3
 	arma_round: int = 14
-	garch_min: float = 0
+	garch_min: float = 1e-12
 	garch_assist: float = 0
-	multicoll_threshold_max: float = 200
 	multicoll_threshold_report: float = 30
 	min_group_df: int = 1
 	robust_cov_lags: tuple[int, int] = (100, 30)
@@ -218,8 +218,8 @@ class OptimizerOptions:
 	def validate(self):
 		if self.tolerance <= 0 or self.max_iterations <= 0:
 			raise ValueError('optimizer.tolerance and optimizer.max_iterations must be positive')
-		if self.accuracy < 0 or self.use_analytical_hessian not in (0, 1, 2):
-			raise ValueError('optimizer.accuracy must be non-negative and use_analytical_hessian must be 0, 1, or 2')
+		if self.accuracy < 0:
+			raise ValueError('optimizer.accuracy must be non-negative')
 		if any(value < 0 for value in (self.initial_arima_garch_params, self.garch_min, self.garch_assist, self.kurtosis_adj)):
 			raise ValueError('optimizer parameter magnitudes must be non-negative')
 
@@ -270,12 +270,12 @@ class FitOptions:
 		legacy.supress_output = self.suppress_output
 		optimizer_map = {
 			'tolerance': 'tolerance', 'max_iterations': 'max_iterations', 'accuracy': 'accuracy',
-			'constraints_engine': 'constraints_engine', 'initial_arima_garch_params': 'initial_arima_garch_params',
+			'initial_arima_garch_params': 'initial_arima_garch_params',
 			'arma_constraint': 'ARMA_constraint', 'arma_round': 'ARMA_round', 'garch_min': 'GARCH_min',
-			'garch_assist': 'GARCH_assist', 'multicoll_threshold_max': 'multicoll_threshold_max',
+			'garch_assist': 'GARCH_assist', 
 			'multicoll_threshold_report': 'multicoll_threshold_report', 'min_group_df': 'min_group_df',
 			'robust_cov_lags': 'robustcov_lags_statistics', 'variance_re_norm': 'variance_RE_norm',
-			'kurtosis_adj': 'kurtosis_adj', 'use_analytical_hessian': 'use_analytical'}
+			'kurtosis_adj': 'kurtosis_adj'}
 		for source, target in optimizer_map.items():
 			setattr(legacy, target, getattr(self.optimizer, source))
 		if self.likelihood is not None:
@@ -301,17 +301,13 @@ def options_dict():
 
 	options['ARMA_constraint']		        = options_item(3,'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
 																	 '%s>0', None,category='ARIMA-GARCH')	
-	options['GARCH_min']		        = options_item(0,'Minimum absolute value of GARCH coefficients', float, 'GARCH coefficient constraint',
+	options['GARCH_min']		        = options_item(1e-12,'Minimum absolute value of GARCH coefficients', float, 'GARCH coefficient constraint',
 																	 '%s>0', None,category='ARIMA-GARCH')	
-	options['constraints_engine']		        = options_item(True,'Determines whether to use the constraints engine', bool, 'Uses constraints engine',
-																		[True,False],['Use constraints','Do not use constraints'],category='Regression')	
 
 
 	options['multicoll_threshold_report']	 = options_item(30,	'Threshold for reporting multicoll problems', float, 'Multicollinearity threshold',
 																	 '%s>0',None)		
 
-	options['multicoll_threshold_max']	    = options_item(200,'Threshold for imposing constraints on collineary variables', float, 'Multicollinearity threshold',
-																	'%s>0',None)			
 
 	options['EGARCH']		            = options_item(False,'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
 																[True,False],['Direct GARCH','Usual GARCH'],category='ARIMA-GARCH')	
@@ -400,9 +396,7 @@ def options_dict():
 																	"to be equal to the result.",
 																	[str,dict], 'User constraints')
 
-	options['use_analytical']			= options_item(1,	'Use analytical Hessian', int, 'Analytical Hessian',[0,1,2], 
-															['No analytical','Analytical in some iterations','Analytical in all iterations'],
-															category='Genereal')
+
 
 
 

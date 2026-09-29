@@ -52,11 +52,11 @@ def get_variables(ip, df, model_string, idvar, timevar, heteroscedasticity_facto
 
 	# Resolve time and ID variables
 	timevar, idvar = check_dimensions(df, timevar, idvar)
+	idvar = panel_test(df, idvar, timevar)
 
 	if idvar is None:
 		idvar = CONST_NAME #Single group
-	elif timevar is None:
-		raise RuntimeError("If you have supplied an ID variable, you must also supply a time variable.")
+
 
 	
 	df = df.reset_index()
@@ -114,6 +114,16 @@ def get_variables(ip, df, model_string, idvar, timevar, heteroscedasticity_facto
 	# Store processed variables in `ip`
 	ip.has_intercept = add_variables(ip, settings, df, ip.df_pred, locals())
 	ip.dataframe = df
+
+def panel_test(df, idvar, timevar):
+	"""Tests if there is a panel structure"""
+	if idvar is None or timevar is None:
+		return None
+	diffs = df.groupby(idvar)[timevar].diff()
+	if diffs.isna().mean() > 0.9:
+		return None
+	else:
+		return idvar
 
 def clean_df(df, usedvars):
 	vars_used = []
@@ -564,9 +574,9 @@ def get_names(x, df,inputtype,add_intercept=False,intercept_name=None):
 		if inputtype=="Time variable":
 			df['time']=np.arange(len(df))
 			return ['time']
-	elif type(x)==str:
+	elif isinstance(x, str):
 		r=[x]
-	elif type(x)==list or type(x)==tuple:
+	elif isinstance(x, (list, tuple)):
 		r=list(x.name)
 	
 	if r is None or not np.all(i in df for i in r):
@@ -590,6 +600,8 @@ def numberize_time(df, timevar, idvar):
 	if np.issubdtype(dtype, np.number):
 		df[timevar + ORIG_SUFIX] = df[timevar]
 		time_delta = get_mean_diff(df, timevar, idvar)
+		if time_delta is None:
+			return [],None, None
 		if np.issubdtype(dtype, np.integer):
 			time_delta = int(time_delta)
 			if time_delta == 0:
@@ -629,7 +641,10 @@ def get_mean_diff(df, timevar, idvar):
 	if idvar == []:
 		m = df[timevar].diff().median()
 	else:
-		m = df.groupby(idvar)[timevar].diff().median()
+		diffs = df.groupby(idvar)[timevar].diff()
+		if diffs.isna().mean() > 0.9:
+			return
+		m = diffs.median()
 	try:
 		if int(m) == m:
 			m = int(m)

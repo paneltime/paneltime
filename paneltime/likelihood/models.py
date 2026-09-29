@@ -2,6 +2,16 @@ import numpy as np
 from abc import ABC, abstractmethod
 
 
+def _h_identity(e, e2, v):
+	"""Picklable replacement for `lambda e, e2, v: e2`"""
+	return e2
+
+
+def _h_log(e, e2, v):
+	"""Picklable replacement for `lambda e, e2, v: np.log(e2)`"""
+	return np.log(e2)
+
+
 class LikelihoodModel(ABC):
 	"""Base class for user-defined likelihood models.
 
@@ -30,7 +40,7 @@ class LikelihoodModel(ABC):
 
 	def set_h_function(self):
 		"""Set the heteroskedasticity function and its derivatives."""
-		self.h = lambda e, e2, v: e2
+		self.h = _h_identity
 		self.h_val = self.h(self.e, self.e ** 2 + 1e-8, self.v)
 		self.h_val_cpp = ''
 		self.h_e_val = 2 * self.e
@@ -127,7 +137,7 @@ class Exponential:
 
 		# === Main function definition ===
 		# Define the h function definition:
-		self.h = lambda e, e2, v: np.log(e2)
+		self.h = _h_log
 
 		# Define the h funciton value (do not change):
 		self.h_val = self.h(e, e2, v)
@@ -218,7 +228,7 @@ class Hyperbolic:
 	
 		# === Main function definition ===
 		# Define the h function definition:
-		self.h = lambda e, e2, v: e2
+		self.h = _h_identity
 
 		
 		# Define the h funciton value (do not change):
@@ -333,7 +343,7 @@ class Normal:
 	
 		# === Main function definition ===
 		# Define the h function definition:
-		self.h = lambda e, e2, v: e2
+		self.h = _h_identity
 
 		
 		# Define the h funciton value (do not change):

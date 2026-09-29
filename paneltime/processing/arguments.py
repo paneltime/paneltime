@@ -36,7 +36,7 @@ class arguments:
 		self.set_init_args(panel,initargs)
 		self.get_user_constraints(panel)
 
-	def initvar_asignment(self, initargs, omega, initvar, panel, rho , lmbda, beta, gamma, psi):
+	def initvar_asignment(self, initargs, omega, initvar, panel, rho0 , lmbda0, beta, gamma0, psi0):
 		
 		p, q, d, k, m=panel.pqdkm
 
@@ -45,13 +45,15 @@ class arguments:
 		initargs['omega'][0][0] = omega
 		initargs['beta']=beta
 
-		for n,name, value in [(q, 'lambda', lmbda),
-													(p, 'rho', rho),
-													(k, 'gamma', gamma),
-													(m, 'psi', psi),
-													]:
+		for n,name, value in [	(q, 'lambda', lmbda0),
+								(p, 'rho', rho0),
+								(k, 'gamma', gamma0),
+								(m, 'psi', psi0)
+								]:
 			if n > 0:
 				initargs[name][0][0] = value
+
+
 
 
 
@@ -161,9 +163,9 @@ class arguments:
 
 	def conv_to_dict(self,args):
 		"""Converts a vector argument args to a dictionary argument. If args is a dict, it is returned unchanged"""
-		if type(args)==dict:
+		if isinstance(args, dict):
 			return args
-		if type(args)==list:
+		if isinstance(args, list):
 			args=np.array(args)			
 		d=dict()
 		k=0
@@ -178,7 +180,7 @@ class arguments:
 	def conv_to_vector(self,args):
 		"""Converts a dict argument args to vector argument. if args is a vector, it is returned unchanged.\n
 		If args=None, the vector of self.args_init is returned"""
-		if type(args)==list or type(args)==np.ndarray:
+		if isinstance(args, (list, np.ndarray)):
 			return np.array(args)
 		v=np.array([])
 		for i in self.categories:
@@ -309,11 +311,11 @@ class arguments:
 
 	def set_init_regression(self, initargs,panel, default):
 		usrargs =  panel.options.arguments
-		beta,rho,lmbda, psi, gamma,v, initvar, omega = initreg.start_values(panel)
+		beta,rho0,lmbda0, psi0, gamma0,v, initvar, omega = initreg.start_values(panel)
 		
 		
 		if not usrargs is None:#Checking for user arguments
-			if type(usrargs)==str:
+			if isinstance(usrargs, str):
 				try:
 					usrargs = eval(usrargs.replace(" array"," np.array").replace(', dtype=float64',''))
 				except NameError as e:
@@ -331,7 +333,7 @@ class arguments:
 			if v < 1e-20:
 				print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
 				
-		self.initvar_asignment(initargs, omega, initvar, panel, rho, lmbda, beta, gamma, psi)
+		self.initvar_asignment(initargs, omega, initvar, panel, rho0, lmbda0, beta, gamma0, psi0)
 		
 		return beta, v
 	

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#This module handle interfacing for various output paltforms
+"""Output adapters for console, notebook, and browser environments."""
 
 
 try:
@@ -10,12 +10,10 @@ try:
 except NameError as e:
   IPython = None
 
-from pydoc import importfile
 import os
 path = os.path.dirname(__file__)
 from . import output
 
-import os
 import numpy as np
 import time
 

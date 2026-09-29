@@ -5,20 +5,21 @@
 
 #for debug. comment out!
 
-from ..output import stat_functions
 from .. import random_effects as re
 from .. import functions as fu
 from . import function
 from ..output import stat_dist
-from ..processing import model_parser
 from ..processing import arguments
 from . import arma
 
 import numpy as np
 import traceback
-import sys
-import time
 import pandas as pd
+
+# Exceptions that signal a numerically undefined likelihood (e.g. an
+# explosive recursion). Anything else is a bug and is raised.
+NUMERICAL_ERRORS = (FloatingPointError, OverflowError, ZeroDivisionError,
+					np.linalg.LinAlgError)
 
 
 
@@ -51,12 +52,14 @@ class LL:
 		#self.LL=self.LL_calc(panel, X) #For debugging
 		try:
 			self.LL=self.LL_calc(panel, X)
-			if np.isnan(self.LL):
-				self.LL=None						
-		except Exception as e:
+		except NUMERICAL_ERRORS:
+			self.LL = None
+			self.err_msg = traceback.format_exc()
 			if print_err:
-				traceback.print_exc()
+				print(self.err_msg)
 				print(self.errmsg_h)
+		if self.LL is not None and not np.isfinite(self.LL):
+			self.LL = None
 
 
 
@@ -85,7 +88,7 @@ class LL:
 		AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var, h=matrices
 
 
-		z = getattr(self.args.args_d, 'z', None)
+		z = self.args.args_d.get('z')		# args_d is a dict; getattr never found it
 		self.llfunc = function.LLFunction(panel,  e_RE, var, z)
 		
 		if False:#debug
@@ -97,12 +100,12 @@ class LL:
 
 		self.variance_RE(panel,self.llfunc.e2)
 
-		for k in function.HFUNC_ITEMS:
-			setattr(self, k, getattr(self.llfunc, k))
+		for item in function.HFUNC_ITEMS:
+			setattr(self, item, getattr(self.llfunc, item))
 
 		ll_value = self.llfunc.ll()
 
-
+		self.e_norm = e_RE*self.llfunc.v_inv05		# needed by tobit, set before it
 		self.tobit(panel,ll_value)
 		LL=np.sum(ll_value*incl)
 
@@ -166,14 +169,6 @@ class LL:
 		# Will then simply invert self.AMA_1AR
 
 
-		if hasattr(self,'Y_st') and False:
-			return		
-		m=panel.lost_obs
-		N,T,k=panel.X.shape
-		if model_parser.DEFAULT_INTERCEPT_NAME in panel.args.caption_d['beta']:
-			m=self.args.args_d['beta'][0,0]
-		else:
-			m=panel.mean(panel.Y)	
 		#e_norm=self.standardize_variable(panel,self.u,reverse_difference)
 		self.Y_long = panel.input.Y
 		self.X_long = panel.input.X
@@ -186,19 +181,32 @@ class LL:
 		self.Y_fitted_st_long=self.stretch_variable(panel,self.Y_fitted_st)
 		self.Y_fitted_long=np.dot(panel.input.X,self.args.args_d['beta'])
 		self.u_long=np.array(panel.input.Y-self.Y_fitted_long)
-		
+
 		a=0
 
 
-	def standardize_variable(self,panel,X,norm=False,reverse_difference=False):
-		X=fu.arma_dot(self.AMA_1AR,X,self)
-		X=(X+self.re_obj_i.RE(X, panel,False)+self.re_obj_t.RE(X, panel,False))
+	def standardize_variable(self,panel,X,norm=False,reverse_difference=False, fe_re = True):
+		X = self.corr_arima(X)
+		if fe_re:
+			X= self.corr_fe_re(panel,X)
 		if (not panel.undiff is None) and reverse_difference:
 			X=fu.dot(panel.undiff,X)*panel.included[3]		
 		if norm:
-			X=X*self.llfunc.v_inv05
+			X  = self.corr_garch(X)
 		X_long=self.stretch_variable(panel,X)
 		return X,X_long		
+
+	def corr_arima(self,X):
+		X=fu.arma_dot(self.AMA_1AR,X,self)
+		return X
+
+	def corr_fe_re(self,panel,X):
+		X=(X+self.re_obj_i.RE(X, panel,False)+self.re_obj_t.RE(X, panel,False))
+		return X	
+	
+	def corr_garch(self,X):
+		X=X*self.llfunc.v_inv05
+		return X	
 
 	def stretch_variable(self,panel,X):
 		N,T,k=X.shape
@@ -231,8 +239,6 @@ class LL:
 		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], 
 						   self.llfunc.model.minvar, self.llfunc.model.maxvar, panel)
 		#var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar, panel)#test
-		if not hasattr(self,'Y_fitted'):
-			self.standardize()
 		index = pd.MultiIndex.from_arrays(
 				[panel.X_pred_idvar[:,0,0].flatten(), panel.X_pred_timevar[:,0,0].flatten()],  # Flatten if necessary
 				names=[panel.input.idvar_names[0], panel.input.timevar_names[0]]
@@ -264,7 +270,6 @@ def get_last_obs(u, panel):
 	maxlag = max(panel.pqdkm)
 	N,T,k = panel.X.shape
 	u_new = np.zeros((N,maxlag,1))
-	u_new2 = np.zeros((N,maxlag,1))
 	for t in range(maxlag):
 		u_new[:, maxlag-1-t] = u[(np.arange(N), panel.T_arr[:,0]-1-t)]
 	u_new[panel.X_is_predicted==False] = np.nan
@@ -273,7 +278,8 @@ def get_last_obs(u, panel):
 def pred_y(X, x_pred_lags, beta, u_pred, rho, lmbda, panel, e_now = 0):
 	N,T,k = X.shape
 	x_pred_extrpolate = pred_x(X, panel)
-	#Substitutes first row
+	#Substitutes first row (on a copy: x_pred_lags is panel data)
+	x_pred_lags = np.array(x_pred_lags, dtype=float)
 	x_pred_lags[np.isnan(x_pred_lags)] = x_pred_extrpolate[np.isnan(x_pred_lags)]
 
 	y_pred = np.sum(x_pred_lags*beta.T, axis=1).reshape((N,1))
@@ -306,13 +312,18 @@ def pred_x(X, panel):
 
 	tarr = (np.ones((N,1))*np.arange(T)).reshape((N,T,1))*panel.included[3]
 	pred = np.zeros((N, k))
+	# observations whose lag is also observed; the lag must not cross into
+	# the previous group or before the group's first observation
+	incl = panel.included[3]
+	incl_lag = incl*np.roll(incl, 1, axis=1)
+	incl_lag[:, 0] = 0
 
 	for i in range(1, k):
 		x = X[:,:,i:i+1]
-		xlag = np.roll(x, 1)*panel.included[3]
+		xlag = np.roll(x, 1, axis=1)*incl_lag
 		z = np.concatenate((np.ones((N,T,1)), 
 					  		tarr, 
-							xlag), axis=2)*panel.included[3]
+							xlag), axis=2)*incl_lag
 		
 		new_z  = np.concatenate((np.ones((N, 1)), 
 						   		(panel.T_arr), 

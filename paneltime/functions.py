@@ -15,8 +15,6 @@ def save_csv(fname, array, sep = ','):
 		np.savetxt(fname,array,fmt='%s', delimiter=sep)
 	f.close()
 
-import numpy as np
-
 def solve(H, g, cond_limit=1e12, lam0=None, max_iter=20):
     """
     Solve H x =  g. If H is ill-conditioned, add damping: H + lambda*I.

@@ -37,7 +37,6 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 	
 	fdict = {}
 	step = 1.0
-
 	dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
 
 	for its in range(MAXITER):  	#Main loop over the iterations.
@@ -65,7 +64,7 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 		elif terminate or its + 1 == MAXITER:
 			msg = f"No convergence within {its} iterations" 
 
-		if (terminate or (conv>0)) and its>8:
+		if (terminate or (conv>0)) and its>2:
 			break
 
 	constr = comput.constr
@@ -80,7 +79,6 @@ def srvr_terminated(slave_server, its):
 	kill = slave_server.kill_request()
 	print(f'server up, requested kill={kill}')
 	return kill
-
 
 def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr, dx):
 		dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+
 from . import init
 from ..processing import arguments
 
@@ -15,46 +16,53 @@ TOLX=(4*EPS)
 
 
 
-def maximize(panel, args, mp, t0):
+def maximize(panel, args, mp, t0):	
 
+	if mp is None or panel.args.initial_user_defined or mp.n_slaves== 1:
+		res, a = maximize_single(panel, args)
+	else:
+		res, a = maximize_multiproc(panel, args, mp)
+	f = [res[k]['f'] for k in res]
+	r = res[list(res.keys())[f.index(max(f))]]
 
-		gtol = panel.options.tolerance
+	if len(a)>0:
+		res2 = np.array([[res[i]['f'], res[i]['x'][7], res[i]['x'][8], a[i][7], res[i]['its'], i] for i in res])
+		print(np.round(res2[res2[:,0].argsort()], 4))
 
-		if mp is None or panel.args.initial_user_defined:
-				d = maximize_node(panel, args.args_v, gtol, 0)    
-				return d
+	return r
 
-		tasks = []
-		a = get_directions(panel, args, mp.n_slaves)
-		for i in range(len(a)):
-				tasks.append(
-				f'max.maximize_node(panel, {list(a[i])}, {gtol}, {i}, slave_server)\n'
-																)
-				
-		mp.eval(tasks)
- 
-		r_base = maximize_node(panel, args.args_v, gtol, len(a))  
-		res = mp.collect(True)
-		res[len(a)] = r_base
-		f = [res[k]['f'] for k in res]
-		r = res[list(res.keys())[f.index(max(f))]]
-		return r
+def maximize_single(panel, args, a = None):
+	res = {}
+	gtol = panel.options.tolerance
+	if a is None:
+		a = get_directions(args)
+	for i,x in enumerate(a):
+		d = maximize_node(panel, x, gtol, 0)    
+		res[i] = d
+	return res, a
 
+def maximize_multiproc(panel, args, mp):
+	tasks = []
+	gtol = panel.options.tolerance
+	a = get_directions(args, [0.3, 0.5, 0.8, 0.9, 0.95, 0.97, 0.99])
+	for i in range(len(a)):
+			tasks.append(
+			f'maximize.maximize_node(panel, {list(a[i])}, {gtol}, {i}, slave_server)\n')
+	mp.eval(tasks)
+	res = mp.collect(force_quit=True)
+	return res, a
 
-
-def get_directions(panel, args, n):
-		if n == 1:
-				return [args.args_v]
-		d = args.positions
-		size = panel.options.initial_arima_garch_params
-		pos = [d[k][0] for k in ['rho', 'lambda'] if len(d[k])]
-		perm = np.array(list(itertools.product([-1,0, 1], repeat=len(pos))), dtype=float)
-		z = np.nonzero(np.sum(perm**2,1)==0)[0][0]
-		perm = perm[np.arange(len(perm))!=z]
-		perm[:,:] =perm[:,:]*0.1
-		perm = perm[:-1]
-		a = np.array([args.args_v for i in range(len(perm))])
-		a[:,pos] = perm
+def get_directions(args, gammas = None):
+		if len(args.positions['gamma'])==0 or gammas is None:
+			return [np.array(args.args_v)]
+		p = args.positions['gamma'][0]
+		a = []
+		
+		for x in gammas:
+			ai = np.array(args.args_v)
+			ai[p] = x
+			a.append(ai)
+		
 		return a
 
 
@@ -68,39 +76,11 @@ def maximize_node_new(panel, args, gtol = 1e-5, slave_id =0 , slave_server = Non
 
 #Need to implement this again
 def maximize_node(panel, args, gtol = 1e-5, slave_id =0 , slave_server = None):
-	res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server)
+	res0 = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server)
+	res = init.maximize(res0['x'], panel, gtol, TOLX, slave_id, slave_server, grestricted=True)
+	res['its'] += res0['its']
 	return res
-	# Possibly unneccessary code:
-	constr = []
-	while True:
-		if not res['constr'].is_collinear:
-			break
-		f = res['constr'].fixed
-		coll = []
-		coll_preferred = []
-		for k in f:
-			if not k in constr:
-				coll.append(k)
-				if not k in panel.args.positions['beta']:#prefers not to constraint independents
-					coll_preferred.append(k)
-		if len(coll)==0:
-			break
-		if len(coll_preferred):
-			coll=coll_preferred
-		for c in ['rho', 'lambda','gamma','psi']:
-			#avoding constraining first ARMA coefficient
-			avoid_first_arma(coll, c, f, panel, constr)
 
-		k = coll[np.argsort([f[k].ci for k in coll])[-1]]
-		if not panel.args.names_v[k]==arguments.INITVAR:
-			args[k] = 0
-		print(f'Added multicollinearity constraint for {panel.args.names_v[k]}')
-		constr.append(k)
-
-		#trying another time
-		res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server, False, constr)
-	return res
-		
 
 def avoid_first_arma(coll, c, f, panel, constr):
 	"Ensures the first ARMA coefficient is not constrained, if possible"

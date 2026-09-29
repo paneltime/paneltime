@@ -15,27 +15,14 @@ from . import main
 from . import options as opt_module
 from . import info
 
-
-
 import numpy as np
 
 import sys
 
 import pandas as pd
 
-import inspect
-
 from .api import Model, Results
 from .options import Effects, FitOptions, OptimizerOptions
-
-
-mp = None 
-#multiprocessing module can be enabled here by importing the paneltime_mp package
-#for implementation see this version of this repository https://github.com/paneltime/paneltime/commit/65d9f9d08eb3b722526cc708402db73b8f6188bb
-#However, this is currently experimental and not recommended for general use.
-
-
-
 
 def execute(model_string, dataframe, timevar=None, idvar=None, het_factors=None, instruments=None):
 
@@ -43,7 +30,7 @@ def execute(model_string, dataframe, timevar=None, idvar=None, het_factors=None,
 	warnings.warn(
 		'execute() is deprecated; construct Model and call fit().',
 		DeprecationWarning, stacklevel=2)
-	if type(dataframe) is not pd.DataFrame:
+	if not isinstance(dataframe, pd.DataFrame):
 		raise ValueError("Input is not a pandas DataFrame. Please provide a valid DataFrame.")
 	if dataframe.empty:
 		raise ValueError("Input DataFrame is empty. Expected non-empty data.")

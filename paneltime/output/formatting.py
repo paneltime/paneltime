@@ -37,7 +37,7 @@ def format_latex(col_headings, heading, size, summaries, tbl, digits, caption):
 	s += "& "
 	for h in col_headings:
 		s += r"\textbf{" + h.replace('_', r'\_') + r"} & "
-	s += r' & \\ ' + '\n'
+	s += r' \\ ' + '\n'
 	s += r"\midrule" + '\n'
 
 	for varname in tbl:
@@ -109,6 +109,29 @@ def format_html(col_headings, heading, size, summaries, tbl, digits, page):
 
 
 def get_unique_varnames(summaries, variable_groups):
+	if summaries[0].is_legacy_object:
+		return get_unique_varnames_legacy(summaries, variable_groups)
+	names_reg = [i.names_independents for i in summaries]
+	names_reg = set([name for sublist in names_reg for name in sublist])
+	names_all = [i.params.index for i in summaries]
+	names_all = set([name for sublist in names_all for name in sublist])
+	names_internal = set(names_all) - set(names_reg)
+	groups = set()
+	group_members = set()
+	if len(variable_groups):
+		group_members = set([item for sublist in variable_groups.values() for item in sublist])
+		groups = set(variable_groups.keys())
+	
+	names_reg = (names_reg|groups) - group_members
+
+	names_reg = sorted(names_reg)
+	names_internal = sorted(names_internal)
+	names_reg = put_intercept_first(names_reg)
+
+	return names_reg, names_internal
+
+
+def get_unique_varnames_legacy(summaries, variable_groups):
 	names_reg = [i.panel.args.names_d['beta'] for i in summaries]
 	names_reg = set([name for sublist in names_reg for name in sublist])
 	names_all = [i.panel.args.caption_v for i in summaries]
@@ -127,6 +150,7 @@ def get_unique_varnames(summaries, variable_groups):
 	names_reg = put_intercept_first(names_reg)
 
 	return names_reg, names_internal
+
 
 def put_intercept_first(names_reg):
 	"""If the intercept is in the list of names, put it first."""
@@ -152,6 +176,44 @@ def table(summaries, digits, variable_groups):
 	return record
 
 def add_to_record(record, unique_names, summaries, variable_groups, digits):
+	if summaries[0].is_legacy_object:
+		return add_to_record_legacy(record, unique_names, summaries, variable_groups, digits)
+	params = [i.results.params for i in summaries]
+	tsign = [i.results.tsign for i in summaries]
+	se = [i.results.se for i in summaries]
+	names = [i.names.varnames for i in summaries]
+
+	has_garch = np.any(list(sum(s.pqdkm[3:]) > 0 for s in summaries))
+
+	for i, uqname in enumerate(unique_names):
+		if uqname == arguments.INITVAR_LONG:
+			continue
+		record[uqname] = len(names)*[['& ']*2]
+		for i, namesi in enumerate(names):
+			j = -1
+			if uqname in namesi:
+				j = namesi.index(uqname)
+			elif uqname in variable_groups:
+				try:
+					j = namesi.index(variable_groups[uqname][i])
+				except Exception as e:
+					print(f"Error finding {uqname} in {namesi}: {namesi}."
+		   				  f"variable_groups needs to be a dictionary of lists, whith each list "
+						  f"item representing the associated variable name for each column/summary object."
+		   				  f"Error: {e}")
+			if j >= 0:
+				record[uqname][i] = (
+					c(params[i][j], tsign[i][j], digits, summaries), #param value and significance code
+					f'& ({np.round(se[i][j],digits)})' # standard error
+				)
+	if not arguments.VARIANCE_CONSTANT in record:
+		return
+	if (not has_garch):
+		record['Variance'] = record.pop(arguments.VARIANCE_CONSTANT)
+	else:
+		record[arguments.VARIANCE_CONSTANT] = record.pop(arguments.VARIANCE_CONSTANT)
+
+def add_to_record_legacy(record, unique_names, summaries, variable_groups, digits):
 	
 	params = [i.results.params for i in summaries]
 	tsign = [i.results.tsign for i in summaries]
@@ -172,7 +234,7 @@ def add_to_record(record, unique_names, summaries, variable_groups, digits):
 				try:
 					j = namesi.index(variable_groups[uqname][i])
 				except Exception as e:
-					print(f"Error finding {uqname} in namesi: {namesi}."
+					print(f"Error finding {uqname} in {namesi}: {namesi}."
 		   				  f"variable_groups needs to be a dictionary of lists, whith each list "
 						  f"item representing the associated variable name for each column/summary object."
 		   				  f"Error: {e}")
@@ -190,6 +252,18 @@ def add_to_record(record, unique_names, summaries, variable_groups, digits):
 
 
 def c(coef, sign, digits, summaries):
+	if summaries[0].is_legacy_object:
+		return c_legacy(coef, sign, digits, summaries)
+	codes = summaries[0].sign_codes
+	s=''
+	for i in codes[::-1]:
+		if sign < i[1]:
+			if i[0]=="'":
+				return f"& {np.round(coef,digits)}{i[0]}" 
+			return f"& {np.round(coef,digits)}$^{{{i[0]}}}$"
+	return f"& {np.round(coef,digits)}"
+
+def c_legacy(coef, sign, digits, summaries):
 	codes = summaries[0].panel.sign_codes
 	s=''
 	for i in codes[::-1]:
@@ -199,7 +273,6 @@ def c(coef, sign, digits, summaries):
 			return f"& {np.round(coef,digits)}$^{{{i[0]}}}$"
 	return f"& {np.round(coef,digits)}"
 
-
 def dgnst(summaries, digits):
 	
 	diagnostics = []
@@ -207,7 +280,8 @@ def dgnst(summaries, digits):
 	for smr in summaries:
 		sts = smr.stats
 		ci , ni = sts.diag.ci, sts.diag.n_ci
-		ci = f"{int(ci)} ({ni})"
+		if not ci=='None':
+			ci = f"{int(ci)} ({ni})"
 		diagnostics.append([
 			int(sts.info.df),
 			np.round(sts.diag.Rsqadj, 2),
@@ -225,12 +299,12 @@ def dgnst(summaries, digits):
 	initvars = [s.stats.info.initvar  for s in summaries]
 
 	extra_diag = []
-	#Initvar
+	# Initial variance diagnostic.
 	if not np.all(list(i is None for i in initvars)):
 		append_dgnst(initvars, arguments.INITVAR_LONG, diagnostics, digits, extra_diag)
 
 
-	# Hausmann test
+	# Hausman test.
 	if len(summaries)==2: 
 		result = hausmann_test(summaries)
 		if result:
@@ -244,7 +318,7 @@ def append_dgnst(values, name, diagnostics, digits, extra_diag):
 	for i in range(len(diagnostics)):
 		if values[i] is None:
 			diagnostics[i].append('NA')
-		elif type(values[i]) == str:
+		elif isinstance(values[i], str):
 			diagnostics[i].append(values[i])
 		else:
 			diagnostics[i].append(np.round(values[i], digits) )
@@ -252,7 +326,9 @@ def append_dgnst(values, name, diagnostics, digits, extra_diag):
 
 
 def hausmann_test(summaries):
-	opt = [s.panel.options for s in summaries]
+	if summaries[0].is_legacy_object:
+		return hausmann_test_legacy(summaries)
+	opt = [s.options for s in summaries]
 	if not ((opt[0].fixed_random_group_eff == 1 and
 		opt[1].fixed_random_group_eff == 2) or
 		(opt[0].fixed_random_time_eff == 1 and
@@ -275,6 +351,28 @@ def hausmann_test(summaries):
 	return ['', p_value]
 	
 
+def hausmann_test_legacy(summaries):
+	opt = [s.panel.options for s in summaries]
+	if not ((opt[0].fixed_random_group_eff == 1 and
+		opt[1].fixed_random_group_eff == 2) or
+		(opt[0].fixed_random_time_eff == 1 and
+			opt[0].fixed_random_time_eff == 2)):
+		return False
+	
+	k=len(summaries[0].results.args['beta'])
+	diff = summaries[0].results.params - summaries[1].results.params
+	cov_diff = (summaries[0].results.cov_robust - summaries[1].results.cov_robust)
+
+	diff = diff[:k]
+	cov_diff = cov_diff[:k,:k]
+	try:
+		stat = diff.T @ np.linalg.inv(cov_diff) @ diff
+		p_value = 1 - stat_dist.chisq(stat, len(diff))
+		p_value = f"{p_value:.3f}"
+	except np.linalg.LinAlgError:
+		p_value = "NA"
+
+	return ['', p_value]
 
 	
 def dgnst_latex(summaries, digits):

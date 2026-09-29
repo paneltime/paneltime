@@ -27,7 +27,6 @@ pt.options.accuracy = 1e-10
 |accuracy|0|%s>0|int|<b>Accuracy:</b> Accuracy of the optimization algorithm. 0 = fast and inaccurate, 3=slow and maximum accuracy|
 |add_intercept|True|[True, False]|bool|<b>Add intercept:</b> If True, adds intercept if not all ready in the data|
 |arguments|None|None|['str', 'dict', 'list', 'ndarray']|<b>Initial arguments:</b> A dict or string defining a dictionary in python syntax containing the initial arguments.An example can be obtained by printing ll.args.args_d|
-|constraints_engine|True|[True, False]|bool|<b>Uses constraints engine:</b> Determines whether to use the constraints engine|
 |custom_model|None|None|type|<b>Custom model class:</b> Custom model class. Must be a class with porperties and methods as definedin the documentation. |
 |fixed_random_group_eff|0|[0, 1, 2]|int|<b>Group fixed random effect:</b> No, fixed or random group effects|
 |fixed_random_time_eff|0|[0, 1, 2]|int|<b>Time fixed random effect:</b> No, fixed or random time effects|
@@ -45,6 +44,5 @@ pt.options.accuracy = 1e-10
 |supress_output|True|[True, False]|bool|<b>Supress output:</b> If True, no output is printed.|
 |tobit_limits|[None, None]|['%s>0', None]|['float', 'NoneType']|<b>Tobit-model limits:</b> Determines the limits in a tobit regression. Element 0 is lower limit and element1 is upper limit. If None, the limit is not active|
 |tolerance|0.0001|%s>0|float|<b>Tolerance:</b> Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonalis smaller than the tolerance, the procedure is Tolerance in maximum likelihood|
-|use_analytical|1|[0, 1, 2]|int|<b>Analytical Hessian:</b> Use analytical Hessian|
 |user_constraints|None|None|['str', 'dict']|<b>User constraints:</b> Constraints on the regression coefficient estimates. Must be a dict with groups of coefficients where each element can either be None (no constraint), a tuple with a range (min, max) or a single lenght list as a float representing a fixed constraint. Se example in README.md. You can extract the arguments dict from  `result.args`, and substitute the elements with range restrictions or None, or remove groups.If you for example put in the dict in `result.args` as it is, you will restrict all parameters to be equal to the result.|
 |variance_RE_norm|5e-06|%s>0|float|<b>Variance RE/FE normalization point in log function:</b> This parameter determines at which point the log function involved in the variance RE/FE calculations, will be extrapolate by a linear function for smaller values|

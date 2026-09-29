@@ -9,6 +9,11 @@ import pandas as pd
 
 from . import main
 from .options import Effects, FitOptions, OptimizerOptions
+import paneltime_mp
+
+
+MP = None
+
 
 
 class RandomEffectsResult:
@@ -30,6 +35,7 @@ class Results:
 
 	def __init__(self, legacy):
 		self._legacy = legacy
+		self.is_legacy_object = False
 		self._output = legacy.output
 		self._table = legacy.table
 		self.optim_result = legacy.general
@@ -45,6 +51,15 @@ class Results:
 		self._tvalues = self._series(data.tstat)
 		self._pvalues = self._series(data.tsign)
 		self.random_effects = RandomEffectsResult(legacy.random_effects)
+		self.names_grouped = legacy.panel.args.names_d
+		self.names_dependent = legacy.output.stats.info.dep_var
+		self.names_independents = legacy.panel.args.names_d['beta']
+		self.pqdkm = legacy.panel.pqdkm
+		self.stats = legacy.output.stats
+		self.sign_codes = legacy.panel.sign_codes
+		self.options = legacy.panel.options
+		self.panel = legacy.panel
+		a=0
 
 	def _series(self, value):
 		if value is None:
@@ -144,13 +159,17 @@ class Model:
 	"""Panel ARIMA/GARCH model using a constructor followed by ``fit``."""
 
 	def __init__(self, formula: str, data: pd.DataFrame, entity: Optional[str] = None,
-			 time: Optional[str] = None):
+			 time: Optional[str] = None, multiprocess = False):
+		global MP
 		if not isinstance(data, pd.DataFrame) or data.empty:
 			raise ValueError('data must be a non-empty pandas DataFrame')
 		self.formula = formula
 		self.data = data
 		self.entity = entity
 		self.time = time
+		if multiprocess and MP is None:
+			MP = paneltime_mp.Master(7)
+		self.mp = MP
 
 	def fit(self, order=(1, 1, 0), garch_order=(1, 1), vol='GARCH',
 			effects=None, cov_type='robust', optimizer=None, constraints=None,
@@ -164,7 +183,7 @@ class Model:
 			entity, time = self.entity, self.time
 			result = main.execute(self.formula, self.data, time, entity,
 				_het_factors, legacy, None, None, _instruments, True, None)
-			return Results(result)
+			return result
 		effects = effects or Effects()
 		optimizer = optimizer or OptimizerOptions()
 		config = FitOptions(order=order, garch_order=garch_order, vol=vol,
@@ -184,5 +203,5 @@ class Model:
 		if likelihood is not None:
 			legacy.custom_model = likelihood
 		result = main.execute(self.formula, self.data, time, entity, None,
-			legacy, window, exe_tab, None, True, None)
+			legacy, window, exe_tab, None, True, self.mp)
 		return Results(result)

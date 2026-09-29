@@ -231,8 +231,8 @@ def deviation(panel,X):
 def correl_2dim(X,Y=None,covar=False):
 	"""Returns the correlation of X and Y. Assumes two dimensional matrixes. If Y is not supplied, the 
 	correlation matrix of X is returned"""	
-	if type(X)==list:
-		X=Concat(X)
+	if isinstance(X, list):
+		X=np.concatenate(X)
 	single=Y is None
 	if single:
 		Y=X
@@ -267,6 +267,51 @@ def get_singular_list(panel,XX):
 	idx=np.array(range(len(a)))[a==False]
 	s=', '.join([f"{names[i]}" for i in range(len(idx))])	
 	return s
+
+def mundlak_test(panel, ll):
+	"""Returns the probability that the random effects model is appropriate. 
+	Tests the null hypothesis that the means of the variables are not correlated with the error term"""
+
+	X, _ = ll.standardize_variable(panel, panel.X, norm=True, fe_re=False)
+	Y, _ = ll.standardize_variable(panel, panel.Y, norm=True, fe_re=False)
+
+	re_obj_i = random_effects.REObj(panel,True,panel.T_i,panel.T_i,3)
+	re_obj_t = random_effects.REObj(panel,False,panel.date_count_mtrx,panel.date_count,3)
+
+
+	a = [
+		mundlak_test_dim(panel, ll, re_obj_i, X, Y),
+		mundlak_test_dim(panel, ll, re_obj_t, X, Y)
+
+	  ]
+	
+
+	return tuple(a)
+
+
+def mundlak_test_dim(panel, ll, obj, X, Y):
+		N,T,k=panel.X.shape
+
+		re_x =  obj.RE(X, panel)
+		re_y =  obj.RE(Y, panel)
+		mean_x = obj.FRE(X, panel, means_only=True)
+		
+		if re_x is None:
+			return
+
+		re_x += X
+		re_y += Y
+
+		beta, e_unrestricted = OLS(panel, np.concatenate((re_x, mean_x), 2), re_y, return_e=True, robust_se_lags=0)
+		beta, e_restricted = OLS(panel, re_x, re_y, return_e=True, robust_se_lags=0)
+		RSS_restricted = np.sum(e_restricted**2)
+		RSS_unrestricted = np.sum(e_unrestricted**2)
+		df = (panel.NT - k*2)
+		F_stat = ((RSS_restricted - RSS_unrestricted) / k) / (RSS_unrestricted / df)
+		ProbNoCorr = 1.0 - stat_dist.fcdf(F_stat, k, df)
+
+		return str(np.round(ProbNoCorr, 4))
+
 
 def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_se_lags=0):
 	"""runs OLS after adding const as the last variable"""

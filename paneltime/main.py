@@ -2,16 +2,12 @@
 # -*- coding: utf-8 -*-
 
 
-#Todo: 
-
-
-
-#capture singular matrix with test_small.csv
-#make sure error in h function triggers an exeption
+# TODO: Cover singular matrices and h-function failures with regression tests.
 
 from .processing import panel
 from .processing import model_parser
 from . import maximization
+from .maximization import maximize
 
 
 import sys
@@ -59,8 +55,10 @@ def go(datainput,options,mp,window,exe_tab, console_output):
   pnl=panel.Panel(datainput,options)			
 
   if not mp is None:
-    mp.send_dict({'panel':pnl})
+    mp.send_dict({'panel':pnl, 'maximize_node':maximization.maximize.maximize_node})
     mp.exec("panel.init()\n")
+    mp.exec("import numpy as np\n")
+    mp.exec("from paneltime.maximization import maximize\n")
   pnl.init()
 
   summary = maximization.go(pnl, pnl.args.args_init, mp, window, exe_tab, console_output)

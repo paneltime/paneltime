@@ -102,7 +102,7 @@ class Output:
 				('  Prob(JB):',s.diag.JB_prob_st),
 				('  Skew:',s.diag.skewness_st),
 				('  Kurtosis:',s.diag.kurtosis),
-				('','')
+				('Mundlak sign group/time',f'{s.diag.mundlak_test[0]} / {s.diag.mundlak_test[1]}')
 				
 		)   
 		
@@ -529,6 +529,9 @@ class Diagnostics:
 		self.JB_prob, self.JB, self.skewness, self.kurtosis, self.Omnibus, self.Omnibus_pval = stat.JB_normality_test(ll.u_long,panel)
 		self.JB_prob_st, self.JB_st, self.skewness_st, self.kurtosis_st, self.Omnibus_st,  self.Omnibus_pval_st = stat.JB_normality_test(ll.e_RE_norm_centered_long,panel)
 		self.ADF_stat,self.c1,self.c5=stat.adf_test(panel,ll,10)
+		self.mundlak_test  = [np.nan, np.nan]
+		if panel.N>1:
+			self.mundlak_test = stat.mundlak_test(panel,ll)
 		self.ci, self.n_ci = self.get_CI(comm.constr)
 
 	def get_CI(self, constr):
@@ -539,7 +542,8 @@ class Diagnostics:
 				ci = np.round(constr.ci)
 				ci_n = constr.ci_n
 		return ci, ci_n
-		
+
+
 class Information:
 	#This class handles the information about the regression
 	def __init__(self, panel, comm, delta_time, re):

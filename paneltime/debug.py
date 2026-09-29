@@ -58,7 +58,7 @@ def grad_debug_detail(f0,panel,d,llname,varname1,pos1=0):
 	f0=lgl.LL(f0.args.args_d, panel)
 	f1=lgl.LL(args1, panel)
 
-	if type(llname)==list or type(llname)==tuple:
+	if isinstance(llname, (list, tuple)):
 		ddL=(f1.__dict__[llname[0]].__dict__[llname[1]]-f0.__dict__[llname[0]].__dict__[llname[1]])/d
 	else:
 		ddL=(f1.__dict__[llname]-f0.__dict__[llname])/d
@@ -88,7 +88,7 @@ def hess_debug_detail(f0,panel,d,llname,varname1,varname2,pos1=0,pos2=0):
 	f1=lgl.LL(args1, panel)
 	f2=lgl.LL(args2, panel)
 	f3=lgl.LL(args3, panel)
-	if type(llname)==list:
+	if isinstance(llname, list):
 		ddL=(f3.__dict__[llname[0]].__dict__[llname[1]]-f2.__dict__[llname[0]].__dict__[llname[1]]
 										 -f1.__dict__[llname[0]].__dict__[llname[1]]+f0.__dict__[llname[0]].__dict__[llname[1]])/(d**2)
 	else:

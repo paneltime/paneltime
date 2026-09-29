@@ -30,7 +30,7 @@ class LLFunction:
 		for key in self.model.__dict__:
 			x = self.model.__dict__[key]
 			if key in EXPORT_ITEMS+HFUNC_ITEMS:
-				if type(x) == np.ndarray:
+				if isinstance(x, np.ndarray):
 					x[_incl] = 0
 				elif not x is None:
 					x = x*incl

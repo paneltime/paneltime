@@ -5,6 +5,7 @@
 
 """
 
+import warnings
 import numpy as np
 
 from .. import functions as fu
@@ -36,6 +37,11 @@ class gradient:
 
 	def __init__(self, panel):
 		self.panel = panel
+		_, _, _, k, m = panel.pqdkm
+		if k > 0 and m == 0:
+			warnings.warn("GARCH terms (gamma) without ARCH terms (psi): all variance "
+						  "derivatives are gated on the ARCH order, so gamma gets a zero "
+						  "gradient and will not be estimated.")
 
 	def arima_grad(self, k, x, ll, sign, pre):
 		"""Derivative of an ARIMA lag block.
@@ -167,17 +173,19 @@ class gradient:
 		if not run:
 			return
 		from .. import debug
-		print("\nNumerical:\n")
-		a = debug.grad_debug(ll,self.panel,0.000000001)
-		print(a)
+		print("\n********GRADIENT DEBUG************:\n")
 		print("\nAnalytical:\n")
 		print(g)
+		print("\nNumerical:\n")
+		a = debug.grad_debug(ll,self.panel,0.001)
+		print(a)
+
 		diff = np.abs(a-g)
 		m=np.max(diff)
 		den = a[np.nonzero(m==diff)]
 		discrepancy = abs(m/(den + (den==0)*1e-100))
 		print(discrepancy)
-		a=debug.grad_debug_detail(ll, self.panel, 0.00000001, 'var', 'beta',0)
+		a=debug.grad_debug_detail(ll, self.panel, 0.001, 'var', 'beta',0)
 		a=0
 
 
@@ -240,10 +248,15 @@ class hessian:
 
 		d2var_z_beta, d2var_z_lambda, d2var_z_rho, d2var_z2 = None, None, None, None
 		if not ll.h_z_val is None:
-			d2var_z2				=	sum(sum(fu.arma_dot(ll.GAR_1MA,ll.h_2z_val, ll), 0),1) 
-			d2var_z_rho				=	cf.dd_func_z(ll, g.de_rho_RE)
-			d2var_z_lambda			=	cf.dd_func_z(ll, g.de_lambda_RE)
-			d2var_z_beta			=	cf.dd_func_z(ll, g.de_beta_RE)
+			# (not N, T: assigning T here would shadow the transpose function T)
+			n_grp, n_per, _ = panel.X.shape
+			# weighted by dLL/dvar like all d2var terms; np.sum over N and T
+			# (the builtin sum took its second argument as a start value)
+			d2var_z2				=	np.sum(fu.arma_dot(ll.GAR_1MA,ll.h_2z_val, ll)
+											   *g.dLL_var.reshape(n_grp, n_per, 1), axis=(0, 1)).reshape(1, 1)
+			d2var_z_rho				=	cf.dd_func_z(ll, g.de_rho_RE, g.dLL_var)
+			d2var_z_lambda			=	cf.dd_func_z(ll, g.de_lambda_RE, g.dLL_var)
+			d2var_z_beta			=	cf.dd_func_z(ll, g.de_beta_RE, g.dLL_var)
 
 		d2var_rho2,	d2e_rho2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'rho',		'rho' )
 		d2var_beta2,d2e_beta2	=	cf.dd_func_lags_mult(panel,ll,g,	None,	'beta',		'beta')
@@ -317,8 +330,10 @@ class hessian:
 				[T(D2LL_beta_z),			T(D2LL_rho_z),				T(D2LL_lambda_z),				T(D2LL_gamma_z),			T(D2LL_psi_z),			T(D2LL_omega_z), 				D2LL_initvar_z, 			D2LL_z2				]]
 
 		H=cf.concat_matrix(H)
-		if H[-1,-1]==0:
-			H[-1,-1]=1
+		# Parameters without any information (all-zero row): make them inert
+		# with curvature -1. (+1, as before, made H indefinite.)
+		no_info = np.all(H == 0, axis=1)
+		H[no_info, no_info] = -1.0
 		
 		self.debug(ll, g, H, False)
 			
@@ -335,7 +350,10 @@ class hessian:
 		from .. import debug
 		Hn=debug.hess_debug(ll,self.panel,g,0.00000001)#debugging
 
+		print("\n********HESSIAN DEBUG************:\n")
+		print("\nAnalytical:\n")
 		print(H[0])
+		print("\nNumerical:\n")
 		print(Hn[0])
 
 		a=0

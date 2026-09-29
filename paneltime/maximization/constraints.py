@@ -1,428 +1,307 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""Constraints for the LL maximization.
 
+Two kinds of constraints are supported:
+  fixed     : the parameter is held at a value (removed from the Newton system)
+  intervals : the parameter must stay within [min, max]; either bound may be
+              None (one-sided), stored as -inf/+inf
 
-import os
-from itertools import combinations
-path = os.path.dirname(__file__)
-from ..output import stat_functions as stat
+Only static constraints are used: the ARMA/GARCH extreme bounds and user
+constraints. The dynamic (multicollinearity based) constraining has been
+removed; weakly identified directions are handled by the direction module
+(concavity fix and active-set solve) instead of by fixing parameters.
+Multicollinearity is still diagnosed and reported (multicoll_report), but
+nothing is constrained because of it.
+"""
+
+import numbers
+import numpy as np
 from ..processing import arguments
 
 
-import numpy as np
-
-
-
 class Constraint:
-	def __init__(self,index,assco,cause,value, interval,names,category, ci):
-		self.name=names[index]
-		self.intervalbound=None
-		self.max=None
-		self.min=None
-		self.value=None
-		self.value_str=None
+	def __init__(self, index, assco, cause, value, interval, names, category, ci=0):
+		self.name = names[index]
+		self.index = index
+		self.cause = cause
+		self.category = category
 		self.ci = ci
+		self.intervalbound = None
+		self.value = None
+		self.value_str = None
+		self.min = None
+		self.max = None
 		if interval is None:
-			self.value=value
-			self.value_str=str(round(self.value,8))
+			self.value = value
+			self.value_str = str(round(value, 8))
 		else:
-			if interval[0]>interval[1]:
-				raise RuntimeError('Lower constraint cannot exceed upper')
-			self.min=interval[0]
-			self.max=interval[1]
-			self.cause='user/general constraint'
-		self.assco_ix=assco
-		if assco is None:
-			self.assco_name=None
-		else:
-			self.assco_name=names[assco]
-		self.cause=cause
-		self.category=category	
+			lo, hi = interval
+			self.min = -np.inf if lo is None else lo
+			self.max = np.inf if hi is None else hi
+			if self.min > self.max:
+				raise ValueError(f"Lower constraint exceeds upper for {self.name}: {interval}")
+		self.assco_ix = assco
+		self.assco_name = None if assco is None else names[assco]
+
 
 class Constraints(dict):
+	"""Stores the constraints of the LL maximization, keyed by parameter index."""
 
-	"""Stores the constraints of the LL maximization"""	
-	def __init__(self,panel,args, its, armaconstr):
+	def __init__(self, panel, args, its, armaconstr):
 		dict.__init__(self)
-		self.categories={}
-		self.mc_constr = {}
-		self.mc_report = {}
-		self.fixed={}
-		self.intervals={}
-		self.associates={}
-		self.collinears={}
-		self.mc_report={}
-		self.args=args
-		self.args[0]
-		self.panel_args=panel.args
-		self.ci=None
-		self.its=its
-		self.initvar_set = False
-		self.pqdkm=panel.pqdkm
-		self.m_zero=panel.m_zero
+		self.categories = {}
+		self.fixed = {}
+		self.intervals = {}
+		self.associates = {}
+		self.args = args
+		self.panel_args = panel.args
+		self.its = its
+		self.pqdkm = panel.pqdkm
+		self.m_zero = panel.m_zero
 		self.ARMA_constraint = armaconstr
 		self.GARCH_min = panel.options.GARCH_min
-		self.H_correl_problem=False
-		self.is_collinear = False
+
+		# Multicollinearity diagnostics, set by multicoll_report (report only)
+		self.ci = None
+		self.ci_n = 0
+		self.mc_report = {}
+		self.mc_details = []
 
 
-		#self.constr_matrix = []
+	# ------------------------------------------------------------ add/delete
 
-
-	def add(self,name,assco,cause,interval=None,replace=True,value=None, ci = 0):
-		#(self,index,assco,cause,interval=None,replace=True,value=None)
-		name,index=self.panel_args.get_name_ix(name)
-		name_assco,assco=self.panel_args.get_name_ix(assco,True)
+	def add(self, name, assco, cause, interval=None, replace=True, value=None, ci=0):
+		"""Adds constraints for all parameters matching `name` (a name, group
+		or index). Fixed if interval is None, otherwise an interval constraint."""
+		name, index = self.panel_args.get_name_ix(name)
+		name_assco, assco = self.panel_args.get_name_ix(assco, True)
 		for i in index:
-			self.add_item(i,assco,cause, interval ,replace,value, ci)
+			self.add_item(i, assco, cause, interval, replace, value, ci)
 
-	def clear(self,cause=None):
-		for c in list(self.keys()):
-			if self[c].cause==cause or cause is None:
-				self.delete(c)	
+	def add_item(self, index, assco, cause, interval, replace, value, ci=0):
+		"""Adds a constraint at parameter position `index`.
 
-	def add_item(self,index,assco,cause,interval,replace,value, ci):
-		"""Adds a constraint. 'index' is the position
-		for which the constraints shall apply.  \n\n
+		interval None    -> fixed constraint at `value` (default: current args)
+		interval (lo,hi) -> interval constraint; lo or hi may be None
+		replace=False    -> an existing constraint at `index` is kept
 
-		Equality constraints are chosen by specifying 'minimum_or_value' \n\n
-		Inequality constraints are chosen specifiying 'maximum' and 'minimum'\n\n
-		'replace' determines whether an existing constraint shall be replaced or not 
-		(only one equality and inequality allowed per position)"""
+		A fixed value outside an existing interval is rejected, and not all
+		parameters can be fixed. Returns True if the constraint was added."""
+		existing = self.get(index)
+		if existing is not None and not replace:
+			return False
 
-		args=self.panel_args
-		if not replace:
-			if index in self:
-				return False
-
-		if interval is None:#this is a fixed constraint
-			if len(self.fixed)==len(args.caption_v)-1:#can't lock all variables
-				return False
+		if interval is None:
 			if value is None:
-				value=self.args[index]
-			if index in self.intervals:
-				c=self[index]
-				if not (c.min<=value<=c.max):
+				value = self.args[index]
+			if existing is not None and existing.value is None:
+				if not (existing.min <= value <= existing.max):
 					return False
-				else:
-					self.intervals.pop(index)
-		elif index in self.fixed: #this is an interval constraint, no longer a fixed constraint
-			self.fixed.pop(index)
+			n_fixed_other = len(self.fixed) - (index in self.fixed)
+			if n_fixed_other >= len(self.panel_args.caption_v) - 1:
+				return False							# can't fix all variables
 
-		eq,category,j=self.panel_args.positions_map[index]
-		if not category in self.categories:
-			self.categories[category]=[index]
-		elif not index in self.categories[category]:
-			self.categories[category].append(index)
+		if existing is not None:
+			self.delete(index)
 
-		c = Constraint(index,assco,cause,value, interval ,args.caption_v,category, ci)
+		_, category, _ = self.panel_args.positions_map[index]
+		c = Constraint(index, assco, cause, value, interval,
+					   self.panel_args.caption_v, category, ci)
 		self[index] = c
-		if value is None:
-			self.intervals[index]=c
+		self.categories.setdefault(category, []).append(index)
+		if interval is None:
+			self.fixed[index] = c
 		else:
-			self.fixed[index]=c
-		if not assco is None:
-			if not assco in self.associates:
-				self.associates[assco]=[index]
-			elif not index in self.associates[assco]:
-				self.associates[assco].append(index)
-		if cause=='collinear':
-			self.collinears[index]=assco
+			self.intervals[index] = c
+		if assco is not None:
+			lst = self.associates.setdefault(assco, [])
+			if index not in lst:
+				lst.append(index)
 		return True
 
-	def delete(self,index):
-		if not index in self:
+	def delete(self, index):
+		if index not in self:
 			return False
 		self.pop(index)
-		if index in self.intervals:
-			self.intervals.pop(index)
-		if index in self.fixed:
-			self.fixed.pop(index)		
-		eq,category,j=self.panel_args.positions_map[index]
-		c=self.categories[category]
-		if len(c)==1:
-			self.categories.pop(category)
-		else:
-			i=np.nonzero(np.array(c)==index)[0][0]
-			c.pop(i)
-		a=self.associates
-		for i in a:
-			if index in a[i]:
-				if len(a[i])==1:
-					a.pop(i)
-					break
-				else:
-					j=np.nonzero(np.array(a[i])==index)[0][0]
-					a[i].pop(j)
-		if index in self.collinears:
-			self.collinears.pop(index)
+		self.intervals.pop(index, None)
+		self.fixed.pop(index, None)
+
+		_, category, _ = self.panel_args.positions_map[index]
+		cat = self.categories.get(category, [])
+		if index in cat:
+			cat.remove(index)
+		if not cat:
+			self.categories.pop(category, None)
+
+		for a in list(self.associates):
+			if index in self.associates[a]:
+				self.associates[a].remove(index)
+			if not self.associates[a]:
+				self.associates.pop(a)
 		return True
 
+	def clear(self, cause=None):
+		for i in list(self.keys()):
+			if cause is None or self[i].cause == cause:
+				self.delete(i)
 
-	def set_fixed(self,x):
-		"""Sets all elements of x that has fixed constraints to the constraint value"""
-		for i in self.fixed:
-			x[i]=self.fixed[i].value
+	# --------------------------------------------------------------- queries
 
-	def within(self,x,fix=False):
-		"""Checks if x is within interval constraints. If fix=True, then elements of
-		x outside constraints are set to the nearest constraint. if fix=False, the function 
-		returns False if x is within constraints and True otherwise"""
-		for i in self.intervals:
-			c=self.intervals[i]
-			if (c.min<=x[i]<=c.max):
-				c.intervalbound=None
+	def set_fixed(self, x):
+		"""Sets all elements of x that have fixed constraints to their values."""
+		for i, c in self.fixed.items():
+			x[i] = c.value
+
+	def within(self, x, fix=False):
+		"""Returns True if x satisfies all interval constraints.
+
+		fix=False: returns False at the first violation (x is not changed).
+		fix=True : violating elements of x are moved to the nearest bound (in
+		           place) and True is returned."""
+		for i, c in self.intervals.items():
+			if c.min <= x[i] <= c.max:
+				c.intervalbound = None
+			elif fix:
+				x[i] = min(max(x[i], c.min), c.max)
+				c.intervalbound = str(round(x[i], 8))
 			else:
-				if fix:
-					x[i]=max((min((x[i],c.max)),c.min))
-					c.intervalbound=str(round(x[i],8))
-				else:
-					return False
+				return False
 		return True
 
-	def add_static_constraints(self, comput, its, ll= None):
+	# ------------------------------------------------ multicollinearity report
 
+	def multicoll_report(self, H, limit):
+		"""Belsley collinearity diagnostics on the information matrix -H of the
+		non-fixed parameters. Reports only; nothing is constrained.
+
+		-H is scaled to unit diagonal and eigendecomposed, -H_s = V L V'.
+		Condition index of dimension k: sqrt(l_max/l_k). Variance-decomposition
+		proportion of parameter j in dimension k: (v_jk^2/l_k)/sum_k(v_jk^2/l_k),
+		i.e. the share of the parameter's variance due to that dimension.
+
+		Sets
+		  ci         : largest condition index
+		  ci_n       : number of parameters with proportion > 0.5 in that dimension
+		  mc_report  : {index: associate} for each dimension with condition index
+		               >= limit and at least two parameters with proportion > 0.5
+		               (largest proportion -> second largest)
+		  mc_details : [(condition index, [(index, name, proportion), ...]), ...]
+		               for the same dimensions, largest condition index first"""
+		self.ci, self.ci_n, self.mc_report, self.mc_details = 0.0, 0, {}, []
+		if H is None:
+			return
+		H = np.asarray(H, dtype=float)
+		incl = np.ones(len(H), dtype=bool)
+		incl[list(self.fixed)] = False
+		idx = np.flatnonzero(incl)
+		if len(idx) < 2:
+			return
+		C = -H[np.ix_(idx, idx)]
+		if not np.all(np.isfinite(C)):
+			return
+		d = np.sqrt(np.maximum(np.abs(np.diag(C)), 1e-300))
+		C = 0.5*(C + C.T)/np.outer(d, d)
+		lam, V = np.linalg.eigh(C)
+		lam = np.abs(lam)						# sign problems are handled elsewhere
+		lam_max = lam.max()
+		if lam_max == 0:
+			return
+		lam = np.maximum(lam, lam_max*1e-30)	# singular -> condition index ~1e15
+		cond = np.sqrt(lam_max/lam)
+		phi = V**2/lam							# phi[j, k] = v_jk^2/l_k
+		prop = phi/phi.sum(axis=1, keepdims=True)
+
+		order = np.argsort(cond)[::-1]
+		self.ci = float(cond[order[0]])
+		self.ci_n = int(np.sum(prop[:, order[0]] > 0.5))
+		names = self.panel_args.caption_v
+		for k in order:
+			if cond[k] < limit:
+				break
+			p = prop[:, k]
+			if np.sum(p > 0.5) < 2:
+				continue
+			top = np.argsort(p)[::-1]
+			self.mc_report[int(idx[top[0]])] = int(idx[top[1]])
+			self.mc_details.append((float(cond[k]),
+				[(int(idx[j]), names[idx[j]], float(p[j])) for j in top if p[j] > 0.5]))
+
+	# ---------------------------------------------------- static constraints
+
+	def add_static_constraints(self, comput, its=0, ll=None):
+		"""ARMA/GARCH extreme bounds and user constraints."""
 		panel = comput.panel
-		pargs=self.panel_args
-		p, q, d, k, m=self.pqdkm
+		c = self.ARMA_constraint
+		bounds = [('rho', -c, c), ('lambda', -c, c),  ('psi', -c, c)]
+		if comput.grestricted:	
+			bounds.append(('gamma', -1e-12, c))
+		else:
+			bounds.append(('gamma', -c, c))
 
-
-		c=self.ARMA_constraint
-		g = self.GARCH_min
-
-
-
-
-		constraints=[('rho',-c,c),('lambda',-c,c),('gamma',g,c),('psi',g,c)]
 		if panel.options.include_initvar:
-			constraints.append((arguments.INITVAR,1e-50,1e+10))
-		for name, min_, max_ in constraints:
-				self.add(name,None,'ARMA/GARCH extreme bounds', [min_,max_])
-		self.add_custom_constraints(panel, pargs.user_constraints, True, 'user constraints')
+			bounds.append((arguments.INITVAR, 1e-50, 1e+10))
+		for name, lo, hi in bounds:
+			self.add(name, None, 'ARMA/GARCH extreme bounds', [lo, hi])
+		self.add_custom_constraints(panel, self.panel_args.user_constraints, True, 'user constraints')
+		self.set_init_constr(its, panel)
 
-
-		self.set_init_constr(its)
-
-
-		a=0
-		
-			
-			
-	def set_init_constr(self, its):
-
-		p, q, d, k, m = self.pqdkm
-
-		j = its - 2
-
-		if j>= sum((p, q, k, m)):
-			return
-		
-		
-		constr = ([f'rho{i}' for i in range(p)] +
-									 [f'lambda{i}' for i in range(q)] + 
-									 [f'gamma{i}' for i in range(k)] +
-									 [f'psi{i}' for i in range(m)])
-		if j>=0:
-			constr.pop(j)
-			constr.append('beta')
-			constr.append('omega')
-
-		for name in constr:
-			self.add(name, None,'user constraint')
-
-		
-		
-
-	def add_dynamic_constraints(self,computation, H, ll, args = None):
-		if not args is None:
-			self.args = args
-			self.args[0]
-		k,k=H.shape
-		incl=np.array(k*[True])
-		incl[list(computation.constr.fixed)]=False
-		self.constraint_multicoll(k, computation, incl, H)
-
-
-
-	def constraint_multicoll(self, k,computation,incl, H):
-		cimax = {}
-		ciall = []
-		for i in range(k-1):
-			ci = self.multicoll_problems(computation, H, incl, cimax)
-			ciall.append(ci)
-			if len(self.mc_report)==0:
-				break
-			incl[list(self.mc_constr)]=False
-		if len(cimax)==0:
-			self.ci, self.ci_n = max(ciall), 0
-		else:
-			self.ci = max(cimax, key = cimax.get)
-			self.ci_n = cimax[self.ci]
-
-	def multicoll_problems(self, computation, H, incl, cimax):
-		c_index, var_prop, includemap, d, C = decomposition(H, incl)
-		if any(d==0):
-			self.remove_zero_eigenvalues(C, incl, includemap, d)
-			c_index, var_prop, includemap, d, C = decomposition(H, incl)
-
-		if c_index is None:
-			return 0
-		limit_report = computation.panel.options.multicoll_threshold_report
-		limit_constr = computation.multicoll_threshold_max
-
-		for cix in range(1,len(c_index)):
-	
-			constr = self.add_collinear(limit_constr, self.mc_constr, c_index[-cix], 
-					   						True, var_prop[-cix], includemap, cimax)
-			
-			report = self.add_collinear(limit_report, self.mc_report, c_index[-cix], 
-					   						False, var_prop[-cix], includemap, cimax)
-			if constr:
-				break
-		return c_index[-1]
-
-	def add_collinear(self, limit, ci_list, ci, constrain, var_dist, includemap, cimax):
-		"""Identifies if there are collinearities outside `limit`, and adds them to ci_list. If `constrain==True`, 
-		a regression constraint is added."""
-		sign_var = var_dist > 0.5
-
-
-		if (not np.sum(sign_var)>1) or ci<limit:
-			return False
-		a = np.argsort(var_dist)
-		index = includemap[a[-1]]
-		assc = includemap[a[-2]]
-		if ci in cimax:
-			cimax[ci] = max((np.sum(sign_var), cimax[ci]))
-		else:
-			cimax[ci] = np.sum(sign_var)
-		ci_list[index] = assc
-		if constrain:
-			#print(f"{index}/{m}")
-			self.add(index ,assc,'collinear', ci = ci)
-			return True
-		return False
-
-	def remove_zero_eigenvalues(self, C, incl, includemap, d):
-		combo =  find_singular_combinations(C, d)
-		if combo is None:
-			return
-		for i in combo:
-			indx = includemap[i]
-			incl[indx] = False
-			self.add(indx, None,'zero ev')
-
-
-	def add_custom_constraints(self, panel, constraints,replace,cause):
-		"""Adds a custom range constraint\n\n
-			 If list, constraint shall be on the format (minimum, maximum)"""
-		#If it is a dict, it needs to have a paneltime hierarchical structure with
-		#grops at top level and 
-		for grp in constraints:
-			c=constraints[grp]
+	def add_custom_constraints(self, panel, constraints, replace, cause):
+		"""Adds user constraints. For each group:
+		  tuple (min, max) -> interval on the whole group (a bound may be None)
+		  number           -> the whole group fixed at that value
+		  list             -> one element per parameter in the group, each a
+		                      tuple, a number, a one-element list or None"""
+		for grp, c in constraints.items():
 			if c is None:
 				continue
-			elif type(c) == tuple: #interval constraints on whole group
-				self.add(grp,None,cause, c,replace)
-			elif type(c) == float:
-				self.add(grp,None,cause, replace = replace, value = c)
+			elif isinstance(c, tuple):
+				self.add(grp, None, cause, c, replace)
+			elif _is_number(c):
+				self.add(grp, None, cause, replace=replace, value=float(c))
 			else:
 				for i, name in enumerate(panel.args.caption_d[grp]):
 					self.add_custom_constraint_subgroup(c, i, name, replace, cause, grp)
 
 	def add_custom_constraint_subgroup(self, constraints, i, name, replace, cause, grp):
-		c = constraints
-		if not len(c)>i:
+		if len(constraints) <= i or constraints[i] is None:
 			return
-		if c[i] is None:
-			return
-		if type(c[i]) == tuple:
-			self.add(name,None,cause, c[i],replace)
-		elif type(c[i]) == float:
-			self.add(name,None,cause, value = c[i], replace = replace)
-		elif type(c[i][0]) == float and len(c[i])==1:
-			self.add(name,None,cause, value = c[i][0], replace = replace)
+		ci = constraints[i]
+		if isinstance(ci, tuple):
+			self.add(name, None, cause, ci, replace)
+		elif _is_number(ci):
+			self.add(name, None, cause, value=float(ci), replace=replace)
+		elif isinstance(ci, list) and len(ci) == 1 and _is_number(ci[0]):
+			self.add(name, None, cause, value=float(ci[0]), replace=replace)
 		else:
 			raise RuntimeError(f"When using the constraints option, the elements of {grp} "
-					  			"must either be a tuple with (max, min), a float or a single element list with a float "
-									)
-					
+							   "must be a tuple (min, max), a number, or a one-element "
+							   "list with a number")
+
+	def set_init_constr(self, its, panel):
+		return
+		p, q, d, k, m = panel.pqdkm
+
+		if its*(k>1)>7 or its==0:
+			return
+		
+		
+		constr = [f'gamma{i}' for i in range(1, k)] + ['omega', 'psi']
+		
+		for name in constr:
+			self.add(name, None,'user constraint')
+
+		a =0
+
 	def __str__(self):
 		s = ''
-		for desc, obj in [('All', self),
-								('Fixed', self.fixed),
-								('Intervals', self.intervals)]:
+		for desc, obj in [('All', self), ('Fixed', self.fixed), ('Intervals', self.intervals)]:
 			s += f"{desc} constraints:\n"
-			for i in obj:
-				c=obj[i]
-				try:
-					s += f"constraint: {i}, associate:{c.assco_ix}, max:{c.max}, min:{c.min}, value:{c.value}, cause:{c.cause}\n"
-				except:
-					s += f"constraint: {i}, associate:{c.assco_ix}, max:{None}, min:{None}, value:{c.value}, cause:{c.cause}\n"  
+			for i, c in obj.items():
+				s += (f"constraint: {i}, associate:{c.assco_ix}, max:{c.max}, "
+					  f"min:{c.min}, value:{c.value}, cause:{c.cause}\n")
 		return s
-	
-def test_interval(interval,value):
-	if not interval is None:
-		if np.any([i is None for i in interval]):
-			if interval[0] is None:
-				value=interval[1]
-			else:
-				value=interval[0]
-			interval=None	
-	return interval,value
-
-def append_to_ID(ID,intlist):
-	inID=False
-	for i in intlist:
-		if i in ID:
-			inID=True
-			break
-	if inID:
-		for j in intlist:
-			if not j in ID:
-				ID.append(j)
-		return True
-	else:
-		return False
-
-def normalize(H,incl):
-	C=-H[incl][:,incl]
-	d=np.maximum(np.diag(C).reshape((len(C),1)),1e-30)**0.5
-	C=C/(d*d.T)
-	includemap=np.arange(len(incl))[incl]
-	return C,includemap
-
-def decomposition(H,incl=None):
-	C,includemap=normalize(H, incl)
-	c_index, var_prop, d, p = stat.var_decomposition(xx_norm = C)
-	if any(d==0):
-		return None, None,includemap, d, C
-	c_index=c_index.flatten()
-	return c_index, var_prop,includemap, d, C
 
 
-def find_singular_combinations(matrix, evs):
-	n = matrix.shape[0]
-	rank = len(matrix)-sum(evs==0)
-		
-	if rank == n:
-		print("Matrix is not singular.")
-		return None
-	
-	# Find all combinations of columns that might be causing singularity
-	for i in range(1, n - rank + 1):  # Adjust based on how many you need to remove
-		for combo in combinations(range(n), i):
-			reduced_matrix = np.delete(matrix, combo, axis=1)
-			reduced_matrix = np.delete(reduced_matrix, combo, axis=0)  # Remove corresponding rows
-
-			if sum(np.linalg.eigvals(reduced_matrix)==0) == 0:
-				return combo  # Found the combination causing singularity
-		
-	return None  # In case no combination found, though this should not happen
-
-
-
-
-
-
-
+def _is_number(v):
+	return isinstance(v, numbers.Real) and not isinstance(v, bool)

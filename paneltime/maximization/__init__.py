@@ -24,6 +24,7 @@ class Summary:
 		self.output.update(comm, time.time()-t0)
 		self.table = output.RegTableObj(panel, comm, self.output)
 		c = comm.ll.args
+		self.is_legacy_object = True
 		self.names = Names(list(c.args_d), list(c.caption_v), list(c.names_v) )
 		self.count = Counting(panel)
 		self.panel = panel

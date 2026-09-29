@@ -27,16 +27,16 @@ def start_values(panel, X = None, Y = None):
 	X=(X+re_obj_i.RE(X, panel)+re_obj_t.RE(X, panel))*panel.included[3]
 	Y=(Y+re_obj_i.RE(Y, panel)+re_obj_t.RE(Y, panel))*panel.included[3]
 	beta,u=stat.OLS(panel,X,Y,return_e=True)
-	rho,lmbda= ARMA_process_calc(u,panel)
-	psi, gamma = 0.05,0.9
+	rho0,lmbda0= ARMA_process_calc(u,panel)
+	psi0, gamma0 = 0.1,0.5
 	v = panel.var(u) 
 
 	vreg = panel.h_func(0, v, v)
 
-	initvar = vreg*0.9
-	omega = vreg*(1-gamma)
+	initvar = vreg*0.7
+	omega = vreg*0.2
 
-	return beta,rho,lmbda, psi, gamma,v, initvar, omega
+	return beta,rho0,lmbda0, psi0, gamma0, v, initvar, omega
 
 
 
@@ -44,7 +44,7 @@ def start_values(panel, X = None, Y = None):
 def ARMA_process_calc(e,panel):
 
 	c=stat.correlogram(panel,e,2,center=True)[1:]
-	if c[0]<0:
+	if c[1]<0:
 		rho, lmda = 0, c[0]
 	else:
 		rho = c[1]**0.5

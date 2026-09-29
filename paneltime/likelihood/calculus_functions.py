@@ -196,6 +196,9 @@ def dd_func_lags(panel, ll, L, d, dLL, transpose=False):
         First derivative, shape ``(N, T, m)``.
     dLL : ndarray
         Likelihood derivative, shape compatible with ``(N, T)``.
+    transpose : ignored
+        Kept for API compatibility. For gamma^2 the caller multiplies by 2,
+        which equals x + x.T because GAR_1 L^i GAR_1 L^j is symmetric in i, j.
     """
     if panel.pqdkm[4] == 0 or d is None:
         return None
@@ -218,13 +221,17 @@ def dd_func_lags(panel, ll, L, d, dLL, transpose=False):
     return np.sum(_clip_extreme(dLL) * _clip_extreme(x), axis=(0, 1))
 
 
-def dd_func_z(ll, d_arma):
-    """Second derivative contribution for exogenous variance terms ``z``."""
-    if d_arma is None:
+def dd_func_z(ll, d_arma, dLL_var):
+    """Second derivative contribution for exogenous variance terms ``z``.
+
+    d2var/(dz dtheta) = GAR_1MA * (h_ez * de/dtheta), weighted by dLL/dvar and
+    summed over N and T. The filter is applied after multiplying by the error
+    derivative, as in the first-order term (gradient.garch_arima_grad)."""
+    if d_arma is None or ll.h_ez_val is None:
         return None
-    x = fu.arma_dot(ll.GAR_1MA, ll.h_ez_val, ll)
-    _, _, k = d_arma.shape
-    return np.sum(prod((x, d_arma)), axis=(0, 1)).reshape(1, k)
+    N, T, k = d_arma.shape
+    x = fu.arma_dot(ll.GAR_1MA, prod((ll.h_ez_val, d_arma)), ll)
+    return np.sum(x*dLL_var.reshape(N, T, 1), axis=(0, 1)).reshape(1, k)
 
 
 def add(iterable, ignore=False):
