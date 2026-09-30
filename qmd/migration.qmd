@@ -11,7 +11,7 @@ fit call:
 #| eval: false
 # v1: pt.options.pqdkm = (2, 2, 1, 2, 2); pt.execute(formula, data, ...)
 model = pt.Model(formula, data, entity="country", time="date")
-results = model.fit(order=(2, 2, 1), garch_order=(2, 2))
+results = model.fit(order=(2, 1, 2), garch_order=(2, 2))
 ```
 
 The constructor accepts a `(entity, time)` `MultiIndex` or flat columns named
@@ -28,5 +28,6 @@ from `Results`, including `params`, `bse`, `conf_int()`, and `summary()`.
 | `output`, `table` | `_output`, `_table` |
 | `supress_output` | `suppress_output` |
 
-The deprecated `pt.execute()` and `pt.options` compatibility layer remains
-available during migration and emits `DeprecationWarning`.
+The deprecated `pt.execute()` and mutable `pt.options` interface have been
+removed. Update older call sites to construct a `Model` and pass configuration
+to `fit()` as shown above.

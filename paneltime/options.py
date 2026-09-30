@@ -1,404 +1,312 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+from dataclasses import dataclass, field, fields
+from typing import Any, Callable, Optional
+
 import numpy as np
-import os
-import warnings
-from dataclasses import dataclass, field
-from typing import Any, Optional
-
-def create_options(deprecated=False):
-	options = options_dict()
-	opt = OptionsObj(options, deprecated=deprecated)
-	return opt
-
-def options_to_txt():
-
-	options = options_dict()
-	a = []
-
-	for o in options:
-		opt = options[o]
-		if isinstance(opt.dtype, list):
-			tp = [i.__name__ for i in opt.dtype]
-		else:
-			tp = opt.dtype.__name__
-		value = opt.value
-		if isinstance(value, str):
-			value = value.replace('\n','<br>').replace('\t','a&#9;')
-			if len(value)>12:
-				value = value[:9]+"..."
-		perm = opt.permissible_values
-		if perm == None:
-			perm = 'Any'
-		a.append([o, value, tp, perm, f"<b>{opt.name}:</b> {opt.description}".replace('\n','<br>').replace('\t','a&#9;')])
-
-	sorted_list = sorted(a, key=lambda x: x[0])
-	path = os.sep.join(__file__.split(os.sep)[:-2])
-	with open(f'{path}{os.sep}qmd{os.sep}options.qmd','w') as f:
-		f.write(	"---\n"
-					"title: Setting options\n"
-					"nav_order: 2\n"
-					"has_toc: true\n"
-					"---\n\n\n"
-					"# Setting options\n\n\n"
-					
-					"You can set various options by setting attributes of the `options` attribute, for example:\n"
-					"```\n"
-					"import paneltime as pt\n"
-					"pt.options.accuracy = 1e-10\n"
-					"```\n\n"
-					"## `OptionsObj` attributes \n\n\n"
-					"|Attribute name|Default<br>value|Permissible<br>values*|Data<br>type|Description|\n"
-					"|--------------|-------------|-----------|-----------|-----------|\n")
-		
-		for name, default, dtype, perm, desc in sorted_list:
-			f.write(f"|{name}|{default}|{perm}|{dtype}|{desc}|\n")
-
-class options_item:
-	def __init__(self,value,description,dtype,name,permissible_values=None,value_description=None, descr_for_input_boxes=[],category='General'):
-		"""permissible values can be a vector or a string with an inequality, 
-		where %s represents the number, for example "1>%s>0"\n
-		if permissible_values is a vector, value_description is a corresponding vector with 
-		description of each value in permissible_values"""
-		#if permissible_values
-		self.description=description
-		self.value=value
-		self.dtype=dtype
-		if isinstance(dtype, str):
-			self.dtype_str=dtype
-		elif isinstance(dtype, (list, tuple)):
-			self.dtype_str=str(dtype).replace('<class ','').replace('[','').replace(']','').replace('>','').replace("'",'')
-		else:
-			self.dtype_str= 'NA'
-
-		self.permissible_values=permissible_values
-		self.value_description=value_description
-		self.descr_for_input_boxes=descr_for_input_boxes
-		self.category=category
-		self.name=name
-		self.selection_var= len(descr_for_input_boxes)==0 and isinstance(permissible_values, list)
-		self.is_inputlist=len(self.descr_for_input_boxes)>0
 
 
-
-	def set(self,value):
-		self.valid(value)
-		if str(self.value)!=str(value):
-			self.value=value
-
-	def valid(self,value):
-		if self.permissible_values is None:
-			if self.dtype is type:
-				isclass = isinstance(value, self.dtype)
-				if not isclass:
-					raise TypeError(f"Expected type 'type' (class type) for option {self.code_name} but got {type(value)}")
-				return
-			try:
-				if self.dtype(value)==value:
-					return
-			except Exception as e:
-				raise RuntimeError(f'Checking correct type of {self.code_name} failed with error message: {e}')
-			if isinstance(value, tuple(self.dtype)):
-				return
-			else:
-				raise TypeError(f'Cannot set option {self.code_name}, expected type {self.dtype}, got {type(value)} ')
-		self.valid_test(value, self.permissible_values)
+def is_bool(value):
+	return isinstance(value, (bool, np.bool_))
 
 
-	def valid_test(self,value,permissible):
-		if permissible is None:
-			return True
-		if isinstance(permissible, (list, tuple)):
-			try:
-				if not isinstance(value, list):
-					value=self.dtype(value)
-					if value in permissible:
-						return
-					else:
-						raise RuntimeError(f'Setting option {self.code_name} failed. Value {value} not in permissible values {permissible}')
-				else:
-					valid=True
-					for i in range(len(value)):
-						dtype = self.dtype[i] if isinstance(self.dtype, (list, tuple)) else self.dtype
-						if value[i] is None:
-							continue
-						value[i] = dtype(value[i])
-						if permissible[i] is not None:
-							valid = valid * eval(permissible[i] % value[i])
-			except Exception as e:
-				raise RuntimeError(f'Setting option {self.code_name} failed with error message: {e}')
-			return valid
-		elif isinstance(permissible, str):
-			if isinstance(value, (list, tuple)):
-				return np.all([eval(permissible %(i,)) for i in value])
-			else:
-				return eval(permissible %(value,))
-		else:
-			print('No method to handle this permissible')
+def is_positive(value):
+	return value > 0
 
-class OptionsObj:
-	def __init__(self, options, deprecated=False):
-		super().__setattr__('_deprecated', deprecated)
-		super().__setattr__('_warned', False)
-		for o in options:
-			super().__setattr__('_' + o, options[o]) 
-			super().__setattr__(o, options[o].value) 
 
-		self.make_category_tree()
+def is_nonnegative(value):
+	return value >= 0
+
+
+def is_positive_int(value):
+	return isinstance(value, int) and value > 0
+
+
+def is_nonnegative_int(value):
+	return isinstance(value, int) and value >= 0
+
+
+def tuple_of_ints(length, minimum=0):
+	def validate(value):
+		return (
+			isinstance(value, tuple)
+			and len(value) == length
+			and all(isinstance(item, int) and item >= minimum for item in value)
+		)
+	return validate
+
+
+def one_of(values):
+	return lambda value: value in values
+
+
+def positive_or_none_pair(value):
+	return (
+		isinstance(value, tuple)
+		and len(value) == 2
+		and all(item is None or item > 0 for item in value)
+	)
+
+
+def is_constraints(value):
+	return value is None or isinstance(value, (str, dict))
+
+
+def is_class_or_none(value):
+	return value is None or isinstance(value, type)
+
+
+@dataclass(frozen=True)
+class OptionSpec:
+	"""Single source of truth for a public option and its engine mapping."""
+
+	default: Any
+	description: str
+	domain: Any
+	category: str
+	engine_name: Optional[str] = None
+	example: Any = None
+	default_display: Any = None
+	validator: Optional[Callable[[Any], bool]] = None
+
+
+OPTION_SPECS = {
+	'fit.order': OptionSpec((1, 1, 0), 'ARIMA order `(p, d, q)`.', 'Three non-negative integers.', 'ARIMA-GARCH', 'pqdkm', '(2, 1, 2)', validator=tuple_of_ints(3)),
+	'fit.garch_order': OptionSpec((1, 1), 'GARCH order `(k, m)`.', 'Two non-negative integers.', 'ARIMA-GARCH', 'pqdkm', '(2, 2)', validator=tuple_of_ints(2)),
+	'fit.vol': OptionSpec('GARCH', 'Volatility model.', ['GARCH', 'EGARCH'], 'ARIMA-GARCH', 'EGARCH', 'EGARCH', validator=one_of(['GARCH', 'EGARCH'])),
+	'fit.effects': OptionSpec(None, 'Fixed or random effects in the mean and variance models.', 'An Effects instance.', 'Effects', default_display='Effects()'),
+	'fit.optimizer': OptionSpec(None, 'Numerical optimizer settings.', 'An OptimizerOptions instance.', 'Optimizer', default_display='OptimizerOptions()'),
+	'fit.constraints': OptionSpec(None, 'Restrictions on coefficient estimates.', 'None, a string, or a dictionary.', 'Regression', 'user_constraints', validator=is_constraints),
+	'fit.add_intercept': OptionSpec(True, 'Add an intercept when one is not present in the formula.', 'True or False.', 'Regression', 'add_intercept', validator=is_bool),
+	'fit.subtract_means': OptionSpec(False, 'Subtract variable means before estimation.', 'True or False.', 'Regression', 'subtract_means', validator=is_bool),
+	'fit.include_initvar': OptionSpec(False, 'Include an initial variance term.', 'True or False.', 'Regression', 'include_initvar', validator=is_bool),
+	'fit.tobit_limits': OptionSpec((None, None), 'Lower and upper limits for a Tobit model.', 'Two positive numbers or None.', 'Regression', 'tobit_limits', '(0, None)', validator=positive_or_none_pair),
+	'fit.suppress_output': OptionSpec(True, 'Suppress optimizer progress output.', 'True or False.', 'Output', 'supress_output', validator=is_bool),
+	'fit.likelihood': OptionSpec(None, 'Custom likelihood model class.', 'None or a likelihood class.', 'Regression', 'custom_model', validator=is_class_or_none),
+	'fit.h_function': OptionSpec(None, 'Custom heteroskedasticity function.', 'None or a supported h-function.', 'Regression'),
+	'effects.group': OptionSpec('none', 'Group effect specification.', ['none', 'fixed', 'random'], 'Effects', 'fixed_random_group_eff', validator=one_of(['none', 'fixed', 'random'])),
+	'effects.time': OptionSpec('none', 'Time effect specification.', ['none', 'fixed', 'random'], 'Effects', 'fixed_random_time_eff', validator=one_of(['none', 'fixed', 'random'])),
+	'effects.variance': OptionSpec('none', 'Variance effect specification.', ['none', 'fixed', 'random'], 'Effects', 'fixed_random_variance_eff', validator=one_of(['none', 'fixed', 'random'])),
+	'optimizer.tolerance': OptionSpec(0.0001, 'Tolerance used by the numerical optimizer.', 'Positive number.', 'Optimizer', 'tolerance', '1e-5', validator=is_positive),
+	'optimizer.max_iterations': OptionSpec(150, 'Maximum number of optimization iterations.', 'Positive integer.', 'Optimizer', 'max_iterations', '300', validator=is_positive_int),
+	'optimizer.accuracy': OptionSpec(0, 'Optimization accuracy level.', 'Non-negative integer.', 'Optimizer', 'accuracy', '1', validator=is_nonnegative_int),
+	'optimizer.initial_arima_garch_params': OptionSpec(0.1, 'Initial size of ARIMA-GARCH parameters.', 'Non-negative number.', 'Optimizer', 'initial_arima_garch_params', validator=is_nonnegative),
+	'optimizer.arma_constraint': OptionSpec(3, 'Maximum absolute value of ARMA coefficients.', 'Positive number.', 'ARIMA-GARCH', 'ARMA_constraint', validator=is_positive),
+	'optimizer.arma_round': OptionSpec(14, 'Number of significant digits used in ARMA matrices.', 'Positive integer.', 'ARIMA-GARCH', 'ARMA_round', validator=is_positive_int),
+	'optimizer.garch_min': OptionSpec(1e-12, 'Minimum absolute value of GARCH coefficients.', 'Positive number.', 'ARIMA-GARCH', 'GARCH_min', validator=is_positive),
+	'optimizer.garch_assist': OptionSpec(0, 'Weight assigned to the assisting GARCH variance.', 'Non-negative number.', 'ARIMA-GARCH', 'GARCH_assist', validator=is_nonnegative),
+	'optimizer.multicoll_threshold_report': OptionSpec(30, 'Threshold for reporting multicollinearity.', 'Positive number.', 'Optimizer', 'multicoll_threshold_report', validator=is_positive),
+	'optimizer.min_group_df': OptionSpec(1, 'Minimum observations allowed in each group.', 'Positive integer.', 'Optimizer', 'min_group_df', validator=is_positive_int),
+	'optimizer.robust_cov_lags': OptionSpec((100, 30), 'Lags used for robust covariance calculations.', 'Two integers greater than one.', 'Output', 'robustcov_lags_statistics', '(100, 30)', validator=tuple_of_ints(2, minimum=2)),
+	'optimizer.variance_re_norm': OptionSpec(0.000005, 'Normalization point for variance random-effects calculations.', 'Positive number.', 'ARIMA-GARCH', 'variance_RE_norm', validator=is_positive),
+	'optimizer.kurtosis_adj': OptionSpec(0, 'Kurtosis adjustment.', 'Non-negative number.', 'ARIMA-GARCH', 'kurtosis_adj', validator=is_nonnegative),
+}
+
+
+def _spec(name):
+	return OPTION_SPECS[name]
+
+
+def _validate_spec(name, value):
+	spec = _spec(name)
+	if spec.validator is None:
+		return
+	try:
+		valid = spec.validator(value)
+	except Exception as error:
+		raise ValueError(f'Could not validate option {name}: {value!r}') from error
+	if not valid:
+		raise ValueError(f'Invalid value for {name}: {value!r}; expected {spec.domain}')
+
+
+def _engine_defaults():
+	defaults = {'arguments': None}
+	for spec in OPTION_SPECS.values():
+		if spec.engine_name is None or spec.engine_name in defaults:
+			continue
+		defaults[spec.engine_name] = spec.default
+	defaults['pqdkm'] = list(_spec('fit.order').default + _spec('fit.garch_order').default)
+	defaults['EGARCH'] = _spec('fit.vol').default.upper() == 'EGARCH'
+	for name in ('group', 'time', 'variance'):
+		effect_spec = _spec(f'effects.{name}')
+		defaults[effect_spec.engine_name] = {'none': 0, 'fixed': 1, 'random': 2}[effect_spec.default]
+	defaults['robustcov_lags_statistics'] = list(_spec('optimizer.robust_cov_lags').default)
+	defaults['tobit_limits'] = list(_spec('fit.tobit_limits').default)
+	return defaults
+
+
+def _option(name):
+	spec = _spec(name)
+	metadata = {
+		'description': spec.description,
+		'domain': spec.domain,
+		'category': spec.category,
+		'engine_name': spec.engine_name,
+		'example': spec.example,
+	}
+	return field(default=spec.default, metadata=metadata)
+
+
+def _option_factory(name, factory):
+	spec = _spec(name)
+	metadata = {
+		'description': spec.description,
+		'domain': spec.domain,
+		'category': spec.category,
+		'engine_name': spec.engine_name,
+		'example': spec.example,
+	}
+	return field(default_factory=factory, metadata=metadata)
+
+
+class EngineOptions:
+	"""Mutable settings consumed by the numerical engine."""
+
+	def __init__(self):
+		object.__setattr__(self, '_allowed_names', {
+			spec.engine_name for spec in OPTION_SPECS.values() if spec.engine_name is not None
+		} | {'arguments'})
+		for name, value in _engine_defaults().items():
+			object.__setattr__(self, name, value)
 
 	def __setattr__(self, name, value):
-		# Trigger a custom function when an attribute is set
-		_name = '_' + name
-		if _name in self.__dict__:
-			if self.__dict__.get('_deprecated') and not self.__dict__.get('_warned'):
-				warnings.warn(
-					'pt.options is deprecated; pass configuration to model.fit() instead.',
-					DeprecationWarning, stacklevel=2)
-				super().__setattr__('_warned', True)
-			self.__dict__[_name].set(value)
-			value = self.__dict__[_name].value
-		elif not name in ['make_category_tree', 'categories','categories_srtd' ]:
-			raise RuntimeError(f"'{name}' is not a valid options attribute.")
+		if name not in self._allowed_names:
+			raise AttributeError(f"'{name}' is not a valid engine option")
+		object.__setattr__(self, name, value)
 
-		super().__setattr__(name, value)  # Perform the actual attribute assignment
+	def validate(self):
+		if len(self.pqdkm) != 5 or any(not isinstance(value, int) or value < 0 for value in self.pqdkm):
+			raise ValueError('pqdkm must contain five non-negative integers')
+		if any(value not in (0, 1, 2) for value in (
+				self.fixed_random_group_eff, self.fixed_random_time_eff, self.fixed_random_variance_eff)):
+			raise ValueError('fixed/random effect settings must be 0, 1, or 2')
+		if self.accuracy < 0:
+			raise ValueError('accuracy must be non-negative')
+		if self.max_iterations <= 0 or self.min_group_df <= 0:
+			raise ValueError('max_iterations and min_group_df must be positive')
+		if any(value <= 0 for value in (
+				self.ARMA_constraint, self.GARCH_min, self.multicoll_threshold_report,
+				self.tolerance, self.variance_RE_norm, self.ARMA_round)):
+			raise ValueError('engine constraint, tolerance, and normalization settings must be positive')
+		if any(value < 0 for value in (
+				self.initial_arima_garch_params, self.kurtosis_adj, self.GARCH_assist)):
+			raise ValueError('engine parameter magnitudes must be non-negative')
+		if len(self.robustcov_lags_statistics) != 2 or any(
+				not isinstance(value, int) or value <= 1 for value in self.robustcov_lags_statistics):
+			raise ValueError('robustcov_lags_statistics must contain two integers greater than one')
+		if len(self.tobit_limits) != 2 or any(
+				value is not None and value <= 0 for value in self.tobit_limits):
+			raise ValueError('tobit_limits must contain two positive values or None')
+		if self.user_constraints is not None and not isinstance(self.user_constraints, (str, dict)):
+			raise TypeError('user_constraints must be a string, dict, or None')
+		if self.custom_model is not None and not isinstance(self.custom_model, type):
+			raise TypeError('custom_model must be a class or None')
+		if self.arguments is not None and not isinstance(self.arguments, (str, dict, list, np.ndarray)):
+			raise TypeError('arguments must be a string, dict, list, array, or None')
+		for name in ('add_intercept', 'EGARCH', 'include_initvar', 'subtract_means', 'supress_output'):
+			if not isinstance(getattr(self, name), (bool, np.bool_)):
+				raise TypeError(f'{name} must be boolean')
+		return self
 
-	def make_category_tree(self):
-		opt=self.__dict__
-		d=dict()
-		keys=np.array(list(opt.keys()))
-		keys=keys[keys.argsort()]
-		for i in opt:
-			is_object = i[0]=='_'
-			# No options item can have underscore in the beginning of its name, as it defines
-			# the internal object version of the option
-			if is_object and isinstance(opt[i], options_item):
-				if opt[i].category in d:
-					d[opt[i].category].append(opt[i])
-				else:
-					d[opt[i].category]=[opt[i]]
-				opt[i].code_name=i[1:]
-		self.categories=d	
-		keys=np.array(list(d.keys()))
-		self.categories_srtd=keys[keys.argsort()]
+
+def create_engine_options():
+	return EngineOptions()
 
 
 @dataclass
 class Effects:
 	"""Fixed or random effects included in the mean or variance model."""
 
-	group: str = 'none'
-	time: str = 'none'
-	variance: str = 'none'
+	group: str = _option('effects.group')
+	time: str = _option('effects.time')
+	variance: str = _option('effects.variance')
 
 	def validate(self):
-		for name in ('group', 'time', 'variance'):
-			value = getattr(self, name)
-			if value not in {'none', 'fixed', 'random'}:
-				raise ValueError(f"effects.{name} must be 'none', 'fixed', or 'random'; got {value!r}")
+		for option in fields(Effects):
+			_validate_spec(f'effects.{option.name}', getattr(self, option.name))
 
 
 @dataclass
 class OptimizerOptions:
 	"""Numerical optimizer settings used by :meth:`Model.fit`."""
 
-	tolerance: float = 0.0001
-	max_iterations: int = 150
-	accuracy: int = 0
-	initial_arima_garch_params: float = 0.1
-	arma_constraint: float = 3
-	arma_round: int = 14
-	garch_min: float = 1e-12
-	garch_assist: float = 0
-	multicoll_threshold_report: float = 30
-	min_group_df: int = 1
-	robust_cov_lags: tuple[int, int] = (100, 30)
-	variance_re_norm: float = 0.000005
-	kurtosis_adj: float = 0
+	tolerance: float = _option('optimizer.tolerance')
+	max_iterations: int = _option('optimizer.max_iterations')
+	accuracy: int = _option('optimizer.accuracy')
+	initial_arima_garch_params: float = _option('optimizer.initial_arima_garch_params')
+	arma_constraint: float = _option('optimizer.arma_constraint')
+	arma_round: int = _option('optimizer.arma_round')
+	garch_min: float = _option('optimizer.garch_min')
+	garch_assist: float = _option('optimizer.garch_assist')
+	multicoll_threshold_report: float = _option('optimizer.multicoll_threshold_report')
+	min_group_df: int = _option('optimizer.min_group_df')
+	robust_cov_lags: tuple[int, int] = _option('optimizer.robust_cov_lags')
+	variance_re_norm: float = _option('optimizer.variance_re_norm')
+	kurtosis_adj: float = _option('optimizer.kurtosis_adj')
 
 	def validate(self):
-		if self.tolerance <= 0 or self.max_iterations <= 0:
-			raise ValueError('optimizer.tolerance and optimizer.max_iterations must be positive')
-		if self.accuracy < 0:
-			raise ValueError('optimizer.accuracy must be non-negative')
-		if any(value < 0 for value in (self.initial_arima_garch_params, self.garch_min, self.garch_assist, self.kurtosis_adj)):
-			raise ValueError('optimizer parameter magnitudes must be non-negative')
+		for option in fields(OptimizerOptions):
+			_validate_spec(f'optimizer.{option.name}', getattr(self, option.name))
 
 
 @dataclass
 class FitOptions:
 	"""Per-call public configuration for a paneltime model fit."""
 
-	order: tuple[int, int, int] = (1, 1, 0)
-	garch_order: tuple[int, int] = (1, 1)
-	vol: str = 'GARCH'
-	effects: Effects = field(default_factory=Effects)
-	optimizer: OptimizerOptions = field(default_factory=OptimizerOptions)
-	constraints: Any = None
-	add_intercept: bool = True
-	subtract_means: bool = False
-	include_initvar: bool = False
-	tobit_limits: tuple[Optional[float], Optional[float]] = (None, None)
-	suppress_output: bool = True
-	likelihood: Any = None
-	h_function: Any = None
+	order: tuple[int, int, int] = _option('fit.order')
+	garch_order: tuple[int, int] = _option('fit.garch_order')
+	vol: str = _option('fit.vol')
+	effects: Effects = _option_factory('fit.effects', Effects)
+	optimizer: OptimizerOptions = _option_factory('fit.optimizer', OptimizerOptions)
+	constraints: Any = _option('fit.constraints')
+	add_intercept: bool = _option('fit.add_intercept')
+	subtract_means: bool = _option('fit.subtract_means')
+	include_initvar: bool = _option('fit.include_initvar')
+	tobit_limits: tuple[Optional[float], Optional[float]] = _option('fit.tobit_limits')
+	suppress_output: bool = _option('fit.suppress_output')
+	likelihood: Any = _option('fit.likelihood')
+	h_function: Any = _option('fit.h_function')
 
 	def validate(self):
-		if len(self.order) != 3 or any(not isinstance(value, int) or value < 0 for value in self.order):
-			raise ValueError('order must be a tuple of three non-negative integers')
-		if len(self.garch_order) != 2 or any(not isinstance(value, int) or value < 0 for value in self.garch_order):
-			raise ValueError('garch_order must be a tuple of two non-negative integers')
-		if self.vol.upper() not in {'GARCH', 'EGARCH'}:
-			raise ValueError("vol must be either 'GARCH' or 'EGARCH'")
+		for name in ('order', 'garch_order', 'vol', 'constraints', 'add_intercept',
+				'subtract_means', 'include_initvar', 'tobit_limits', 'suppress_output', 'likelihood'):
+			_validate_spec(f'fit.{name}', getattr(self, name))
 		self.effects.validate()
 		self.optimizer.validate()
 
-	def to_legacy(self):
+	def to_engine_options(self):
 		self.validate()
-		legacy = create_options()
-		legacy.pqdkm = list(self.order) + list(self.garch_order)
-		legacy.EGARCH = self.vol.upper() == 'EGARCH'
-		legacy.fixed_random_group_eff = {'none': 0, 'fixed': 1, 'random': 2}[self.effects.group]
-		legacy.fixed_random_time_eff = {'none': 0, 'fixed': 1, 'random': 2}[self.effects.time]
-		legacy.fixed_random_variance_eff = {'none': 0, 'fixed': 1, 'random': 2}[self.effects.variance]
-		if self.constraints is not None:
-			legacy.user_constraints = self.constraints
-		legacy.add_intercept = self.add_intercept
-		legacy.subtract_means = self.subtract_means
-		legacy.include_initvar = self.include_initvar
-		if self.tobit_limits != (None, None):
-			legacy.tobit_limits = list(self.tobit_limits)
-		legacy.supress_output = self.suppress_output
-		optimizer_map = {
-			'tolerance': 'tolerance', 'max_iterations': 'max_iterations', 'accuracy': 'accuracy',
-			'initial_arima_garch_params': 'initial_arima_garch_params',
-			'arma_constraint': 'ARMA_constraint', 'arma_round': 'ARMA_round', 'garch_min': 'GARCH_min',
-			'garch_assist': 'GARCH_assist', 
-			'multicoll_threshold_report': 'multicoll_threshold_report', 'min_group_df': 'min_group_df',
-			'robust_cov_lags': 'robustcov_lags_statistics', 'variance_re_norm': 'variance_RE_norm',
-			'kurtosis_adj': 'kurtosis_adj'}
-		for source, target in optimizer_map.items():
-			setattr(legacy, target, getattr(self.optimizer, source))
-		if self.likelihood is not None:
-			legacy.custom_model = self.likelihood
-		return legacy
+		engine_options = create_engine_options()
+		engine_options.pqdkm = list(self.order) + list(self.garch_order)
+		engine_options.EGARCH = self.vol.upper() == 'EGARCH'
+		effect_values = {'none': 0, 'fixed': 1, 'random': 2}
+		for name in ('group', 'time', 'variance'):
+			spec = _spec(f'effects.{name}')
+			setattr(engine_options, spec.engine_name, effect_values[getattr(self.effects, name)])
+		for name in ('constraints', 'add_intercept', 'subtract_means', 'include_initvar', 'tobit_limits', 'suppress_output', 'likelihood'):
+			spec = _spec(f'fit.{name}')
+			value = getattr(self, name)
+			if name == 'tobit_limits':
+				value = list(value)
+			setattr(engine_options, spec.engine_name, value)
+		for option in fields(OptimizerOptions):
+			spec = _spec(f'optimizer.{option.name}')
+			setattr(engine_options, spec.engine_name, getattr(self.optimizer, option.name))
+		return engine_options.validate()
 
 
-
-def options_dict():
-	#Add option here for it to apear in the "options"-tab. The options are bound
-	#to the data sets loaded. Hence, a change in the options here only has effect
-	#ON DATA SETS LOADED AFTER THE CHANGE
-	options = {}
-	options['accuracy']					= options_item(0, 	"Accuracy of the optimization algorithm. 0 = fast and inaccurate, 3=slow and maximum accuracy", int, 
-																'Accuracy', "%s>0",category='Regression')
-
-	options['add_intercept']					= options_item(True,	"If True, adds intercept if not all ready in the data",
-																	bool,'Add intercept', [True,False],['Add intercept','Do not add intercept'],category='Regression')
-	
-	options['arguments']						= options_item(None, 	"A dict or string defining a dictionary in python syntax containing the initial arguments." 
-																	"An example can be obtained by printing ll.args.args_d"
-																																																																				, [str,dict, list, np.ndarray], 'Initial arguments')	
-
-	options['ARMA_constraint']		        = options_item(3,'Maximum absolute value of ARMA coefficients', float, 'ARMA coefficient constraint',
-																	 '%s>0', None,category='ARIMA-GARCH')	
-	options['GARCH_min']		        = options_item(1e-12,'Minimum absolute value of GARCH coefficients', float, 'GARCH coefficient constraint',
-																	 '%s>0', None,category='ARIMA-GARCH')	
-
-
-	options['multicoll_threshold_report']	 = options_item(30,	'Threshold for reporting multicoll problems', float, 'Multicollinearity threshold',
-																	 '%s>0',None)		
-
-
-	options['EGARCH']		            = options_item(False,'Normal GARCH, as opposed to EGARCH if True', bool, 'Estimate GARCH directly',
-																[True,False],['Direct GARCH','Usual GARCH'],category='ARIMA-GARCH')	
-
-
-
-	options['fixed_random_group_eff']			= options_item(0,	'No, fixed or random group effects', int, 'Group fixed random effect',[0,1,2], 
-																		['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
-	options['fixed_random_time_eff']			= options_item(0,	'No, fixed or random time effects', int, 'Time fixed random effect',[0,1,2], 
-																		['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
-	options['fixed_random_variance_eff']		= options_item(0,	'No, fixed or random group effects for variance', int, 'Variance fixed random effects',[0,1,2], 
-																		['No effects','Fixed effects','Random effects'],category='Fixed-random effects')
-
-
-
-	options['custom_model']						= options_item(None,	"Custom model class. Must be a class with porperties and methods as definedin the documentation. "
-																, type,"Custom model class", category='Regression')
-	
-	options['include_initvar']					= options_item(False,	"If True, includes an initaial variance term",
-																	 	bool,'Include initial variance', [True,False],['Include','Do not include'],category='Regression')
-
-	options['initial_arima_garch_params']	 = options_item(0.1,	'The initial size of arima-garch parameters (all directions will be attempted', 
-																	float, 'initial size of arima-garch parameters',
-																																																																									 "%s>=0",category='ARIMA-GARCH')		
-
-	options['kurtosis_adj']					= options_item(0,	'Amount of kurtosis adjustment', float, 'Amount of kurtosis adjustment',
-																"%s>=0",category='ARIMA-GARCH')	
-
-	options['GARCH_assist']					= options_item(0,	'Amount of weight put on assisting GARCH variance to be close to squared residuals', float, 'GARCH assist',
-																"%s>=0",category='ARIMA-GARCH')		
-
-	options['min_group_df']					= options_item(1, "The smallest permissible number of observations in each group. Must be at least 1", int, 
-																'Minimum degrees of freedom', "%s>0",category='Regression')
-
-	options['max_iterations']				= options_item(150, "Maximum number of iterations", int, 'Maximum number of iterations', "%s>0",category='Regression')
-	
-
-	options['pqdkm']							= options_item([1,1,0,1,1], 
-															"ARIMA-GARCH parameters:",int, 'ARIMA-GARCH orders',
-																"%s>=0",
-																descr_for_input_boxes=["Auto Regression order (ARIMA, p)",
-																												"Moving Average order (ARIMA, q)",
-																"difference order (ARIMA, d)",
-																"Variance Moving Average order (GARCH, k)",
-																"Variance Auto Regression order (GARCH, m)"],category='Regression')
-
-	options['robustcov_lags_statistics']		= options_item([100,30],	"Numer of lags used in calculation of the robust \ncovariance matrix for the time dimension", 
-																			int, 'Robust covariance lags (time)', "%s>1", 
-																			descr_for_input_boxes=["# lags in final statistics calulation","# lags iterations (smaller saves time)"],
-																			category='Output')
-
-	options['subtract_means']					= options_item(False,	"If True, subtracts the mean of all variables. This may be a remedy for multicollinearity"
-											  							" if the mean is not of interest.",
-																		bool,'Subtract means', [True,False],['Subtracts the means','Do not subtract the means'],
-																		category='Regression')
-
-	options['supress_output']					= options_item(True,	"If True, no output is printed.",
-																		bool,'Supress output', [True,False],
-																		['Supresses output','Do not supress output'],category='Regression')
-
-	options['tobit_limits']					= options_item([None,None],	"Determines the limits in a tobit regression. Element 0 is lower limit and element1 is upper limit. "
-																		"If None, the limit is not active", 
-																		[float,type(None)], 'Tobit-model limits', ['%s>0',None], 
-																		descr_for_input_boxes=['lower limit','upper limit'])
-
-	options['tolerance']						= options_item(0.0001, 	"Tolerance. When the maximum absolute value of the gradient divided by the hessian diagonal"
-																		"is smaller than the tolerance, the procedure is "
-																		"Tolerance in maximum likelihood",
-																		float,"Tolerance", "%s>0")	
-	
-	options['ARMA_round']						= options_item(14, 	"Number og digits to round elements in the ARMA matrices by. Small differences in these values can "
-																	"change the optimization path and makes the estimate less robust"
-																	"Number of significant digits in ARMA",
-																	int,"# of signficant digits", "%s>0")	  
-
-	options['variance_RE_norm']				= options_item(0.000005, 	"This parameter determines at which point the log function "
-											   							"involved in the variance RE/FE calculations, "
-																		"will be extrapolate by a linear function for smaller values",
-																		float,"Variance RE/FE normalization point in log function", "%s>0")		
-
-	options['user_constraints']				= options_item(None,	"Constraints on the regression coefficient estimates. Must be a dict with groups of coefficients "
-											   						"where each element can either be None (no constraint), a tuple with a range (min, max) or a single lenght list "
-																	"as a float representing a fixed constraint. Se example in README.md. You can extract the arguments dict from "
-																	" `result.args`, and substitute the elements with range restrictions or None, or remove groups." 
-																	"If you for example put in the dict in `result.args` as it is, you will restrict all parameters "
-																	"to be equal to the result.",
-																	[str,dict], 'User constraints')
-
-
-
-
-
-	return options
-
+def option_schema():
+	"""Return documentation metadata for the public fit options."""
+	for key, spec in OPTION_SPECS.items():
+		group, name = key.split('.', 1)
+		yield {
+			'group': group,
+			'name': name,
+			'default': spec.default if spec.default_display is None else spec.default_display,
+			'description': spec.description,
+			'domain': spec.domain,
+			'category': spec.category,
+			'example': spec.example or '',
+			'validator': None if spec.validator is None else spec.validator.__name__,
+		}

@@ -233,11 +233,11 @@ class Constraints(dict):
 		"""ARMA/GARCH extreme bounds and user constraints."""
 		panel = comput.panel
 		c = self.ARMA_constraint
-		bounds = [('rho', -c, c), ('lambda', -c, c),  ('psi', -c, c)]
+		bounds = [('rho', -c, c), ('lambda', -c, c)]
 		if comput.grestricted:	
-			bounds.append(('gamma', -1e-12, c))
+			bounds = bounds + [('gamma', -1e-12, c), ('psi', -1e-12, c)]
 		else:
-			bounds.append(('gamma', -c, c))
+			bounds = bounds + [('gamma', -c, c), ('psi', -c, c)]
 
 		if panel.options.include_initvar:
 			bounds.append((arguments.INITVAR, 1e-50, 1e+10))

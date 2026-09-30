@@ -25,10 +25,6 @@ def maximize(panel, args, mp, t0):
 	f = [res[k]['f'] for k in res]
 	r = res[list(res.keys())[f.index(max(f))]]
 
-	if len(a)>0:
-		res2 = np.array([[res[i]['f'], res[i]['x'][7], res[i]['x'][8], a[i][7], res[i]['its'], i] for i in res])
-		print(np.round(res2[res2[:,0].argsort()], 4))
-
 	return r
 
 def maximize_single(panel, args, a = None):
@@ -76,9 +72,12 @@ def maximize_node_new(panel, args, gtol = 1e-5, slave_id =0 , slave_server = Non
 
 #Need to implement this again
 def maximize_node(panel, args, gtol = 1e-5, slave_id =0 , slave_server = None):
-	res0 = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server)
-	res = init.maximize(res0['x'], panel, gtol, TOLX, slave_id, slave_server, grestricted=True)
-	res['its'] += res0['its']
+	if False:
+		res0 = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server)
+		res = init.maximize(res0['x'], panel, gtol, TOLX, slave_id, slave_server, grestricted=True)
+		res['its'] += res0['its']
+	else:
+		res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server, grestricted=True)
 	return res
 
 

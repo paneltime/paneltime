@@ -12,8 +12,6 @@ df = loadwb.load_worldbank_data()
 df = df[abs(df['Inflation'])<30]
 
 # define ARIMA-GARCH lag structure:
-pt.options.pqdkm = (2, 2, 1, 2, 2)
-pt.options.EGARCH = False
 # Define a custom model class:
 class MyModel:
 	def __init__(self, e, init_var, a, k, z):
@@ -107,12 +105,17 @@ class MyModel:
 
 		return d2ll_de2, d2ll_dvar_de, d2ll_dvar2
 
-# Assign the custom model to the relevant option in paneltime:
-pt.options.custom_model = MyModel
-
-
-m = pt.execute('Inflation~L(Gross_Savings)+L(Inflation)+L(Interest_rate)+D(L(Gov_Consumption))'
-					 , df, timevar = 'date',idvar='country' )
+model = pt.Model(
+	'Inflation~L(Gross_Savings)+L(Inflation)+L(Interest_rate)+D(L(Gov_Consumption))',
+	df,
+	time='date',
+	entity='country',
+)
+m = model.fit(
+	order=(2, 1, 2),
+	garch_order=(2, 2),
+	likelihood=MyModel,
+)
 
 
 print(m)

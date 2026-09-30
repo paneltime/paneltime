@@ -1,8 +1,6 @@
 """The public model and results API."""
 
-from dataclasses import replace
-from typing import Any, Optional
-import warnings
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -19,47 +17,47 @@ MP = None
 class RandomEffectsResult:
 	"""Estimated panel random effects and their residual standard deviations."""
 
-	def __init__(self, legacy):
-		self.group = getattr(legacy, 'residuals_i', None)
-		self.time = getattr(legacy, 'residuals_t', None)
-		self.group_std = getattr(legacy, 'residuals_std_i', None)
-		self.time_std = getattr(legacy, 'residuals_std_t', None)
+	def __init__(self, effects):
+		self.group = getattr(effects, 'residuals_i', None)
+		self.time = getattr(effects, 'residuals_t', None)
+		self.group_std = getattr(effects, 'residuals_std_i', None)
+		self.time_std = getattr(effects, 'residuals_std_t', None)
 
 
-class Results:
-	"""Results from a fitted :class:`Model` model.
+class Summary:
+	"""Summary from a fitted :class:`Model` model.
 
-	The legacy summary is retained privately to keep formatting and diagnostic
-	output compatible while the commonly used statistics are exposed directly.
+	The engine summary components remain available as categorized attributes,
+	while common statistics are exposed directly on this object.
 	"""
 
-	def __init__(self, legacy):
-		self._legacy = legacy
-		self.is_legacy_object = False
-		self._output = legacy.output
-		self._table = legacy.table
-		self.optim_result = legacy.general
-		self._names = list(legacy.names.captions)
-		# Transitional aliases for code written against Summary v1.
-		self.names = legacy.names
-		self.results = legacy.results
-		self.general = legacy.general
-		self.ll = legacy.ll
-		data = legacy.results
+	def __init__(self, summary):
+		self._summary = summary
+		self.output = summary.output
+		self.table = summary.table
+		self.count = summary.count
+		self.optim_result = summary.general
+		self._names = list(summary.names.captions)
+		# Compatibility aliases for consumers of the engine summary fields.
+		self.names = summary.names
+		self.results = summary.results
+		self.general = summary.general
+		self.ll = summary.ll
+		data = summary.results
 		self._params = self._series(data.params)
 		self._bse = self._series(data.se)
 		self._tvalues = self._series(data.tstat)
 		self._pvalues = self._series(data.tsign)
-		self.random_effects = RandomEffectsResult(legacy.random_effects)
-		self.names_grouped = legacy.panel.args.names_d
-		self.names_dependent = legacy.output.stats.info.dep_var
-		self.names_independents = legacy.panel.args.names_d['beta']
-		self.pqdkm = legacy.panel.pqdkm
-		self.stats = legacy.output.stats
-		self.sign_codes = legacy.panel.sign_codes
-		self.options = legacy.panel.options
-		self.panel = legacy.panel
-		a=0
+		self.random_effects = RandomEffectsResult(summary.random_effects)
+		self.names_grouped = summary.panel.args.names_d
+		self.names_dependent = summary.output.stats.info.dep_var
+		self.names_independents = summary.panel.args.names_d['beta']
+		self.pqdkm = summary.panel.pqdkm
+		self.stats = summary.output.stats
+		self.sign_codes = summary.panel.sign_codes
+		self.options = summary.panel.options
+		self.panel = summary.panel
+		self.prediction_names = summary.prediction_names
 
 	def _series(self, value):
 		if value is None:
@@ -89,17 +87,17 @@ class Results:
 	@property
 	def nobs(self) -> int:
 		"""Number of observations used in estimation."""
-		return int(self._legacy.panel.NT)
+		return int(self._summary.panel.NT)
 
 	@property
 	def df_resid(self) -> int:
 		"""Residual degrees of freedom."""
-		return int(self._legacy.panel.df)
+		return int(self._summary.panel.df)
 
 	@property
 	def llf(self) -> float:
 		"""Maximized log-likelihood value."""
-		return float(getattr(self._legacy.general, 'log_likelihood', self._legacy.general.comm.f))
+		return float(getattr(self._summary.general, 'log_likelihood', self._summary.general.comm.f))
 
 	@property
 	def aic(self) -> float:
@@ -114,17 +112,17 @@ class Results:
 	@property
 	def converged(self) -> bool:
 		"""Whether the optimizer reported convergence."""
-		return bool(self._legacy.general.converged)
+		return bool(self._summary.general.converged)
 
 	@property
 	def resid(self):
 		"""Residuals from the fitted model."""
-		return self._legacy.results.residuals
+		return self._summary.results.residuals
 
 	@property
 	def fittedvalues(self):
 		"""Fitted values corresponding to the model sample."""
-		return np.asarray(self._legacy.panel.Y).reshape(-1) - np.asarray(self.resid).reshape(-1)
+		return np.asarray(self._summary.panel.Y).reshape(-1) - np.asarray(self.resid).reshape(-1)
 
 	def conf_int(self, alpha: float = 0.05) -> pd.DataFrame:
 		"""Return coefficient confidence intervals.
@@ -136,23 +134,52 @@ class Results:
 		"""
 		if not 0 < alpha < 1:
 			raise ValueError('alpha must be between 0 and 1')
-		low = np.asarray(self._table.d.get('conf_low', np.full(len(self.params), np.nan)))
-		high = np.asarray(self._table.d.get('conf_high', np.full(len(self.params), np.nan)))
+		low = np.asarray(self.table.d.get('conf_low', np.full(len(self.params), np.nan)))
+		high = np.asarray(self.table.d.get('conf_high', np.full(len(self.params), np.nan)))
 		return pd.DataFrame({0: low, 1: high}, index=self.params.index)
 
 	def summary(self):
-		"""Return the legacy formatted summary object."""
-		return self._legacy
+		"""Return this categorized summary object."""
+		return self
+
+	def __str__(self):
+		"""Return the formatted regression summary."""
+		return str(self._summary)
+
+	def latex(self):
+		"""Return the regression table formatted as LaTeX."""
+		return self._summary.latex()
+
+	def html(self):
+		"""Return the regression table formatted as HTML."""
+		return self._summary.html()
+
+	def results_table(self, fmt='CONSOLE'):
+		"""Return the formatted coefficient table."""
+		return self._summary.results_table(fmt)
+
+	def statistics(self):
+		"""Return the model statistics section."""
+		return self._summary.statistics()
+
+	def diagnostics(self):
+		"""Return the diagnostics section."""
+		return self._summary.diagnostics()
+
+	def accounting(self):
+		"""Return the degrees-of-freedom accounting section."""
+		return self._summary.accounting()
 
 	def predict(self, signals=None):
 		"""Predict observations, optionally using heteroskedasticity signals."""
-		return self._legacy.predict(signals)
+		return self._summary.predict(signals)
 
 	def forecast(self, steps: int = 1):
 		"""Forecast future observations for the requested number of steps."""
 		if not isinstance(steps, int) or steps < 1:
 			raise ValueError('steps must be a positive integer')
 		return np.asarray(self.predict())[-steps:]
+
 
     
 class Model:
@@ -173,17 +200,10 @@ class Model:
 
 	def fit(self, order=(1, 1, 0), garch_order=(1, 1), vol='GARCH',
 			effects=None, cov_type='robust', optimizer=None, constraints=None,
-			likelihood=None, h_function=None, _legacy_options=None,
-			_het_factors=None, _instruments=None, add_intercept=True,
+			likelihood=None, h_function=None, add_intercept=True,
 			subtract_means=False, include_initvar=False,
-			tobit_limits=(None, None), suppress_output=True) -> Results:
-		"""Fit the model and return a :class:`Results` instance."""
-		if _legacy_options is not None:
-			legacy = _legacy_options
-			entity, time = self.entity, self.time
-			result = main.execute(self.formula, self.data, time, entity,
-				_het_factors, legacy, None, None, _instruments, True, None)
-			return result
+			tobit_limits=(None, None), suppress_output=True) -> Summary:
+		"""Fit the model and return a :class:`Summary` instance."""
 		effects = effects or Effects()
 		optimizer = optimizer or OptimizerOptions()
 		config = FitOptions(order=order, garch_order=garch_order, vol=vol,
@@ -192,7 +212,7 @@ class Model:
 			add_intercept=add_intercept, subtract_means=subtract_means,
 			include_initvar=include_initvar, tobit_limits=tobit_limits,
 			suppress_output=suppress_output)
-		legacy = config.to_legacy()
+		engine_options = config.to_engine_options()
 		window = None
 		exe_tab = None
 		if isinstance(self.data.index, pd.MultiIndex):
@@ -200,8 +220,6 @@ class Model:
 			time = self.time or self.data.index.names[1]
 		else:
 			entity, time = self.entity, self.time
-		if likelihood is not None:
-			legacy.custom_model = likelihood
-		result = main.execute(self.formula, self.data, time, entity, None,
-			legacy, window, exe_tab, None, True, self.mp)
-		return Results(result)
+		summary = main.execute(self.formula, self.data, time, entity, None,
+			engine_options, window, exe_tab, None, True, self.mp)
+		return Summary(summary)

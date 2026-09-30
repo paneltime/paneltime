@@ -10,10 +10,35 @@ import subprocess as sp
 import zipfile
 import os
 
-from paneltime import opt_module
-
+from paneltime.options import option_schema
 
 CUR_DIR = Path(__file__).resolve().parent
+
+
+def write_option_docs(path):
+    rows = [
+        '---',
+        'title: Fit options',
+        'nav_order: 2',
+        'has_toc: true',
+        '---',
+        '',
+        '# Fit options',
+        '',
+        'These options are configured per model fit. The defaults, domains, and descriptions below are generated from the central option schema.',
+        '',
+        '| Group | Option | Default | Domain | Description | Example |',
+        '|---|---|---:|---|---|---|',
+    ]
+    for option in option_schema():
+        domain = ', '.join(map(str, option['domain'])) if isinstance(option['domain'], list) else option['domain']
+        default = option['default'] if isinstance(option['default'], str) and option['default'].endswith('()') else repr(option['default'])
+        example = option['example']
+        rows.append(
+            f"| {option['group']} | `{option['name']}` | `{default}` | {domain} | "
+            f"{option['description']} | `{example}` |"
+        )
+    path.write_text('\n'.join(rows) + '\n', encoding='utf-8')
 
 
 def run(cmd, cwd=CUR_DIR):
@@ -30,11 +55,10 @@ def main():
 
     args = parser.parse_args()
 
-    opt_module.options_to_txt()
-
     clean()
     create_readme()
     zip_example()
+    write_option_docs(CUR_DIR / "qmd" / "options.qmd")
 
 
 

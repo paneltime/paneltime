@@ -14,7 +14,7 @@ controls the GARCH variance process. Set `vol="GARCH"` or `vol="EGARCH"`.
 
 ```{python}
 #| eval: false
-results = model.fit(order=(1, 1, 0), garch_order=(1, 1), vol="GARCH")
+results = model.fit(order=(1, 0, 1), garch_order=(1, 1), vol="GARCH")
 ```
 
 ## Effects
