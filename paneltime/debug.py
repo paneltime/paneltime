@@ -42,10 +42,12 @@ def grad_debug(ll,panel,d):
 	for i in range(n):
 		for j in range(5):
 			dxi=dx[i]*(0.5**j)
+			#central difference: the forward difference has bias 0.5*h*f'' which is large for a curved LL
 			f1=lgl.LL(x+dxi,panel)
-			if not f1 is None:
-				if not f1.LL is None:
-					g[i]=(f1.LL-f0.LL)/dxi[i]
+			f2=lgl.LL(x-dxi,panel)
+			if f1 is not None and f2 is not None:
+				if f1.LL is not None and f2.LL is not None:
+					g[i]=(f1.LL-f2.LL)/(2*dxi[i])
 					break
 	return g
 

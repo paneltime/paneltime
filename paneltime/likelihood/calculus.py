@@ -86,15 +86,20 @@ class gradient:
 		panel = self.panel
 		p, q, _, _, _ = panel.pqdkm
 
+
 		self.X_RE = (
 			panel.XIV
-			+ ll.re_obj_i.RE(panel.XIV, panel)
-			+ ll.re_obj_t.RE(panel.XIV, panel)
+			+ ll.re_obj_i.RE(panel.XIV, panel, False)
+			+ ll.re_obj_t.RE(panel.XIV, panel, False)
 		) * incl
 
 		self.de_rho_RE = self.arima_grad(p, ll.u_RE, ll, -1, ll.AMA_1)
 		self.de_lambda_RE = self.arima_grad(q, ll.e_RE, ll, -1, ll.AMA_1)
-		self.de_beta_RE = -fu.arma_dot(ll.AMA_1AR, self.X_RE, ll) * incl
+		#du_RE/dbeta incl. the effect of beta on theta (dRE); equals -X_RE when theta is held fixed
+		dX = -panel.XIV
+		self.du_RE_beta = (dX + ll.re_obj_i.dRE(dX, panel) + ll.re_obj_t.dRE(dX, panel)) * incl
+		self.ddu_RE_beta = ll.re_obj_i.ddRE(dX, panel) + ll.re_obj_t.ddRE(dX, panel)
+		self.de_beta_RE = fu.arma_dot(ll.AMA_1AR, self.du_RE_beta, ll) * incl
 
 	def _store_sigma_derivatives(self, ll):
 		"""Create GARCH/random-effect derivatives linked to beta/rho/lambda."""

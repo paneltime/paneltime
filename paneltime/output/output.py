@@ -6,6 +6,7 @@
 from . import stat_functions as stat
 from . import stat_dist
 from ..processing import arguments
+from .. import random_effects
 import textwrap
 
 import numpy as np
@@ -307,6 +308,7 @@ class RegTableObj(dict):
 		d['se_robust_oposite'],d['se_st_oposite'], _, _ = sandwich(H, G, g, constr, panel, self.lags,oposite=True)
 		d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
 		d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
+		self.add_grand_mean_variance(panel, ll)
 
 		no_nan=np.isnan(d['se_robust'])==False
 		valid=no_nan
@@ -320,6 +322,21 @@ class RegTableObj(dict):
 		d['conf_low'] = d['args'] -z*d['se_robust']
 		d['conf_high'] = d['args'] +z*d['se_robust']
 		
+	def add_grand_mean_variance(self, panel, ll):
+		"""The RE transform leaves the constant column unscaled, so the intercept variance omits the variance
+		of the random effects' grand mean, sigma_u^2/N + sigma_l^2/T. It is added here."""
+		if not panel.input.has_intercept:
+			return
+		extra = grand_mean_variance(panel, ll)
+		if extra <= 0:
+			return
+		i0 = panel.args.positions['beta'][0]
+		d = self.d
+		for k in ('se_robust', 'se_st'):
+			d[k][i0] = (d[k][i0]**2 + extra)**0.5
+		for k in ('cov_robust', 'cov'):
+			d[k][i0, i0] += extra
+
 	def constraints_formatting(self, panel, constr):
 		mc_report={}
 		if not constr is None:
@@ -442,12 +459,43 @@ def sandwich(H, G, g, constr, panel,lags,oposite=False,resize=True):
 		return np.array(onlynans),np.array(onlynans)
 	se_robust,se,V, W=stat.robust_se(panel,lags,hessin,G)
 	se_robust,se,V, W=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True), expand_x(W, idx,True)
+	f = cov_df_factor(panel)
+	se_robust, se, V, W = se_robust*f**0.5, se*f**0.5, V*f, W*f
 	if se_robust is None:
 		se_robust = np.array(onlynans)
 		#V = np.fill((k,k), np.nan)
 	if se is None:
 		se = np.array(onlynans)
 	return se_robust,se, V, W
+
+def cov_df_factor(panel):
+	"""Scales the ML covariance (variance divided by NT) to plm's degrees of freedom: NT/(NT - dummies - K slopes)."""
+	g = panel.options.fixed_random_group_eff > 0
+	t = panel.options.fixed_random_time_eff > 0
+	K = panel.X.shape[2] - int(panel.input.has_intercept)
+	if g and t:
+		dummies = panel.N + panel.n_dates - 1
+	elif g:
+		dummies = panel.N
+	elif t:
+		dummies = panel.n_dates
+	else:
+		dummies = int(panel.input.has_intercept)
+	dof = panel.NT - dummies - K
+	return panel.NT/dof if dof > 0 else 1.0
+
+def grand_mean_variance(panel, ll):
+	"""sigma_u^2/N + sigma_l^2/T for the random effects, from the final residuals."""
+	v = 0.0
+	if panel.options.fixed_random_group_eff == 2:
+		o = random_effects.REObj(panel, True, panel.T_i, panel.T_i, 2)
+		o.RE(ll.u, panel)
+		v += float(getattr(o, 'v_var', 0))/panel.N
+	if panel.options.fixed_random_time_eff == 2:
+		o = random_effects.REObj(panel, False, panel.date_count_mtrx, panel.date_count, 2)
+		o.RE(ll.u, panel)
+		v += float(getattr(o, 'v_var', 0))/panel.n_dates
+	return v
 
 def reduce_size(H, G, g, constr, oposite,resize):
 	#this looks unneccessary complicated

@@ -87,11 +87,15 @@ def dd_func_lags_mult_arima(
         return None, None
 
     if AMAL is None:
+        if vname1 == "beta" and vname2 == "beta":
+            # u_RE is nonlinear in beta through theta (ddRE); e = AMA_1AR u_RE
+            de2 = fu.arma_dot(ll.AMA_1AR, g.ddu_RE_beta, ll) * panel.included[4]
+            return de2, de2
         return None, None
 
     if u_gradient:
         # For the error beta-rho covariance, the u-gradient must be used.
-        de2_zeta_xi = -fu.arma_dot(AMAL, g.X_RE, ll)
+        de2_zeta_xi = fu.arma_dot(AMAL, g.du_RE_beta, ll)
     else:
         de2_zeta_xi = fu.arma_dot(AMAL, de_zeta, ll)
 

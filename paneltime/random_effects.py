@@ -12,9 +12,13 @@ class REObj:
 		self.sigma_u=0
 		self.group=group
 		self.avg_Tinv=1/np.mean(T_i_count) #T_i_count is the total number of observations for each group (N,1)
+		# CHANGED: Keep a second average-count inverse for the date dimension so we can
+		# estimate two-way random-effect variance components in a symmetric way.
+		self.avg_Ninv=1/np.mean(panel.date_count)
 		self.T_i=T_i*panel.included[3]#self.T_i is T_i_count at each observation (N,T,1)
 		self.fe_re=fixed_random_eff
 
+	
 	def RE(self,x,panel,recalc=True):
 		if self.fe_re==0:
 			return np.zeros(x.shape)
@@ -27,15 +31,33 @@ class REObj:
 			N,T,k=x.shape
 
 			incl=panel.included[3]
+
+
 			mu=panel.mean(incl*x) #grand (weighted) mean of x; ~0 for residuals u, but not in general
 			self.xFE=(x+self.FRE(x,panel))*incl
 			#subtract mu explicitly so e_var/v_var are correct variances (not raw second moments)
 			#for non-zero-mean x. Reduces to the original formulas when mu~=0.
 			mu_FE = panel.mean(incl*self.xFE)
-			self.e_var=panel.mean(incl*(self.xFE-mu_FE)**2)/(1-self.avg_Tinv)
-			self.v_var = panel.mean(incl*(x-mu)**2)-self.e_var
+			#CHANGED: previously e_var was the one-way within variance /(1-avg_Tinv) and
+			#v_var = total variance - e_var. That let the other dimension's effect variance leak into e_var
+			#(time effects into the group pass and vice versa), distorting theta and the variance components.
+			#Now: Two-way (Swamy-Arora style): the other dimension's effect is removed before estimating
+			#both the idiosyncratic and own-dimension variance, so neither leaks into the other.
+			m_own=self.FRE(x,panel,means_only=True,group=self.group)
+			m_oth=self.FRE(x,panel,means_only=True,group=not self.group)
+			x_w=(x-m_own-m_oth+mu)*incl
+			#degrees of freedom as in plm's Swamy-Arora: the K slope coefficients are not free, N+T-1 effects are removed
+			K=panel.X.shape[2]-int(panel.input.has_intercept)
+			dof=1-self.avg_Tinv-self.avg_Ninv+(1-K)/panel.NT
+			self.e_var=panel.mean(incl*x_w**2)/dof
+			x_adj=(x-m_oth+mu)*incl
+			m_adj=self.FRE(x_adj,panel,means_only=True)
+			n_own=panel.NT*self.avg_Tinv#number of own-dimension units
+			n_df=max(n_own-1-K,1)#between regression: own units less intercept and K slopes
+			self.v_var=panel.mean(incl*(m_adj-mu)**2)*n_own/n_df-self.e_var*self.avg_Tinv
+			self._x, self._x_w, self._m_adj, self._mu, self._dof, self._n_own, self._n_df = x, x_w, m_adj, mu, dof, n_own, n_df#used by dRE
 			if self.v_var<0:
-				print("Warning, negative group random effect variance. 0 is assumed")
+				#print("Warning, negative group random effect variance. 0 is assumed")
 				self.v_var=0
 				self.theta=panel.zeros[3]
 				return np.zeros(x.shape)
@@ -47,129 +69,73 @@ class REObj:
 		eRE=self.FRE(x,panel,self.theta)
 		return eRE
 
-	def dRE(self,dx,x,vname,panel):
-		"""Computes the first and second derivatives of the random effects (RE) transformation.
-		Note: These methods are currently unused, as the RE transformation is applied to 'u' prior to ARIMA/GARCH modeling.
-		"""
+	def _dvars(self,dx,panel):
+		"""First derivatives of the two-way e_var and v_var, and the demeaned dx terms they are built from."""
+		incl=panel.included[3]
+		dmu=np.sum(dx,axis=(0,1))/panel.NT
+		dm_own=self.FRE(dx,panel,means_only=True,group=self.group)
+		dm_oth=self.FRE(dx,panel,means_only=True,group=not self.group)
+		dx_w=(dx-dm_own-dm_oth+dmu)*incl
+		de_var=2*np.sum(self._x_w*dx_w,axis=(0,1))/(panel.NT*self._dof)
+		dq=(self.FRE((dx-dm_oth+dmu)*incl,panel,means_only=True)-dmu)*incl
+		n_own=self._n_own
+		c=n_own/(self._n_df*panel.NT)
+		dv_var=2*c*np.sum((self._m_adj-self._mu)*dq,axis=(0,1))-de_var*self.avg_Tinv
+		return dx_w,dq,de_var,dv_var,c
 
-		if dx is None:
-			return None
+	def dRE(self,dx,panel):
+		"""Derivative of RE(x) for dx=dx/dparam (N,T,k), where x is the input of the last RE(x) call with recalc=True.
+		Includes the effect of the parameter on theta through e_var and v_var (restored, rewritten for the two-way variances)."""
 		if self.fe_re==0:
-			return np.zeros(dx.shape)		
-		panel=panel
-		if not hasattr(self,'dxFE'):
-			self.dxFE=dict()
-			self.dFE_var=dict()
-			self.dtheta=dict()
-			self.de_var=dict()
-			self.dv_var=dict()
-
-		if dx is None:
-			return None
-		elif self.fe_re==1:
-			return self.FRE(dx,panel)	
+			return np.zeros(dx.shape)
+		if self.fe_re==1:
+			return self.FRE(dx,panel)
 		if self.v_var==0:
 			return np.zeros(dx.shape)
-		(N,T,k)=dx.shape	
+		incl=panel.included[3]
+		dx=dx*incl
+		_,_,de_var,dv_var,_=self._dvars(dx,panel)
+		dtheta_de_var=-0.5*(1/self.e_var)*(1-self.theta)*self.theta*(2-self.theta)
+		dtheta_dv_var=0.5*(self.T_i/self.e_var)*(1-self.theta)**3
+		dtheta=(dtheta_de_var*de_var+dtheta_dv_var*dv_var)*(self.T_i>1)*incl
+		return (self.FRE(dx,panel,self.theta)+self.FRE(self._x,panel,dtheta))*incl
 
-		self.dxFE[vname]=(dx+self.FRE(dx,panel))*panel.included[3]
-		self.de_var[vname]=2*np.sum(np.sum(self.xFE*self.dxFE[vname],0),0)/(panel.NT*(1-self.avg_Tinv))
-		self.dv_var[vname]=(2*np.sum(np.sum(x*dx*panel.included[3],0),0)/panel.NT)-self.de_var[vname]		
+	def ddRE(self,dx,panel):
+		"""Second derivative (N,T,k,k) of RE(x) when x is linear in the parameters (ddx=0), dx=dx/dparam (N,T,k).
+		Restored for the two-way variances; only the theta terms contribute since FRE is linear in x."""
+		N,T,k=dx.shape
+		incl4=panel.included[4]
+		if self.fe_re!=2 or self.v_var==0:
+			return np.zeros((N,T,k,k))
+		incl=panel.included[3]
+		dx=dx*incl
+		dx_w,dq,de,dv,c=self._dvars(dx,panel)
+		th=self.theta
+		e=self.e_var
+		s=1-th
+		th_e=-0.5*(1/e)*s*th*(2-th)
+		th_v=0.5*(self.T_i/e)*s**3
+		th_ev=-0.5*th_v*(1/e)*(3*(th-2)*th+2)
+		th_vv=-0.75*(self.T_i/e)**2*s**5
+		th_ee=-0.5*th_e*(1/e)*(4-3*(2-th)*th)
+		d2e=2*np.einsum('ntk,ntl->kl',dx_w,dx_w)/(panel.NT*self._dof)
+		d2v=2*c*np.einsum('ntk,ntl->kl',dq,dq)-d2e*self.avg_Tinv
+		mask=(self.T_i>1)*incl
+		dtheta=(th_e*de+th_v*dv)*mask
+		th4=lambda a:a.reshape(N,T,1,1)
+		d2theta=(th4(th_ee)*np.outer(de,de)+th4(th_ev)*(np.outer(de,dv)+np.outer(dv,de))
+				+th4(th_vv)*np.outer(dv,dv)+th4(th_e)*d2e+th4(th_v)*d2v)*th4(mask)
+		#out[:,:,i,j]: FRE(dx_i,dtheta_j)+FRE(dx_j,dtheta_i)+FRE(x,d2theta_ij)
+		t1=np.stack([self.FRE(dx,panel,dtheta[:,:,j:j+1]) for j in range(k)],axis=3)
+		t3=np.stack([self.FRE(self._x,panel,d2theta[:,:,:,j]) for j in range(k)],axis=3)
+		return (t1+np.swapaxes(t1,2,3)+t3)*incl4
 
-		self.dtheta_de_var=(-0.5*(1/self.e_var)*(1-self.theta)*self.theta*(2-self.theta))
-		self.dtheta_dv_var=(0.5*(self.T_i/self.e_var)*(1-self.theta)**3)
-		self.dtheta[vname]=(self.dtheta_de_var*self.de_var[vname]+self.dtheta_dv_var*self.dv_var[vname])
-		self.dtheta[vname]*=(self.T_i>1)
-		dRE0=self.FRE(dx,panel,self.theta)
-		dRE1=self.FRE(x,panel,self.dtheta[vname])
-		ret=(dRE0+dRE1)*panel.included[3]
-		remove_extremes(ret)
-		return ret
+	#deleted calc_theta: helper for ddRE (replaced by the theta derivatives inside ddRE)
 
-	def ddRE(self,ddx,dx1,dx2,x,vname1,vname2,panel):
-		"""Returns the first and second derivative of RE
-		Note: These methods are currently unused, as the RE transformation is applied to 'u' prior to ARIMA/GARCH modeling.
-		"""
-		if self.fe_re==0:
-			return 0*panel.included[4]		
-		if dx1 is None or dx2 is None:
-			return None
-		(N,T,k)=dx1.shape
-		(N,T,m)=dx2.shape			
-		if self.sigma_u<0:
-			return 0*panel.included[4]
-		elif self.fe_re==1:
-			return self.FRE(ddx,panel)	
-		if self.v_var==0:
-			return panel.zeros[4]
-
-		if ddx is None:
-			ddxFE=0
-			ddx=0
-			hasdd=False
-		else:
-			ddxFE=(ddx+self.FRE(ddx,panel))*panel.included[4]
-			hasdd=True
-
-		dxFE1=self.dxFE[vname1].reshape(N,T,k,1)
-		dxFE2=self.dxFE[vname2].reshape(N,T,1,m)
-		dx1=dx1.reshape(N,T,k,1)
-		dx2=dx2.reshape(N,T,1,m)
-		de_var1=self.de_var[vname1].reshape(k,1)
-		de_var2=self.de_var[vname2].reshape(1,m)
-		dv_var1=self.dv_var[vname1].reshape(k,1)
-		dv_var2=self.dv_var[vname2].reshape(1,m)		
-		dtheta_de_var=self.dtheta_de_var.reshape(N,T,1,1)
-		dtheta_dv_var=self.dtheta_dv_var.reshape(N,T,1,1)
-		theta=self.theta.reshape(N,T,1,1)
-		x=x.reshape(N,T,1,1)
-		incl=panel.included[4]
-
-		overflow=False
-		theta_args=dxFE1, dxFE2, ddxFE, dx1, dx2, x, ddx, dtheta_dv_var, theta, dtheta_de_var, de_var1, de_var2, dv_var1, dv_var2,panel
-		try:
-			ddtheta=self.calc_theta(*theta_args)
-		except (RuntimeWarning,OverflowError) as e:
-			print(e)
-			remove_extremes(theta_args)
-			ddtheta=self.calc_theta(*theta_args)
-			overflow=True
-
-		if hasdd:
-			dRE00=self.FRE(ddx,panel,self.theta.reshape(N,T,1,1))
-		else:
-			dRE00=0
-		dRE01=self.FRE(dx1,panel,self.dtheta[vname2].reshape(N,T,1,m),True)
-		dRE10=self.FRE(dx2,panel,self.dtheta[vname1].reshape(N,T,k,1),True)
-		dRE11=self.FRE(x,panel,ddtheta,True)
-		ret=(dRE00+dRE01+dRE10+dRE11)*panel.included[4]
-		if overflow:
-			remove_extremes([ret])
-		return (dRE00+dRE01+dRE10+dRE11)*panel.included[4]
-
-	def calc_theta(self,dxFE1,dxFE2,ddxFE,dx1,dx2,x,ddx,dtheta_dv_var,theta,dtheta_de_var,de_var1,de_var2,dv_var1,dv_var2,panel):
-		incl=panel.included[4]
-		(N,T,k,_)=dx1.shape
-		(N,T,_,m)=dx2.shape		
-		T_i=self.T_i.reshape(N,T,1,1)
-
-		d2e_var=2*np.sum(np.sum(dxFE1*dxFE2+self.xFE.reshape(N,T,1,1)*ddxFE,0),0)/(panel.NT*(1-self.avg_Tinv))
-		d2v_var=(2*np.sum(np.sum((dx1*dx2+x*ddx)*incl,0),0)/panel.NT)-d2e_var	
-
-		d2theta_d_e_v_var=-0.5*dtheta_dv_var*(1/self.e_var)*(3*(theta-2)*theta+2)
-		d2theta_d_v_var =-0.75*(T_i/self.e_var)**2*(1-theta)**5
-		d2theta_d_e_var =-0.5*dtheta_de_var*(1/self.e_var)*(4-3*(2-theta)*theta)	
-
-		ddtheta  =d2theta_d_e_var  * de_var1* de_var2 
-		ddtheta +=d2theta_d_e_v_var * (de_var1* dv_var2+dv_var1* de_var2)
-		ddtheta +=d2theta_d_v_var * dv_var1* dv_var2  
-		ddtheta +=dtheta_de_var*d2e_var+dtheta_dv_var*d2v_var
-		ddtheta*=(T_i>1)	
-
-		return ddtheta
-
-	def FRE(self,x,panel,w=1,d=False, means_only=False):
-		if self.group:
+	def FRE(self,x,panel,w=1,d=False, means_only=False, group = None):
+		if group is None:
+			group = self.group
+		if group:
 			return self.FRE_group(x,w,d,panel, means_only)
 		else:
 			return self.FRE_time(x,w,d,panel, means_only)

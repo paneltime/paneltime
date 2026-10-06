@@ -7,6 +7,7 @@ import pandas as pd
 
 from . import main
 from .options import Effects, FitOptions, OptimizerOptions
+from .random_effects import REObj
 import paneltime_mp
 
 
@@ -22,6 +23,107 @@ class RandomEffectsResult:
 		self.time = getattr(effects, 'residuals_t', None)
 		self.group_std = getattr(effects, 'residuals_std_i', None)
 		self.time_std = getattr(effects, 'residuals_std_t', None)
+
+
+class EffectEstimate:
+	"""Estimated effects and variance component for one panel dimension."""
+
+	def __init__(self, mode, estimates, variance=None):
+		self.mode = mode
+		self.estimates = estimates
+		self.variance = variance
+		self.std = None if variance is None else float(np.sqrt(max(variance, 0)))
+
+
+class PanelEffectResults:
+	"""Conventional centered group and time effects from the fitted residuals."""
+
+	def __init__(self, panel, likelihood):
+		self.group, self.time = self._components(panel, likelihood)
+
+	@staticmethod
+	def _components(panel, likelihood):
+		group_mode_value = panel.options.fixed_random_group_eff
+		time_mode_value = panel.options.fixed_random_time_eff
+		group_mode = {0: 'none', 1: 'fixed', 2: 'random'}[group_mode_value]
+		time_mode = {0: 'none', 1: 'fixed', 2: 'random'}[time_mode_value]
+
+		if panel.pqdkm[2] > 0:
+			return EffectEstimate(group_mode, None), EffectEstimate(time_mode, None)
+
+		residuals = np.asarray(likelihood.u)[..., 0]
+		mask = np.asarray(panel.included[3])[..., 0].astype(bool)
+		unit_count, period_count = residuals.shape
+
+		group_values = np.zeros(unit_count)
+		time_values = np.zeros(period_count)
+
+		group_variance = None
+		time_variance = None
+		group_weights = np.ones(unit_count)
+		time_weights = np.ones(period_count)
+
+		if group_mode == 'random':
+			re_obj_group = REObj(panel, True, panel.T_i, panel.T_i, 2)
+			re_obj_group.RE(likelihood.u, panel)
+			group_variance = float(max(re_obj_group.v_var, 0))
+			group_e_var = float(np.asarray(re_obj_group.e_var).reshape(-1)[0])
+			t_i = np.asarray(panel.T_i).reshape(-1)
+			group_weights = group_variance / (group_variance + group_e_var / t_i)
+
+		if time_mode == 'random':
+			re_obj_time = REObj(panel, False, panel.date_count_mtrx, panel.date_count, 2)
+			re_obj_time.RE(likelihood.u, panel)
+			time_variance = float(max(re_obj_time.v_var, 0))
+			time_e_var = float(np.asarray(re_obj_time.e_var).reshape(-1)[0])
+			date_count = np.asarray(panel.date_count).reshape(-1)
+			time_weights = time_variance / (time_variance + time_e_var / date_count)
+
+		for _ in range(1000):
+			previous_group = group_values.copy()
+			previous_time = time_values.copy()
+
+			if group_mode != 'none':
+				for unit in range(unit_count):
+					valid = mask[unit]
+					if np.any(valid):
+						mean_residual = np.mean(residuals[unit, valid] - time_values[valid])
+						if group_mode == 'random':
+							group_values[unit] = group_weights[unit] * mean_residual
+						else:
+							group_values[unit] = mean_residual
+				group_values -= np.mean(group_values)
+
+			if time_mode != 'none':
+				for period in range(period_count):
+					valid = mask[:, period]
+					if np.any(valid):
+						mean_residual = np.mean(residuals[valid, period] - group_values[valid])
+						if time_mode == 'random':
+							time_values[period] = time_weights[period] * mean_residual
+						else:
+							time_values[period] = mean_residual
+				time_values -= np.mean(time_values)
+
+			if max(
+				float(np.max(np.abs(group_values - previous_group))),
+				float(np.max(np.abs(time_values - previous_time))),
+			) < 1e-10:
+				break
+
+		group_estimates = None
+		time_estimates = None
+		if group_mode != 'none':
+			group_labels = np.asarray(panel.original_names)
+			group_estimates = pd.Series(group_values, index=group_labels, name='group_effect')
+		if time_mode != 'none':
+			time_frame = panel.input.timevar
+			time_labels = pd.unique(time_frame.iloc[:, 0])
+			time_estimates = pd.Series(time_values, index=time_labels, name='time_effect')
+
+		group_result = EffectEstimate(group_mode, group_estimates, group_variance)
+		time_result = EffectEstimate(time_mode, time_estimates, time_variance)
+		return group_result, time_result
 
 
 class Summary:
@@ -58,6 +160,7 @@ class Summary:
 		self.options = summary.panel.options
 		self.panel = summary.panel
 		self.prediction_names = summary.prediction_names
+		self.effect_results = PanelEffectResults(summary.panel, summary.ll)
 
 	def _series(self, value):
 		if value is None:
