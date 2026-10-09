@@ -30,7 +30,6 @@ website:
           - api/results.qmd
           - api/fit-options.qmd
       - examples.qmd
-      - migration.qmd
       - changelog.qmd
 
   navbar:

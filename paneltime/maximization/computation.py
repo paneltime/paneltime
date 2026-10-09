@@ -109,7 +109,7 @@ class Computation:
 				  f"ls:{ls.conv}")
 			sys.stdout.flush()
 
-		min_its = 0#sum(self.pqdkm[:2]) + sum(self.pqdkm[3:]) + 6
+		min_its = 15#sum(self.pqdkm[:2]) + sum(self.pqdkm[3:]) + 6
 		if self.diverged(g, ll):
 			conv = 5
 		elif its < min_its:

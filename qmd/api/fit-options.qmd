@@ -31,13 +31,18 @@ results = model.fit(effects=effects)
 ## Optimizer and covariance
 
 Use `OptimizerOptions` for `tolerance`, `max_iterations`, `accuracy`,
-`use_analytical_hessian`, and the other optimizer controls. Select covariance
-behavior with `cov_type` and `robust_cov_lags`.
+and other optimizer controls. Robust covariance lags are configured with
+`OptimizerOptions.robust_cov_lags`. Both conventional and robust standard
+errors are available on the returned results object as `bse` and
+`robust_bse`; `bse_at(params)` evaluates robust standard errors at supplied
+parameter values. The `cov_type` keyword is accepted by `Model.fit()` but does
+not currently select between these covariance results.
 
 ```{python}
 #| eval: false
 optimizer = pt.OptimizerOptions(tolerance=1e-5, max_iterations=150)
-results = model.fit(optimizer=optimizer, cov_type="robust")
+optimizer.robust_cov_lags = (100, 30)
+results = model.fit(optimizer=optimizer)
 ```
 
 ## Constraints
@@ -61,5 +66,5 @@ and [heteroskedasticity guide](../guide/heteroskedasticity-functions.qmd).
 | `fixed_random_group_eff`, `fixed_random_time_eff`, `fixed_random_variance_eff` | `effects=pt.Effects(...)` |
 | `custom_model` | `likelihood=` (an instance) |
 | `user_constraints` | `constraints=` |
-| `use_analytical` | `optimizer.use_analytical_hessian` |
+| `use_analytical` | No corresponding v2 option; the current implementation uses analytical derivatives. |
 | `supress_output` | `suppress_output=` |

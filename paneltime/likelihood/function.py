@@ -4,7 +4,7 @@ import numpy as np
 from . import models
 
 HFUNC_ITEMS = ['h_val', 'h_e_val', 'h_2e_val', 'h_z_val', 'h_2z_val', 'h_ez_val']
-EXPORT_ITEMS = ['var', 'e', 'e2']
+EXPORT_ITEMS = ['var', 'e', 'e2', 'v_inv']
 
 class LLFunction:
 	def __init__(self, panel, e, v, z, hyp = False):
@@ -21,6 +21,9 @@ class LLFunction:
 		with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
 
 			self.model = model(e, v, a, k, z)
+			if panel.options.h_function is not None:
+				from .symbolic import apply_h_function
+				apply_h_function(self.model, panel.options.h_function)
 
 		for key, x in [('a', a), ('k', k), ('incl', incl)]:
 			setattr(self, key, x)

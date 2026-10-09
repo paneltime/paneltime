@@ -1,10 +1,10 @@
-// File : ctypes.cpp //
-
-//Use "cl /bigobj /LD /O2 /Oi /fp:fast /GL /arch:AVX2 /DNDEBUG /EHsc ctypes.cpp /link /LTCG /OPT:REF /OPT:ICF" 
-//to compile for windows //
-//Linux suggestion (check): gcc -O3 and march=native //
-//Linux: g++ -shared -o ctypes.so -fPIC ctypes.cpp//
-//Mac: clang++ -O3 -shared -o ctypes.dylib -fPIC ctypes.cpp//
+// Build from this directory. ctypes.cpp includes mathexp.cpp.
+// Windows, from an x64 MSVC Developer Command Prompt:
+// cl /nologo /std:c++14 /O2 /DNDEBUG /EHsc /LD /bigobj ctypes.cpp /link /OUT:ctypes.dll
+// Linux: build on the oldest supported distribution to set the glibc baseline.
+// g++ -std=c++11 -O2 -DNDEBUG -fPIC -shared ctypes.cpp -o ctypes.so
+// macOS: set the minimum OS target and architectures for the release you support.
+// clang++ -std=c++11 -O2 -DNDEBUG -dynamiclib -fPIC ctypes.cpp -o ctypes.dylib
 #define LOGGING_ENABLED 0 
 
 #include <cmath>

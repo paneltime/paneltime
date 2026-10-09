@@ -20,7 +20,10 @@ class LikelihoodModel(ABC):
 	"""
 
 	def __init__(self, e, init_var, a=0, k=0, z=None):
-		self.e, self.z = np.asarray(e), z
+		self.e = np.asarray(e)
+		if self.e.ndim == 0:
+			self.e = self.e.item()
+		self.z = z
 		self.a, self.k = a, k
 		self.variance_bounds(init_var)
 		self.variance_definitions()
@@ -44,7 +47,7 @@ class LikelihoodModel(ABC):
 		self.h_val = self.h(self.e, self.e ** 2 + 1e-8, self.v)
 		self.h_val_cpp = ''
 		self.h_e_val = 2 * self.e
-		self.h_2e_val = np.full_like(self.e, 2.0)
+		self.h_2e_val = 2.0 if np.ndim(self.e) == 0 else np.full_like(self.e, 2.0)
 		self.h_z_val = self.h_2z_val = self.h_ez_val = None
 
 	@abstractmethod
@@ -70,25 +73,52 @@ class LikelihoodModel(ABC):
 
 
 def _finite_difference(model, method, first):
-	"""Numerically differentiate a pointwise likelihood with respect to e/var."""
-	h = 1e-6
-	original_e = np.array(model.e, copy=True)
-	original_var = np.array(model.var, copy=True)
+	"""Numerically differentiate a pointwise likelihood with respect to e and var."""
+	original_e = np.array(model.e, dtype=float, copy=True)
+	original_var = np.array(model.var, dtype=float, copy=True)
+
 	def evaluate(e, var):
 		model.e = e
 		model.var = var
 		model.variance_definitions()
-		return np.asarray(getattr(model, method)())
+		model.set_h_function()
+		return np.asarray(getattr(model, method)(), dtype=float)
+
 	try:
-		base = evaluate(original_e, original_var)
-		e_plus = evaluate(original_e + h, original_var)
-		e_minus = evaluate(original_e - h, original_var)
 		if first:
-			return (e_plus - e_minus) / (2 * h)
-		return (e_plus - 2 * base + e_minus) / (h * h)
+			r = np.finfo(float).eps ** (1 / 3)
+			h_e = r * np.maximum(1.0, np.abs(original_e))
+			h_var = r * np.maximum(1.0, np.abs(original_var))
+			d_e = (evaluate(original_e + h_e, original_var) - evaluate(original_e - h_e, original_var)) / (2 * h_e)
+			d_var = (evaluate(original_e, original_var + h_var) - evaluate(original_e, original_var - h_var)) / (2 * h_var)
+			return d_var, d_e
+
+		r = np.finfo(float).eps ** 0.25
+		h_e = r * np.maximum(1.0, np.abs(original_e))
+		h_var = r * np.maximum(1.0, np.abs(original_var))
+		base = evaluate(original_e, original_var)
+		d2_e = (
+			evaluate(original_e + h_e, original_var)
+			- 2 * base
+			+ evaluate(original_e - h_e, original_var)
+		) / h_e**2
+		d2_var = (
+			evaluate(original_e, original_var + h_var)
+			- 2 * base
+			+ evaluate(original_e, original_var - h_var)
+		) / h_var**2
+		d2_var_e = (
+			evaluate(original_e + h_e, original_var + h_var)
+			- evaluate(original_e + h_e, original_var - h_var)
+			- evaluate(original_e - h_e, original_var + h_var)
+			+ evaluate(original_e - h_e, original_var - h_var)
+		) / (4 * h_e * h_var)
+		return d2_e, d2_var_e, d2_var
 	finally:
 		model.e = original_e
 		model.var = original_var
+		model.variance_definitions()
+		model.set_h_function()
 
 
 
@@ -213,7 +243,7 @@ class Hyperbolic:
 
 		# Defining verious variables:
 		self.v = self.var
-		self.v_inv = 1/v
+		self.v_inv = 1/self.var
 		
 		self.e = e
 		self.e2 = e**2 + 1e-8
@@ -247,8 +277,8 @@ class Hyperbolic:
 			self.e, self.e2, self.v, self.v_inv, self.a, self.k, self.var_pos, self.z)
 
 		ll = LL_CONST-0.5*(np.log(v)+(1-k)*e2/v
-			+ a* (np.abs(e2-v)*v)
-			+ (k/3)* e2**2*v**2
+			+ a* (np.abs(e2-v)/v)
+			+ (k/3)* e2**2/v**2
 			)
 		
 		return ll
@@ -286,7 +316,7 @@ class Hyperbolic:
 
 		d2ll_de2 	 =-0.5*(	(1-k)*2/v	)
 		d2ll_de2 	 +=-0.5*(a* 2*np.sign(e2-v)/v
-							+ (k/3)* 12*e2/v**2
+							+ (k/3)* 4*(e2+2*e**2)/v**2
 								)
 		
 		d2ll_dv_de =-0.5*(	-(1-k)*2*e/v**2)

@@ -1,14 +1,16 @@
 """The public model and results API."""
 
+from __future__ import annotations
+
 from typing import Optional
 
 import numpy as np
 import pandas as pd
+from importlib import import_module
 
 from . import main
 from .options import Effects, FitOptions, OptimizerOptions
 from .random_effects import REObj
-import paneltime_mp
 
 
 MP = None
@@ -174,8 +176,122 @@ class Summary:
 
 	@property
 	def bse(self) -> pd.Series:
-		"""Robust coefficient standard errors indexed by variable name."""
+		"""Conventional coefficient standard errors indexed by variable name."""
 		return self._bse
+
+	@property
+	def robust_bse(self) -> pd.Series:
+		"""Robust sandwich standard errors indexed by variable name."""
+		values = self.results.coef_se_robust
+		if values is None:
+			return pd.Series(index=self._names, dtype=float)
+		return pd.Series(np.asarray(values), index=self._names, dtype=float)
+
+	def bse_at(self, params: dict | pd.Series, robust: bool = False) -> pd.Series:
+		"""Evaluate standard errors at supplied values without optimizing."""
+		if not isinstance(robust, (bool, np.bool_)):
+			raise TypeError('robust must be a bool')
+		diagnostics = self.bse_at_diagnostics(params)
+		return diagnostics['robust_bse' if robust else 'bse']
+
+	def bse_at_diagnostics(self, params: dict | pd.Series) -> dict:
+		"""Return both SE variants and diagnostics evaluated at supplied values.
+
+		The score is reported as total and per included observation. Hessian
+		conditioning is computed on the free parameters after diagonal scaling.
+	"""
+		if not isinstance(params, (dict, pd.Series)):
+			raise TypeError('params must be a dict or pandas Series keyed by parameter name')
+
+		names = list(self.params.index)
+		missing = [name for name in names if name not in params]
+		extra = [name for name in params.keys() if name not in names]
+		if missing or extra:
+			raise ValueError(f'Parameter names must match the fitted model; missing={missing}, extra={extra}')
+		values = np.asarray([params[name] for name in names], dtype=float)
+		if not np.all(np.isfinite(values)):
+			raise ValueError('All parameter values must be finite')
+
+		from .likelihood.main import LL
+		from .maximization.computation import Computation
+		from .output.output import grand_mean_variance, sandwich
+
+		panel = self.panel
+		comput = Computation(values, panel, panel.options.tolerance, 4 * np.finfo(float).eps, False)
+		ll = LL(values, panel, constraints=comput.constr)
+		if ll.LL is None:
+			raise ValueError('Likelihood is undefined at the supplied parameter values')
+
+		gradient, scores = comput.calc_gradient(ll)
+		hessian = comput.calc_hessian(ll)
+		if hessian is None or not np.all(np.isfinite(hessian)):
+			raise ValueError('Hessian is undefined at the supplied parameter values')
+
+		lags = panel.options.robustcov_lags_statistics[1]
+		se_robust, se_unadjusted, _, _ = sandwich(
+			hessian, scores, gradient, comput.constr, panel, lags
+		)
+		se_robust_opposite, se_unadjusted_opposite, _, _ = sandwich(
+			hessian, scores, gradient, comput.constr, panel, lags, oposite=True
+		)
+		se_robust = np.asarray(se_robust, dtype=float)
+		se_unadjusted = np.asarray(se_unadjusted, dtype=float)
+		se_robust_opposite = np.asarray(se_robust_opposite, dtype=float)
+		se_unadjusted_opposite = np.asarray(se_unadjusted_opposite, dtype=float)
+		se_robust[np.isnan(se_robust)] = se_robust_opposite[np.isnan(se_robust)]
+		se_unadjusted[np.isnan(se_unadjusted)] = se_unadjusted_opposite[np.isnan(se_unadjusted)]
+
+		extra_variance = grand_mean_variance(panel, ll)
+		if panel.input.has_intercept and extra_variance > 0:
+			intercept_index = panel.args.positions['beta'][0]
+			se_robust[intercept_index] = np.sqrt(se_robust[intercept_index] ** 2 + extra_variance)
+			se_unadjusted[intercept_index] = np.sqrt(se_unadjusted[intercept_index] ** 2 + extra_variance)
+
+		free = np.ones(len(names), dtype=bool)
+		free[list(comput.constr.fixed)] = False
+		free_indices = np.flatnonzero(free)
+		hessian_free = np.asarray(hessian)[np.ix_(free, free)]
+		if hessian_free.size:
+			scale = np.sqrt(np.maximum(np.abs(np.diag(hessian_free)), 1e-300))
+			scaled = -hessian_free / np.outer(scale, scale)
+			scaled = 0.5 * (scaled + scaled.T)
+			eigenvalues, eigenvectors = np.linalg.eigh(scaled)
+			absolute_eigenvalues = np.abs(eigenvalues)
+			largest = float(absolute_eigenvalues.max())
+			condition_index = (
+				float(np.sqrt(largest / max(float(absolute_eigenvalues.min()), largest * 1e-30)))
+				if largest > 0 else float('nan')
+			)
+			weakest = eigenvectors[:, int(np.argmin(absolute_eigenvalues))]
+			weak_direction = {names[index]: float(value) for index, value in zip(free_indices, weakest)}
+			hessian_condition = float(np.linalg.cond(hessian_free))
+		else:
+			eigenvalues = np.array([], dtype=float)
+			condition_index = hessian_condition = float('nan')
+			weak_direction = {}
+
+		included = np.asarray(panel.included[3], dtype=bool)
+		var_pos = np.asarray(ll.llfunc.model.var_pos, dtype=bool)
+		included_count = int(included.sum())
+		variance_clipped_fraction = (
+			float(np.count_nonzero((~var_pos) & included) / included_count)
+			if included_count else float('nan')
+		)
+		max_observation_score = np.max(np.abs(scores), axis=(0, 1))
+		return {
+			'log_likelihood': float(ll.LL),
+			'bse': pd.Series(se_unadjusted, index=names, dtype=float),
+			'robust_bse': pd.Series(se_robust, index=names, dtype=float),
+			'score': pd.Series(gradient, index=names, dtype=float),
+			'mean_score': pd.Series(gradient / panel.NT, index=names, dtype=float),
+			'max_observation_score': pd.Series(max_observation_score, index=names, dtype=float),
+			'hessian_diagonal': pd.Series(np.diag(hessian), index=names, dtype=float),
+			'hessian_condition_number': hessian_condition,
+			'scaled_condition_index': condition_index,
+			'scaled_hessian_eigenvalues': absolute_eigenvalues.tolist() if hessian_free.size else [],
+			'weakest_direction': weak_direction,
+			'variance_clipped_fraction': variance_clipped_fraction,
+		}
 
 	@property
 	def tvalues(self) -> pd.Series:
@@ -237,9 +353,10 @@ class Summary:
 		"""
 		if not 0 < alpha < 1:
 			raise ValueError('alpha must be between 0 and 1')
-		low = np.asarray(self.table.d.get('conf_low', np.full(len(self.params), np.nan)))
-		high = np.asarray(self.table.d.get('conf_high', np.full(len(self.params), np.nan)))
-		return pd.DataFrame({0: low, 1: high}, index=self.params.index)
+		from .output.stat_dist import tinv
+		critical_value = tinv(1 - alpha / 2, self.df_resid)
+		margin = critical_value * self.robust_bse
+		return pd.DataFrame({0: self.params - margin, 1: self.params + margin}, index=self.params.index)
 
 	def summary(self):
 		"""Return this categorized summary object."""
@@ -278,10 +395,20 @@ class Summary:
 		return self._summary.predict(signals)
 
 	def forecast(self, steps: int = 1):
-		"""Forecast future observations for the requested number of steps."""
-		if not isinstance(steps, int) or steps < 1:
+		"""Return future dependent-variable forecasts for each panel unit."""
+		if not isinstance(steps, (int, np.integer)) or isinstance(steps, (bool, np.bool_)) or steps < 1:
 			raise ValueError('steps must be a positive integer')
-		return np.asarray(self.predict())[-steps:]
+		steps = int(steps)
+		prediction_name = f'Predicted {self.panel.input.Y_names[0]}'
+		forecasts = self.predict()[prediction_name].dropna()
+		if forecasts.empty:
+			raise ValueError('No future predictions are available')
+		by_unit = forecasts.groupby(level=0, sort=False)
+		available_steps = int(by_unit.size().min())
+		if steps > available_steps:
+			word = 'step is' if available_steps == 1 else 'steps are'
+			raise ValueError(f'Only {available_steps} future {word} available for at least one panel unit')
+		return by_unit.head(steps).to_numpy()
 
 
     
@@ -298,6 +425,10 @@ class Model:
 		self.entity = entity
 		self.time = time
 		if multiprocess and MP is None:
+			try:
+				paneltime_mp = import_module('paneltime_mp')
+			except ImportError as error:
+				raise ImportError('multiprocess=True requires the optional paneltime_mp package') from error
 			MP = paneltime_mp.Master(7)
 		self.mp = MP
 

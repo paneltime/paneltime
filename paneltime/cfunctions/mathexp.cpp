@@ -179,7 +179,7 @@ extern "C" const char* exprtk_last_error()
 
 // ---------- Testing helper ----------
 
-extern "C" const char* expression_test(double e, double e2, double z, const char* h_expr)
+EXPORT const char* expression_test(double e, double e2, double z, const char* h_expr)
 {
     static thread_local std::string last_result;
 

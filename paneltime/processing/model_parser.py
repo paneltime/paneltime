@@ -248,8 +248,8 @@ def pool_func(df,pool):
 	x,operation=pool
 	if x is None:
 		return df
-	x=get_names(x, 'pool')
-	df=df.groupy(x).agg(operation)
+	x=get_names(x, df, 'pool')
+	df=df.groupby(x).agg(operation)
 	return df
 
 
@@ -577,7 +577,7 @@ def get_names(x, df,inputtype,add_intercept=False,intercept_name=None):
 	elif isinstance(x, str):
 		r=[x]
 	elif isinstance(x, (list, tuple)):
-		r=list(x.name)
+		r=list(x)
 	
 	if r is None or not np.all(i in df for i in r):
 		raise RuntimeError(f"Input for {inputtype} needs to be a string, list or tuple of strings," 

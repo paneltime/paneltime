@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field, fields
+from numbers import Real
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -41,11 +44,20 @@ def one_of(values):
 	return lambda value: value in values
 
 
-def positive_or_none_pair(value):
+def is_finite_real_or_none(value):
+	return value is None or (
+		isinstance(value, Real)
+		and not isinstance(value, (bool, np.bool_))
+		and bool(np.isfinite(value))
+	)
+
+
+def is_tobit_limits(value):
 	return (
-		isinstance(value, tuple)
+		isinstance(value, (tuple, list))
 		and len(value) == 2
-		and all(item is None or item > 0 for item in value)
+		and all(is_finite_real_or_none(item) for item in value)
+		and (value[0] is None or value[1] is None or value[0] <= value[1])
 	)
 
 
@@ -81,14 +93,14 @@ OPTION_SPECS = {
 	'fit.add_intercept': OptionSpec(True, 'Add an intercept when one is not present in the formula.', 'True or False.', 'Regression', 'add_intercept', validator=is_bool),
 	'fit.subtract_means': OptionSpec(False, 'Subtract variable means before estimation.', 'True or False.', 'Regression', 'subtract_means', validator=is_bool),
 	'fit.include_initvar': OptionSpec(False, 'Include an initial variance term.', 'True or False.', 'Regression', 'include_initvar', validator=is_bool),
-	'fit.tobit_limits': OptionSpec((None, None), 'Lower and upper limits for a Tobit model.', 'Two positive numbers or None.', 'Regression', 'tobit_limits', '(0, None)', validator=positive_or_none_pair),
+	'fit.tobit_limits': OptionSpec((None, None), 'Lower and upper limits for a Tobit model.', 'Two finite real numbers or None, with lower <= upper.', 'Regression', 'tobit_limits', '(0, None)', validator=is_tobit_limits),
 	'fit.suppress_output': OptionSpec(True, 'Suppress optimizer progress output.', 'True or False.', 'Output', 'supress_output', validator=is_bool),
 	'fit.likelihood': OptionSpec(None, 'Custom likelihood model class.', 'None or a likelihood class.', 'Regression', 'custom_model', validator=is_class_or_none),
-	'fit.h_function': OptionSpec(None, 'Custom heteroskedasticity function.', 'None or a supported h-function.', 'Regression'),
+	'fit.h_function': OptionSpec(None, 'Custom heteroskedasticity function.', 'None or a supported h-function.', 'Regression', 'h_function'),
 	'effects.group': OptionSpec('none', 'Group effect specification.', ['none', 'fixed', 'random'], 'Effects', 'fixed_random_group_eff', validator=one_of(['none', 'fixed', 'random'])),
 	'effects.time': OptionSpec('none', 'Time effect specification.', ['none', 'fixed', 'random'], 'Effects', 'fixed_random_time_eff', validator=one_of(['none', 'fixed', 'random'])),
 	'effects.variance': OptionSpec('none', 'Variance effect specification.', ['none', 'fixed', 'random'], 'Effects', 'fixed_random_variance_eff', validator=one_of(['none', 'fixed', 'random'])),
-	'optimizer.tolerance': OptionSpec(0.0001, 'Tolerance used by the numerical optimizer.', 'Positive number.', 'Optimizer', 'tolerance', '1e-5', validator=is_positive),
+	'optimizer.tolerance': OptionSpec(0.00001, 'Tolerance used by the numerical optimizer.', 'Positive number.', 'Optimizer', 'tolerance', '1e-5', validator=is_positive),
 	'optimizer.max_iterations': OptionSpec(150, 'Maximum number of optimization iterations.', 'Positive integer.', 'Optimizer', 'max_iterations', '300', validator=is_positive_int),
 	'optimizer.accuracy': OptionSpec(0, 'Optimization accuracy level.', 'Non-negative integer.', 'Optimizer', 'accuracy', '1', validator=is_nonnegative_int),
 	'optimizer.initial_arima_garch_params': OptionSpec(0.1, 'Initial size of ARIMA-GARCH parameters.', 'Non-negative number.', 'Optimizer', 'initial_arima_garch_params', validator=is_nonnegative),
@@ -195,9 +207,8 @@ class EngineOptions:
 		if len(self.robustcov_lags_statistics) != 2 or any(
 				not isinstance(value, int) or value <= 1 for value in self.robustcov_lags_statistics):
 			raise ValueError('robustcov_lags_statistics must contain two integers greater than one')
-		if len(self.tobit_limits) != 2 or any(
-				value is not None and value <= 0 for value in self.tobit_limits):
-			raise ValueError('tobit_limits must contain two positive values or None')
+		if not is_tobit_limits(self.tobit_limits):
+			raise ValueError('tobit_limits must contain finite real values or None, with lower <= upper')
 		if self.user_constraints is not None and not isinstance(self.user_constraints, (str, dict)):
 			raise TypeError('user_constraints must be a string, dict, or None')
 		if self.custom_model is not None and not isinstance(self.custom_model, type):
@@ -284,7 +295,7 @@ class FitOptions:
 		for name in ('group', 'time', 'variance'):
 			spec = _spec(f'effects.{name}')
 			setattr(engine_options, spec.engine_name, effect_values[getattr(self.effects, name)])
-		for name in ('constraints', 'add_intercept', 'subtract_means', 'include_initvar', 'tobit_limits', 'suppress_output', 'likelihood'):
+		for name in ('constraints', 'add_intercept', 'subtract_means', 'include_initvar', 'tobit_limits', 'suppress_output', 'likelihood', 'h_function'):
 			spec = _spec(f'fit.{name}')
 			value = getattr(self, name)
 			if name == 'tobit_limits':

@@ -38,6 +38,33 @@ def tinv025(df):
   return t
 
 
+def tinv(p, df):
+  """Quantile of Student's t distribution using the existing scalar CDF."""
+  if df < 1:
+    return float('nan')
+  if not 0 <= p <= 1:
+    raise ValueError('p must be between zero and one')
+  if p == 0:
+    return float('-inf')
+  if p == 1:
+    return float('inf')
+  if p == 0.5:
+    return 0.0
+
+  sign = 1 if p > 0.5 else -1
+  target = max(p, 1 - p)
+  low, high = 0.0, 1.0
+  while tcdf(high, df) < target:
+    high *= 2
+  for _ in range(80):
+    midpoint = (low + high) / 2
+    if tcdf(midpoint, df) < target:
+      low = midpoint
+    else:
+      high = midpoint
+  return sign * ((low + high) / 2)
+
+
 def norm(x,mu=0,s=1, cdf = True):
   try:
     len(x)

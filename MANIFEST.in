@@ -1,3 +1,4 @@
 
 
 recursive-include paneltime/cfunctions *
+global-exclude *.pyc *.pyo *.pyd

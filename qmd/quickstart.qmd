@@ -45,7 +45,7 @@ print(results.summary())
 #| eval: false
 print(results.params)
 print(results.conf_int())
-forecast = results.forecast(steps=4)
+forecast = results.forecast(steps=1)
 ```
 
-See [Results object](api/results.qmd) for the complete public result surface.
+See [Summary results](api/results.qmd) for the complete public result surface.

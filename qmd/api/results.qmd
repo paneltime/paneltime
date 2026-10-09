@@ -1,22 +1,26 @@
 ---
-title: Results object
+title: Summary (results object)
 aliases:
   - attributes.html
 ---
 
-`model.fit()` returns a `Results` object. Its everyday attributes are direct,
+`model.fit()` returns a `Summary` object. In examples below it is assigned to
+`results`. Its everyday attributes are direct,
 named `pandas.Series` or scalar values; optimizer implementation details are
 kept under `optim_result`.
 
-## Results: everyday use
+## Everyday use
 
 | Attribute | Description |
 |---|---|
 | `params` | Estimated coefficients indexed by variable name. |
-| `bse` | Standard errors indexed like `params`. |
-| `tvalues` | Test statistics indexed like `params`. |
-| `pvalues` | Two-sided p-values indexed like `params`. |
-| `conf_int()` | Confidence intervals for the coefficients. |
+| `bse` | Conventional standard errors indexed like `params`. |
+| `robust_bse` | Robust sandwich standard errors indexed like `params`. |
+| `bse_at(params, robust=False)` | Standard errors evaluated at supplied parameter values. `False` (default) omits robust adjustments; `True` uses the configured robust covariance. Does not optimize. |
+| `bse_at_diagnostics(params)` | Both SE variants plus score, Hessian conditioning, weakest scaled-Hessian direction, and variance clipping diagnostics at supplied values. |
+| `tvalues` | Test statistics based on robust standard errors. |
+| `pvalues` | Two-sided p-values based on robust standard errors. |
+| `conf_int(alpha=0.05)` | Two-sided confidence intervals based on robust standard errors. |
 | `nobs` | Number of observations used in the fit. |
 | `df_resid` | Residual degrees of freedom. |
 | `llf` | Maximized log-likelihood. |
@@ -25,14 +29,53 @@ kept under `optim_result`.
 | `random_effects` | Object exposing `.group` and `.time` residual effects and standard deviations. |
 | `resid` | Regression residuals. |
 | `fittedvalues` | Fitted dependent-variable values. |
+| `forecast(steps=1)` | Future dependent-variable values for each panel unit. |
 | `summary()` | Formats a human-readable regression summary. |
 
 ```{python}
 #| eval: false
 results.params
 results.bse
+results.robust_bse
 results.summary()
 ```
+
+`bse_at()` accepts a complete `dict` or `pandas.Series` keyed by the same
+parameter names as `results.params`. It evaluates the likelihood, gradient,
+and Hessian at those values without re-estimating the model. By default,
+`robust=False` returns standard errors without HAC or cluster adjustments.
+Set `robust=True` to use paneltime's configured robust covariance, including
+its default Newey-West lag and panel-cluster adjustments. Built-in likelihoods
+use analytic derivatives; custom likelihoods may use the finite-difference
+fallback. This is useful in simulations where the true coefficients are known.
+The returned standard errors remain sample-specific; they are not theoretical
+or Monte Carlo standard errors.
+
+For example, start with a complete fitted-parameter vector and replace values
+whose simulation truths are known:
+
+```{python}
+#| eval: false
+true_params = results.params.copy()
+true_params["X0"] = 1.0
+true_params["X1"] = 1.0
+se_at_truth = results.bse_at(true_params)
+```
+
+The current initial variance and random-effect variance components are not
+free entries in `params`; they remain determined by the fitted model/data.
+`conf_int(alpha=...)` uses the requested significance level, where `alpha`
+must be between zero and one.
+Forecast requests must fit within the future prediction rows prepared by the
+model; unavailable horizons raise `ValueError` instead of returning a partial
+panel slice.
+
+`bse_at_diagnostics()` accepts the same complete parameter mapping and returns
+both `bse` and `robust_bse`, the log-likelihood, total and per-observation
+scores, Hessian diagonal, raw Hessian condition number, scaled condition index,
+weakest direction of the diagonally scaled Hessian, and fraction of included
+conditional variances clipped at model bounds. The scaled condition index is
+the eigenvalue-ratio diagnostic used by paneltime's multicollinearity report.
 
 ## Optimizer internals (advanced)
 
@@ -40,5 +83,6 @@ Advanced diagnostics are available from `results.optim_result`, including
 `hessian`, `gradient_matrix`, `gradient_vector`, `dx_norm`, `its`, `msg`,
 `t0`, `t1`, and `log_likelihood_object`.
 
-The former `output` and `table` objects are implementation details and are
-private as `results._output` and `results._table`.
+For compatibility, `results.output` and `results.table` expose engine objects.
+Prefer the direct result attributes above for routine analysis; the engine
+objects are implementation details.

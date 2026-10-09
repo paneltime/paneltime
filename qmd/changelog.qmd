@@ -12,7 +12,7 @@ release history for the exact patch-level notes.
 ## v2 (in development)
 
 - Introduces the constructor plus `.fit()` API.
-- Replaces `Summary` with the public `Results` object.
+- Returns a public `Summary` results object from `.fit()`.
 - Groups fit configuration into explicit per-call options.
 - Adds symbolic SymPy heteroskedasticity functions and checked ExprTk codegen.
 - Adds an instantiable `LikelihoodModel` extension point with numerical

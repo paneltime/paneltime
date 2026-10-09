@@ -1,6 +1,7 @@
 
 import ctypes as ct
 import os
+import sys
 import numpy.ctypeslib as npct
 from pathlib import Path
 import numpy as np
@@ -8,12 +9,18 @@ import numpy as np
 
 p = Path(__file__).parent.absolute()
 
-if os.name=='nt':
-	cfunct = npct.load_library('ctypes.dll',p)
-elif os.name == 'posix':
-	cfunct = npct.load_library('ctypes.dylib',p)
-else:
-	cfunct = npct.load_library('ctypes.so',p)
+def _library_name(platform_name=None):
+	platform_name = sys.platform if platform_name is None else platform_name
+	if platform_name == 'win32':
+		return 'ctypes.dll'
+	if platform_name == 'darwin':
+		return 'ctypes.dylib'
+	if platform_name.startswith('linux'):
+		return 'ctypes.so'
+	raise ImportError(f'Unsupported platform for paneltime native code: {platform_name}')
+
+
+cfunct = npct.load_library(_library_name(), p)
 
 
 CDPT = ct.POINTER(ct.c_double) 
