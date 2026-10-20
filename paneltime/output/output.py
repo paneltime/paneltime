@@ -8,6 +8,7 @@ from . import stat_dist
 from ..processing import arguments
 from .. import random_effects
 import textwrap
+import warnings
 
 import numpy as np
 import time
@@ -450,13 +451,29 @@ class Column:
 def sandwich(H, G, g, constr, panel,lags,oposite=False,resize=True):
 	k, k = H.shape
 	H,G,idx=reduce_size(H, G, g, constr,oposite,resize)
+	no_info = np.all(H == 0, axis=1) & np.all(H == 0, axis=0)
+	if np.any(no_info):
+		positions = np.flatnonzero(idx)
+		names = [panel.args.caption_v[i].strip() for i in positions[no_info]]
+		warnings.warn(
+			"No curvature information for parameter(s): " + ", ".join(names)
+			+ "; their standard errors and covariances are unavailable (NaN).",
+			RuntimeWarning, stacklevel=2,
+		)
+		idx[positions[no_info]] = False
+		H = H[~no_info][:, ~no_info]
+		G = G[:, :, ~no_info]
 	lags=lags+panel.lost_obs
 	onlynans = np.array(len(idx)*[np.nan])
+	if H.size == 0:
+		cov = np.full((len(idx), len(idx)), np.nan)
+		return onlynans.copy(), onlynans.copy(), cov.copy(), cov.copy()
 	try:
 		hessin=np.linalg.inv(-H)
 	except np.linalg.LinAlgError as e:
 		print(e)
-		return np.array(onlynans),np.array(onlynans)
+		cov = np.full((len(idx), len(idx)), np.nan)
+		return onlynans.copy(), onlynans.copy(), cov.copy(), cov.copy()
 	se_robust,se,V, W=stat.robust_se(panel,lags,hessin,G)
 	se_robust,se,V, W=expand_x(se_robust, idx),expand_x(se, idx),expand_x(V, idx,True), expand_x(W, idx,True)
 	f = cov_df_factor(panel)

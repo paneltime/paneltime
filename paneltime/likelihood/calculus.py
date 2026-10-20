@@ -335,11 +335,6 @@ class hessian:
 				[T(D2LL_beta_z),			T(D2LL_rho_z),				T(D2LL_lambda_z),				T(D2LL_gamma_z),			T(D2LL_psi_z),			T(D2LL_omega_z), 				D2LL_initvar_z, 			D2LL_z2				]]
 
 		H=cf.concat_matrix(H)
-		# Parameters without any information (all-zero row): make them inert
-		# with curvature -1. (+1, as before, made H indefinite.)
-		no_info = np.all(H == 0, axis=1)
-		H[no_info, no_info] = -1.0
-		
 		self.debug(ll, g, H, False)
 			
 		self.its+=1

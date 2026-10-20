@@ -72,9 +72,8 @@ class LL:
 		
 		G = fu.dot(panel.W_a, self.args.args_d['omega'])
 		G[:,0,0] = panel.args.init_var
-		if True:
-			if arguments.INITVAR in self.args.args_d:
-				G[:,0,0] = self.args.args_d[arguments.INITVAR][0][0]
+		if arguments.INITVAR in self.args.args_d:
+			G[:,0,0] = self.args.args_d[arguments.INITVAR][0][0]
 
 		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-fu.dot(X,self.args.args_d['beta'])

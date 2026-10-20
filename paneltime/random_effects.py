@@ -12,9 +12,8 @@ class REObj:
 		self.sigma_u=0
 		self.group=group
 		self.avg_Tinv=1/np.mean(T_i_count) #T_i_count is the total number of observations for each group (N,1)
-		# CHANGED: Keep a second average-count inverse for the date dimension so we can
-		# estimate two-way random-effect variance components in a symmetric way.
-		self.avg_Ninv=1/np.mean(panel.date_count)
+		other_dimension_count = panel.date_count if group else panel.T_i
+		self.avg_Ninv=1/np.mean(other_dimension_count)
 		self.T_i=T_i*panel.included[3]#self.T_i is T_i_count at each observation (N,T,1)
 		self.fe_re=fixed_random_eff
 
@@ -61,7 +60,11 @@ class REObj:
 				self.v_var=0
 				self.theta=panel.zeros[3]
 				return np.zeros(x.shape)
-			self.theta=(1-np.sqrt(self.e_var/(self.e_var+self.v_var*self.T_i)))*panel.included[3]
+			denom=self.e_var+self.v_var*self.T_i
+			if (not np.isfinite(self.e_var) or self.e_var<=0
+					or not np.all(np.isfinite(denom)) or np.any(denom<=0)):
+				raise FloatingPointError("Random-effects variance components produce an undefined theta")
+			self.theta=(1-np.sqrt(self.e_var/denom))*panel.included[3]
 			self.theta*=(self.T_i>1)
 			if np.any(self.theta>1) or np.any(self.theta<0):
 				raise RuntimeError("WTF")
