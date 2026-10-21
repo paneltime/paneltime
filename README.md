@@ -32,6 +32,22 @@ be used with `np` as the alias, for example `np.abs(x)`.
 
 See the [Quickstart](quickstart.qmd) for a complete model example.
 
+## Optional multistart estimation
+
+```python
+results = model.fit(optimizer=pt.OptimizerOptions(multistart=True))
+```
+
+This tries the original start and up to two additional deterministic ARMA/GARCH
+starts. It prefers the highest finite log-likelihood among converged attempts.
+Per-start likelihoods, convergence codes, iteration counts, and the selected
+attempt are available in `results.optim_result.multistart_results`.
+The default is `False`; turning it off restores the previous optimization path.
+Additional starts cost additional fitting time and do not guarantee a global
+maximum or lower parameter RMSE. Explicit engine starting arguments are
+respected rather than replaced. See [fit options](qmd/api/fit-options.qmd) for
+details and the Gaussian random-effects likelihood audit.
+
 ## Unavailable standard errors
 
 Parameters with an entirely zero Hessian row and column have no local

@@ -45,6 +45,127 @@ optimizer.robust_cov_lags = (100, 30)
 results = model.fit(optimizer=optimizer)
 ```
 
+### Optional multistart
+
+```{python}
+#| eval: false
+results = model.fit(optimizer=pt.OptimizerOptions(multistart=True))
+results.optim_result.multistart_results
+```
+
+`multistart=False` preserves the existing optimization path, including its
+legacy gamma-start grid when multiprocessing is used. With `True`, sequential
+and parallel dispatch use the same candidate starts:
+
+1. The original, data-derived start.
+2. Zero AR and MA coefficients, with total GARCH and ARCH starting coefficients
+   of 0.70 and 0.15, respectively.
+3. First AR/MA coefficients of 0.50/-0.30 and other AR/MA lags zero, with total
+   GARCH and ARCH starting coefficients of 0.85 and 0.05.
+
+Volatility totals are spread over the requested lags with geometrically
+decreasing weights. Missing parameter groups are skipped; duplicate starts are
+removed. For EGARCH, the original volatility starts are retained instead.
+Regression coefficients, the variance intercept/regressors, and initial
+variance are unchanged across starts. Existing constraints apply to every
+attempt. Explicit starting arguments supplied through the engine are honored
+as a single start.
+
+The selected result is the largest finite log-likelihood among attempts with
+convergence code 1 or 2. If none converges, the best finite attempt is returned
+with its unsuccessful convergence code unchanged; if none is finite, fitting
+raises an error. Per-start diagnostics include unsuccessful attempts. Exceptions
+are not swallowed. Extra starts increase runtime and do not guarantee global
+optimality or improved statistical accuracy.
+
+### Gaussian RE likelihood audit
+
+An analytical Hessian differentiates the implemented criterion; it does not
+establish that the criterion is the marginal likelihood of the stated model.
+The reproducible audit reference in
+[`tests/re_likelihood_reference.py`](../../tests/re_likelihood_reference.py)
+examines the simpler stationary Gaussian model
+
+$$
+y_{it}-x_{it}'\beta=a_i+c_t+u_{it},\qquad
+u_{it}=\rho u_{i,t-1}+\epsilon_{it},
+$$
+
+where the three innovation/effect families are independent, with variances
+$\sigma^2,\tau_a^2,\tau_c^2$. For entity-major stacking,
+
+$$
+\Sigma =
+ I_N\otimes\left\{\frac{\sigma^2}{1-\rho^2}
+    [\rho^{|s-t|}]_{s,t=1}^T\right\}
+ +\tau_a^2 I_N\otimes J_T+\tau_c^2 J_N\otimes I_T,
+$$
+
+where $J_k$ is the $k$-by-$k$ all-ones matrix. Its exact marginal log-likelihood is
+
+$$
+\ell_{\rm exact}
+=-\tfrac12\{NT\log(2\pi)+\log|\Sigma|+r'\Sigma^{-1}r\}.
+$$
+
+The reference checks dense Cholesky evaluation against an independent
+AR-innovations/Woodbury evaluation integrating out both effects.
+For a true covariance $\Sigma_0$, expectations require no simulated data:
+
+$$
+E_0[\ell_{\rm exact}(\Sigma)]
+=-\tfrac12\{NT\log(2\pi)+\log|\Sigma|
+                  +\operatorname{tr}(\Sigma^{-1}\Sigma_0)\}.
+$$
+
+The package instead quasi-demeans residuals, applies the AR filter, and sums
+univariate normal contributions. In this special case, with weights frozen,
+write $A=I-\theta_a P_a-\theta_c P_c$, where $P_a,P_c$ project onto centered group
+and time means, $B=I_N\otimes(I_T-\rho L_T)$, and let $D$ contain the variances
+used in those contributions. Then
+
+$$
+\ell_Q=-\tfrac12\{NT\log(2\pi)+\log|D|
+                         +r'A'B'D^{-1}BA r\},
+$$
+
+and its expectation replaces the last quadratic form by
+$\operatorname{tr}(D^{-1}BA\Sigma_0A'B')$.
+The tests reproduce the package transformation, likelihood, and AR score on a
+deterministic panel, accounting for its $10^{-8}$ squared-residual stabilizer.
+
+Two separate qualifications matter:
+
+- Even for a fixed invertible transformation, a density for the original
+  residuals requires the transformation's log determinant. With frozen
+  weights that determinant is constant with respect to $\rho$, so adding it
+  alone cannot correct a nonzero expected AR score. With residual-adaptive
+  weights, the transformation's Jacobian also includes derivatives of those
+  weights; it is not simply $|A|$.
+- Scalar quasi-demeaning generally does not give
+  $BA\Sigma_0A'B'=D$ for serially correlated disturbances. The package preserves
+  the grand mean; correcting that direction is sufficient for the iid
+  benchmark with known variances, but still does not whiten the AR(1) cases.
+
+For $N=4,T=8,\rho=0.5,\sigma^2=2,\tau_a^2=\tau_c^2=1$, with theoretical
+moment-based weights fixed and the first variance fixed at
+$\sigma^2/(1-\rho^2)$, the expected scores in the coordinates
+$(\rho,\log\sigma^2)$ are approximately $(-1.7283,1.6679)$ for $\ell_Q$ and
+$(0,0)$ for the exact marginal likelihood. Without effects, the whitening and
+zero-score checks pass.
+
+**Scope:** the package recomputes its weights from residuals, whereas this
+expectation calculation freezes theoretical weights. It is not the expected
+score of the complete residual-adaptive estimator, a proof of its asymptotic
+bias, or a GARCH likelihood replacement. It establishes a concrete mismatch
+with the exact Gaussian marginal benchmark and explains why a determinant-only
+patch is insufficient. The production RE likelihood is unchanged pending a
+validated treatment of the full dynamic/heteroskedastic model.
+
+From the package root, run `python tests\re_likelihood_reference.py` for the
+JSON audit report, or `python -m unittest discover -s tests -p "test*py" -v`
+for its regression checks and the package tests.
+
 ## Constraints
 
 Use `constraints=` for coefficient restrictions and `add_intercept`,

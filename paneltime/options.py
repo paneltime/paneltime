@@ -102,6 +102,7 @@ OPTION_SPECS = {
 	'effects.variance': OptionSpec('none', 'Variance effect specification.', ['none', 'fixed', 'random'], 'Effects', 'fixed_random_variance_eff', validator=one_of(['none', 'fixed', 'random'])),
 	'optimizer.tolerance': OptionSpec(0.00001, 'Tolerance used by the numerical optimizer.', 'Positive number.', 'Optimizer', 'tolerance', '1e-5', validator=is_positive),
 	'optimizer.max_iterations': OptionSpec(150, 'Maximum number of optimization iterations.', 'Positive integer.', 'Optimizer', 'max_iterations', '300', validator=is_positive_int),
+	'optimizer.multistart': OptionSpec(False, 'Try additional deterministic ARMA/GARCH starts and prefer the best converged fit.', 'True or False.', 'Optimizer', 'multistart', 'True', validator=is_bool),
 	'optimizer.accuracy': OptionSpec(0, 'Optimization accuracy level.', 'Non-negative integer.', 'Optimizer', 'accuracy', '1', validator=is_nonnegative_int),
 	'optimizer.initial_arima_garch_params': OptionSpec(0.1, 'Initial size of ARIMA-GARCH parameters.', 'Non-negative number.', 'Optimizer', 'initial_arima_garch_params', validator=is_nonnegative),
 	'optimizer.arma_constraint': OptionSpec(3, 'Maximum absolute value of ARMA coefficients.', 'Positive number.', 'ARIMA-GARCH', 'ARMA_constraint', validator=is_positive),
@@ -215,7 +216,7 @@ class EngineOptions:
 			raise TypeError('custom_model must be a class or None')
 		if self.arguments is not None and not isinstance(self.arguments, (str, dict, list, np.ndarray)):
 			raise TypeError('arguments must be a string, dict, list, array, or None')
-		for name in ('add_intercept', 'EGARCH', 'include_initvar', 'subtract_means', 'supress_output'):
+		for name in ('add_intercept', 'EGARCH', 'include_initvar', 'subtract_means', 'supress_output', 'multistart'):
 			if not isinstance(getattr(self, name), (bool, np.bool_)):
 				raise TypeError(f'{name} must be boolean')
 		return self
@@ -255,6 +256,7 @@ class OptimizerOptions:
 	robust_cov_lags: tuple[int, int] = _option('optimizer.robust_cov_lags')
 	variance_re_norm: float = _option('optimizer.variance_re_norm')
 	kurtosis_adj: float = _option('optimizer.kurtosis_adj')
+	multistart: bool = _option('optimizer.multistart')
 
 	def validate(self):
 		for option in fields(OptimizerOptions):

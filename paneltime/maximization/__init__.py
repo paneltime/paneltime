@@ -149,6 +149,7 @@ class General:
 		self.its = comm.its
 		self.dx_norm = comm.dx_norm
 		self.msg = comm.msg
+		self.multistart_results = getattr(comm, 'multistart_results', [])
 
 
 class Comm:
