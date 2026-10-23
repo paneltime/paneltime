@@ -240,8 +240,8 @@ class RandomEffects:
 			return
 		
 
-		self.residuals_i = ll.re_obj_i.RE(ll.u_RE, panel)
-		self.residuals_t = ll.re_obj_t.RE(ll.u_RE, panel)
+		self.residuals_i = ll.re_obj_i.RE(ll.e, panel, False)
+		self.residuals_t = ll.re_obj_t.RE(ll.e, panel, False)
 
 		self.residuals_std_i = np.std(self.residuals_i, ddof=1)
 		self.residuals_std_t = np.std(self.residuals_t, ddof=1)

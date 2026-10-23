@@ -6,6 +6,32 @@ from . import models
 HFUNC_ITEMS = ['h_val', 'h_e_val', 'h_2e_val', 'h_z_val', 'h_2z_val', 'h_ez_val']
 EXPORT_ITEMS = ['var', 'e', 'e2', 'v_inv']
 
+
+def select_model(panel, hyp=False):
+	"Selects the likelihood model class from the options."
+	if not panel.options.custom_model is None:
+		return panel.options.custom_model
+	if panel.options.EGARCH == 0:
+		a = panel.options.GARCH_assist
+		k = panel.options.kurtosis_adj
+		if a == 0 and k == 0 and not hyp:
+			return models.Normal
+		return models.Hyperbolic
+	if panel.options.EGARCH == 1:
+		return models.Exponential
+
+
+def h_values(panel, e, z):
+	"""Returns h(e, z) of the selected model. h does not depend on the variance,
+	so it can be evaluated before the variance recursion."""
+	model = select_model(panel)
+	with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+		m = model(e, np.ones_like(e), panel.options.GARCH_assist, panel.options.kurtosis_adj, z)
+		if panel.options.h_function is not None:
+			from .symbolic import apply_h_function
+			apply_h_function(m, panel.options.h_function)
+	return m.h_val
+
 class LLFunction:
 	def __init__(self, panel, e, v, z, hyp = False):
 
@@ -53,20 +79,7 @@ class LLFunction:
 
 	def get(self, panel, hyp):
 		"Selects model based on options. Called by the panel module."
-
-		if not panel.options.custom_model is None:
-			model = panel.options.custom_model
-		elif panel.options.EGARCH == 0:
-			a = panel.options.GARCH_assist
-			k = panel.options.kurtosis_adj
-			if a == 0 and k == 0 and not hyp:
-				model = models.Normal
-			else:
-				model = models.Hyperbolic
-		elif panel.options.EGARCH==1:
-			model = models.Exponential
-
-		return model
+		return select_model(panel, hyp)
 
 	def ll(self):
 

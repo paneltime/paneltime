@@ -82,24 +82,27 @@ class gradient:
 		return dvar_sigma, dvRE_dx, d_input
 
 	def _store_arima_derivatives(self, ll, incl):
-		"""Create derivatives of the residual equation for beta/rho/lambda."""
+		"""Create derivatives of the residual equation for beta/rho/lambda.
+
+		The raw innovation e~ = MA^-1 AR u is differentiated first; the effect
+		transform e = e~ + RE_i(e~) + RE_t(e~) is then applied through dRE,
+		which includes the dependence of theta on e~."""
 		panel = self.panel
 		p, q, _, _, _ = panel.pqdkm
 
+		self.de_rho = self.arima_grad(p, ll.u, ll, -1, ll.AMA_1)
+		self.de_lambda = self.arima_grad(q, ll.e, ll, -1, ll.AMA_1)
+		self.du_beta = -panel.XIV * incl
+		self.de_beta = fu.arma_dot(ll.AMA_1AR, self.du_beta, ll) * incl
 
-		self.X_RE = (
-			panel.XIV
-			+ ll.re_obj_i.RE(panel.XIV, panel, False)
-			+ ll.re_obj_t.RE(panel.XIV, panel, False)
-		) * incl
+		for name in ("rho", "lambda", "beta"):
+			setattr(self, f"de_{name}_RE", self._effect_transform(ll, getattr(self, f"de_{name}"), incl))
 
-		self.de_rho_RE = self.arima_grad(p, ll.u_RE, ll, -1, ll.AMA_1)
-		self.de_lambda_RE = self.arima_grad(q, ll.e_RE, ll, -1, ll.AMA_1)
-		#du_RE/dbeta incl. the effect of beta on theta (dRE); equals -X_RE when theta is held fixed
-		dX = -panel.XIV
-		self.du_RE_beta = (dX + ll.re_obj_i.dRE(dX, panel) + ll.re_obj_t.dRE(dX, panel)) * incl
-		self.ddu_RE_beta = ll.re_obj_i.ddRE(dX, panel) + ll.re_obj_t.ddRE(dX, panel)
-		self.de_beta_RE = fu.arma_dot(ll.AMA_1AR, self.du_RE_beta, ll) * incl
+	def _effect_transform(self, ll, dx, incl):
+		if dx is None:
+			return None
+		panel = self.panel
+		return (dx + ll.re_obj_i.dRE(dx, panel) + ll.re_obj_t.dRE(dx, panel)) * incl
 
 	def _store_sigma_derivatives(self, ll):
 		"""Create GARCH/random-effect derivatives linked to beta/rho/lambda."""

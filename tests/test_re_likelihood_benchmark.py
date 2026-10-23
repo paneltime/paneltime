@@ -42,7 +42,7 @@ class RELikelihoodBenchmarkTests(unittest.TestCase):
         self.assertAlmostEqual(np.mean(values), expected_exact_loglike(candidate, true_cov), places=10)
         a = quasi_demeaning(n, t, .6, .3)
         b, variance = transformed_variance(n, t, .2, 1.5, 2.)
-        w = b@a
+        w = a@b
         values = [-.5*(n*t*np.log(2*np.pi) + np.log(variance).sum()
                        + ((w@columns[:, j])**2/variance).sum()) for j in range(n*t)]
         self.assertAlmostEqual(
@@ -100,15 +100,16 @@ class RELikelihoodBenchmarkTests(unittest.TestCase):
         a = quasi_demeaning(n, t, theta_g, theta_t)
         b, variance = transformed_variance(n, t, rho, sigma2, first_variance)
         u = panel.Y.reshape(-1)
-        e = b@a@u
-        np.testing.assert_allclose(ll.u_RE.reshape(-1), a@u, atol=1e-12)
+        # Effects are removed after the ARMA filter: e = a b u, with theta estimated from b u.
+        e = a@b@u
+        np.testing.assert_allclose(ll.e.reshape(-1), b@u, atol=1e-12)
         np.testing.assert_allclose(ll.e_RE.reshape(-1), e, atol=1e-12)
         np.testing.assert_allclose(ll.var.reshape(-1), variance, atol=1e-12)
         expected = -.5*(n*t*np.log(2*np.pi) + np.log(variance).sum()
                         + ((e*e + 1e-8)/variance).sum())
         self.assertAlmostEqual(ll.LL, expected, places=10)
         self.assertGreater(abs(np.linalg.slogdet(a)[1]), 1.)
-        # The rho derivative keeps these weights fixed, just as the reference does.
+        # The rho score includes the dependence of theta on rho.
         score = gradient(panel).get(ll)[0]
         step = 1e-5
         j = list(panel.args.positions['rho'])[0]

@@ -156,7 +156,8 @@ class Computation:
 	def calc_hessian(self, ll):
 		d2LL_de2, d2LL_dln_de, d2LL_dln2 = ll.llfunc.hessian()
 		self.LL_hessian_tobit(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
-		return self.hessian.get(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
+		H = self.hessian.get(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
+		return H
 
 	def LL_gradient_tobit(self, ll, DLL_e, dLL_lnv):
 		sgn = [1, -1]

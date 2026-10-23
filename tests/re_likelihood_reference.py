@@ -80,7 +80,8 @@ def expected_exact_loglike(candidate, true_cov):
 
 def expected_quasi_loglike(n, t, rho, innovation_variance, first_variance, a, true_cov):
     b, variance = transformed_variance(n, t, rho, innovation_variance, first_variance)
-    w = b@a
+    # Effects are removed after the AR filter.
+    w = a@b
     diagonal = np.diag(w@true_cov@w.T)
     return float(-0.5*(n*t*np.log(2*np.pi) + np.log(variance).sum()
                        + (diagonal/variance).sum()))
@@ -89,16 +90,20 @@ def expected_quasi_loglike(n, t, rho, innovation_variance, first_variance, a, tr
 def benchmark_case(n=4, t=8, rho=0.5, innovation_variance=2., group_variance=1., time_variance=1.):
     true_cov = covariance(n, t, rho, innovation_variance, group_variance, time_variance)
     idiosyncratic_variance = innovation_variance/(1 - rho**2)
-    theta_g = 1 - np.sqrt(idiosyncratic_variance/(idiosyncratic_variance + t*group_variance))
-    theta_t = 1 - np.sqrt(idiosyncratic_variance/(idiosyncratic_variance + n*time_variance))
+    # Moments of the AR-filtered components: the group effect becomes a_i(1-rho) and the
+    # time effect c_t-rho c_{t-1}; the idiosyncratic part becomes the innovation.
+    filtered_group = group_variance*(1 - rho)**2
+    filtered_time = time_variance*(1 + rho**2)
+    theta_g = 1 - np.sqrt(innovation_variance/(innovation_variance + t*filtered_group))
+    theta_t = 1 - np.sqrt(innovation_variance/(innovation_variance + n*filtered_time))
     a = quasi_demeaning(n, t, theta_g, theta_t)
     b, variance = transformed_variance(n, t, rho, innovation_variance, idiosyncratic_variance)
-    whitened_cov = ((b@a@true_cov@a.T@b.T)
+    whitened_cov = ((a@b@true_cov@b.T@a.T)
                     / np.sqrt(np.outer(variance, variance)))
-    grand_scale = np.sqrt(idiosyncratic_variance/(
-        idiosyncratic_variance + t*group_variance + n*time_variance))
+    grand_scale = np.sqrt(innovation_variance/(
+        innovation_variance + t*filtered_group + n*filtered_time))
     adjusted_a = a + (grand_scale - 1)*np.ones((n*t, n*t))/(n*t)
-    adjusted_cov = ((b@adjusted_a@true_cov@adjusted_a.T@b.T)
+    adjusted_cov = ((adjusted_a@b@true_cov@b.T@adjusted_a.T)
                     / np.sqrt(np.outer(variance, variance)))
     expected_exact = expected_exact_loglike(true_cov, true_cov)
     expected_quasi = expected_quasi_loglike(

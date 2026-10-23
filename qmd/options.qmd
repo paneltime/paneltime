@@ -28,7 +28,7 @@ These options are configured per model fit. The defaults, domains, and descripti
 | effects | `variance` | `'none'` | none, fixed, random | Variance effect specification. | `` |
 | optimizer | `tolerance` | `0.0001` | Positive number. | Tolerance used by the numerical optimizer. | `1e-5` |
 | optimizer | `max_iterations` | `150` | Positive integer. | Maximum number of optimization iterations. | `300` |
-| optimizer | `multistart` | `False` | True or False. | Try additional deterministic ARMA/GARCH starts and prefer the best converged fit. | `True` |
+| optimizer | `multistart` | `False` | True or False. | Try additional deterministic ARMA/GARCH starts and prefer the best converged fit. | `True` |
 | optimizer | `accuracy` | `0` | Non-negative integer. | Optimization accuracy level. | `1` |
 | optimizer | `initial_arima_garch_params` | `0.1` | Non-negative number. | Initial size of ARIMA-GARCH parameters. | `` |
 | optimizer | `arma_constraint` | `3` | Positive number. | Maximum absolute value of ARMA coefficients. | `` |

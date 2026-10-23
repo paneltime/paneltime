@@ -28,6 +28,12 @@ effects = pt.Effects(group="random", time="fixed", variance="none")
 results = model.fit(effects=effects)
 ```
 
+Group and time effects are removed from the ARMA innovations, after the ARMA
+filter. This is exact when the effects enter the innovations of the ARMA
+process. When they are added directly to the serially correlated residuals, it
+is an approximation. In simulations the resulting error was small compared with
+ordinary finite-sample error.
+
 ## Optimizer and covariance
 
 Use `OptimizerOptions` for `tolerance`, `max_iterations`, `accuracy`,
@@ -118,19 +124,21 @@ E_0[\ell_{\rm exact}(\Sigma)]
                   +\operatorname{tr}(\Sigma^{-1}\Sigma_0)\}.
 $$
 
-The package instead quasi-demeans residuals, applies the AR filter, and sums
-univariate normal contributions. In this special case, with weights frozen,
-write $A=I-\theta_a P_a-\theta_c P_c$, where $P_a,P_c$ project onto centered group
-and time means, $B=I_N\otimes(I_T-\rho L_T)$, and let $D$ contain the variances
-used in those contributions. Then
+The package instead applies the AR filter, quasi-demeans the filtered
+innovations, and sums univariate normal contributions. In this special case,
+with weights frozen, write $A=I-\theta_a P_a-\theta_c P_c$, where $P_a,P_c$
+project onto centered group and time means, $B=I_N\otimes(I_T-\rho L_T)$, and
+let $D$ contain the variances used in those contributions. Then
 
 $$
 \ell_Q=-\tfrac12\{NT\log(2\pi)+\log|D|
-                         +r'A'B'D^{-1}BA r\},
+                         +r'B'A'D^{-1}AB r\},
 $$
 
 and its expectation replaces the last quadratic form by
-$\operatorname{tr}(D^{-1}BA\Sigma_0A'B')$.
+$\operatorname{tr}(D^{-1}AB\Sigma_0B'A')$. The frozen weights use the moments
+of the filtered components: innovation variance $\sigma^2$, filtered group
+effect $a_i(1-\rho)$ and filtered time effect $c_t-\rho c_{t-1}$.
 The tests reproduce the package transformation, likelihood, and AR score on a
 deterministic panel, accounting for its $10^{-8}$ squared-residual stabilizer.
 
@@ -143,14 +151,16 @@ Two separate qualifications matter:
   weights, the transformation's Jacobian also includes derivatives of those
   weights; it is not simply $|A|$.
 - Scalar quasi-demeaning generally does not give
-  $BA\Sigma_0A'B'=D$ for serially correlated disturbances. The package preserves
-  the grand mean; correcting that direction is sufficient for the iid
-  benchmark with known variances, but still does not whiten the AR(1) cases.
+  $AB\Sigma_0B'A'=D$ for serially correlated disturbances: the first period is
+  not filtered, and the filtered time effect is serially correlated. The
+  package preserves the grand mean; correcting that direction is sufficient for
+  the iid benchmark with known variances, but still does not whiten the AR(1)
+  cases.
 
 For $N=4,T=8,\rho=0.5,\sigma^2=2,\tau_a^2=\tau_c^2=1$, with theoretical
 moment-based weights fixed and the first variance fixed at
 $\sigma^2/(1-\rho^2)$, the expected scores in the coordinates
-$(\rho,\log\sigma^2)$ are approximately $(-1.7283,1.6679)$ for $\ell_Q$ and
+$(\rho,\log\sigma^2)$ are approximately $(1.6299,0.9500)$ for $\ell_Q$ and
 $(0,0)$ for the exact marginal likelihood. Without effects, the whitening and
 zero-score checks pass.
 

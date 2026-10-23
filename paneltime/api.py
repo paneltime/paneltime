@@ -444,7 +444,8 @@ class Model:
 			effects=effects, optimizer=optimizer, constraints=constraints,
 			likelihood=likelihood, h_function=h_function,
 			add_intercept=add_intercept, subtract_means=subtract_means,
-			include_initvar=include_initvar, tobit_limits=tobit_limits,
+			include_initvar=include_initvar,
+			tobit_limits=tobit_limits,
 			suppress_output=suppress_output)
 		engine_options = config.to_engine_options()
 		window = None

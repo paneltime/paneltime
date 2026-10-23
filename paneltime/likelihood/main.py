@@ -11,7 +11,6 @@ from . import function
 from ..output import stat_dist
 from ..processing import arguments
 from . import arma
-
 import numpy as np
 import traceback
 import pandas as pd
@@ -77,17 +76,26 @@ class LL:
 
 		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-fu.dot(X,self.args.args_d['beta'])
-		u_RE = (u+self.re_obj_i.RE(u, panel)+self.re_obj_t.RE(u, panel))*incl
+		
 
 
-		matrices=self.arma_calc(panel, u_RE, G)
+		matrices=self.arma_calc(panel, u, G)
 
 		if matrices is None:
 			return None		
-		AMA_1,AMA_1AR,GAR_1,GAR_1MA, e_RE, var, h=matrices
-
+		AMA_1,AMA_1AR,GAR_1,GAR_1MA, e, var, h=matrices
 
 		z = self.args.args_d.get('z')		# args_d is a dict; getattr never found it
+
+		# Effects are removed from the ARMA innovations e, before the GARCH filter.
+		e_RE = (e+self.re_obj_i.RE(e, panel)+self.re_obj_t.RE(e, panel))*incl
+		if self.re_obj_i.fe_re or self.re_obj_t.fe_re:
+			# The C routine computed h and var from e; recompute them from e_RE
+			# with the GARCH matrices it returned.
+			h = function.h_values(panel, e_RE, z)
+			var = (fu.arma_dot(GAR_1, G, self) + fu.arma_dot(GAR_1MA, h, self))*incl
+			self.h, self.var = h, var
+
 		self.llfunc = function.LLFunction(panel,  e_RE, var, z)
 		
 		if False:#debug
@@ -95,7 +103,7 @@ class LL:
 			if not np.all(np.isclose(h, self.llfunc.h_val, atol=1e-12, equal_nan=True)):
 
 				print('the h calculated in the c function and the self.h_val calcualted here do not match')
-			debug.test_c_armas(u_RE, var, e_RE, panel, self, G)
+			debug.test_c_armas(u, var, e, panel, self, G)
 
 		self.variance_RE(panel,self.llfunc.e2)
 
@@ -110,8 +118,7 @@ class LL:
 
 		self.LL_all=np.sum(ll_value)
 
-		#self.add_variables_old(panel,matrices, u, u_RE, var, v, G,e_RE,e2,v_inv,LL_full)
-		self.add_variables(panel, u, u_RE, G,e_RE,self.llfunc.e2, var)
+		self.add_variables(panel, u, G,e_RE,self.llfunc.e2, var)
 		
 
 		if abs(LL)>1e+100: 
@@ -122,11 +129,11 @@ class LL:
 
 
 			
-	def add_variables(self,panel,u, u_RE,G,e_RE,e2, var):
+	def add_variables(self,panel,u,G,e_RE,e2, var):
 
 		self.e_norm=e_RE*self.llfunc.v_inv05	
 		self.e_RE_norm_centered=(self.e_norm-panel.mean(self.e_norm))*panel.included[3]
-		self.u, self.u_RE      = u,  u_RE
+		self.u = u
 		self.G=G
 		self.e_RE=e_RE
 		self.e2=e2

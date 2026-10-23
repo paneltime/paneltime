@@ -75,36 +75,42 @@ def dd_func_lags_mult(
 def dd_func_lags_mult_arima(
     panel, ll, g, AMAL, vname1, vname2, transpose, u_gradient
 ):
-    """Second derivative of the ARIMA error term.
+    """Second derivative of the effect-corrected ARIMA error term.
 
     ``vname1`` is xi and ``vname2`` is zeta in the mathematical notation.  The
-    result is an ``(N, T, m, k)``-style object, later summed into a Hessian block.
+    result has shape ``(N, T, m, k)`` and is later summed into a Hessian block.
+
+    The raw innovation e~ = MA^-1 AR u has the second derivative
+    ``AMAL`` applied to the raw first derivative of zeta (``du_beta`` for the
+    rho-beta block, where ``u_gradient`` is set); rho-rho and beta-beta are
+    zero. The effect transform then adds its curvature terms for all pairs.
     """
-    de_xi = _grad(g, vname1)
-    de_zeta = _grad(g, vname2)
+    de_xi = getattr(g, f"de_{vname1}")
+    de_zeta = getattr(g, f"de_{vname2}")
 
     if de_xi is None or de_zeta is None:
         return None, None
 
-    if AMAL is None:
-        if vname1 == "beta" and vname2 == "beta":
-            # u_RE is nonlinear in beta through theta (ddRE); e = AMA_1AR u_RE
-            de2 = fu.arma_dot(ll.AMA_1AR, g.ddu_RE_beta, ll) * panel.included[4]
-            return de2, de2
-        return None, None
+    de2 = None
+    if AMAL is not None:
+        if u_gradient:
+            de2 = fu.arma_dot(AMAL, g.du_beta, ll)
+        else:
+            de2 = fu.arma_dot(AMAL, de_zeta, ll)
+        if transpose:
+            # Used for diagonal lag blocks; add the symmetric counterpart.
+            de2 = de2 + np.swapaxes(de2, 2, 3)
+        de2 = de2 * panel.included[4]
 
-    if u_gradient:
-        # For the error beta-rho covariance, the u-gradient must be used.
-        de2_zeta_xi = fu.arma_dot(AMAL, g.du_RE_beta, ll)
-    else:
-        de2_zeta_xi = fu.arma_dot(AMAL, de_zeta, ll)
+    re_objs = [o for o in (ll.re_obj_i, ll.re_obj_t)
+               if o.fe_re == 2 or (o.fe_re == 1 and de2 is not None)]
+    if not re_objs:
+        return de2, de2
 
-    if transpose:
-        # Used for diagonal lag blocks; add the symmetric counterpart.
-        de2_zeta_xi = de2_zeta_xi + np.swapaxes(de2_zeta_xi, 2, 3)
-
-    de2_zeta_xi = de2_zeta_xi * panel.included[4]
-    return de2_zeta_xi, de2_zeta_xi
+    de2_RE = 0 if de2 is None else de2
+    for o in re_objs:
+        de2_RE = de2_RE + o.ddRE_general(de_xi, de_zeta, de2, panel)
+    return de2_RE, de2_RE
 
 
 def dd_func_re_variance(panel, ll, g, vname1, vname2, de2_zeta_xi_RE, u_gradient):

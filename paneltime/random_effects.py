@@ -135,6 +135,53 @@ class REObj:
 
 	#deleted calc_theta: helper for ddRE (replaced by the theta derivatives inside ddRE)
 
+	def ddRE_general(self,dx1,dx2,ddx,panel):
+		"""Second derivative (N,T,k,m) of RE(x) with respect to two parameter blocks, where
+		dx1=dx/dp1 (N,T,k), dx2=dx/dp2 (N,T,m) and ddx=d2x/dp1dp2 (N,T,k,m) or None if zero.
+		x is the input of the last RE(x) call with recalc=True."""
+		N,T,k=dx1.shape
+		m=dx2.shape[2]
+		incl4=panel.included[4]
+		if self.fe_re==0 or (self.fe_re==2 and self.v_var==0):
+			return np.zeros((N,T,k,m))
+		if self.fe_re==1:
+			if ddx is None:
+				return np.zeros((N,T,k,m))
+			return np.stack([self.FRE(ddx[:,:,:,j],panel) for j in range(m)],axis=3)*incl4
+		incl=panel.included[3]
+		dx1=dx1*incl
+		dx2=dx2*incl
+		w1,q1,de1,dv1,c=self._dvars(dx1,panel)
+		w2,q2,de2,dv2,_=self._dvars(dx2,panel)
+		d2e=2*np.einsum('ntk,ntl->kl',w1,w2)/(panel.NT*self._dof)
+		d2v=2*c*np.einsum('ntk,ntl->kl',q1,q2)-d2e*self.avg_Tinv
+		if ddx is not None:
+			ddx=ddx*incl4
+			_,_,de12,dv12,_=self._dvars(ddx.reshape(N,T,k*m),panel)
+			d2e=d2e+de12.reshape(k,m)
+			d2v=d2v+dv12.reshape(k,m)
+		th=self.theta
+		e=self.e_var
+		s=1-th
+		th_e=-0.5*(1/e)*s*th*(2-th)
+		th_v=0.5*(self.T_i/e)*s**3
+		th_ev=-0.5*th_v*(1/e)*(3*(th-2)*th+2)
+		th_vv=-0.75*(self.T_i/e)**2*s**5
+		th_ee=-0.5*th_e*(1/e)*(4-3*(2-th)*th)
+		mask=(self.T_i>1)*incl
+		dtheta1=(th_e*de1+th_v*dv1)*mask
+		dtheta2=(th_e*de2+th_v*dv2)*mask
+		th4=lambda a:a.reshape(N,T,1,1)
+		d2theta=(th4(th_ee)*np.outer(de1,de2)+th4(th_ev)*(np.outer(de1,dv2)+np.outer(dv1,de2))
+				+th4(th_vv)*np.outer(dv1,dv2)+th4(th_e)*d2e+th4(th_v)*d2v)*th4(mask)
+		#out[:,:,i,j]: FRE(dx1_i,dtheta2_j)+FRE(dx2_j,dtheta1_i)+FRE(x,d2theta_ij)+FRE(ddx_ij,theta)
+		out=np.stack([self.FRE(dx1,panel,dtheta2[:,:,j:j+1]) for j in range(m)],axis=3)
+		out+=np.stack([self.FRE(dx2,panel,dtheta1[:,:,i:i+1]) for i in range(k)],axis=2)
+		out+=np.stack([self.FRE(self._x,panel,d2theta[:,:,:,j]) for j in range(m)],axis=3)
+		if ddx is not None:
+			out+=np.stack([self.FRE(ddx[:,:,:,j],panel,self.theta) for j in range(m)],axis=3)
+		return out*incl4
+
 	def FRE(self,x,panel,w=1,d=False, means_only=False, group = None):
 		if group is None:
 			group = self.group
