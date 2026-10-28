@@ -136,4 +136,3 @@ class General:
 		self.its = result.its
 		self.dx_norm = result.dx_norm
 		self.msg = result.msg
-		self.multistart_results = getattr(result, 'multistart_results', [])

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from .maximization import Summary
-from .maximization.maximize import maximize
+from .maximization.dfpmax import dfpmax
 from .processing import model_parser
 from .processing.arma_start import ARMAInitializationWarning
 from .processing.panel import Panel
@@ -32,7 +32,7 @@ def execute(model_string, dataframe, timevar, idvar, heteroscedasticity_factors,
         panel.init()
 
         start_time = time.time()
-        result = SimpleNamespace(**maximize(panel, panel.args.args_init))
+        result = SimpleNamespace(**dfpmax(panel.args.args_init.args_v, panel))
         if not options.supress_output:
             print(f"Iterations: {result.its}, LL: {result.f}; {result.msg}")
         return Summary(result, panel, start_time)
