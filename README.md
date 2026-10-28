@@ -32,7 +32,22 @@ be used with `np` as the alias, for example `np.abs(x)`.
 
 See the [Quickstart](quickstart.qmd) for a complete model example.
 
+## Panel preparation
+
+Panel preparation batches forecast-row construction and reuses observation
+indices when arranging group arrays, avoiding a group-by-observation selection
+matrix. Formulas that only select existing columns also bypass expression
+evaluation. Prediction rows and lag history are still prepared for both static
+and dynamic models; missing-value filtering and unbalanced-panel padding are
+unchanged.
+
 ## Optional multistart estimation
+
+Fitting is local: `execute` prepares the panel, `maximize` selects among local
+starts, and `dfpmax` runs the numerical optimizer. Legacy multiprocessing and
+GUI/browser progress channels have been removed, including the
+`Model(..., multiprocess=...)` argument. Final summaries, standard errors,
+diagnostics and predictions are retained and final statistics are computed once.
 
 ```python
 results = model.fit(optimizer=pt.OptimizerOptions(multistart=True))
@@ -41,7 +56,8 @@ results = model.fit(optimizer=pt.OptimizerOptions(multistart=True))
 This tries the original start and up to two additional deterministic ARMA/GARCH
 starts. It prefers the highest finite log-likelihood among converged attempts.
 Per-start likelihoods, convergence codes, iteration counts, and the selected
-attempt are available in `results.optim_result.multistart_results`.
+attempt are available in `results.optim_result.multistart_results`; the
+zero-based `start` key replaces the former `node` identifier.
 The default is `False`; turning it off restores the previous optimization path.
 Additional starts cost additional fitting time and do not guarantee a global
 maximum or lower parameter RMSE. Explicit engine starting arguments are

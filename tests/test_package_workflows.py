@@ -80,7 +80,7 @@ class PackageWorkflowTests(unittest.TestCase):
         np.testing.assert_array_equal(H, original_H)
         fitted = execute(
             'y ~ x', data, 'time', 'id', ['first_period'], options,
-            None, None, None, True, None,
+            None,
         )
         self.assertTrue(np.isfinite(fitted.ll.LL))
 
@@ -260,13 +260,12 @@ class PackageWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'unsupported symbols: w'):
             build_h_function(sp.Symbol('e') + sp.Symbol('w'))
 
-    def test_paneltime_mp_is_only_required_when_enabled(self):
+    def test_model_rejects_removed_multiprocess_interface(self):
         data = pd.DataFrame({'id': [1, 1, 2, 2], 't': [1, 2, 1, 2], 'y': [1.0, 2.0, 3.0, 4.0]})
 
-        with patch.object(api, 'MP', None), patch.dict('sys.modules', {'paneltime_mp': None}):
-            self.assertIsInstance(api.Model('y', data, entity='id', time='t'), api.Model)
-            with self.assertRaisesRegex(ImportError, 'requires the optional paneltime_mp package'):
-                api.Model('y', data, entity='id', time='t', multiprocess=True)
+        self.assertIsInstance(api.Model('y', data, entity='id', time='t'), api.Model)
+        with self.assertRaisesRegex(TypeError, 'multiprocess'):
+            api.Model('y', data, entity='id', time='t', multiprocess=True)
 
     def test_tobit_limits_allow_finite_real_cutoffs(self):
         zero_cutoff = FitOptions(tobit_limits=(0, None)).to_engine_options()

@@ -19,10 +19,10 @@ double            exprtk_eval(evaluator_handle* handle, double e, double e2, dou
 void              exprtk_destroy(evaluator_handle* handle);
 const char*       exprtk_last_error();
 
-// For testing helper – returns last result as const char*
-const char* expression_test(double e, double e2, double z, const char* h_expr);
-
 } // extern "C"
+
+// For testing helper – returns last result as const char*
+EXPORT const char* expression_test(double e, double e2, double z, const char* h_expr);
 
 namespace {
     // Thread-local so simultaneous calls from different threads do not overwrite each other's error text.

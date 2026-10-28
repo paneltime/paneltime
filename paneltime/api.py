@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 from typing import Optional
+from statistics import NormalDist
 
 import numpy as np
 import pandas as pd
-from importlib import import_module
 
 from . import main
 from .options import Effects, FitOptions, OptimizerOptions
 from .random_effects import REObj
-
-
-MP = None
-
+from .random_effects.static import (
+	StationaryEffectsError,
+	fit_group_effects_stationary,
+)
+from .processing.panel import Panel
 
 
 class RandomEffectsResult:
@@ -316,7 +317,7 @@ class Summary:
 	@property
 	def llf(self) -> float:
 		"""Maximized log-likelihood value."""
-		return float(getattr(self._summary.general, 'log_likelihood', self._summary.general.comm.f))
+		return float(self._summary.general.log_likelihood)
 
 	@property
 	def aic(self) -> float:
@@ -411,26 +412,263 @@ class Summary:
 		return by_unit.head(steps).to_numpy()
 
 
+def _closed_form_standard_errors(panel, closed_form):
+	"""Compute classical and HC1 robust SE for stationary closed-form beta estimates.
+
+	This treats effect estimates as fixed and computes SE from the observation-level
+	regression design used for reported coefficients.
+	"""
+	mask = np.asarray(panel.included[3][:, :, 0], dtype=bool)
+	X_obs = np.asarray(panel.X, dtype=float)[mask, :]
+	u = np.asarray(closed_form.residuals, dtype=float)[:, :, 0][mask]
+	k = X_obs.shape[1]
+	n = X_obs.shape[0]
+	if n == 0 or k == 0:
+		nan = np.full(k, np.nan, dtype=float)
+		return nan, nan
+
+	# Use pseudo-inverse for numerical stability in near-singular designs.
+	xtx_inv = np.linalg.pinv(X_obs.T @ X_obs)
+
+	df_resid = max(n - k, 1)
+	sigma2 = float(np.sum(u ** 2) / df_resid)
+	var_ols = sigma2 * xtx_inv
+
+	xu = X_obs * u[:, None]
+	meat = xu.T @ xu
+	hc1_scale = float(n / max(n - k, 1))
+	var_robust = hc1_scale * (xtx_inv @ meat @ xtx_inv)
+
+	bse = np.sqrt(np.maximum(np.diag(var_ols), 0.0))
+	robust_bse = np.sqrt(np.maximum(np.diag(var_robust), 0.0))
+
+	bse[~np.isfinite(bse)] = np.nan
+	robust_bse[~np.isfinite(robust_bse)] = np.nan
+	return bse, robust_bse
+
+
+class ClosedFormSummary:
+	"""Summary-like object for stationary closed-form FE/RE fits."""
+
+	def __init__(self, panel, closed_form):
+		self._closed_form = closed_form
+		self.panel = panel
+		self.options = panel.options
+		self.pqdkm = panel.pqdkm
+		self.names_grouped = panel.args.names_d
+		self.names_independents = panel.args.names_d['beta']
+		self.names_dependent = panel.input.Y_names
+		self.sign_codes = panel.sign_codes
+		self.stats = None
+		self.output = None
+		self.table = None
+		self.count = None
+		self.optim_result = None
+		self.results = None
+		self.general = None
+		self.ll = None
+		self.random_effects = RandomEffectsResult(None)
+		self.prediction_names = {
+			'Observed': f'Observed {panel.input.Y_names[0]}',
+			'Predicted': f'Predicted {panel.input.Y_names[0]}',
+			'Fitted': f'Fitted {panel.input.Y_names[0]}',
+		}
+		group_mode = closed_form.group_mode
+		time_mode = closed_form.time_mode
+		group_estimates = None
+		time_estimates = None
+		if group_mode != 'none':
+			labels = np.asarray(panel.original_names)
+			group_estimates = pd.Series(
+				np.asarray(closed_form.group_effects, dtype=float),
+				index=labels,
+				name='group_effect',
+			)
+		if time_mode != 'none':
+			time_labels = pd.unique(panel.input.timevar.iloc[:, 0])
+			time_estimates = pd.Series(
+				np.asarray(closed_form.time_effects, dtype=float),
+				index=time_labels,
+				name='time_effect',
+			)
+		self.effect_results = type('EffectResults', (), {
+			'group': EffectEstimate(group_mode, group_estimates, closed_form.sigma_alpha2),
+			'time': EffectEstimate(time_mode, time_estimates, closed_form.sigma_lambda2),
+		})()
+
+		bse, robust_bse = _closed_form_standard_errors(panel, closed_form)
+		index = closed_form.beta.index
+		self._bse = pd.Series(bse, index=index, dtype=float)
+		self._robust_bse = pd.Series(robust_bse, index=index, dtype=float)
+		with np.errstate(divide='ignore', invalid='ignore'):
+			tvalues = self.params.to_numpy(dtype=float) / self._bse.to_numpy(dtype=float)
+		self._tvalues = pd.Series(tvalues, index=index, dtype=float)
+		valid_t = np.isfinite(tvalues)
+		pvals = np.full_like(tvalues, np.nan, dtype=float)
+		if np.any(valid_t):
+			normal = NormalDist()
+			pvals[valid_t] = [2 * (1 - normal.cdf(abs(v))) for v in tvalues[valid_t]]
+		self._pvalues = pd.Series(pvals, index=index, dtype=float)
+
+	@property
+	def params(self) -> pd.Series:
+		return self._closed_form.beta.copy()
+
+	@property
+	def bse(self) -> pd.Series:
+		return self._bse.copy()
+
+	@property
+	def robust_bse(self) -> pd.Series:
+		return self._robust_bse.copy()
+
+	@property
+	def tvalues(self) -> pd.Series:
+		return self._tvalues.copy()
+
+	@property
+	def pvalues(self) -> pd.Series:
+		return self._pvalues.copy()
+
+	@property
+	def nobs(self) -> int:
+		return int(self._closed_form.nobs)
+
+	@property
+	def df_resid(self) -> int:
+		return int(max(self.nobs - len(self.params), 1))
+
+	@property
+	def llf(self) -> float:
+		return float('nan')
+
+	@property
+	def aic(self) -> float:
+		return float('nan')
+
+	@property
+	def bic(self) -> float:
+		return float('nan')
+
+	@property
+	def converged(self) -> bool:
+		return True
+
+	@property
+	def resid(self):
+		mask = np.asarray(self.panel.included[3][:, :, 0], dtype=bool)
+		return np.asarray(self._closed_form.residuals)[:, :, 0][mask]
+
+	@property
+	def fittedvalues(self):
+		mask = np.asarray(self.panel.included[3][:, :, 0], dtype=bool)
+		return np.asarray(self._closed_form.fitted)[:, :, 0][mask]
+
+	@property
+	def method(self) -> str:
+		return (
+			'Closed-form stationary '
+			f'(group {self._closed_form.group_mode}/time {self._closed_form.time_mode})'
+		)
+
+	def conf_int(self, alpha: float = 0.05) -> pd.DataFrame:
+		if not 0 < alpha < 1:
+			raise ValueError('alpha must be between 0 and 1')
+		z = NormalDist().inv_cdf(1 - alpha / 2)
+		params = self.params
+		se = self.bse
+		return pd.DataFrame({0: params - z * se, 1: params + z * se}, index=params.index, dtype=float)
+
+	def bse_at(self, params: dict | pd.Series, robust: bool = False) -> pd.Series:
+		if not isinstance(robust, (bool, np.bool_)):
+			raise TypeError('robust must be a bool')
+		diagnostics = self.bse_at_diagnostics(params)
+		return diagnostics['robust_bse' if robust else 'bse']
+
+	def bse_at_diagnostics(self, params: dict | pd.Series) -> dict:
+		if not isinstance(params, (dict, pd.Series)):
+			raise TypeError('params must be a dict or pandas Series keyed by parameter name')
+
+		names = list(self.params.index)
+		missing = [name for name in names if name not in params]
+		extra = [name for name in params.keys() if name not in names]
+		if missing or extra:
+			raise ValueError(f'Parameter names must match the fitted model; missing={missing}, extra={extra}')
+
+		values = np.asarray([params[name] for name in names], dtype=float)
+		if not np.all(np.isfinite(values)):
+			raise ValueError('All parameter values must be finite')
+
+		nan_series = pd.Series(np.nan, index=names, dtype=float)
+		return {
+			'log_likelihood': float('nan'),
+			'bse': nan_series.copy(),
+			'robust_bse': nan_series.copy(),
+			'score': nan_series.copy(),
+			'mean_score': nan_series.copy(),
+			'max_observation_score': nan_series.copy(),
+			'hessian_diagonal': nan_series.copy(),
+			'hessian_condition_number': float('nan'),
+			'scaled_condition_index': float('nan'),
+			'scaled_hessian_eigenvalues': [],
+			'weakest_direction': {},
+			'variance_clipped_fraction': float('nan'),
+		}
+
+	def summary(self):
+		return self
+
+	def __str__(self):
+		return (
+			f'{self.method}\n'
+			f'nobs: {self.nobs}, params: {len(self.params)}\n'
+			f'params:\n{self.params.to_string()}'
+		)
+
+	def latex(self):
+		raise NotImplementedError('latex output is not available for closed-form stationary results')
+
+	def html(self):
+		raise NotImplementedError('html output is not available for closed-form stationary results')
+
+	def results_table(self, fmt='CONSOLE'):
+		del fmt
+		return str(self.params)
+
+	def statistics(self):
+		return (
+			f'{self.method}; sigma_e2={self._closed_form.sigma_e2:.6g}, '
+			f'sigma_alpha2={self._closed_form.sigma_alpha2:.6g}, '
+			f'sigma_lambda2={self._closed_form.sigma_lambda2:.6g}'
+		)
+
+	def diagnostics(self):
+		return 'Closed-form stationary path does not compute optimizer diagnostics.'
+
+	def accounting(self):
+		return f'nobs={self.nobs}, df_resid={self.df_resid}'
+
+	def predict(self, signals=None):
+		del signals
+		raise NotImplementedError('predict is not available for closed-form stationary results')
+
+	def forecast(self, steps: int = 1):
+		del steps
+		raise NotImplementedError('forecast is not available for closed-form stationary results')
+
+
     
 class Model:
 	"""Panel ARIMA/GARCH model using a constructor followed by ``fit``."""
 
 	def __init__(self, formula: str, data: pd.DataFrame, entity: Optional[str] = None,
-			 time: Optional[str] = None, multiprocess = False):
-		global MP
+			 time: Optional[str] = None):
 		if not isinstance(data, pd.DataFrame) or data.empty:
 			raise ValueError('data must be a non-empty pandas DataFrame')
 		self.formula = formula
 		self.data = data
 		self.entity = entity
 		self.time = time
-		if multiprocess and MP is None:
-			try:
-				paneltime_mp = import_module('paneltime_mp')
-			except ImportError as error:
-				raise ImportError('multiprocess=True requires the optional paneltime_mp package') from error
-			MP = paneltime_mp.Master(7)
-		self.mp = MP
 
 	def fit(self, order=(1, 1, 0), garch_order=(1, 1), vol='GARCH',
 			effects=None, cov_type='robust', optimizer=None, constraints=None,
@@ -448,13 +686,44 @@ class Model:
 			tobit_limits=tobit_limits,
 			suppress_output=suppress_output)
 		engine_options = config.to_engine_options()
-		window = None
-		exe_tab = None
 		if isinstance(self.data.index, pd.MultiIndex):
 			entity = self.entity or self.data.index.names[0]
 			time = self.time or self.data.index.names[1]
 		else:
 			entity, time = self.entity, self.time
+
+		if tuple(order) == (0, 0, 0) and tuple(garch_order) == (0, 0) and False:
+			stationary = self._fit_stationary_closed_form(
+				engine_options=engine_options,
+				entity=entity,
+				time=time,
+			)
+			if stationary is not None:
+				return stationary
+
 		summary = main.execute(self.formula, self.data, time, entity, None,
-			engine_options, window, exe_tab, None, True, self.mp)
+			engine_options)
 		return Summary(summary)
+
+	def _fit_stationary_closed_form(self, engine_options, entity, time):
+		"""Attempt a closed-form stationary one-way FE/RE fit.
+
+		Returns a closed-form summary when supported; otherwise returns None so
+		the optimizer path is used.
+		"""
+		try:
+			datainput = main.Input(
+				self.data,
+				self.formula,
+				entity,
+				time,
+				engine_options,
+				None,
+				None,
+			)
+			pnl = Panel(datainput, engine_options)
+			pnl.init()
+			stationary = fit_group_effects_stationary(pnl)
+			return ClosedFormSummary(pnl, stationary)
+		except (StationaryEffectsError, RuntimeError, ValueError, np.linalg.LinAlgError):
+			return None

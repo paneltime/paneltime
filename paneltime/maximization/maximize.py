@@ -1,144 +1,52 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-
-from . import init
-from ..processing import arguments
+"""Run one or several local optimizer starts and select the final fit."""
 
 import numpy as np
-import time
-import itertools
-import os
+
+from .dfpmax import dfpmax
 
 
-EPS=3.0e-16 
-TOLX=(4*EPS) 
+def maximize(panel, args):
+    """Fit locally; multistart prefers the best finite, converged attempt."""
+    if not panel.options.multistart:
+        return dfpmax(args.args_v, panel)
 
+    starts = get_multistart_directions(panel, args)
+    results = [dfpmax(start, panel) for start in starts]
+    finite = [i for i, result in enumerate(results) if np.isfinite(result['f'])]
+    converged = [i for i in finite if results[i]['conv'] in (1, 2)]
+    candidates = converged or finite
+    if not candidates:
+        raise RuntimeError("No multistart fit returned a finite log-likelihood")
 
+    best = max(candidates, key=lambda i: results[i]['f'])
+    result = results[best]
+    result['multistart_results'] = [
+        {'start': i, 'log_likelihood': float(attempt['f']),
+         'convergence_code': int(attempt['conv']), 'iterations': int(attempt['its']),
+         'selected': i == best}
+        for i, attempt in enumerate(results)
+    ]
+    return result
 
-def maximize(panel, args, mp, t0):	
-
-	if panel.options.multistart:
-		starts = get_multistart_directions(panel, args)
-		if mp is None or panel.args.initial_user_defined or mp.n_slaves == 1:
-			res, a = maximize_single(panel, args, starts)
-		else:
-			res, a = maximize_multiproc(panel, args, mp, starts)
-		finite = [key for key, result in res.items() if np.isfinite(result['f'])]
-		converged = [key for key in finite if res[key]['conv'] in (1, 2)]
-		candidates = converged or finite
-		if not candidates:
-			raise RuntimeError("No multistart fit returned a finite log-likelihood")
-		best = max(candidates, key=lambda key: res[key]['f'])
-		result = res[best]
-		result['multistart_results'] = [
-			{'node': key, 'log_likelihood': float(value['f']),
-			 'convergence_code': int(value['conv']), 'iterations': int(value['its']),
-			 'selected': key == best}
-			for key, value in res.items()
-		]
-		return result
-
-	if mp is None or panel.args.initial_user_defined or mp.n_slaves== 1:
-		res, a = maximize_single(panel, args)
-	else:
-		res, a = maximize_multiproc(panel, args, mp)
-	f = [res[k]['f'] for k in res]
-	r = res[list(res.keys())[f.index(max(f))]]
-
-	return r
-
-def maximize_single(panel, args, a = None):
-	res = {}
-	gtol = panel.options.tolerance
-	if a is None:
-		a = get_directions(args)
-	for i,x in enumerate(a):
-		d = maximize_node(panel, x, gtol, 0)    
-		res[i] = d
-	return res, a
-
-def maximize_multiproc(panel, args, mp, a=None):
-	tasks = []
-	gtol = panel.options.tolerance
-	if a is None:
-		a = get_directions(args, [0.3, 0.5, 0.8, 0.9, 0.95, 0.97, 0.99])
-	for i in range(len(a)):
-			tasks.append(
-			f'maximize.maximize_node(panel, {a[i].tolist()}, {gtol}, {i}, slave_server)\n')
-	mp.eval(tasks)
-	res = mp.collect(force_quit=True)
-	return res, a
 
 def get_multistart_directions(panel, args):
-	"""Keep the original start, then explore neutral and persistent dynamics."""
-	starts = [np.array(args.args_v, dtype=float, copy=True)]
-	if panel.args.initial_user_defined:
-		return starts
-	for rho, ma, gamma, psi in ((0.0, 0.0, 0.7, 0.15), (0.5, -0.3, 0.85, 0.05)):
-		start = starts[0].copy()
-		for group, first in (('rho', rho), ('lambda', ma)):
-			positions = list(args.positions[group])
-			if positions:
-				start[positions] = 0.0
-				start[positions[0]] = first
-		if not panel.options.EGARCH:
-			for group, total in (('gamma', gamma), ('psi', psi)):
-				positions = list(args.positions[group])
-				if positions:
-					weights = 0.5 ** np.arange(len(positions))
-					start[positions] = total * weights / weights.sum()
-		if not any(np.array_equal(start, existing) for existing in starts):
-			starts.append(start)
-	return starts
-
-def get_directions(args, gammas = None):
-		if len(args.positions['gamma'])==0 or gammas is None:
-			return [np.array(args.args_v)]
-		p = args.positions['gamma'][0]
-		a = []
-		
-		for x in gammas:
-			ai = np.array(args.args_v)
-			ai[p] = x
-			a.append(ai)
-		
-		return a
-
-
-def maximize_node_new(panel, args, gtol = 1e-5, slave_id =0 , slave_server = None):
-		constr = []
-
-		res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server, False, constr)
-
-		return res
-
-
-#Need to implement this again
-def maximize_node(panel, args, gtol = 1e-5, slave_id =0 , slave_server = None):
-	if False:
-		res0 = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server)
-		res = init.maximize(res0['x'], panel, gtol, TOLX, slave_id, slave_server, grestricted=True)
-		res['its'] += res0['its']
-	else:
-		res = init.maximize(args, panel, gtol, TOLX, slave_id, slave_server, grestricted=True)
-	return res
-
-
-def avoid_first_arma(coll, c, f, panel, constr):
-	"Ensures the first ARMA coefficient is not constrained, if possible"
-	pos = panel.args.positions[c]
-	if len(pos)>1:
-		if pos[0] in coll:
-			found = False
-			for k in pos[1:]:
-				if k in coll:
-					found = True
-					coll.pop(coll.index(pos[0]))
-					break
-			if not found:
-				for j in pos[1:]: 
-					if not j in constr:
-						coll.pop(coll.index(pos[0]))
-						coll.append(pos[1])
-						f[pos[1]] = f[pos[0]]
+    """Keep the original start, then explore neutral and persistent dynamics."""
+    starts = [np.array(args.args_v, dtype=float, copy=True)]
+    if panel.args.initial_user_defined:
+        return starts
+    for rho, ma, gamma, psi in ((0.0, 0.0, 0.7, 0.15), (0.5, -0.3, 0.85, 0.05)):
+        start = starts[0].copy()
+        for group, first in (('rho', rho), ('lambda', ma)):
+            positions = list(args.positions[group])
+            if positions:
+                start[positions] = 0.0
+                start[positions[0]] = first
+        if not panel.options.EGARCH:
+            for group, total in (('gamma', gamma), ('psi', psi)):
+                positions = list(args.positions[group])
+                if positions:
+                    weights = 0.5 ** np.arange(len(positions))
+                    start[positions] = total * weights / weights.sum()
+        if not any(np.array_equal(start, existing) for existing in starts):
+            starts.append(start)
+    return starts

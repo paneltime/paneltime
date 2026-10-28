@@ -51,6 +51,47 @@ optimizer.robust_cov_lags = (100, 30)
 results = model.fit(optimizer=optimizer)
 ```
 
+### Automatic starting values
+
+When AR or MA terms are requested, the default single start uses the full
+requested order. An OLS regression is followed by Hannan--Rissanen-style
+auxiliary regressions and a short conditional-sum-of-squares (CSS) refinement
+of the regression and ARMA coefficients. The preliminary fit ignores GARCH;
+its innovations supply the initial innovation variance and the existing
+GARCH moment starts. No additional dependency or multistart is required.
+CSS refinement is limited to 10 iterations and stops early at a scaled
+gradient of `1e-4` or a relative objective improvement of `1e-4`; it supplies
+a useful neighborhood, not a precise standalone ARMA estimate.
+
+Internally, `arma_start.fit_arma(panel)` coordinates the working regression,
+scaling, auxiliary-regression seed, CSS refinement, and conversion back to
+original units. Orders, observation masks, differencing boundaries, and
+preliminary effects settings come from the panel object. The numerical
+filtering and optimization steps are separate helpers; initialization does
+not modify the panel's data or masks.
+Innovations and their derivative channels are filtered using the existing C
+ARMA recursion. Each contiguous observation run is packed as an independent
+series, preserving zero-presample resets at gaps and differencing boundaries.
+This reuses the shipped native library without a new compiled entry point.
+
+The CSS fit uses analytic first derivatives and reflection coordinates to
+keep its preliminary ARMA coefficients stationary and invertible. These
+safeguards do not change the final likelihood's constraints or Hessian.
+Panel runs are filtered separately, with no lags crossing group boundaries.
+For effects models, this preliminary fit uses fixed, pre-transformed working
+data; the final likelihood still removes effects after ARMA filtering.
+An underidentified auxiliary regression, CSS iteration limit, or numerical
+stall produces an `ARMAInitializationWarning` rather than being presented as
+successful preliminary convergence. It does not abort the final likelihood
+fit: the best accepted preliminary coefficients remain usable. Other numerical
+warnings are still treated as errors. CSS damping adapts to the actual versus
+predicted objective reduction, not merely whether a step decreases the objective.
+
+Models without ARMA terms retain their existing OLS initialization. Explicit
+starting arguments supplied through the engine bypass the automatic CSS fit.
+Like any single-start initialization, this does not guarantee a global
+likelihood maximum.
+
 ### Optional multistart
 
 ```{python}
@@ -59,9 +100,12 @@ results = model.fit(optimizer=pt.OptimizerOptions(multistart=True))
 results.optim_result.multistart_results
 ```
 
-`multistart=False` preserves the existing optimization path, including its
-legacy gamma-start grid when multiprocessing is used. With `True`, sequential
-and parallel dispatch use the same candidate starts:
+Fitting runs locally. Legacy node dispatch and GUI/browser progress channels
+have been removed, as has the `Model(..., multiprocess=...)` argument. Final
+summaries, inference, diagnostics and predictions remain available.
+
+`multistart=False` uses one data-derived start. With `True`, the following
+candidate starts are run sequentially:
 
 1. The original, data-derived start.
 2. Zero AR and MA coefficients, with total GARCH and ARCH starting coefficients
@@ -80,7 +124,8 @@ as a single start.
 The selected result is the largest finite log-likelihood among attempts with
 convergence code 1 or 2. If none converges, the best finite attempt is returned
 with its unsuccessful convergence code unchanged; if none is finite, fitting
-raises an error. Per-start diagnostics include unsuccessful attempts. Exceptions
+raises an error. Per-start diagnostics identify attempts with a zero-based
+`start` index (replacing the legacy `node` key) and include unsuccessful attempts. Exceptions
 are not swallowed. Extra starts increase runtime and do not guarantee global
 optimality or improved statistical accuracy.
 

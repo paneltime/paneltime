@@ -22,7 +22,7 @@ INITVAR = arguments.INITVAR
 
 class Output:
 	#This class handles auxilliary statistics (regression info, diagnostics, df accounting)
-	def __init__(self,comm,panel):
+	def __init__(self,comm,panel, delta_time=0):
 
 		self.ll=comm.ll
 		self.panel=panel
@@ -33,7 +33,7 @@ class Output:
 		
 		self.define_table_size()
 		self.statistics_decimals = 3 
-		self.update(comm, 0)
+		self.update(comm, delta_time)
 		self.describe()
 
 	def describe(self):

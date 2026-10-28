@@ -1,6 +1,4 @@
 import unittest
-import ast
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -96,8 +94,8 @@ class MultistartTests(unittest.TestCase):
             1: {'f': -5., 'conv': 4, 'its': 20},
             2: {'f': -8., 'conv': 2, 'its': 16},
         }
-        with patch.object(maximize, 'maximize_single', return_value=(records, [])):
-            result = maximize.maximize(panel, panel.args.args_init, None, 0)
+        with patch.object(maximize, 'dfpmax', side_effect=list(records.values())):
+            result = maximize.maximize(panel, panel.args.args_init)
         self.assertIs(result, records[2])
         self.assertEqual(len(result['multistart_results']), 3)
         self.assertEqual(result['multistart_results'][1]['convergence_code'], 4)
@@ -108,43 +106,44 @@ class MultistartTests(unittest.TestCase):
         panel = self.make_panel()
         records = {0: {'f': -10., 'conv': 3, 'its': 30},
                    1: {'f': np.nan, 'conv': 1, 'its': 15}}
-        with patch.object(maximize, 'maximize_single', return_value=(records, [])):
-            result = maximize.maximize(panel, panel.args.args_init, None, 0)
+        with patch.object(maximize, 'dfpmax', side_effect=list(records.values())):
+            with patch.object(maximize, 'get_multistart_directions', return_value=[None, None]):
+                result = maximize.maximize(panel, panel.args.args_init)
         self.assertEqual(result['conv'], 3)
         records[0]['f'] = -np.inf
-        with patch.object(maximize, 'maximize_single', return_value=(records, [])):
-            with self.assertRaisesRegex(RuntimeError, 'finite log-likelihood'):
-                maximize.maximize(panel, panel.args.args_init, None, 0)
+        with patch.object(maximize, 'dfpmax', side_effect=list(records.values())):
+            with patch.object(maximize, 'get_multistart_directions', return_value=[None, None]):
+                with self.assertRaisesRegex(RuntimeError, 'finite log-likelihood'):
+                    maximize.maximize(panel, panel.args.args_init)
 
-    def test_parallel_dispatch_uses_the_same_starts(self):
+    def test_multistart_runs_each_candidate_locally_in_order(self):
         panel = self.make_panel()
         args = panel.args.args_init
-        mp = SimpleNamespace(
-            n_slaves=3,
-            eval=lambda tasks: self.assertEqual(len(tasks), 3),
-            collect=lambda **kwargs: {0: {'f': -10., 'conv': 1, 'its': 15}},
-        )
         starts = maximize.get_multistart_directions(panel, args)
-        with patch.object(mp, 'eval') as dispatch:
-            maximize.maximize(panel, args, mp, 0)
-        tasks = dispatch.call_args.args[0]
-        expected = [
-            f'maximize.maximize_node(panel, {start.tolist()}, {panel.options.tolerance}, {i}, slave_server)\n'
-            for i, start in enumerate(starts)
-        ]
-        self.assertEqual(tasks, expected)
-        for task, start in zip(tasks, starts):
-            call = ast.parse(task).body[0].value
-            np.testing.assert_array_equal(ast.literal_eval(call.args[1]), start)
+        with patch.object(maximize, 'dfpmax', side_effect=[
+            {'f': -10. + i, 'conv': 1, 'its': 15} for i in range(len(starts))
+        ]) as run:
+            result = maximize.maximize(panel, args)
+        self.assertEqual(run.call_count, len(starts))
+        for call, start in zip(run.call_args_list, starts):
+            np.testing.assert_array_equal(call.args[0], start)
+            self.assertIs(call.args[1], panel)
+        self.assertEqual([row['start'] for row in result['multistart_results']], [0, 1, 2])
 
     def test_default_dispatch_is_unchanged(self):
         panel = self.make_panel()
         panel.options.multistart = False
         records = {0: {'f': -10., 'conv': 1, 'its': 15}}
-        with patch.object(maximize, 'maximize_single', return_value=(records, [])) as run:
-            result = maximize.maximize(panel, panel.args.args_init, None, 0)
-        run.assert_called_once_with(panel, panel.args.args_init)
+        with patch.object(maximize, 'dfpmax', return_value=records[0]) as run:
+            result = maximize.maximize(panel, panel.args.args_init)
+        run.assert_called_once_with(panel.args.args_init.args_v, panel)
         self.assertNotIn('multistart_results', result)
+
+    def test_multistart_does_not_hide_optimizer_errors(self):
+        panel = self.make_panel()
+        with patch.object(maximize, 'dfpmax', side_effect=RuntimeError('Invalid likelihood')):
+            with self.assertRaisesRegex(RuntimeError, 'Invalid likelihood'):
+                maximize.maximize(panel, panel.args.args_init)
 
     def test_public_fit_and_constraints(self):
         self.make_panel(order=(1, 1, 0), garch_order=(0, 0))

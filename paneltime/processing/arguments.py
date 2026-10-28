@@ -51,7 +51,10 @@ class arguments:
 								(m, 'psi', psi0)
 								]:
 			if n > 0:
-				initargs[name][0][0] = value
+				if np.ndim(value):
+					initargs[name][:, 0] = value
+				else:
+					initargs[name][0][0] = value
 
 
 
@@ -311,9 +314,6 @@ class arguments:
 
 	def set_init_regression(self, initargs,panel, default):
 		usrargs =  panel.options.arguments
-		beta,rho0,lmbda0, psi0, gamma0,v, initvar, omega = initreg.start_values(panel)
-		
-		
 		if not usrargs is None:#Checking for user arguments
 			if isinstance(usrargs, str):
 				try:
@@ -329,6 +329,7 @@ class arguments:
 			
 			return initargs['beta'], initargs['omega'][0,0]
 
+		beta,rho0,lmbda0, psi0, gamma0,v, initvar, omega = initreg.start_values(panel)
 		if panel.options.fixed_random_variance_eff==0:
 			if v < 1e-20:
 				print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
@@ -388,8 +389,6 @@ class ArgumentsSet:
 					self.args_names[k] = self.args_names[k][0]
 				except IndexError as e:
 					pass
-
-
 
 
 

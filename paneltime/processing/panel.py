@@ -165,19 +165,15 @@ class Panel:
 
 
 	def arrayize(self):
-		"""Splits X and Y into an arry of equally sized matrixes rows equal to the largest for each idvar"""
-
-		X, Y, W, idvar,timevar, timevar_orig,Z=[to_numpy(i) for i in 
-				(self.input.X, self.input.Y, self.input.W, self.input.idvar,self.input.timevar, 
-	 			 self.input.timevar_orig ,self.input.Z)]
-		X,Y,Z=self.subtract_means(X,Y,Z)
-		
-		
-		if self.is_single() and False:
-			self.arrayize_single(timevar, timevar_orig, X, Y, W, Z)			
-		else:
-			self.arrayize_multi(idvar, timevar, timevar_orig, X, Y, W, Z)
-
+		"""Convert input frames to panel arrays, observation counts and forecasts."""
+		X, Y, W, idvar, timevar, timevar_orig, Z = [
+			to_numpy(value) for value in (
+				self.input.X, self.input.Y, self.input.W, self.input.idvar,
+				self.input.timevar, self.input.timevar_orig, self.input.Z,
+			)
+		]
+		X, Y, Z = self.subtract_means(X, Y, Z)
+		self.arrayize_multi(idvar, timevar, timevar_orig, X, Y, W, Z)
 		self.cross_section_count()
 		self.arrayize_pred()
 
@@ -211,45 +207,58 @@ class Panel:
 		self.remove_incomplete(idvar_names)
 
 	def arrayize_multi(self, idvar, timevar, timevar_orig, X, Y, W, Z):
-		NT,k=X.shape
-		self.total_obs=NT
+		"""Pack observed rows into zero-padded (group, observation, variable) arrays.
 
-		self.idvar, self.idvar_ix=np.unique(idvar,return_index=True)
-		idvar_names = np.array(self.input.idvar_orig)[self.idvar_ix,0]
-		N=len(self.idvar)
-		sel=(idvar.T==self.idvar.reshape((N,1)))
-		T=np.sum(sel,1)
-		self.max_T=np.max(T)
-		self.idincl=T>=self.lost_obs+self.options.min_group_df
-		self.X=arrayize(X, N,self.max_T,T, self.idincl,sel)
-		self.Y=arrayize(Y, N,self.max_T,T, self.idincl,sel)
-		self.W=arrayize(W, N,self.max_T,T, self.idincl,sel)
-		self.Z=arrayize(Z, N,self.max_T,T, self.idincl,sel)		
-		self.N=np.sum(self.idincl)
-		varmap=np.arange(NT).reshape(NT,1)
-		self.map=arrayize(varmap, N,self.max_T,T, self.idincl,sel,dtype=int).reshape((self.N,self.max_T))
-		self.T_arr=T[self.idincl].reshape((self.N,1))
-		self.date_counter=np.arange(self.max_T).reshape((self.max_T,1))
+		The second axis is within-group row order, not a shared calendar.
+		Separate date maps link observations made on the same calendar date.
+		"""
+		n_observations = X.shape[0]
+		self.total_obs = n_observations
+		self.idvar, self.idvar_ix, group_index, group_counts = np.unique(
+			idvar, return_index=True, return_inverse=True, return_counts=True
+		)
+		idvar_names = np.array(self.input.idvar_orig)[self.idvar_ix, 0]
+		n_groups = len(self.idvar)
+
+		# Stable sorting keeps the existing chronological order within each group.
+		# Integer row indices avoid an n_groups-by-n_observations Boolean matrix.
+		group_order = np.argsort(group_index.reshape(-1), kind="mergesort")
+		group_rows = np.split(group_order, np.cumsum(group_counts)[:-1])
+		self.max_T = np.max(group_counts)
+		self.idincl = group_counts >= self.lost_obs + self.options.min_group_df
+		self.X = arrayize(X, n_groups, self.max_T, group_counts, self.idincl, group_rows)
+		self.Y = arrayize(Y, n_groups, self.max_T, group_counts, self.idincl, group_rows)
+		self.W = arrayize(W, n_groups, self.max_T, group_counts, self.idincl, group_rows)
+		self.Z = arrayize(Z, n_groups, self.max_T, group_counts, self.idincl, group_rows)
+		self.N = np.sum(self.idincl)
+
+		# Map panel cells back to input rows; the inclusion mask excludes padding.
+		observation_rows = np.arange(n_observations).reshape(n_observations, 1)
+		self.map = arrayize(
+			observation_rows, n_groups, self.max_T, group_counts,
+			self.idincl, group_rows, dtype=int,
+		).reshape((self.N, self.max_T))
+		self.T_arr = group_counts[self.idincl].reshape((self.N, 1))
+		self.date_counter = np.arange(self.max_T).reshape((self.max_T, 1))
 		self.masking()
-		if len(self.included[3])<5 and False:
-			raise RuntimeError(f"{len(self.included[3])} valid observations, cannot perform panel analysis. Try without panel (don't specify ID and time)")
-		self.map_time_to_panel_structure(timevar, self.N,T, self.idincl,sel,self.included[3])
-
-		
+		self.map_time_to_panel_structure(
+			timevar, self.N, group_counts, self.idincl, group_rows, self.included[3]
+		)
 		self.remove_incomplete(idvar_names)
-		self.timevar = arrayize(timevar_orig, N,self.max_T,T, self.idincl,sel)
-
-		#debug.test_date_map(arrayize, timevar, N, T, sel, self)
-		a=0
+		self.timevar = arrayize(
+			timevar_orig, n_groups, self.max_T, group_counts, self.idincl, group_rows
+		)
 	
 	def remove_incomplete(self, idvar_names):
-		"""Removes incomplete time series"""
-
-		idname=self.input.idvar.columns[0]
-		idremoved = idvar_names[self.idincl==False]
-		s = formatarray(idremoved,90,', ')
-		if np.any(self.idincl==False) and self.options.supress_output==False:
-			print(f"The following {idname}s were removed because of insufficient observations:\n %s" %(s))
+		"""Record retained labels and report groups already excluded during packing."""
+		id_name = self.input.idvar.columns[0]
+		removed_ids = idvar_names[~self.idincl]
+		removed_labels = formatarray(removed_ids, 90, ', ')
+		if np.any(~self.idincl) and not self.options.supress_output:
+			print(
+				f"The following {id_name}s were removed because of insufficient observations:\n "
+				f"{removed_labels}"
+			)
 
 		self.idvar_included = self.idvar[self.idincl]
 		self.original_names = idvar_names[self.idincl]
@@ -257,69 +266,75 @@ class Panel:
 
 
 	def arrayize_pred(self):
-		(self.X_pred, self.X_is_predicted, 
-   				self.X_pred_timevar, self.X_pred_idvar) = self.arrayize_pred_array('X')
+		"""Arrange regressor and variance-factor forecasts in retained-group order."""
+		(
+			self.X_pred, self.X_is_predicted,
+			self.X_pred_timevar, self.X_pred_idvar,
+		) = self.arrayize_pred_array('X')
 		self.W_pred_, _, _, _ = self.arrayize_pred_array('W')
 
-		
-		
 	def arrayize_pred_array(self, name):
-		X = getattr(self, name)
-		N, T, k = X.shape
-		X_pred = getattr(self.input, name + '_pred')
-		idvar_pred = np.array(self.input.idvar_pred).flatten()
-		idvar_pred_orig = np.array(self.input.idvar_orig_pred).flatten()
-		timevar_pred = self.input.timevar_orig_pred
+		"""Return forecast values, availability, dates and original group labels.
 
-		max_T = max(self.max_lags,1)
+		Values have shape (retained groups, horizon, variables); labels and dates
+		have a singleton last axis. Groups lacking forecast rows keep zero values,
+		missing labels/dates and a false availability flag.
+		"""
+		n_groups, _, n_variables = getattr(self, name).shape
+		horizon = max(self.max_lags, 1)
+		prediction_frame = getattr(self.input, name + '_pred')
+		prediction_values = prediction_frame.to_numpy(dtype="float64", na_value=np.nan)
+		group_codes = np.array(self.input.idvar_pred).flatten()
+		group_labels = np.array(self.input.idvar_orig_pred).flatten()
+		prediction_dates = np.array(self.input.timevar_orig_pred)
 
-		X_ret = np.zeros((N, max_T, k))
-		timevar_ret = np.full((N, max_T, 1), np.nan)
-		idvar_ret = np.full((N, max_T, 1),  np.nan, dtype=object)
-		
-		X_is_predicted = np.ones(N, dtype=bool)
+		values = np.zeros((n_groups, horizon, n_variables))
+		dates = np.full((n_groups, horizon, 1), np.nan)
+		labels = np.full((n_groups, horizon, 1), np.nan, dtype=object)
+		has_prediction = np.ones(n_groups, dtype=bool)
 
-		X_pred[X_pred.isna()]=np.nan
-		X_pred = X_pred.astype("float64").to_numpy()
-		row_index = 0
-		for i, is_included in enumerate(self.idincl):
-			if is_included:
-				if self.idvar[i] in idvar_pred:
-					X_ret[row_index] = X_pred[idvar_pred == self.idvar[i]]
-					timevar_ret[row_index] = timevar_pred[idvar_pred == self.idvar[i]]
-					idvar_ret[row_index] = idvar_pred_orig[idvar_pred == self.idvar[i]].reshape(max_T, 1)
-				else:
-					X_is_predicted[row_index] = False
-				row_index += 1
-		
-		return X_ret, X_is_predicted, timevar_ret, idvar_ret
+		for row, group_code in enumerate(self.idvar[self.idincl]):
+			if group_code not in group_codes:
+				has_prediction[row] = False
+				continue
+			group_rows = group_codes == group_code
+			values[row] = prediction_values[group_rows]
+			dates[row] = prediction_dates[group_rows]
+			labels[row] = group_labels[group_rows].reshape(horizon, 1)
+
+		return values, has_prediction, dates, labels
 
 
 	def cross_section_count(self):
-		self.T_i=np.sum(self.included[3],1).reshape((self.N,1,1))#number of observations for each i
-		self.T_i=self.T_i+(self.T_i<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
-		self.N_t=np.sum(self.included[3],0).reshape((1,self.max_T,1))#number of observations for each t
-		self.N_t=self.N_t+(self.N_t<=0)#ensures minimum of 1 observation in order to avoid division error. If there are no observations, averages will be zero in any case	
+		"""Count observed cells along each panel axis, retaining broadcast dimensions."""
+		self.T_i = np.sum(self.included[3], axis=1).reshape((self.N, 1, 1))
+		self.N_t = np.sum(self.included[3], axis=0).reshape((1, self.max_T, 1))
+		# Empty slices have zero sums; a denominator of one avoids division by zero.
+		self.T_i = self.T_i + (self.T_i <= 0)
+		self.N_t = self.N_t + (self.N_t <= 0)
 
 
 	def masking(self):
-		("Creates a mask self.included that is zero for all observations exeeding the last."
-   		"This is neccessary in unbalanced panels, since all time series start at row 0 in "
-		"the panel data matrices. Series with fewer observations will then end before the last row "
-		"and this must be taken into account.\n"
-		"self.included is an array of masks")
+		"""Build masks and constant arrays for broadcasting over 2D through 6D data.
 
-		included=np.array([(self.date_counter<self.T_arr[i]) for i in range(self.N)])
-		zeros=np.zeros((self.N,self.max_T,1))
-		ones=np.ones((self.N,self.max_T,1))			
-		self.included=[None,None]
-		self.zeros=[None,None]
-		self.ones=[None,None]
+		Every group starts at within-group row zero. Rows beyond its observed
+		length are padding, not observations. Index d selects a d-dimensional
+		array, with singleton trailing axes, e.g. included[3] is (N, max_T, 1).
+		"""
+		included = np.array([
+			self.date_counter < self.T_arr[group] for group in range(self.N)
+		])
+		zeros = np.zeros((self.N, self.max_T, 1))
+		ones = np.ones((self.N, self.max_T, 1))
+		self.included = [None, None]
+		self.zeros = [None, None]
+		self.ones = [None, None]
 
-		#self.included[2] is 2 dim, self.included[3] is 3 dim and so on ...:
-		self.included.extend([included.reshape(list(included.shape)[:-1]+[1]*i) for i in range(5)])		
-		self.zeros.extend([zeros.reshape(list(zeros.shape)[:-1]+[1]*i) for i in range(5)])	
-		self.ones.extend([ones.reshape(list(ones.shape)[:-1]+[1]*i) for i in range(5)])	
+		for trailing_axes in range(5):
+			shape = [self.N, self.max_T] + [1] * trailing_axes
+			self.included.append(included.reshape(shape))
+			self.zeros.append(zeros.reshape(shape))
+			self.ones.append(ones.reshape(shape))
 
 
 	def tobit(self):
@@ -350,91 +365,59 @@ class Panel:
 					self.X=np.concatenate((self.X,I),2)
 					self.input.X_names.append(desc[i])
 
-	def map_time_to_panel_structure(self,timevar, N,T_count, idincl,sel,incl):
+	def map_time_to_panel_structure(self, timevar, N, T_count, idincl, sel, incl):
+		"""Link each observed calendar date to its (panel row, within-group row)."""
 		if timevar is None:
 			return None
-		N,T,k=incl.shape
-		unq,ix=np.unique(timevar,return_inverse=True)
-		
-		
-		t_arr =arrayize(np.array(ix).reshape((len(timevar),1)), 
-													 N, self.max_T, T_count, idincl,sel,int)#maps N,T -> unique date
-		
-		#arrayize creates a NxTx1 array, as self.Y, containing unique indicies for the time variable in a panel structure
-		
-		grp_cnt=incl*np.arange(N).reshape(N,1,1)
-		t_cnt=incl*np.arange(T).reshape(1,T,1)
-		incl=incl[:,:,0]
-		t=np.concatenate((t_arr[incl],  grp_cnt[incl], t_cnt[incl]),1)
-		a=np.argsort(t[:,0])
-		t=t[a]#three columns: unique date index, group number, day sequence
+		n_groups, n_periods, _ = incl.shape
+		_, date_codes = np.unique(timevar, return_inverse=True)
+		panel_date_codes = arrayize(
+			np.array(date_codes).reshape((len(timevar), 1)),
+			n_groups, self.max_T, T_count, idincl, sel, int,
+		)
 
+		group_rows = incl * np.arange(n_groups).reshape(n_groups, 1, 1)
+		time_rows = incl * np.arange(n_periods).reshape(1, n_periods, 1)
+		observed = incl[:, :, 0]
+		# Each row contains (calendar-date code, panel group, within-group row).
+		coordinates = np.concatenate((
+			panel_date_codes[observed], group_rows[observed], time_rows[observed],
+		), axis=1)
+		coordinates = coordinates[np.argsort(coordinates[:, 0])]
+		date_boundaries = np.flatnonzero(np.diff(coordinates[:, 0])) + 1
+		rows_by_date = np.split(coordinates[:, 1:], date_boundaries)
+		date_map, date_counts = self.build_time_map(rows_by_date, panel_date_codes)
 
-		t_id=t[:,0]#unique date
-		t_map=[[] for i in range(np.max(t_id)+1)]#all possible unique dates
-		for i in range(len(t_id)):
-			t_map[t_id[i]].append(t[i,1:])#appends group and day sequence
-		
-		
-		t_map_tuple, tcnt = self.build_time_map(t_map, t_arr)
-
-		#A full random effects calculation is infeasible because of complexity and computing costs. 
-		#A quazi random effects weighting is used. It  is more conservative than the full
-		#RE weight theta=1-sd_pooled/(sd_pooled+sd_within/T)**0.5
-		#If the weights are too generous, the RE adjustment may add in stead of reducing noise. 
-		n=len(tcnt)
-		self.n_dates=n
-		self.date_count=np.array(tcnt).reshape(n,1,1)
-		self.date_map=t_map_tuple #each element represents a unique date, and contains all groups observed at that date.
-
-		self.dmap_all =(
-		[t_map_tuple[i][0] for i in range(self.n_dates)],
-		[t_map_tuple[i][1] for i in range(self.n_dates)]
-		)   
-		
-		a=0
+		self.n_dates = len(date_counts)
+		self.date_count = np.array(date_counts).reshape(self.n_dates, 1, 1)
+		self.date_map = date_map
+		self.dmap_all = (
+			[indices[0] for indices in date_map],
+			[indices[1] for indices in date_map],
+		)
 
 	def build_time_map(self, t_map, t_arr):
+		"""Return NumPy index pairs and observation counts for each nonempty date.
+
+		`t_map` contains (group row, within-group row) pairs grouped by date.
+		For example, `self.X[date_map[i]]` selects all observations on date i.
+		Also fill `date_count_mtrx`, shaped like `t_arr`, with each cell's
+		calendar-date count; padded cells remain zero.
 		"""
-		Constructs a structured mapping of unique time indices to corresponding 
-		group and time sequence data.
+		date_map = []
+		date_counts = []
+		self.date_count_mtrx = np.zeros(t_arr.shape)
+		for date_rows in t_map:
+			coordinates = np.array(date_rows).T
+			if not len(coordinates):
+				continue
+			indices = (tuple(coordinates[0]), tuple(coordinates[1]))
+			count = len(coordinates[0])
+			date_map.append(indices)
+			date_counts.append(count)
+			self.date_count_mtrx[indices] = count
 
-		The output `t_map_tuple` provides an efficient way to retrieve all observations 
-		for a specific unique date in a panel data structure. Instead of storing lists 
-		of indices separately, this function organizes them as tuples, making it easier 
-		to access all relevant observations in `self.Y`, `self.X`, or `t_arr` using 
-		structured indexing.
-
-		Example usage:
-			- `self.X[t_map_tuple[20]]` retrieves all observations in `self.X` 
-			from the 20th unique date in the dataset.
-
-		Args:
-			t_map (list of lists): A list where each index represents a unique date,
-								and each element contains a list of [group_id, time_sequence]
-								for that date.
-			t_arr (numpy matrix/array): unique date id_s in a panel data structure
-
-		Returns:
-			tuple:
-				- t_map_tuple (list of tuples): Each tuple contains:
-					* A tuple of all group IDs for a given date
-					* A tuple of corresponding time sequences
-				- tcnt (list): The count of groups for each unique date.
-		"""
-		t_map_tuple=[]
-		tcnt=[]
-		self.date_count_mtrx=np.zeros(t_arr.shape)
-		for i in range(len(t_map)):
-			a=np.array(t_map[i]).T#group and day sequence for unique date i
-			if len(a):
-				m=(tuple(a[0]),tuple(a[1]))#group and day sequence reference tuple
-				n_t=len(a[0])#number of groups at this unique date
-				t_map_tuple.append(m)	#group and day reference tuple for the data matrix, for each unique date
-				tcnt.append(n_t) #count of groups at each date
-				self.date_count_mtrx[m]=n_t#timeseries matrix of the group count
-
-		return t_map_tuple, tcnt
+		return date_map, date_counts
 
 
 	def mean(self,X,axis=None):
@@ -488,12 +471,17 @@ class Panel:
 			return np.sum((Xm)**2,axis)/(self.NT-k)
 
 
-def arrayize(X, N, max_T, T, id_included, selections, dtype = None):
+def arrayize(X, N, max_T, T, id_included, selections, dtype=None):
+	"""Pack 2D observations into a zero-padded (retained groups, max_T, k) array.
+
+	`T` gives group lengths; `selections` supplies input row indices or Boolean
+	masks. Excluded groups are omitted, and the inclusion mask maintained by
+	Panel distinguishes padding from actual zeros.
+	"""
 	if X is None:
 		return None
-	
-	NT, k = X.shape
-	
+
+	n_variables = X.shape[1]
 	if not (np.issubdtype(X.dtype, np.integer) or 
 			np.issubdtype(X.dtype, np.floating)):
 		try:
@@ -503,20 +491,17 @@ def arrayize(X, N, max_T, T, id_included, selections, dtype = None):
 				raise TypeError(e)
 
 	
-	# Initialize the 3D output array
 	if dtype is None:
 		dtype = X.dtype
 
-	X_arr = np.zeros((N, max_T, k), dtype=dtype)
-
-	# Fill the new array with selected data
+	packed = np.zeros((N, max_T, n_variables), dtype=dtype)
 	row_index = 0
-	for i, is_included in enumerate(id_included):
+	for group, is_included in enumerate(id_included):
 		if is_included:
-			X_arr[row_index, :T[i]] = X[selections[i]]
+			packed[row_index, :T[group]] = X[selections[group]]
 			row_index += 1
-	
-	return X_arr[:row_index]  # Trim unused rows
+
+	return packed[:row_index]
 
 
 
@@ -534,6 +519,3 @@ def formatarray(array,linelen,sep):
 	s=sep.join([str(i) for i in array])
 	s='\n'.join(s[n:n + linelen] for n in range(0, len(s), linelen))	
 	return s
-
-
-

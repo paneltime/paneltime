@@ -3,13 +3,10 @@
 
 from . import linesearch
 from . import direction
-import sys
+from .computation import Computation
+from .. import likelihood as logl
 
 import numpy as np
-import time
-import cProfile
-import pstats
-from ..processing import model_parser as prsr
 
 #This module finds the array of arguments that minimizes some function. The derivative 
 #of the function also needs to be supplied. 
@@ -21,34 +18,47 @@ from ..processing import model_parser as prsr
 
 EPS=3.0e-16 
 TOLX=(4*EPS) 
-GTOL = 1e-5
 
-def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_server):
-	"""Given a starting point x[1..n] that is a vector of length n, the Broyden-Fletcher-Goldfarb-
-	Shanno variant of Davidon-Fletcher-Powell minimization is performed on a function func, using
-	its gradient as calculated by a routine dfunc. The convergence requirement on zeroing the
-	gradient is input as gtol. Returned quantities are x[1..n] (the location of the minimum),
-	iter (the number of iterations that were performed), and fret (the minimum value of the
-	function). The routine lnsrch is called to perform approximate line minimizations.
-	fargs are fixed arguments that ar not subject to optimization. ("Nummerical Recipes for C") """
+def dfpmax(args, panel):
+	"""Initialize and run one constrained likelihood optimization locally."""
+	args = np.array(args)
+	comput = Computation(args, panel, panel.options.tolerance, TOLX, True)
+	for position, constraint in comput.constr.fixed.items():
+		args[position] = constraint.value
+	ll = logl.LL(args, panel, constraints=comput.constr, print_err=True)
+	if ll.LL is None:
+		print("WARNING: Initial arguments failed, attempting default OLS-arguments ...")
+		panel.args.set_init_args(panel, default=True)
+		ll = logl.LL(panel.args.args_OLS, panel, constraints=comput.constr, print_err=True)
+		if ll.LL is None:
+			raise RuntimeError("OLS-arguments failed too, you should check the data")
+		print("default OLS-arguments worked")
 
+	x, f = ll.args.args_v, ll.LL
+	g, G = comput.calc_gradient(ll)
+	H = comput.calc_hessian(ll)
+	try:
+		hessin = np.linalg.inv(H)
+	except np.linalg.LinAlgError:
+		hessin = -np.identity(len(g)) * panel.args.init_var
+
+	armaconstr = panel.options.ARMA_constraint
 	MAXITER = panel.options.max_iterations
-	
-	
-	fdict = {}
 	step = 1.0
-	dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
+	_, dx_norm, _ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
 
-	for its in range(MAXITER):  	#Main loop over the iterations.
-		res = calc(g, x, H, comput, f, hessin, 
-								panel, step, its, fdict, ll, armaconstr, dx)
+	for its in range(MAXITER):
+		dx, _, _ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
+		ls = linesearch.LineSearch(x, comput, panel, ll, step)
+		ls.lnsrch(x, f, g, H, dx)
+		step = ls.step
+		dx_realized = ls.x - x
+		incr = ls.f - f
+		ll = ls.ll
+		x, f, hessin, H, G, g, conv, _, _ = comput.exec(
+			dx_realized, hessin, H, incr, its, ls, armaconstr
+		)
 
-		(g, G, x, H, comput, f, ll, hessin, 
-			conv, incr, step, g_norm, dx) = res
-
-		
-		terminate = srvr_terminated(slave_server, its)
-		
 		if conv==1:
 			msg = "Convergence on zero gradient; local or global minimum identified"
 		elif conv==2:
@@ -61,40 +71,15 @@ def dfpmax(x, f, g, hessin, H, comput, panel, slave_id, ll, armaconstr, slave_se
 			msg = "Collinear"
 		elif conv==6:
 			msg = "Overflow"
-		elif terminate or its + 1 == MAXITER:
+		elif its + 1 == MAXITER:
 			msg = f"No convergence within {its} iterations" 
 
-		if (terminate or (conv>0)) and its>2:
+		if conv > 0 and its > 2:
 			break
 
-	constr = comput.constr
-	v = vars()
-	ret = {k:v[k] for k in v if not k in ['panel', 'comput', 'ls']}
-	return ret
-
-def srvr_terminated(slave_server, its):
-	if slave_server is None:
-		return False
-	print('server up, receiving request')
-	kill = slave_server.kill_request()
-	print(f'server up, requested kill={kill}')
-	return kill
-
-def calc(g, x, H, comput, f, hessin, panel, step, its, fdict, ll, armaconstr, dx):
-		dx, dx_norm, H_ = direction.get(g, x, H, comput.constr, f, hessin, simple=False)
-		ls = linesearch.LineSearch(x, comput, panel, ll, step)
-		ls.lnsrch(x, f, g, H, dx)
-		step = ls.step
-		dx_realized = ls.x - x
-		incr = ls.f - f
-		fdict[its] = ls.f
-		ll = ls.ll
-
-		x, f, hessin, H, G, g, conv, g_norm, dx = comput.exec(dx_realized,  hessin, H, incr, its, ls, armaconstr)
-
-
-		#print(list(ls.x[1:3])+list(ls.x[-2:])+[comput.ci, len(comput.constr.mc_constr)])
-		#print(g)
-
-
-		return g, G, x, H, comput, f, ll, hessin, conv, incr, step, g_norm, dx
+	# Only retain numerical results needed for inference, not loop/server state.
+	return {
+		'x': x, 'f': f, 'll': ll, 'g': g, 'G': G, 'H': H,
+		'constr': comput.constr, 'conv': conv, 'its': its, 'msg': msg,
+		'incr': incr, 'dx_norm': dx_norm,
+	}

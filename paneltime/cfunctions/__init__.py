@@ -47,7 +47,7 @@ def armas(parameters, lmbda, rho, gmma, psi,
 	
 
 
-	cfunct.armas(params.ctypes.data_as(CDPT),
+	status = cfunct.armas(params.ctypes.data_as(CDPT),
 				 lmbda.ctypes.data_as(CDPT),   rho.ctypes.data_as(CDPT),
 				 gmma.ctypes.data_as(CDPT),    psi.ctypes.data_as(CDPT),
 				 AMA_1.ctypes.data_as(CDPT),   AMA_1AR.ctypes.data_as(CDPT),
@@ -59,6 +59,8 @@ def armas(parameters, lmbda, rho, gmma, psi,
 				 G.ctypes.data_as(CDPT),
 				 T_arr.ctypes.data_as(CI64PT),
 				 ct.c_char_p(h_bytes))
+	if status != 0:
+		raise RuntimeError(f"Native ARMA/GARCH filter failed with status {status}")
 
 	return AMA_1, AMA_1AR, GAR_1, GAR_1MA, e, var, h
 
@@ -105,4 +107,3 @@ def fast_dot_numpy(r, a, b, m):
 		R[i:n, :] += a[i] * B[0:n-i, :]
 
 	return r
-

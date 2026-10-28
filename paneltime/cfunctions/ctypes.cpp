@@ -1,6 +1,10 @@
 // Build from this directory. ctypes.cpp includes mathexp.cpp.
 // Windows, from an x64 MSVC Developer Command Prompt:
 // cl /nologo /std:c++14 /O2 /DNDEBUG /EHsc /LD /bigobj ctypes.cpp /link /OUT:ctypes.dll
+// Fastest measured Windows build (about 10% faster fits), but it requires an AVX2 CPU
+// (crashes on older ones) and /fp:fast may change results in the last digits:
+// cl /nologo /std:c++14 /O2 /Oi /fp:fast /GL /arch:AVX2 /DNDEBUG /EHsc /LD /bigobj ctypes.cpp /link /LTCG /OPT:REF /OPT:ICF /OUT:ctypes.dll
+// Do not ship a MinGW/GCC debug build: it made fits about 35% slower.
 // Linux: build on the oldest supported distribution to set the glibc baseline.
 // g++ -std=c++11 -O2 -DNDEBUG -fPIC -shared ctypes.cpp -o ctypes.so
 // macOS: set the minimum OS target and architectures for the release you support.

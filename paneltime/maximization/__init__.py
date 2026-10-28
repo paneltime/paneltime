@@ -1,36 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from ..output import communication as comm
 from ..output import output
-from . import maximize
 
 
 import numpy as np
 import time
 
 
-def go(panel, args, mp, window, exe_tab, console_output):
-	t0=time.time()
-	comm  = Comm(panel, args, mp, window, exe_tab, console_output, t0)
-	summary = Summary(comm, panel, t0)
-
-	return summary
-
-
 class Summary:
-	def __init__(self, comm, panel, t0):
-		self.output = output.Output(comm, panel)
-		self.output.update(comm, time.time()-t0)
-		self.table = output.RegTableObj(panel, comm, self.output)
-		c = comm.ll.args
+	def __init__(self, result, panel, t0):
+		self.output = output.Output(result, panel, time.time() - t0)
+		self.table = output.RegTableObj(panel, result, self.output)
+		c = result.ll.args
 		self.names = Names(list(c.args_d), list(c.caption_v), list(c.names_v) )
 		self.count = Counting(panel)
 		self.panel = panel
-		self.ll = comm.ll
+		self.ll = result.ll
 		self.stats = self.output.stats #contains clases info and diag with information about the regression and diagnostics
-		self.results = Results(panel, comm, self.table)
-		self.general = General(panel, comm, t0, self.output)
+		self.results = Results(panel, result, self.table)
+		self.general = General(panel, result, t0, self.output)
 		self.random_effects = self.output.random_effects
 		
 		name_y = panel.input.Y_names[0]
@@ -106,11 +95,11 @@ class Counting:
 		self.variables = k
 
 class Results:
-	def __init__(self, panel, comm, table):
+	def __init__(self, panel, result, table):
 		#coefficient statistics:
 
-		self.params = comm.ll.args.args_v
-		self.args = comm.ll.args.args_d
+		self.params = result.ll.args.args_v
+		self.args = result.ll.args.args_d
 		self.se = table.d.get('se_st',None)
 		self.coef_se_robust = table.d.get('se_robust',None)
 		self.cov = table.d.get('cov',None)
@@ -124,59 +113,27 @@ class Results:
 		self.codes_def_tex = panel.sign_codes_tex
 		#NEED TO GO THROUGH HOW RESIDUALS ARE REPORTED 
 		#RESIDUALS MUST BE CONSTISTENT WITH RE/fe
-		self.residuals = comm.ll.e_RE_norm_centered_long
+		self.residuals = result.ll.e_RE_norm_centered_long
 
 
 class General:
-	def __init__(self, panel, comm, t0, output):	
+	def __init__(self, panel, result, t0, output):
 		#other statistics:
-		self.comm = comm
-		
 		self.time = time.time() - t0
 		self.t0 = t0
 		self.t1 = time.time()
 		
 		self.panel = panel
-		self.ll = comm.ll
-		self.log_likelihood = comm.ll.LL
+		self.ll = result.ll
+		self.log_likelihood = result.ll.LL
 
-		self.converged = comm.conv
-		self.hessian = comm.H
-		self.gradient_vector = comm.g
-		self.gradient_matrix = comm.G
-		self.ci , self.ci_n = output.stats.diag.get_CI(comm.constr)
+		self.converged = result.conv
+		self.hessian = result.H
+		self.gradient_vector = result.g
+		self.gradient_matrix = result.G
+		self.ci , self.ci_n = output.stats.diag.get_CI(result.constr)
 
-		self.its = comm.its
-		self.dx_norm = comm.dx_norm
-		self.msg = comm.msg
-		self.multistart_results = getattr(comm, 'multistart_results', [])
-
-
-class Comm:
-	def __init__(self, panel, args, mp, window, exe_tab, console_output, t0):
-		self.current_max = None
-		self.mp = mp
-		self.start_time=t0
-		self.panel = panel
-		self.channel = comm.get_channel(window,exe_tab,self.panel,console_output)
-		d = maximize.maximize(panel, args, mp, t0)
-
-		self.get(d)
-
-
-	def get(self, d):
-		for attr in d:
-			setattr(self, attr, d[attr])  
-		self.print_to_channel(self.msg, self.its, self.incr, self.ll,  self.dx_norm, self.conv)
-
-	def print_to_channel(self, msg, its, incr, ll, dx_norm, conv):
-		self.channel.set_output_obj(ll, self, dx_norm)
-		self.channel.update(self,its,ll,incr, dx_norm, conv, msg)
-		ev = np.abs(np.linalg.eigvals(self.H))**0.5
-		try:
-			det = np.linalg.det(self.H)
-		except:
-			det = 'NA'
-		if (not self.panel.options.supress_output) and self.f!=self.current_max:
-			print(f"node: {self.node}, its: {self.its},  LL:{self.f}")
-		self.current_max = self.f
+		self.its = result.its
+		self.dx_norm = result.dx_norm
+		self.msg = result.msg
+		self.multistart_results = getattr(result, 'multistart_results', [])

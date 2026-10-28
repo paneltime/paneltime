@@ -298,86 +298,89 @@ def check_var(df, df_pred, x, input_type, numeric):
 
 
 
-def eval_and_add_pred_space(df, vars, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig):
+def eval_and_add_pred_space(
+	df, vars, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig,
+):
+	"""Evaluate estimation data and prepare a separate future prediction frame."""
 	df = df.sort_values(idvar_orig + timevar_orig)
 	df = df.set_index(idvar_orig + timevar_orig)
-	df_new, lost_na_obs, max_lags, max_history, n = eval_variables(df, idvar + timevar + vars, idvar_orig)
+	variable_names = idvar + timevar + vars
+	evaluated, lost_na_obs, max_lags, max_history, n = eval_variables(
+		df, variable_names, idvar_orig
+	)
+	df_pred = get_pred_df(
+		df, idvar_orig, timevar_orig, idvar, timevar,
+		time_delta, time_delta_orig, max_lags, max_history, vars,
+	)
 
-	df_pred = get_pred_df(df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig, max_lags, max_history, vars)
-
-	df_new=df_new.dropna()
-	
-
-	return df_new, lost_na_obs, max_lags, n, df_pred
-
-
-def get_pred_df(df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig, max_lags, max_history, vars):
-	df_pred, pred_start = extend_timeseries(df, idvar_orig, idvar, timevar_orig, timevar, time_delta, time_delta_orig, max_lags, max_history)
-	df_pred, _, _, _ , _ = eval_variables(df_pred, idvar + timevar + vars, idvar_orig, False)
-	#For the prediction values, collect only the last max_lags observations
-	df_pred = df_pred[df_pred.index.get_level_values(timevar_orig[0]) >= pred_start]
-
-	return df_pred
+	# Lagged expressions can introduce missing values after input filtering.
+	return evaluated.dropna(), lost_na_obs, max_lags, n, df_pred
 
 
+def get_pred_df(
+	df, idvar_orig, timevar_orig, idvar, timevar, time_delta, time_delta_orig,
+	max_lags, max_history, vars,
+):
+	"""Evaluate expressions with their history, then retain only future rows."""
+	extended, pred_start = extend_timeseries(
+		df, idvar_orig, idvar, timevar_orig, timevar,
+		time_delta, time_delta_orig, max_lags, max_history,
+	)
+	evaluated, _, _, _, _ = eval_variables(
+		extended, idvar + timevar + vars, idvar_orig, dropna=False
+	)
+	dates = evaluated.index.get_level_values(timevar_orig[0])
+	return evaluated[dates >= pred_start]
 
 
-def extend_timeseries(df, idvar_orig, idvar, timevar_orig, timevar, time_delta, time_delta_orig, max_lags, max_history):
-	# Ensure the data is sorted by timevar within each group
+def extend_timeseries(
+	df, idvar_orig, idvar, timevar_orig, timevar, time_delta, time_delta_orig,
+	max_lags, max_history,
+):
+	"""Append future rows for groups observed at the final date.
 
+	Keep enough preceding rows to evaluate lagged/differenced expressions.
+	Original ID/date labels live in the index; numeric codes live in columns.
+	Even formulas without lags receive one prediction row per eligible group.
+	"""
+	group_level, group_column = idvar_orig[0], idvar[0]
+	date_level, date_column = timevar_orig[0], timevar[0]
+	last_date = df[date_column].max()
+	last_date_orig = df.index.get_level_values(date_level).max()
+	last_date_by_group = df.groupby(level=group_level)[date_column].max()
+	extend_groups = last_date_by_group[last_date_by_group == last_date].index
 
-	#Works here to cut of last rows in `panel` before can be implemented.
-	
-	idvar_orig, idvar, timevar_orig, timevar = idvar_orig + idvar + timevar_orig + timevar
+	# The product index is group-major: repeat IDs and tile future dates.
+	steps = np.arange(1, max(max_lags, 1) + 1)
+	new_dates = [last_date_orig + int(step) * time_delta_orig for step in steps]
+	new_index = pd.MultiIndex.from_product(
+		[extend_groups, new_dates], names=df.index.names
+	)
+	future = pd.DataFrame(pd.NA, index=new_index, columns=df.columns)
+	future[date_column] = np.tile(last_date + steps * time_delta, len(extend_groups))
+	last_rows = [(group, last_date_orig) for group in extend_groups]
+	group_codes = df.loc[last_rows, group_column].to_numpy()
+	future[group_column] = np.repeat(group_codes, len(steps))
+	for name in (
+		DEFAULT_INTERCEPT_NAME, VAR_INTERCEPT_NAME, INSTRUMENT_INTERCEPT_NAME, CONST_NAME,
+	):
+		future[name] = 1
 
-	# Find the maximum date in the dataset
-	max_date = df[timevar].max()
-	max_date_orig = df.index.get_level_values(timevar_orig).max()
+	history = df[df.index.get_level_values(group_level).isin(extend_groups)]
+	history_start = last_date - (max_history + 1) * time_delta
+	history = history[history[date_column] > history_start]
 
-	# Get the last date per group
-	idvar_max_dates =  df.groupby(level=idvar_orig)[timevar].max()# Ensure proper column names
-
-	# Filter groups where last date matches max_date
-	extend_groups = idvar_max_dates[idvar_max_dates== max_date].index
-
-	# Create a list to store new rows
-	new_rows = []
-
-	# Iterate over groups and time steps
-	for g in extend_groups:
-		
-		for t in range(1, max(max_lags,1) + 1):
-			new_date_orig = max_date_orig + t * time_delta_orig  # Increment original format date
-			s = pd.Series(pd.NA, index=df.columns, name=(g, new_date_orig))
-			s[timevar] = max_date + t * time_delta
-			s[idvar] = df.loc[(g, max_date_orig), idvar]  # Copy the group identifier
-			s[DEFAULT_INTERCEPT_NAME] = s[VAR_INTERCEPT_NAME] = s[INSTRUMENT_INTERCEPT_NAME] = s[CONST_NAME] = 1  # Add intercept value
-			new_rows.append(s)
-
-	new_df = pd.DataFrame(new_rows)
-	new_df.index.names = df.index.names  # Ensure correct MultiIndex structure
-	
-	# Filter only the included groups in extended_gruops: 
-	df_last = df[df.index.get_level_values(idvar_orig).isin(extend_groups)]
-	# Filtering last `max_history`observations per group as only the last `max_lags` are needed
-	df_last = df_last
-	df_last = df_last[df_last[timevar]>max_date-(max_history+1)*time_delta]
-	
-	# Concatenates, workaround for the fact that one sized NA dfs are not allowed to be concatenated
-	df_pred = concatenate(new_df, df_last)
-
-	return df_pred, max_date_orig+time_delta_orig
+	return concatenate(future, history), last_date_orig + time_delta_orig
 
 
 def concatenate(new_df, df_last):
-	"Concatenates, workaround for the fact that one sized NA dfs are not allowed to be concatenated"
-	
-	# Concatenate the new rows with the original DataFrame
-	original_dtypes = df_last.dtypes.to_dict()
+	"""Combine history and future rows without modifying either input.
 
-	# Replace dtypes with nullable equivalents where appropriate
+	Nullable numeric types allow unknown future values without converting
+	integer columns to floats. Other columns retain object-valued labels.
+	"""
 	nullable_dtypes = {}
-	for col, dtype in original_dtypes.items():
+	for col, dtype in df_last.dtypes.to_dict().items():
 		if pd.api.types.is_integer_dtype(dtype):
 			nullable_dtypes[col] = 'Int64'
 		elif pd.api.types.is_float_dtype(dtype):
@@ -385,16 +388,14 @@ def concatenate(new_df, df_last):
 		else:
 			nullable_dtypes[col] = 'object'
 
-	df_last = df_last.astype('object')
-	new_df = new_df.astype('object')
-
-	new_df[new_df.isna()]='NA'
-	df_last[df_last.isna()]='NA'
-
-	df_pred = pd.concat([df_last, new_df]).sort_index()
-	df_pred[df_pred=='NA'] = pd.NA
-
-	df_pred = df_pred.astype(nullable_dtypes)
+	df_pred = pd.concat([
+		df_last.astype(nullable_dtypes),
+		new_df.astype(nullable_dtypes),
+	]).sort_index()
+	# Normalize object-column missing values to the same sentinel as numerics.
+	for col, dtype in nullable_dtypes.items():
+		if dtype == 'object':
+			df_pred[col] = df_pred[col].where(df_pred[col].notna(), pd.NA)
 
 	return df_pred
 
@@ -423,73 +424,61 @@ def eval_variables(df, x, idvar_orig, dropna=True):
 
 	Returns:
 		tuple: (new_df, lost_na_obs, max_lags, max_history, n)
-			- new_df (pd.DataFrame): Transformed DataFrame with evalnew_dfuated variables.
-			- lost_na_obs (int): Number of observations lost due to NaN removal.
-			- max_lags (int): Maximum lag required across all expressions.
-			- max_history (int): Total historical data needed for computations.
+			- new_df (pd.DataFrame): Evaluated variables, possibly with lag-induced NaNs.
+			- lost_na_obs (int): Rows removed before expression evaluation.
+			- max_lags (int): Largest individual L() lag, used as forecast horizon.
+			- max_history (int): Largest sum of L()/D() lags in one expression.
 			- n (int): Original number of rows in `df`.
 	"""
 
-	# Initialize the transformed DataFrame
-	new_df = pd.DataFrame()
-	
-	# Convert to panel format if `idvar_orig` is provided
-	pd_panel = df.groupby(level=idvar_orig) if idvar_orig else df
-	lag_obj = LagObject(pd_panel)  # Create lag object for time-series operations
-
-	# Track original row count
 	n = len(df)
-
-	# Drop NaN values if specified
+	original_df = df
 	if dropna:
 		df = df.dropna()
 	lost_na_obs = n - len(df)
 
-	# Define namespaces for evaluating lagged/differenced expressions
+	# Preserve first-occurrence order while matching repeated column assignment.
+	if x and all(var in df.columns for var in x):
+		new_df = df[list(dict.fromkeys(x))].copy()
+		new_df.columns.name = None
+		return new_df, lost_na_obs, 0, 0, n
+
+	new_df = pd.DataFrame()
+	pd_panel = original_df.groupby(level=idvar_orig) if idvar_orig else original_df
+	lag_obj = LagObject(pd_panel)
+
+	lags, diffs = [], []
+	lag_depths, history_depths = [], []
 	namespace = {'D': lag_obj.diff, 'L': lag_obj.lag, 'np': np}
+	# A scalar-only pass records requested lags without evaluating full Series.
 	namespace_lags = {
 		'D': lambda x, lag=1: diffs.append(lag),
 		'L': lambda x, lag=1: lags.append(lag),
 		'np': np
 	}
 
-	# Initialize tracking lists
-	lags, diffs = [], []
-	max_lags, max_history = [], []
-
-	# Add all DataFrame columns to namespaces
 	for column in df.columns:
 		namespace[column] = df[column]
-		namespace_lags[column] = df[column].iloc[0]  # Ensures column names are recognized in eval
+		namespace_lags[column] = df[column].iloc[0]
 
-	# Process each variable/expression in `x`
 	for var in x:
 		if var in df:
-			# Directly copy existing columns
 			new_df[var] = df[var]
 		else:
-			# Reset tracking lists before evaluating expressions
 			lags.clear()
 			diffs.clear()
 			try:
-				# Evaluate expression to track required lags and diffs
 				eval(var, namespace_lags)
-				
-				# Compute and store evaluated expression
 				new_df[var] = eval(var, namespace)
-
-				# Store max lag and history depth needed
-				max_lags.append(max(lags) if lags else 0)
-				max_history.append(sum(lags) + sum(diffs))
+				lag_depths.append(max(lags) if lags else 0)
+				history_depths.append(sum(lags) + sum(diffs))
 			except NameError:
 				raise NameError(f"{var} not defined in data frame or function")
 			except Exception as e:
 				raise RuntimeError(f"Problem with variable '{var}': {e}")
 
-	# Get the max required lag and total historical data needed
-	max_lags = max(max_lags) if max_lags else 0
-	max_history = max(max_history) if max_history else 0
-
+	max_lags = max(lag_depths) if lag_depths else 0
+	max_history = max(history_depths) if history_depths else 0
 	return new_df, lost_na_obs, max_lags, max_history, n
 
 
@@ -679,5 +668,3 @@ def numberize_idvar(ip,df,timevar, idvar):
 		df[idvar]=df[idvar]
 
 	return [idvar + ORIG_SUFIX]
-
-
