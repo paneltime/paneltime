@@ -4,16 +4,9 @@ import numpy as np
 import ctypes as ct
 import os
 from . import cfunctions
-import warnings
 
 def save_csv(fname, array, sep = ','):
-	f = open(fname, 'wt')
-	try:
-		for line in array:
-			f.write(sep.join(line))
-	except TypeError as e:
-		np.savetxt(fname,array,fmt='%s', delimiter=sep)
-	f.close()
+	np.savetxt(fname, array, fmt='%s', delimiter=sep)
 
 def solve(H, g, cond_limit=1e12, lam0=None, max_iter=20):
     """
@@ -123,8 +116,3 @@ def fast_dot_c(a,b):
 							
 
 	
-def try_warn(function, args):
-	with warnings.catch_warnings():
-		warnings.simplefilter('ignore')
-		res = function(*args)
-	return res

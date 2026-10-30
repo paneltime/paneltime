@@ -16,6 +16,17 @@ class REObj:
 		self.avg_Ninv=1/np.mean(other_dimension_count)
 		self.T_i=T_i*panel.included[3]#self.T_i is T_i_count at each observation (N,T,1)
 		self.fe_re=fixed_random_eff
+		other_mode = panel.options.fixed_random_time_eff if group else panel.options.fixed_random_group_eff
+		self.two_way = other_mode != 0
+
+	def _variance_terms(self, x, panel):
+		incl = panel.included[3]
+		mu = panel.mean(x * incl, (0, 1))
+		m_own = self.FRE(x, panel, means_only=True, group=self.group)
+		m_oth = self.FRE(x, panel, means_only=True, group=not self.group) if self.two_way else 0
+		x_w = (x - m_own - m_oth + (mu if self.two_way else 0)) * incl
+		m_adj = self.FRE((x - m_oth + (mu if self.two_way else 0)) * incl, panel, means_only=True)
+		return mu, x_w, (m_adj - mu) * incl
 
 	
 	def RE(self,x,panel,recalc=True):
@@ -32,25 +43,15 @@ class REObj:
 			incl=panel.included[3]
 
 
-			mu=panel.mean(incl*x) #grand (weighted) mean of x; ~0 for residuals u, but not in general
 			self.xFE=(x+self.FRE(x,panel))*incl
-			#subtract mu explicitly so e_var/v_var are correct variances (not raw second moments)
-			#for non-zero-mean x. Reduces to the original formulas when mu~=0.
-			mu_FE = panel.mean(incl*self.xFE)
-			#CHANGED: previously e_var was the one-way within variance /(1-avg_Tinv) and
-			#v_var = total variance - e_var. That let the other dimension's effect variance leak into e_var
-			#(time effects into the group pass and vice versa), distorting theta and the variance components.
-			#Now: Two-way (Swamy-Arora style): the other dimension's effect is removed before estimating
-			#both the idiosyncratic and own-dimension variance, so neither leaks into the other.
-			m_own=self.FRE(x,panel,means_only=True,group=self.group)
-			m_oth=self.FRE(x,panel,means_only=True,group=not self.group)
-			x_w=(x-m_own-m_oth+mu)*incl
-			#degrees of freedom as in plm's Swamy-Arora: the K slope coefficients are not free, N+T-1 effects are removed
+			# Remove the other dimension only when that effect is requested.
+			mu, x_w, q = self._variance_terms(x, panel)
 			K=panel.X.shape[2]-int(panel.input.has_intercept)
-			dof=1-self.avg_Tinv-self.avg_Ninv+(1-K)/panel.NT
+			dof=1-self.avg_Tinv-K/panel.NT
+			if self.two_way:
+				dof -= self.avg_Ninv-1/panel.NT
 			self.e_var=panel.mean(incl*x_w**2)/dof
-			x_adj=(x-m_oth+mu)*incl
-			m_adj=self.FRE(x_adj,panel,means_only=True)
+			m_adj=q+mu
 			n_own=panel.NT*self.avg_Tinv#number of own-dimension units
 			n_df=max(n_own-1-K,1)#between regression: own units less intercept and K slopes
 			self.v_var=panel.mean(incl*(m_adj-mu)**2)*n_own/n_df-self.e_var*self.avg_Tinv
@@ -67,20 +68,16 @@ class REObj:
 			self.theta=(1-np.sqrt(self.e_var/denom))*panel.included[3]
 			self.theta*=(self.T_i>1)
 			if np.any(self.theta>1) or np.any(self.theta<0):
-				raise RuntimeError("WTF")
+				raise RuntimeError("Random-effects theta is outside [0, 1]")
 		#x=panel.Y
 		eRE=self.FRE(x,panel,self.theta)
 		return eRE
 
 	def _dvars(self,dx,panel):
-		"""First derivatives of the two-way e_var and v_var, and the demeaned dx terms they are built from."""
+		"""Derivatives of variance components using the same projection as RE."""
 		incl=panel.included[3]
-		dmu=np.sum(dx,axis=(0,1))/panel.NT
-		dm_own=self.FRE(dx,panel,means_only=True,group=self.group)
-		dm_oth=self.FRE(dx,panel,means_only=True,group=not self.group)
-		dx_w=(dx-dm_own-dm_oth+dmu)*incl
+		_, dx_w, dq = self._variance_terms(dx, panel)
 		de_var=2*np.sum(self._x_w*dx_w,axis=(0,1))/(panel.NT*self._dof)
-		dq=(self.FRE((dx-dm_oth+dmu)*incl,panel,means_only=True)-dmu)*incl
 		n_own=self._n_own
 		c=n_own/(self._n_df*panel.NT)
 		dv_var=2*c*np.sum((self._m_adj-self._mu)*dq,axis=(0,1))-de_var*self.avg_Tinv
@@ -183,12 +180,34 @@ class REObj:
 		return out*incl4
 
 	def FRE(self,x,panel,w=1,d=False, means_only=False, group = None):
+		if (group is None and not means_only and self.fe_re == 1
+				and panel.options.fixed_random_group_eff == 1
+				and panel.options.fixed_random_time_eff == 1):
+			return self._joint_fixed_adjustment(x, panel)
 		if group is None:
 			group = self.group
 		if group:
 			return self.FRE_group(x,w,d,panel, means_only)
 		else:
 			return self.FRE_time(x,w,d,panel, means_only)
+
+	def _joint_fixed_adjustment(self, x, panel):
+		if x is None:
+			return None
+		incl = panel.included[3]
+		z = x * incl
+		group_adjustment = np.zeros_like(z)
+		time_adjustment = np.zeros_like(z)
+		for _ in range(1000):
+			g = self.FRE_group(z, 1, False, panel)
+			z = z + g
+			t = self.FRE_time(z, 1, False, panel)
+			z = z + t
+			group_adjustment += g
+			time_adjustment += t
+			if max(np.max(np.abs(g)), np.max(np.abs(t))) < 1e-10:
+				return group_adjustment if self.group else time_adjustment
+		raise FloatingPointError("Two-way fixed-effects projection did not converge")
 
 	def FRE_group(self,x,w,d,panel, means_only=False):
 		"""returns x after fixed effects, and set lost observations to zero"""
@@ -203,14 +222,7 @@ class REObj:
 		if means_only:
 			return np.broadcast_to(mean_x, x.shape).copy()
 		mean_x_all=np.sum(sum_x,0)/panel.NT
-		try:
-			dFE=w*(mean_x_all-mean_x)*incl#last product expands the T vector to a TxN matrix
-		except (RuntimeWarning,OverflowError) as e:
-			print(e)
-			remove_extremes([w])
-			dFE=w*(mean_x_all-mean_x)*incl#last product expands the T vector to a TxN matrix
-			remove_extremes([dFE])
-		return dFE
+		return w*(mean_x_all-mean_x)*incl
 
 	def FRE_time(self,x,w,d,panel, means_only=False):
 		#assumes x is a "N x T x k" matrix
@@ -221,25 +233,21 @@ class REObj:
 		mean_x,mean_x_all,incl=mean_time(panel, x)
 		if means_only:
 			return np.broadcast_to(mean_x, x.shape).copy()
-		try:
-			dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix
-		except (RuntimeWarning,OverflowError) as e:
-			print(e)
-			remove_extremes([w])
-			dFE=(w*(mean_x_all-mean_x))*incl#last product expands the T vector to a TxN matrix		
-			remove_extremes([dFE])
-		return dFE
+		return w*(mean_x_all-mean_x)*incl
 
 
 def mean_time(panel,x,mean_dates=False):
-	#todo: fix fast so that it allways worked
-	#Currently, the fast excepts on unbalanced panels bc ut maps a ragged matrix
-	#possibel solution, change def of panel.dmap_all so that fills with zeros the non entries
-	#Problem with this is that there currently is no element on x that is allways zero.
-	try:
-		return mean_time_fast(panel,x,mean_dates)
-	except ValueError as e:
-		return mean_time_slow(panel,x,mean_dates)
+	"""Date means using cached observed-cell indices, including ragged panels."""
+	date_count, shape = get_subshapes(panel, x, False)
+	incl = panel.included[x.ndim]
+	values = x.reshape((-1,) + x.shape[2:])
+	sums = np.add.reduceat(values[panel.date_flat_index], panel.date_starts, axis=0)
+	means = sums.reshape(shape) / date_count
+	if mean_dates:
+		return means
+	expanded = np.zeros(x.shape)
+	expanded.reshape(values.shape)[panel.date_flat_index] = means[:, 0][panel.date_observation_codes]
+	return expanded, np.sum(sums.reshape(shape), axis=0)/panel.NT, incl
 
 
 
@@ -306,10 +314,3 @@ def get_subshapes(panel,x,group):
 			s=(n_dates,1,k,m)
 			date_count=date_count.reshape((n_dates,1,1,1))	
 		return date_count,s			
-
-
-
-def remove_extremes(args,max_arg=1e+100):
-	for i in range(len(args)):
-		s=np.sign(args[i][np.abs(args[i])>max_arg])
-		args[i][np.abs(args[i])>max_arg]=s*max_arg

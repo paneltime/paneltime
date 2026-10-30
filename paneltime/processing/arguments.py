@@ -13,9 +13,7 @@ from . import initreg
 import numpy as np
 
 
-INITVAR = 'initvar'
 VARIANCE_CONSTANT = 'Variance constant'
-INITVAR_LONG = 'Initial variance'
 
 
 class arguments:
@@ -24,8 +22,6 @@ class arguments:
 		p, q, d, k, m=panel.pqdkm
 		self.initial_user_defined = False
 		self.categories=['beta','rho','lambda','gamma','psi','omega']
-		if panel.options.include_initvar:
-			self.categories+=[INITVAR]
 
 		if panel.z_active:
 			self.categories+=['z']
@@ -36,12 +32,10 @@ class arguments:
 		self.set_init_args(panel,initargs)
 		self.get_user_constraints(panel)
 
-	def initvar_asignment(self, initargs, omega, initvar, panel, rho0 , lmbda0, beta, gamma0, psi0):
+	def start_assignment(self, initargs, omega, panel, rho0 , lmbda0, beta, gamma0, psi0):
 		
 		p, q, d, k, m=panel.pqdkm
 
-		if panel.options.include_initvar:
-			initargs[INITVAR][0][0] = initvar
 		initargs['omega'][0][0] = omega
 		initargs['beta']=beta
 
@@ -62,33 +56,21 @@ class arguments:
 
 
 	def get_user_constraints(self,panel):
-		e="User contraints must be a dict of lists or a string evaluating to that, on the form of ll.args.dict_string."
-
-		if type(panel.options.user_constraints)==dict:
-			self.user_constraints=panel.options.user_constraints
-		else:
-			if panel.options.user_constraints is None or panel.options.user_constraints=='':
-				self.user_constraints={}
-				return
-			try:
-				self.user_constraints=eval(panel.options.user_constraints)
-			except SyntaxError:
-				print(f"Syntax error: {e}")
-				self.user_constraints={}
-				return			
-			except Exception as e:
-				print(e)
-				self.user_constraints={}
-				return
+		constraints = panel.options.user_constraints
+		if constraints is None or (isinstance(constraints, str) and constraints == ''):
+			self.user_constraints = {}
+			return
+		if isinstance(constraints, str):
+			constraints = eval(constraints)
+		if not isinstance(constraints, dict):
+			raise TypeError("Constraints must be a dictionary or a string evaluating to a dictionary.")
+		self.user_constraints = constraints.copy()
 		if not panel.z_active and 'z' in self.user_constraints:
 			self.user_constraints.pop('z')	
-		if panel.options.include_initvar  and INITVAR in self.user_constraints:
-			self.user_constraints.pop(INITVAR)
 
 		for grp in self.user_constraints:
-			if not grp in self.caption_d:
-				print(f"Constraint on {grp} not applied, {grp} not in arguments")
-				self.user_constraints.pop(grp)
+			if grp not in self.caption_d:
+				raise ValueError(f"Unknown constraint group {grp!r}; expected one of {list(self.caption_d)}")
 
 
 
@@ -102,8 +84,6 @@ class arguments:
 		args['psi']=np.zeros((m,1))
 		args['gamma']=np.zeros((k,1))
 		args['omega'][0][0]=0
-		if panel.options.include_initvar:
-			args[INITVAR]=np.zeros((1,1))
 		args['z']=np.array([[]])			
 
 		if m>0 and panel.z_active:
@@ -221,12 +201,6 @@ class arguments:
 		names.extend(names_d['omega'])
 
 		c.append(d['omega'])
-		if panel.options.include_initvar:
-			d[INITVAR] = [INITVAR_LONG]
-			captions.extend(d[INITVAR])
-			names_d[INITVAR] = [INITVAR]
-			names.extend([INITVAR])
-			c.append(d[INITVAR])
 		
 		if m>0:
 			if panel.z_active:
@@ -301,7 +275,7 @@ class arguments:
 		try:
 			#assuming x is an index
 			name=self.caption_v[x]
-		except Exception as e:
+		except (TypeError, IndexError) as e:
 			raise RuntimeError(f"{e}. The identifier of an argument must be an integer or a string macthing a name in 'self.caption_v' or a category in 'self.positions'")
 		
 		# if no exeption occured, x is an integer, and we got its name
@@ -321,6 +295,8 @@ class arguments:
 				except NameError as e:
 					if str(e)=="name 'array' is not defined":
 						usrargs = eval(usrargs.replace("array"," np.array"))
+					else:
+						raise
 			args = self.create_args(usrargs,panel)
 			for c in args.args_d:
 				initargs[c] = args.args_d[c]
@@ -329,12 +305,12 @@ class arguments:
 			
 			return initargs['beta'], initargs['omega'][0,0]
 
-		beta,rho0,lmbda0, psi0, gamma0,v, initvar, omega = initreg.start_values(panel)
+		beta,rho0,lmbda0, psi0, gamma0,v, _, omega = initreg.start_values(panel)
 		if panel.options.fixed_random_variance_eff==0:
 			if v < 1e-20:
 				print('Warning, your model may be over determined. Check that you do not have the dependent among the independents')	
 				
-		self.initvar_asignment(initargs, omega, initvar, panel, rho0, lmbda0, beta, gamma0, psi0)
+		self.start_assignment(initargs, omega, panel, rho0, lmbda0, beta, gamma0, psi0)
 		
 		return beta, v
 	
@@ -389,6 +365,5 @@ class ArgumentsSet:
 					self.args_names[k] = self.args_names[k][0]
 				except IndexError as e:
 					pass
-
 
 

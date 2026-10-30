@@ -3,10 +3,14 @@
 import numpy as np
 
 from ..output import stat_functions as stat
+from ..random_effects import REObj, fit_group_effects_stationary
+from ..likelihood.function import LLFunction
 from . import arma_start
 
 
 def start_values(panel):
+    if _use_static_start(panel):
+        return static_start(panel)
     p, q, _, k, m = panel.pqdkm
     included = panel.included[3]
     if p or q:
@@ -28,6 +32,37 @@ def start_values(panel):
     initial_variance = panel.h_func(0, variance, variance)
     omega = initial_variance * (0.2 if panel.options.EGARCH else 1 - arch - garch)
     return beta, ar, ma, arch, garch, variance, initial_variance, omega
+
+
+def _use_static_start(panel):
+    options = panel.options
+    return (
+        not any(panel.pqdkm)
+        and {options.fixed_random_group_eff, options.fixed_random_time_eff} != {1, 2}
+        and options.fixed_random_variance_eff == 0
+        and options.user_constraints is None
+        and options.custom_model is None
+        and options.h_function is None
+        and not any(limit is not None for limit in options.tobit_limits)
+        and panel.nW == 1
+        and panel.nZ == 1
+    )
+
+
+def static_start(panel):
+    """Static coefficients and profiled variance, before arguments are built."""
+    estimates = fit_group_effects_stationary(panel)
+    beta = estimates.beta.to_numpy().reshape(-1, 1)
+    included = panel.included[3]
+    residuals = (panel.Y - np.matmul(panel.X, beta)) * included
+    group = REObj(panel, True, panel.T_i, panel.T_i, panel.options.fixed_random_group_eff)
+    time = REObj(panel, False, panel.date_count_mtrx, panel.date_count,
+                 panel.options.fixed_random_time_eff)
+    innovations = (residuals + group.RE(residuals, panel) + time.RE(residuals, panel)) * included
+    model = LLFunction(panel, innovations, np.ones_like(innovations), None)
+    variance = np.sum(model.e2 * included) / np.sum(included)
+    initial_variance = panel.h_func(0, variance, variance)
+    return beta, np.zeros(0), np.zeros(0), 0.0, 0.0, variance, initial_variance, initial_variance
 
 
 def GARCH_process_calc(c, k, m):

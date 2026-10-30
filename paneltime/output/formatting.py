@@ -161,21 +161,19 @@ def add_to_record(record, unique_names, summaries, variable_groups, digits):
 	has_garch = np.any(list(sum(s.pqdkm[3:]) > 0 for s in summaries))
 
 	for i, uqname in enumerate(unique_names):
-		if uqname == arguments.INITVAR_LONG:
-			continue
 		record[uqname] = len(names)*[['& ']*2]
 		for i, namesi in enumerate(names):
 			j = -1
 			if uqname in namesi:
 				j = namesi.index(uqname)
 			elif uqname in variable_groups:
-				try:
-					j = namesi.index(variable_groups[uqname][i])
-				except Exception as e:
-					print(f"Error finding {uqname} in {namesi}: {namesi}."
-		   				  f"variable_groups needs to be a dictionary of lists, whith each list "
-						  f"item representing the associated variable name for each column/summary object."
-		   				  f"Error: {e}")
+				associated_name = variable_groups[uqname][i]
+				if associated_name not in namesi:
+					raise ValueError(
+						f"variable_groups[{uqname!r}][{i}] names {associated_name!r}, "
+						f"which is not in summary {i}: {namesi}"
+					)
+				j = namesi.index(associated_name)
 			if j >= 0:
 				record[uqname][i] = (
 					c(params[i][j], tsign[i][j], digits, summaries), #param value and significance code
@@ -223,12 +221,7 @@ def dgnst(summaries, digits):
 
 	# additional context dependent diagnostics:
 
-	initvars = [s.stats.info.initvar  for s in summaries]
-
 	extra_diag = []
-	# Initial variance diagnostic.
-	if not np.all(list(i is None for i in initvars)):
-		append_dgnst(initvars, arguments.INITVAR_LONG, diagnostics, digits, extra_diag)
 
 
 	# Hausman test.

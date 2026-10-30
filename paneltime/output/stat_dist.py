@@ -11,15 +11,20 @@ def tcdf(x, df):
   "Cumulative distribution function of the t-distribution"
   if df<1:
     return 0
-  try:
-    len(x)
-  except:
-    dist = 0.5*(1+ mp.betainc(df/2, 0.5, df / (df + abs(x) ** 2), regularized=True))
+  if np.ndim(x) == 0:
+    # The tail P(|T|>|x|) is I_w(df/2, 1/2) with w = df/(df+x^2). For w > 1/2 the
+    # series converges slowly (large df), so use I_w(a, b) = 1 - I_(1-w)(b, a).
+    df, x = float(df), float(x)
+    w = mp.mpf(df) / (df + mp.mpf(x) ** 2)
+    if w > 0.5:
+      tail = 1 - mp.betainc(0.5, df/2, 0, 1 - w, regularized=True)
+    else:
+      tail = mp.betainc(df/2, 0.5, 0, w, regularized=True)
     if x<0:
-      dist = 1-dist
-    return float(dist)
+      return float(0.5*tail)
+    return float(1 - 0.5*tail)
   if len(x)>100:
-    raise RuntimeWarning(f"Dimension is {len(x)}. This function is not made for such large dimension. Consider using scipy. ")
+    raise ValueError(f"Dimension is {len(x)}. This function is not made for such large dimension. Consider using scipy.")
   return np.array([tcdf(i, df) for i in x])
 
 
@@ -66,15 +71,13 @@ def tinv(p, df):
 
 
 def norm(x,mu=0,s=1, cdf = True):
-  try:
-    len(x)
-  except:
+  if np.ndim(x) == 0:
     if not cdf:
       return mp.npdf(x, mu, s)
     f = 0.5*mp.erfc((mu-x)/(s*2**0.5))
     return float(f)
   if len(x)>100:
-    raise RuntimeWarning(f"Dimension is {len(x)}. This function is not made for such large dimension. Consider using scipy. ")
+    raise ValueError(f"Dimension is {len(x)}. This function is not made for such large dimension. Consider using scipy.")
   return np.array([norm(i, mu, s, cdf) for i in x])	
 
 

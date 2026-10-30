@@ -98,8 +98,17 @@ Fitting runs locally. Legacy node dispatch and GUI/browser progress channels
 have been removed, as has the `Model(..., multiprocess=...)` argument. Final
 summaries, inference, diagnostics and predictions remain available.
 
-`execute` prepares the panel and calls `dfpmax` directly for a single
-optimization. Automatic starting values, explicit engine starting arguments,
+`execute` prepares the panel once and passes its initial parameters directly
+to the shared likelihood optimizer. `processing/initreg.py` selects ordinary
+static FE/RE starts during panel initialization, in the same place as the
+ARMA/GARCH starts. Mixed fixed/random effects,
+explicit constraints (including `{}`), censoring, variance regressors/effects,
+instruments and custom likelihoods/functions retain their existing starts.
+Explicit engine starts are not replaced. Every fit uses `dfpmax` and the
+same inference, diagnostics and forecasts. A converged initial point returns
+without a line search (`optim_result.its == 0`); otherwise the optimizer
+refines the starting estimates. Iterations count completed optimizer steps.
+Automatic starting values, explicit engine starting arguments,
 and coefficient constraints are retained. The `multistart` optimizer option
 and `optim_result.multistart_results` have been removed. The fit reports its
 own convergence status; it does not search or select among alternative starts.
@@ -199,7 +208,7 @@ for its regression checks and the package tests.
 ## Constraints
 
 Use `constraints=` for coefficient restrictions and `add_intercept`,
-`subtract_means`, `include_initvar`, `tobit_limits`, and `suppress_output` for
+`subtract_means`, `tobit_limits`, and `suppress_output` for
 fit behavior.
 
 ## Custom model and h-function

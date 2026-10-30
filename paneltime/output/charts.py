@@ -8,7 +8,7 @@ import numpy as np
 import os
 try:
   from matplotlib import pyplot  as plt
-except:
+except ImportError:
   plt = None
 
 
@@ -93,5 +93,4 @@ def histogram(x,grid_range,grid_step):
   if int(np.sum(histogram))!=N:
     raise RuntimeError('Error in histogram calculation')
   return histogram/N,grid
-
 

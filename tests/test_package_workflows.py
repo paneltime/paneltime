@@ -27,62 +27,236 @@ except ImportError:
 
 
 class PackageWorkflowTests(unittest.TestCase):
-    def test_first_period_variance_factor_has_zero_curvature_and_unavailable_se(self):
-        rng = np.random.default_rng(17)
-        n, t = 5, 12
+    def test_cached_date_means_match_reference_for_ragged_and_balanced_panels(self):
+        from paneltime.random_effects.dynamic import mean_time, mean_time_slow
+        rng = np.random.default_rng(107)
+        for ragged in (False, True):
+            data = pd.DataFrame({
+                'id': np.repeat(np.arange(5), 9),
+                'time': np.tile(np.arange(9), 5),
+                'y': rng.normal(size=45), 'x': rng.normal(size=45),
+            })
+            if ragged:
+                data = data[~((data.id < 2) & (data.time < 3))]
+            options = FitOptions(order=(0, 0, 0), garch_order=(0, 0)).to_engine_options()
+            panel = Panel(Input(data, 'y ~ x', 'id', 'time', options, None, None), options)
+            panel.init()
+            for trailing in ((1,), (3,), (2, 3)):
+                with self.subTest(ragged=ragged, trailing=trailing):
+                    base = rng.normal(size=panel.Y.shape[:2] + trailing)
+                    for values in (base, np.asfortranarray(base), base[:, ::-1]):
+                        original = values.copy()
+                        actual = mean_time(panel, values)
+                        expected = mean_time_slow(panel, values)
+                        for a, e in zip(actual, expected):
+                            np.testing.assert_allclose(a, e, atol=1e-14)
+                        np.testing.assert_allclose(
+                            mean_time(panel, values, True), mean_time_slow(panel, values, True), atol=1e-14,
+                        )
+                        np.testing.assert_array_equal(values, original)
+
+    def test_sandwich_pair_reuses_only_identical_parameter_sets(self):
+        from paneltime.output import output
+        rng = np.random.default_rng(108)
+        H = -np.eye(3)
+        G = rng.normal(size=(1, 8, 3))
+        g = np.zeros(3)
+        panel = SimpleNamespace(
+            lost_obs=0, NT=8, N=1, n_dates=8, X=np.ones((1, 8, 3)),
+            input=SimpleNamespace(has_intercept=True),
+            options=SimpleNamespace(fixed_random_group_eff=0, fixed_random_time_eff=0),
+        )
+        for fixed in ({}, {0: SimpleNamespace(assco_ix=None)}, {0: SimpleNamespace(assco_ix=1)}):
+            constr = SimpleNamespace(fixed=fixed)
+            expected = (sandwich(H, G, g, constr, panel, 0),
+                        sandwich(H, G, g, constr, panel, 0, oposite=True))
+            with patch.object(output, 'sandwich', wraps=sandwich) as calculation:
+                actual = output.sandwich_pair(H, G, g, constr, panel, 0)
+            self.assertEqual(calculation.call_count, 2 if fixed else 1)
+            for a_block, e_block in zip(actual, expected):
+                for a, e in zip(a_block, e_block):
+                    np.testing.assert_allclose(a, e, equal_nan=True)
+            self.assertFalse(np.shares_memory(actual[0][0], actual[1][0]))
+
+    def test_reporting_reuses_final_effect_calculations(self):
+        from paneltime.api import PanelEffectResults
+        from paneltime.output.output import RandomEffects, grand_mean_variance
+        panel = self._presample_panel((0, 0, 0), (0, 0), n=10, t=15)
+        panel.options.fixed_random_group_eff = 2
+        panel.options.fixed_random_time_eff = 2
+        rng = np.random.default_rng(109)
+        panel.Y += rng.normal(size=(10, 1, 1)) + rng.normal(size=(1, 15, 1))
+        ll = LL(panel.args.args_init.args_v, panel)
+        fresh_group = REObj(panel, True, panel.T_i, panel.T_i, 2)
+        fresh_time = REObj(panel, False, panel.date_count_mtrx, panel.date_count, 2)
+        group_adjustment = fresh_group.RE(ll.e, panel)
+        time_adjustment = fresh_time.RE(ll.e, panel)
+        expected_variance = fresh_group.v_var/panel.N + fresh_time.v_var/panel.n_dates
+        with patch.object(REObj, 'RE', side_effect=AssertionError('Repeated effect estimation')):
+            effects = PanelEffectResults(panel, ll)
+            legacy = RandomEffects(panel, ll)
+            variance = grand_mean_variance(panel, ll)
+        np.testing.assert_allclose(legacy.residuals_i, group_adjustment)
+        np.testing.assert_allclose(legacy.residuals_t, time_adjustment)
+        self.assertAlmostEqual(effects.group.variance, fresh_group.v_var)
+        self.assertAlmostEqual(effects.time.variance, fresh_time.v_var)
+        self.assertAlmostEqual(variance, expected_variance)
+
+    @staticmethod
+    def _presample_panel(order, garch, seed=17, n=5, t=12):
+        rng = np.random.default_rng(seed)
         data = pd.DataFrame({
             'id': np.repeat(np.arange(n), t), 'time': np.tile(np.arange(t), n),
             'x': rng.normal(size=n*t), 'y': rng.normal(size=n*t),
-            'first_period': np.tile([1.0] + [0.0]*(t-1), n),
         })
         options = FitOptions(
-            order=(0, 0, 0), garch_order=(0, 0), suppress_output=True,
+            order=order, garch_order=garch, suppress_output=True,
         ).to_engine_options()
-        panel = Panel(Input(data, 'y ~ x', 'id', 'time', options, ['first_period'], None), options)
+        panel = Panel(Input(data, 'y ~ x', 'id', 'time', options, None, None), options)
         panel.init()
-        panel.args.init_var = 1.0
-        args = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
-        args[list(panel.args.positions['beta'])] = [0.1, 0.8]
-        args[list(panel.args.positions['omega'])] = [1.2, 0.4]
-        ll = LL(args, panel)
-        obj = gradient(panel)
-        score, contributions = obj.get(ll)
-        H = hessian(panel, obj).get(ll, *ll.llfunc.hessian())
-        j = list(panel.args.positions['omega'])[0]
-        for delta in (-0.1, 0.1):
-            shifted = args.copy()
-            shifted[j] += delta
-            self.assertEqual(LL(shifted, panel).LL, ll.LL)
-        self.assertEqual(score[j], 0.0)
-        np.testing.assert_array_equal(H[j], 0.0)
-        original_H = H.copy()
-        step, _, returned_H = get_direction(
-            score, args, H, None, ll.LL, None, simple=False,
-        )
-        self.assertTrue(np.isfinite(step).all())
-        self.assertAlmostEqual(step[j], 0.0, places=10)
-        np.testing.assert_array_equal(returned_H, original_H)
+        return panel
 
-        for constraints in (None, SimpleNamespace(fixed={1: SimpleNamespace()})):
-            with self.assertWarnsRegex(RuntimeWarning, 'No curvature information'):
-                robust, standard, V, W = sandwich(
-                    H, contributions, score, constraints, panel, 0,
-                )
-            self.assertTrue(np.isnan(robust[j]) and np.isnan(standard[j]))
-            self.assertTrue(np.isnan(V[j]).all() and np.isnan(V[:, j]).all())
-            self.assertTrue(np.isnan(W[j]).all() and np.isnan(W[:, j]).all())
-            identified = np.ones(len(args), dtype=bool)
-            identified[j] = False
-            if constraints is not None:
-                identified[1] = False
-            self.assertTrue(np.isfinite(standard[identified]).all())
-            self.assertTrue(np.isfinite(robust[identified]).all())
-        np.testing.assert_array_equal(H, original_H)
-        fitted = execute(
-            'y ~ x', data, 'time', 'id', ['first_period'], options,
-            None,
+    def test_presample_variance_is_sample_variance(self):
+        panel = self._presample_panel((1, 0, 1), (1, 1))
+        positions = panel.args.positions
+        args = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+        args[list(positions['omega'])] = 0.6
+        args[list(positions['gamma'])] = 0.3
+        args[list(positions['psi'])] = 0.1
+        ll = LL(args, panel)
+        np.testing.assert_allclose(ll.presample_var, panel.args.init_var)
+        self.assertNotIn('initvar', panel.args.names_v)
+
+        args[list(positions['omega'])] = 0.2
+        np.testing.assert_allclose(LL(args, panel).presample_var, panel.args.init_var)
+        args[list(positions['gamma'])] = 0.95
+        self.assertIsNotNone(LL(args, panel).LL)
+
+    def test_likelihood_has_no_presample_effect_when_garch_is_zero(self):
+        for order, garch in (((0, 0, 0), (0, 0)), ((1, 0, 1), (0, 0)), ((0, 0, 0), (1, 1))):
+            panel = self._presample_panel(order, garch, seed=5, n=4, t=10)
+            args = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+            for name in ('gamma', 'psi'):
+                args[list(panel.args.positions.get(name, []))] = 0.0
+            args[list(panel.args.positions['omega'])] = 0.7
+            ll = LL(args, panel)
+            incl = panel.included[3] > 0
+            np.testing.assert_allclose(ll.llfunc.var[incl], 0.7)
+
+    def test_presample_lags_follow_variance_recursion(self):
+        panel = self._presample_panel((0, 0, 0), (2, 2), n=4, t=10)
+        positions = panel.args.positions
+        args = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+        gamma, psi = [0.3, 0.1], [0.1, 0.05]
+        args[list(positions['gamma'])] = gamma
+        args[list(positions['psi'])] = psi
+        args[list(positions['omega'])] = 0.5
+        ll = LL(args, panel)
+        expected = np.full_like(ll.var, 0.5)
+        for t in range(ll.var.shape[1]):
+            for j in range(1, 3):
+                prior_var = expected[:, t-j, 0] if t >= j else panel.args.init_var
+                prior_h = ll.h_val[:, t-j, 0] if t >= j else panel.args.init_var
+                expected[:, t, 0] += gamma[j-1]*prior_var + psi[j-1]*prior_h
+        np.testing.assert_allclose(ll.var, expected)
+        self.assertAlmostEqual(ll.LL, np.sum(ll.ll_value * panel.included[3]))
+
+    def test_presample_derivatives_match_finite_differences(self):
+        for garch in ((1, 1), (2, 2)):
+            with self.subTest(garch=garch):
+                self._check_presample_derivatives(garch)
+
+    def _check_presample_derivatives(self, garch):
+        panel = self._presample_panel((1, 0, 1), garch, seed=3, n=4, t=10)
+        positions = panel.args.positions
+        args = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+        args[list(positions['gamma'])] = 0.15
+        args[list(positions['psi'])] = 0.15
+        args[list(positions['omega'])] = 0.5
+
+        def derivatives(a):
+            ll = LL(a, panel)
+            g = gradient(panel)
+            score, _ = g.get(ll)
+            return ll, g, score
+
+        ll, g, score = derivatives(args)
+        H = hessian(panel, g).get(ll, *ll.llfunc.hessian())
+        h = 1e-6
+        for i in range(len(args)):
+            up, down = args.copy(), args.copy()
+            up[i] += h
+            down[i] -= h
+            self.assertAlmostEqual(
+                score[i], (LL(up, panel).LL - LL(down, panel).LL)/(2*h), delta=1e-5,
+            )
+            np.testing.assert_allclose(
+                H[:, i], (derivatives(up)[2] - derivatives(down)[2])/(2*h), atol=1e-4,
+            )
+
+    def test_dynamic_time_effects_are_indexed_by_date(self):
+        rng = np.random.default_rng(8)
+        n, t = 12, 10
+        data = pd.DataFrame({
+            'id': np.repeat(np.arange(n), t), 'time': np.tile(np.arange(t), n),
+            'x': rng.normal(size=n*t),
+        })
+        true_effects = 2*rng.normal(size=t)
+        data['y'] = data.x + true_effects[data.time] + 0.3*rng.normal(size=n*t)
+        data = data[~((data.id < 4) & (data.time < 3))]
+        result = pt.Model('y ~ x', data, entity='id', time='time').fit(
+            order=(0, 0, 0), garch_order=(1, 1), effects=pt.Effects(time='fixed'),
+            suppress_output=True,
         )
-        self.assertTrue(np.isfinite(fitted.ll.LL))
+        estimates = result.effect_results.time.estimates
+        np.testing.assert_array_equal(estimates.index, np.arange(t))
+        self.assertGreater(np.corrcoef(estimates, true_effects)[0, 1], 0.99)
+
+    @staticmethod
+    def _arma_panel(rho, lmbda, seed):
+        rng = np.random.default_rng(seed)
+        n, t = 50, 40
+        e = rng.normal(size=(n, t))
+        u = np.zeros((n, t))
+        for j in range(t):
+            u[:, j] = e[:, j]
+            if j > 0:
+                u[:, j] += rho*u[:, j-1] + lmbda*e[:, j-1]
+        data = pd.DataFrame({
+            'id': np.repeat(np.arange(n), t), 'time': np.tile(np.arange(t), n),
+            'x': rng.normal(size=n*t),
+        })
+        data['y'] = 1 + 0.5*data.x + u.ravel()
+        return data
+
+    def test_arma_common_factor_is_removed_on_white_noise(self):
+        for seed, garch in [(1, (0, 0)), (2, (0, 0)), (2, (1, 1))]:
+            with self.subTest(seed=seed, garch=garch):
+                data = self._arma_panel(0.0, 0.0, seed)
+                model = pt.Model('y ~ x', data, entity='id', time='time')
+                result = model.fit(order=(1, 1, 0), garch_order=garch, suppress_output=True)
+                restricted = model.fit(
+                    order=(1, 1, 0), garch_order=garch, constraints={'rho': 0.0, 'lambda': 0.0},
+                    suppress_output=True,
+                )
+                self.assertEqual(result.params.iloc[2], 0.0)
+                self.assertEqual(result.params.iloc[3], 0.0)
+                self.assertIn('common factor', result.optim_result.msg)
+                # GARCH is not identified on iid variance, so the two fits may stop
+                # at slightly different points of a flat likelihood.
+                self.assertAlmostEqual(result.optim_result.ll.LL, restricted.optim_result.ll.LL, delta=0.1)
+                self.assertTrue(np.all(np.isfinite(result.pvalues.iloc[:2])))
+
+    def test_genuine_arma_is_not_reduced(self):
+        for garch in [(0, 0), (1, 1)]:
+            with self.subTest(garch=garch):
+                data = self._arma_panel(0.5, -0.3, 3)
+                result = pt.Model('y ~ x', data, entity='id', time='time').fit(
+                    order=(1, 1, 0), garch_order=garch, suppress_output=True,
+                )
+                self.assertNotIn('common factor', result.optim_result.msg)
+                self.assertAlmostEqual(result.params.iloc[2], 0.5, delta=0.15)
+                self.assertAlmostEqual(result.params.iloc[3], -0.3, delta=0.15)
 
     def test_unavailable_covariance_always_returns_four_outputs(self):
         panel = SimpleNamespace(args=SimpleNamespace(caption_v=['a', 'b']), lost_obs=0)
@@ -165,6 +339,7 @@ class PackageWorkflowTests(unittest.TestCase):
         result = pt.Model('y ~ x', data, entity='id', time='time').fit(
             order=(0, 0, 0), garch_order=(0, 0),
             effects=pt.Effects(group='random', time='random'),
+            constraints={},  # Exercise likelihood derivatives, not the static estimator.
             suppress_output=True,
         )
         panel = result.panel
@@ -344,7 +519,7 @@ class PackageWorkflowTests(unittest.TestCase):
         data = pd.DataFrame({'id': entity, 't': time, 'x': x, 'y': y})
 
         result = pt.Model('y ~ x', data, entity='id', time='t').fit(
-            order=(0, 0, 0), garch_order=(0, 0), suppress_output=True
+            order=(0, 0, 0), garch_order=(0, 0), constraints={}, suppress_output=True
         )
         predictions = result.predict()
         expected = predictions.loc[predictions['Predicted y'].notna(), 'Predicted y'].to_numpy()

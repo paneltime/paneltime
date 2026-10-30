@@ -92,7 +92,6 @@ OPTION_SPECS = {
 	'fit.constraints': OptionSpec(None, 'Restrictions on coefficient estimates.', 'None, a string, or a dictionary.', 'Regression', 'user_constraints', validator=is_constraints),
 	'fit.add_intercept': OptionSpec(True, 'Add an intercept when one is not present in the formula.', 'True or False.', 'Regression', 'add_intercept', validator=is_bool),
 	'fit.subtract_means': OptionSpec(False, 'Subtract variable means before estimation.', 'True or False.', 'Regression', 'subtract_means', validator=is_bool),
-	'fit.include_initvar': OptionSpec(False, 'Include an initial variance term.', 'True or False.', 'Regression', 'include_initvar', validator=is_bool),
 	'fit.tobit_limits': OptionSpec((None, None), 'Lower and upper limits for a Tobit model.', 'Two finite real numbers or None, with lower <= upper.', 'Regression', 'tobit_limits', '(0, None)', validator=is_tobit_limits),
 	'fit.suppress_output': OptionSpec(True, 'Suppress fit status output.', 'True or False.', 'Output', 'supress_output', validator=is_bool),
 	'fit.likelihood': OptionSpec(None, 'Custom likelihood model class.', 'None or a likelihood class.', 'Regression', 'custom_model', validator=is_class_or_none),
@@ -126,8 +125,8 @@ def _validate_spec(name, value):
 		return
 	try:
 		valid = spec.validator(value)
-	except Exception as error:
-		raise ValueError(f'Could not validate option {name}: {value!r}') from error
+	except (TypeError, ValueError) as error:
+		raise ValueError(f'Invalid value for {name}: {value!r}; expected {spec.domain}') from error
 	if not valid:
 		raise ValueError(f'Invalid value for {name}: {value!r}; expected {spec.domain}')
 
@@ -215,7 +214,7 @@ class EngineOptions:
 			raise TypeError('custom_model must be a class or None')
 		if self.arguments is not None and not isinstance(self.arguments, (str, dict, list, np.ndarray)):
 			raise TypeError('arguments must be a string, dict, list, array, or None')
-		for name in ('add_intercept', 'EGARCH', 'include_initvar', 'subtract_means', 'supress_output'):
+		for name in ('add_intercept', 'EGARCH', 'subtract_means', 'supress_output'):
 			if not isinstance(getattr(self, name), (bool, np.bool_)):
 				raise TypeError(f'{name} must be boolean')
 		return self
@@ -273,7 +272,6 @@ class FitOptions:
 	constraints: Any = _option('fit.constraints')
 	add_intercept: bool = _option('fit.add_intercept')
 	subtract_means: bool = _option('fit.subtract_means')
-	include_initvar: bool = _option('fit.include_initvar')
 	tobit_limits: tuple[Optional[float], Optional[float]] = _option('fit.tobit_limits')
 	suppress_output: bool = _option('fit.suppress_output')
 	likelihood: Any = _option('fit.likelihood')
@@ -281,7 +279,7 @@ class FitOptions:
 
 	def validate(self):
 		for name in ('order', 'garch_order', 'vol', 'constraints', 'add_intercept',
-				'subtract_means', 'include_initvar', 'tobit_limits', 'suppress_output', 'likelihood'):
+				'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood'):
 			_validate_spec(f'fit.{name}', getattr(self, name))
 		self.effects.validate()
 		self.optimizer.validate()
@@ -295,7 +293,7 @@ class FitOptions:
 		for name in ('group', 'time', 'variance'):
 			spec = _spec(f'effects.{name}')
 			setattr(engine_options, spec.engine_name, effect_values[getattr(self.effects, name)])
-		for name in ('constraints', 'add_intercept', 'subtract_means', 'include_initvar', 'tobit_limits', 'suppress_output', 'likelihood', 'h_function'):
+		for name in ('constraints', 'add_intercept', 'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood', 'h_function'):
 			spec = _spec(f'fit.{name}')
 			value = getattr(self, name)
 			if name == 'tobit_limits':

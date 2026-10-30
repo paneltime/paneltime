@@ -13,7 +13,7 @@ class Summary:
 		self.output = output.Output(result, panel, time.time() - t0)
 		self.table = output.RegTableObj(panel, result, self.output)
 		c = result.ll.args
-		self.names = Names(list(c.args_d), list(c.caption_v), list(c.names_v) )
+		self.names = Names(list(c.args_d), list(c.caption_v), list(c.names_v))
 		self.count = Counting(panel)
 		self.panel = panel
 		self.ll = result.ll
@@ -98,7 +98,7 @@ class Results:
 	def __init__(self, panel, result, table):
 		#coefficient statistics:
 
-		self.params = result.ll.args.args_v
+		self.params = result.x
 		self.args = result.ll.args.args_d
 		self.se = table.d.get('se_st',None)
 		self.coef_se_robust = table.d.get('se_robust',None)
@@ -113,7 +113,14 @@ class Results:
 		self.codes_def_tex = panel.sign_codes_tex
 		#NEED TO GO THROUGH HOW RESIDUALS ARE REPORTED 
 		#RESIDUALS MUST BE CONSTISTENT WITH RE/fe
-		self.residuals = result.ll.e_RE_norm_centered_long
+		observed = np.asarray(panel.included[3][:, :, 0], dtype=bool)
+		residuals = np.asarray(result.ll.e_RE_norm_centered_long, dtype=float).reshape(-1)
+		if residuals.size == observed.size:
+			residuals = residuals[observed.reshape(-1)]
+		self.residuals = residuals
+		self.fitted = np.asarray(panel.Y, dtype=float)[observed].reshape(-1) - self.residuals
+		self.nobs = int(panel.NT)
+		self.df_resid = int(panel.df)
 
 
 class General:
@@ -125,13 +132,13 @@ class General:
 		
 		self.panel = panel
 		self.ll = result.ll
-		self.log_likelihood = result.ll.LL
+		self.log_likelihood = result.f
 
 		self.converged = result.conv
 		self.hessian = result.H
 		self.gradient_vector = result.g
 		self.gradient_matrix = result.G
-		self.ci , self.ci_n = output.stats.diag.get_CI(result.constr)
+		self.ci, self.ci_n = output.stats.diag.get_CI(result.constr)
 
 		self.its = result.its
 		self.dx_norm = result.dx_norm

@@ -12,12 +12,31 @@ constraints. The dynamic (multicollinearity based) constraining has been
 removed; weakly identified directions are handled by the direction module
 (concavity fix and active-set solve) instead of by fixing parameters.
 Multicollinearity is still diagnosed and reported (multicoll_report), but
-nothing is constrained because of it.
+nothing is constrained because of it. The exception is a common AR/MA factor
+(arma_cancellation), where the highest AR and MA lags are fixed at zero.
 """
 
 import numbers
 import numpy as np
-from ..processing import arguments
+
+ARMA_CANCELLATION = 'AR/MA cancellation'
+# Wald statistic of rho + lambda below which the AR and MA factors are treated
+# as cancelling.
+ARMA_MIN_WALD = 3.0
+
+
+def arma_resultant(rho, lmbda):
+	"""Resultant of z^p - sum(rho_j z^(p-j)) and z^q + sum(lambda_j z^(q-j)),
+	the Sylvester determinant; zero iff the AR and MA polynomials share a root."""
+	a = np.concatenate(([1.0], -np.asarray(rho, dtype=float)))
+	b = np.concatenate(([1.0], np.asarray(lmbda, dtype=float)))
+	p, q = len(a) - 1, len(b) - 1
+	S = np.zeros((p + q, p + q))
+	for i in range(q):
+		S[i, i:i + p + 1] = a
+	for i in range(p):
+		S[q + i, i:i + q + 1] = b
+	return np.linalg.det(S)
 
 
 class Constraint:
@@ -227,6 +246,63 @@ class Constraints(dict):
 			self.mc_details.append((float(cond[k]),
 				[(int(idx[j]), names[idx[j]], float(p[j])) for j in top if p[j] > 0.5]))
 
+	# ------------------------------------------------- AR/MA cancellation
+
+	def arma_cancellation(self, x, H, min_wald=ARMA_MIN_WALD):
+		"""Positions of the highest AR and MA lags if a common AR/MA factor is
+		detected, otherwise [].
+
+		The AR and MA polynomials share a factor, which then cancels and leaves
+		the likelihood flat along a ridge, exactly when their resultant is zero.
+		The resultant of the inverse-root polynomials
+		  z^p - rho_1 z^(p-1) - ... - rho_p  and  z^q + lambda_1 z^(q-1) + ... + lambda_q
+		is used (for ARMA(1,1) it is rho + lambda). The factor is treated as
+		cancelling if the Wald statistic of the resultant (delta method, with
+		the inverse of -H over the free mean-equation parameters) is below min_wald. Under the
+		null the factor's root is not identified, so the statistic is not
+		standard normal and min_wald is set above the usual 1.96.
+		Removing a common factor turns ARMA(p,q) into ARMA(p-1,q-1), so the
+		highest AR and MA lags are returned, to be fixed at zero. Lags already
+		fixed at zero are trimmed first; if the highest remaining lag of either
+		polynomial is fixed, nothing is reduced."""
+		positions = self.panel_args.positions
+		rho = self._trim_zero_lags(list(positions.get('rho', [])), x)
+		lam = self._trim_zero_lags(list(positions.get('lambda', [])), x)
+		if not rho or not lam or rho[-1] in self.fixed or lam[-1] in self.fixed:
+			return []
+		# Mean-equation block only: the information matrix is asymptotically
+		# block diagonal between mean and variance parameters, and a weakly
+		# identified GARCH block would otherwise inflate the variance.
+		mean = [k for g in ('beta', 'rho', 'lambda') for k in positions.get(g, [])]
+		free = [k for k in mean if k not in self.fixed]
+		try:
+			cov = np.linalg.inv(-np.asarray(H)[np.ix_(free, free)])
+		except np.linalg.LinAlgError:
+			return []
+		idx = rho + lam
+		c = np.asarray(x, dtype=float)[idx]
+		p = len(rho)
+		res = lambda c: arma_resultant(c[:p], c[p:])
+		r = res(c)
+		grad = np.zeros(len(free))
+		h = 1e-6
+		for n, k in enumerate(idx):
+			if k not in self.fixed:
+				e = np.zeros(len(c))
+				e[n] = h
+				grad[free.index(k)] = (res(c + e) - res(c - e))/(2*h)
+		var = grad @ cov @ grad
+		if not np.isfinite(var) or var <= 0:
+			return []
+		if abs(r)/np.sqrt(var) < min_wald:
+			return [rho[-1], lam[-1]]
+		return []
+
+	def _trim_zero_lags(self, lags, x):
+		while lags and lags[-1] in self.fixed and x[lags[-1]] == 0:
+			lags.pop()
+		return lags
+
 	# ---------------------------------------------------- static constraints
 
 	def add_static_constraints(self, comput, its=0, ll=None):
@@ -239,8 +315,6 @@ class Constraints(dict):
 		else:
 			bounds = bounds + [('gamma', -c, c), ('psi', -c, c)]
 
-		if panel.options.include_initvar:
-			bounds.append((arguments.INITVAR, 1e-50, 1e+10))
 		for name, lo, hi in bounds:
 			self.add(name, None, 'ARMA/GARCH extreme bounds', [lo, hi])
 		self.add_custom_constraints(panel, self.panel_args.user_constraints, True, 'user constraints')

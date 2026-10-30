@@ -51,6 +51,7 @@ class Computation:
 		self.pqdkm = panel.pqdkm
 		self.init_arma_its = 0
 		self.grestricted = grestricted
+		self.arma_reduced = []		# AR/MA lags fixed at zero after a cancellation
 		self.set_constr(args, panel.options.ARMA_constraint)
 		
 
@@ -64,6 +65,7 @@ class Computation:
 		self.constr_old = self.constr
 		self.constr = constraints.Constraints(self.panel, x, its, armaconstr)
 		self.constr.add_static_constraints(self, its, ll)
+		self.add_arma_reduction()
 		self.constr.multicoll_report(H, self.panel.options.multicoll_threshold_report)
 		self.ci = self.constr.ci
 		self.mc_report = self.constr.mc_report
@@ -73,6 +75,31 @@ class Computation:
 		self.constr_old = None
 		self.constr = constraints.Constraints(self.panel, args, 0, armaconstr)
 		self.constr.add_static_constraints(self, 0)
+		self.add_arma_reduction()
+
+	def add_arma_reduction(self):
+		for i in self.arma_reduced:
+			self.constr.add_item(i, None, constraints.ARMA_CANCELLATION, None, True, 0.0)
+
+	def reduce_arma(self, x, H):
+		"""Fix the highest AR and MA lags at zero if the Wald statistic of
+		rho + lambda shows a common AR/MA factor (see
+		Constraints.arma_cancellation). Returns the likelihood at the reduced
+		arguments, or None if nothing was reduced."""
+		idx = self.constr.arma_cancellation(x, H)
+		if not idx:
+			return None
+		x = np.array(x, dtype=float)
+		x[idx] = 0.0
+		self.arma_reduced.extend(idx)
+		self.add_arma_reduction()
+		ll = logl.LL(x, self.panel, constraints=self.constr)
+		if ll.LL is None:
+			for i in idx:
+				self.arma_reduced.remove(i)
+				self.constr.delete(i)
+			return None
+		return ll
 
 	def fixed_constr_change(self):
 		return set(self.constr.fixed.keys()) != set(self.constr_old.fixed.keys())
@@ -125,7 +152,7 @@ class Computation:
 		else:
 			conv = 0
 
-		return x, f, hessin, H, G, g, conv, g_norm, dx
+		return x, f, hessin, H, G, g, conv, g_norm
 
 	def is_concave(self, H):
 		"""True if H is negative definite on the non-fixed parameters."""
@@ -203,20 +230,6 @@ class Computation:
 
 # ================================================================ functions
 
-def det_managed(H):
-	try:
-		return np.linalg.det(H)
-	except Exception:
-		return 1e+100
-
-
-def inv_hess(hessian):
-	try:
-		return -np.linalg.inv(hessian)
-	except Exception:
-		return None
-
-
 def condition_index(H):
 	n = len(H)
 	d = np.maximum(np.abs(np.diag(H)).reshape((n, 1)), 1e-30)**0.5
@@ -228,16 +241,11 @@ def condition_index(H):
 
 
 def hess_inv(h, hessin):
-	"""Inverse of h; pseudo-inverse if singular; the old hessin if both fail."""
+	"""Inverse of h, using a pseudo-inverse for a singular Hessian."""
 	try:
 		return np.linalg.inv(h)
-	except Exception:
-		pass
-	try:
+	except np.linalg.LinAlgError:
 		return np.linalg.pinv(h)
-	except Exception as e:
-		print(e)
-		return hessin
 
 
 def potential_gain(dx, g, H):

@@ -87,7 +87,7 @@ def get_variables(ip, df, model_string, idvar, timevar, heteroscedasticity_facto
 
 	try:
 		Y, X = parse_model(model_string, settings)
-	except Exception:
+	except (ValueError, TypeError):
 		raise RuntimeError("The model_string must be in the format 'Y ~ X1 + X2 + X3'.")
 
 	if not Y or Y == ['']:
@@ -224,7 +224,7 @@ def check_dimensions(df, timevar, idvar):
 					idvar = names[0] if names else None  # Assign first remaining level as ID var
 
 			return timevar, idvar  # Return once a time variable is found
-		except Exception:
+		except (ValueError, TypeError, OverflowError):
 			# If conversion fails, continue checking other index levels
 			pass
 
@@ -474,8 +474,6 @@ def eval_variables(df, x, idvar_orig, dropna=True):
 				history_depths.append(sum(lags) + sum(diffs))
 			except NameError:
 				raise NameError(f"{var} not defined in data frame or function")
-			except Exception as e:
-				raise RuntimeError(f"Problem with variable '{var}': {e}")
 
 	max_lags = max(lag_depths) if lag_depths else 0
 	max_history = max(history_depths) if history_depths else 0
@@ -600,13 +598,9 @@ def numberize_time(df, timevar, idvar):
 	# not number:
 	try:
 		x_dt=pd.to_datetime(df[timevar])
-	except ValueError as e:
-		try:
-			x_dt=pd.to_numeric(x_dt)
-		except ValueError as e:
-			raise ValueError(f"{timevar} is determined to be the date variable, but it is neither nummeric "
-					"nor a date variable. Set a variable that meets these conditions as `timevar`.")
-		x_dt=pd.to_numeric(x_dt)/(24*60*60*1000000000)
+	except (ValueError, TypeError) as e:
+		raise ValueError(f"{timevar} is the time variable, but cannot be parsed as dates. "
+						 "Use a numeric or date variable as `timevar`.") from e
 
 	df[timevar_orig] = df[timevar]
 	if x_dt.dtype == '<M8[ns]':

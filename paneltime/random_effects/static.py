@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Closed-form stationary FE/RE estimators for no ARIMA/GARCH dynamics.
+"""Internal stationary FE/RE starting estimators used by processing.initreg.
 
 This module reuses the existing panel object and random-effects helpers to
 compute panel estimators in closed form when order=(0,0,0) and
@@ -13,8 +13,8 @@ Implemented paths:
 - one-way random effects (group or time)
 - two-way random effects (group + time)
 
-Unsupported combinations (raise ``StationaryEffectsError``):
-- mixed random/fixed (for example group random + time fixed)
+Eligibility, including exclusion of mixed fixed/random effects, is decided
+by processing.initreg before calling this module.
 """
 
 from __future__ import annotations
@@ -51,23 +51,7 @@ class StationaryEffectsError(RuntimeError):
     pass
 
 
-# Core validation and shared numeric helpers
-def _validate_stationary_requirements(panel, group_mode, time_mode):
-    p, q, d, k, m = panel.pqdkm
-    if any(value != 0 for value in (p, q, d, k, m)):
-        raise StationaryEffectsError(
-            "Stationary closed-form path requires order=(0,0,0) and garch_order=(0,0)"
-        )
-    for mode_name, mode in (("group", group_mode), ("time", time_mode)):
-        if mode not in ("none", "fixed", "random"):
-            raise StationaryEffectsError(f"Unsupported {mode_name} mode: {mode}")
-
-    if "random" in (group_mode, time_mode) and "fixed" in (group_mode, time_mode):
-        raise StationaryEffectsError(
-            "Mixed random/fixed stationary effects are not supported in closed form"
-        )
-
-
+# Shared numeric helpers
 def _safe_lstsq(X, y):
     beta, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
     return beta
@@ -77,41 +61,72 @@ def _fitted_from_beta(X, beta):
     return np.tensordot(X, beta, axes=([2], [0]))[:, :, None]
 
 
-def _group_counts(mask):
-    return mask.sum(axis=1).astype(float)
+@dataclass
+class _Layout:
+    """Group and date of every cell in the (N, T) panel arrays.
+
+    Each group's observations are packed from column 0, so a column is a
+    position within the group, not a calendar date. Time effects are therefore
+    indexed by ``panel.date_map``, as in ``dynamic.py``.
+    """
+
+    mask: np.ndarray
+    index: dict
+    n_levels: dict
+
+    def obs_index(self, axis):
+        """Group or date index of each observed cell, in ``mask`` order."""
+        return self.index[axis][self.mask]
 
 
-def _time_counts(mask):
-    return mask.sum(axis=0).astype(float)
+def _layout(panel, mask):
+    n_groups, n_cols = mask.shape
+    dates = np.zeros((n_groups, n_cols), dtype=int)
+    for date, cells in enumerate(panel.date_map):
+        dates[cells] = date
+    groups = np.broadcast_to(np.arange(n_groups)[:, None], (n_groups, n_cols))
+    return _Layout(
+        mask=mask,
+        index={"group": groups, "time": dates},
+        n_levels={"group": n_groups, "time": len(panel.date_map)},
+    )
 
 
-def _counts(mask, axis):
-    return _group_counts(mask) if axis == "group" else _time_counts(mask)
+def _counts(layout, axis):
+    return np.bincount(layout.obs_index(axis), minlength=layout.n_levels[axis]).astype(float)
 
 
-def _axis_means(panel, values, axis):
-    """Masked means over the observed cells, shaped (N,1,k) or (1,T,k)."""
-    m = np.asarray(panel.included[3][:, :, 0], dtype=float)
-    cnt = m.sum(axis=axis)
-    cnt = np.where(cnt > 0, cnt, 1.0)
-    out = np.einsum("ij,ijk->" + ("ik" if axis == 1 else "jk"), m, values) / cnt[:, None]
-    return out[:, None, :] if axis == 1 else out[None, :, :]
+def _masked_axis_means(values, idx, n_levels):
+    """Mean of observation-level values by index levels.
+
+    values: (nobs, p), idx: (nobs,)
+    """
+    if values.ndim == 1:
+        values = values.reshape((-1, 1))
+    sums = np.zeros((n_levels, values.shape[1]), dtype=float)
+    counts = np.bincount(idx, minlength=n_levels).astype(float)
+    for j in range(values.shape[1]):
+        sums[:, j] = np.bincount(idx, weights=values[:, j], minlength=n_levels)
+    means = np.zeros_like(sums)
+    valid = counts > 0
+    if np.any(valid):
+        means[valid] = sums[valid] / counts[valid, None]
+    return means, counts, valid
 
 
-def _group_means(panel, values):
-    return _axis_means(panel, values, 1)
+def _level_means(layout, values, axis):
+    """Masked means of (N, T, k) values per group or date, shaped (levels, k)."""
+    means, _, _ = _masked_axis_means(
+        values[layout.mask], layout.obs_index(axis), layout.n_levels[axis]
+    )
+    return means
 
 
-def _time_means(panel, values):
-    return _axis_means(panel, values, 0)
-
-
-def _means(panel, values, axis):
-    return _group_means(panel, values) if axis == "group" else _time_means(panel, values)
-
-
-def _theta_matrix(theta, axis):
-    return theta.reshape((-1, 1, 1)) if axis == "group" else theta.reshape((1, -1, 1))
+def _expand(layout, level_values, axis):
+    """Place per-group or per-date values on the cells, shaped (N, T, 1) or (N, T, k)."""
+    level_values = np.asarray(level_values, dtype=float)
+    out = level_values[layout.index[axis]]
+    return out[:, :, None] if level_values.ndim == 1 else out
 
 
 def _flatten_masked(X, y, mask):
@@ -121,10 +136,7 @@ def _flatten_masked(X, y, mask):
 
 
 def _beta_names(panel):
-    names = panel.args.names_d.get("beta")
-    if names is None:
-        names = [f"beta_{i}" for i in range(panel.X.shape[2])]
-    return list(names)
+    return list(panel.input.X.columns)
 
 
 def _center_effects(values, counts, has_intercept):
@@ -171,25 +183,27 @@ def _build_result(
 
 
 # Pooled (no-effects) stationary fit
-def _fit_none(panel, X, y, mask, beta_names):
+def _fit_none(panel, X, y, layout, beta_names):
+    mask = layout.mask
     X_obs, y_obs = _flatten_masked(X, y, mask)
     beta = _safe_lstsq(X_obs, y_obs)
     fitted = _fitted_from_beta(X, beta)
     residuals = (y - fitted) * panel.included[3]
     sigma_e2 = float(np.sum(residuals[:, :, 0][mask] ** 2) / max(mask.sum() - X.shape[2], 1))
+    n_groups, n_times = layout.n_levels["group"], layout.n_levels["time"]
 
     return _build_result(
         beta=beta,
         beta_names=beta_names,
         residuals=residuals,
         fitted=fitted,
-        group_effects=np.zeros(X.shape[0]),
-        time_effects=np.zeros(X.shape[1]),
+        group_effects=np.zeros(n_groups),
+        time_effects=np.zeros(n_times),
         sigma_e2=sigma_e2,
         sigma_alpha2=0.0,
         sigma_lambda2=0.0,
-        theta_group=np.zeros(X.shape[0]),
-        theta_time=np.zeros(X.shape[1]),
+        theta_group=np.zeros(n_groups),
+        theta_time=np.zeros(n_times),
         nobs=int(mask.sum()),
         group_mode="none",
         time_mode="none",
@@ -201,24 +215,6 @@ def _fixed_keep_columns(panel, n_columns):
     if bool(panel.input.has_intercept):
         keep[0] = False
     return keep
-
-
-def _masked_axis_means(values, idx, n_levels):
-    """Mean of observation-level values by index levels.
-
-    values: (nobs, p), idx: (nobs,)
-    """
-    if values.ndim == 1:
-        values = values.reshape((-1, 1))
-    sums = np.zeros((n_levels, values.shape[1]), dtype=float)
-    counts = np.bincount(idx, minlength=n_levels).astype(float)
-    for j in range(values.shape[1]):
-        sums[:, j] = np.bincount(idx, weights=values[:, j], minlength=n_levels)
-    means = np.zeros_like(sums)
-    valid = counts > 0
-    if np.any(valid):
-        means[valid] = sums[valid] / counts[valid, None]
-    return means, counts, valid
 
 
 def _one_way_within(values, idx, n_levels):
@@ -240,12 +236,10 @@ def _two_way_within(values, g_idx, t_idx, n_groups, n_times, max_iter=200, tol=1
     return z
 
 
-def _recover_effects_from_residuals(mask, residual_obs, group_fixed, time_fixed):
+def _recover_effects_from_residuals(layout, residual_obs, group_fixed, time_fixed):
     """Recover additive FE components from observation residuals."""
-    n_groups, n_times = mask.shape
-    g_idx, t_idx = np.where(mask)
-    raw = np.zeros(mask.shape, dtype=float)
-    raw[g_idx, t_idx] = residual_obs
+    g_idx, t_idx = layout.obs_index("group"), layout.obs_index("time")
+    n_groups, n_times = layout.n_levels["group"], layout.n_levels["time"]
 
     if group_fixed and not time_fixed:
         group_means, _, _ = _masked_axis_means(residual_obs, g_idx, n_groups)
@@ -258,31 +252,31 @@ def _recover_effects_from_residuals(mask, residual_obs, group_fixed, time_fixed)
     if not group_fixed and not time_fixed:
         return np.zeros(n_groups, dtype=float), np.zeros(n_times, dtype=float)
 
-    alpha, lam = _additive_blup(raw, mask, np.ones(n_groups, dtype=float), np.ones(n_times, dtype=float))
-    return alpha, lam
+    return _additive_blup(residual_obs, g_idx, t_idx, np.ones(n_groups), np.ones(n_times))
 
 
 # Fixed-effects stationary fit (one-way and two-way)
-def _fit_fixed_effects(panel, X, y, mask, beta_names, group_fixed, time_fixed):
+def _fit_fixed_effects(panel, X, y, layout, beta_names, group_fixed, time_fixed):
     if not group_fixed and not time_fixed:
-        return _fit_none(panel, X, y, mask, beta_names)
+        return _fit_none(panel, X, y, layout, beta_names)
 
-    X_obs, y_obs = _flatten_masked(X, y, mask)
+    X_obs, y_obs = _flatten_masked(X, y, layout.mask)
     keep = _fixed_keep_columns(panel, X.shape[2])
-    g_idx, t_idx = np.where(mask)
+    g_idx, t_idx = layout.obs_index("group"), layout.obs_index("time")
+    n_groups, n_times = layout.n_levels["group"], layout.n_levels["time"]
 
     X_work = X_obs[:, keep]
     y_work = y_obs.reshape((-1, 1))
 
     if group_fixed and time_fixed:
-        X_tilde = _two_way_within(X_work, g_idx, t_idx, X.shape[0], X.shape[1])
-        y_tilde = _two_way_within(y_work, g_idx, t_idx, X.shape[0], X.shape[1])[:, 0]
+        X_tilde = _two_way_within(X_work, g_idx, t_idx, n_groups, n_times)
+        y_tilde = _two_way_within(y_work, g_idx, t_idx, n_groups, n_times)[:, 0]
     elif group_fixed:
-        X_tilde = _one_way_within(X_work, g_idx, X.shape[0])
-        y_tilde = _one_way_within(y_work, g_idx, X.shape[0])[:, 0]
+        X_tilde = _one_way_within(X_work, g_idx, n_groups)
+        y_tilde = _one_way_within(y_work, g_idx, n_groups)[:, 0]
     else:
-        X_tilde = _one_way_within(X_work, t_idx, X.shape[1])
-        y_tilde = _one_way_within(y_work, t_idx, X.shape[1])[:, 0]
+        X_tilde = _one_way_within(X_work, t_idx, n_times)
+        y_tilde = _one_way_within(y_work, t_idx, n_times)[:, 0]
 
     beta = np.zeros(X.shape[2], dtype=float)
     if X_tilde.shape[1] > 0:
@@ -290,19 +284,17 @@ def _fit_fixed_effects(panel, X, y, mask, beta_names, group_fixed, time_fixed):
 
     residual_obs = y_obs - X_work @ beta[keep]
     group_effects, time_effects = _recover_effects_from_residuals(
-        mask, residual_obs, group_fixed=group_fixed, time_fixed=time_fixed
+        layout, residual_obs, group_fixed=group_fixed, time_fixed=time_fixed
     )
     beta, group_effects, time_effects = _fixed_adjust_intercept(
         panel,
-        mask,
+        layout,
         X_obs,
         y_obs,
         beta,
         keep,
         group_effects,
         time_effects,
-        g_idx,
-        t_idx,
         group_fixed,
         time_fixed,
     )
@@ -310,7 +302,7 @@ def _fit_fixed_effects(panel, X, y, mask, beta_names, group_fixed, time_fixed):
         panel,
         X,
         y,
-        mask,
+        layout,
         beta,
         group_effects,
         time_effects,
@@ -339,36 +331,31 @@ def _fit_fixed_effects(panel, X, y, mask, beta_names, group_fixed, time_fixed):
 
 def _fixed_adjust_intercept(
     panel,
-    mask,
+    layout,
     X_obs,
     y_obs,
     beta,
     keep,
     group_effects,
     time_effects,
-    g_idx,
-    t_idx,
     group_fixed,
     time_fixed,
 ):
     if not bool(panel.input.has_intercept):
         return beta, group_effects, time_effects
 
-    counts_g = _group_counts(mask)
-    counts_t = _time_counts(mask)
-    shift_g = 0.0
-    shift_t = 0.0
     if group_fixed:
-        group_effects, shift_g = _center_effects(group_effects, counts_g, True)
+        group_effects, _ = _center_effects(group_effects, _counts(layout, "group"), True)
     if time_fixed:
-        time_effects, shift_t = _center_effects(time_effects, counts_t, True)
+        time_effects, _ = _center_effects(time_effects, _counts(layout, "time"), True)
 
+    # The effects are centered, so the mean remaining residual is the intercept.
     base = X_obs[:, keep] @ beta[keep]
     if group_fixed:
-        base = base + group_effects[g_idx]
+        base = base + group_effects[layout.obs_index("group")]
     if time_fixed:
-        base = base + time_effects[t_idx]
-    beta[0] = float(np.mean(y_obs - base) + shift_g + shift_t)
+        base = base + time_effects[layout.obs_index("time")]
+    beta[0] = float(np.mean(y_obs - base))
     return beta, group_effects, time_effects
 
 
@@ -376,7 +363,7 @@ def _fixed_fitted_and_sigma(
     panel,
     X,
     y,
-    mask,
+    layout,
     beta,
     group_effects,
     time_effects,
@@ -384,59 +371,43 @@ def _fixed_fitted_and_sigma(
     time_fixed,
     keep,
 ):
-    fitted_common = _fitted_from_beta(X, beta)
-    fitted = fitted_common
+    fitted = _fitted_from_beta(X, beta)
     if group_fixed:
-        fitted = fitted + group_effects.reshape((-1, 1, 1))
+        fitted = fitted + _expand(layout, group_effects, "group")
     if time_fixed:
-        fitted = fitted + time_effects.reshape((1, -1, 1))
+        fitted = fitted + _expand(layout, time_effects, "time")
     residuals = (y - fitted) * panel.included[3]
 
+    mask = layout.mask
     nobs = int(mask.sum())
-    n_groups = X.shape[0]
-    n_times = X.shape[1]
+    n_groups, n_times = layout.n_levels["group"], layout.n_levels["time"]
     effect_df = int(group_fixed) * (n_groups - 1) + int(time_fixed) * (n_times - 1)
     slope_df = int(np.sum(keep))
-    df_e = max(nobs - effect_df - slope_df, 1)
+    df_e = max(nobs - effect_df - slope_df - int(panel.input.has_intercept), 1)
     sigma_e2 = float(np.sum(residuals[:, :, 0][mask] ** 2) / df_e)
     return fitted, residuals, sigma_e2, nobs
 
 
-def _one_way_fe_sigma(panel, X, y, mask, beta_names, axis):
-    if axis == "group":
-        fe = _fit_fixed_effects(
-            panel,
-            X,
-            y,
-            mask,
-            beta_names,
-            group_fixed=True,
-            time_fixed=False,
-        )
-    else:
-        fe = _fit_fixed_effects(
-            panel,
-            X,
-            y,
-            mask,
-            beta_names,
-            group_fixed=False,
-            time_fixed=True,
-        )
+def _one_way_fe_sigma(panel, X, y, layout, beta_names, axis):
+    fe = _fit_fixed_effects(
+        panel,
+        X,
+        y,
+        layout,
+        beta_names,
+        group_fixed=(axis == "group"),
+        time_fixed=(axis == "time"),
+    )
     return float(max(fe.sigma_e2, 0.0))
 
 
-def _one_way_between_components(panel, X, y, mask, axis):
-    mean_X = _means(panel, X, axis)
-    mean_y = _means(panel, y, axis)
-    if axis == "group":
-        X_b = mean_X[:, 0, :]
-        y_b = mean_y[:, 0, 0]
-    else:
-        X_b = mean_X[0, :, :]
-        y_b = mean_y[0, :, 0]
-    counts = _counts(mask, axis)
+def _one_way_between_components(panel, X, y, layout, axis):
+    X_b = _level_means(layout, X, axis)
+    y_b = _level_means(layout, y, axis)[:, 0]
+    counts = _counts(layout, axis)
     valid = counts > 0
+    mean_X = _expand(layout, X_b, axis)
+    mean_y = _expand(layout, y_b, axis)
     return mean_X, mean_y, X_b, y_b, counts, valid
 
 
@@ -449,8 +420,13 @@ def _one_way_variance_component(X_b, y_b, counts, valid, sigma_e2):
     resid_bw = y_bw - X_bw @ beta_bw
     rank_bw = np.linalg.matrix_rank(X_bw)
     df_bw = max(int(np.sum(valid)) - rank_bw, 1)
-    s2_between = float(np.sum(w * resid_bw**2) / df_bw)
-    return float(max(0.0, s2_between - sigma_e2 * float(np.mean(1.0 / w))))
+    X_weighted = X_bw * w_sqrt[:, None]
+    leverage = np.sum(X_weighted * np.linalg.pinv(X_weighted).T, axis=1)
+    # E[weighted RSS] = sigma_e2 * residual_df + sigma_axis * effect_trace.
+    effect_trace = float(np.sum(w * (1.0 - leverage)))
+    if effect_trace <= 0:
+        raise StationaryEffectsError("Between regression has no degrees of freedom for random effects")
+    return float(max(0.0, (np.sum(w * resid_bw**2) - sigma_e2 * df_bw) / effect_trace))
 
 
 def _one_way_theta(counts, valid, sigma_e2, sigma_axis):
@@ -461,20 +437,17 @@ def _one_way_theta(counts, valid, sigma_e2, sigma_axis):
     return theta
 
 
-def _one_way_beta(panel, X, y, mask, axis, mean_X, mean_y, theta):
-    theta_mtx = _theta_matrix(theta, axis)
+def _one_way_beta(X, y, layout, axis, mean_X, mean_y, theta):
+    theta_mtx = _expand(layout, theta, axis)
     X_star = X - theta_mtx * mean_X
     y_star = y - theta_mtx * mean_y
+    mask = layout.mask
     return _safe_lstsq(X_star[mask, :], y_star[:, :, 0][mask])
 
 
-def _one_way_effects(panel, X, y, axis, beta, counts, valid, sigma_e2, sigma_axis):
+def _one_way_effects(panel, X, y, layout, axis, beta, counts, valid, sigma_e2, sigma_axis):
     fitted_common = _fitted_from_beta(X, beta)
-    mean_res = _means(panel, y - fitted_common, axis)
-    if axis == "group":
-        mu_axis = mean_res[:, 0, 0]
-    else:
-        mu_axis = mean_res[0, :, 0]
+    mu_axis = _level_means(layout, y - fitted_common, axis)[:, 0]
 
     effects_axis = np.zeros_like(mu_axis)
     if sigma_axis > 0:
@@ -488,24 +461,25 @@ def _one_way_effects(panel, X, y, axis, beta, counts, valid, sigma_e2, sigma_axi
     return beta, fitted_common, effects_axis
 
 
-def _one_way_mode_payload(axis, X, effects_axis, sigma_axis, theta):
+def _one_way_mode_payload(axis, layout, effects_axis, sigma_axis, theta):
+    n_groups, n_times = layout.n_levels["group"], layout.n_levels["time"]
     if axis == "group":
         return {
             "group_effects": effects_axis,
-            "time_effects": np.zeros(X.shape[1]),
+            "time_effects": np.zeros(n_times),
             "sigma_alpha2": sigma_axis,
             "sigma_lambda2": 0.0,
             "theta_group": theta,
-            "theta_time": np.zeros(X.shape[1]),
+            "theta_time": np.zeros(n_times),
             "group_mode": "random",
             "time_mode": "none",
         }
     return {
-        "group_effects": np.zeros(X.shape[0]),
+        "group_effects": np.zeros(n_groups),
         "time_effects": effects_axis,
         "sigma_alpha2": 0.0,
         "sigma_lambda2": sigma_axis,
-        "theta_group": np.zeros(X.shape[0]),
+        "theta_group": np.zeros(n_groups),
         "theta_time": theta,
         "group_mode": "none",
         "time_mode": "random",
@@ -513,25 +487,25 @@ def _one_way_mode_payload(axis, X, effects_axis, sigma_axis, theta):
 
 
 # One-way random-effects stationary fit
-def _fit_random_one_way(panel, X, y, mask, beta_names, axis):
-    sigma_e2 = _one_way_fe_sigma(panel, X, y, mask, beta_names, axis)
+def _fit_random_one_way(panel, X, y, layout, beta_names, axis):
+    sigma_e2 = _one_way_fe_sigma(panel, X, y, layout, beta_names, axis)
     mean_X, mean_y, X_b, y_b, counts, valid = _one_way_between_components(
         panel,
         X,
         y,
-        mask,
+        layout,
         axis,
     )
     sigma_axis = _one_way_variance_component(X_b, y_b, counts, valid, sigma_e2)
     theta = _one_way_theta(counts, valid, sigma_e2, sigma_axis)
-    beta = _one_way_beta(panel, X, y, mask, axis, mean_X, mean_y, theta)
+    beta = _one_way_beta(X, y, layout, axis, mean_X, mean_y, theta)
     beta, fitted_common, effects_axis = _one_way_effects(
-        panel, X, y, axis, beta, counts, valid, sigma_e2, sigma_axis
+        panel, X, y, layout, axis, beta, counts, valid, sigma_e2, sigma_axis
     )
 
-    fitted = fitted_common + _theta_matrix(effects_axis, axis)
+    fitted = fitted_common + _expand(layout, effects_axis, axis)
     residuals = (y - fitted) * panel.included[3]
-    mode_payload = _one_way_mode_payload(axis, X, effects_axis, sigma_axis, theta)
+    mode_payload = _one_way_mode_payload(axis, layout, effects_axis, sigma_axis, theta)
 
     return _build_result(
         beta=beta,
@@ -545,37 +519,19 @@ def _fit_random_one_way(panel, X, y, mask, beta_names, axis):
         sigma_lambda2=mode_payload["sigma_lambda2"],
         theta_group=mode_payload["theta_group"],
         theta_time=mode_payload["theta_time"],
-        nobs=int(mask.sum()),
+        nobs=int(layout.mask.sum()),
         group_mode=mode_payload["group_mode"],
         time_mode=mode_payload["time_mode"],
     )
 
 
-def _theta_by_group(theta_mtx, mask):
-    theta = np.asarray(theta_mtx)[:, :, 0]
-    counts = mask.sum(axis=1).astype(float)
-    out = np.zeros(theta.shape[0], dtype=float)
-    valid = counts > 0
-    if np.any(valid):
-        out[valid] = (theta * mask).sum(axis=1)[valid] / counts[valid]
-    return out
-
-
-def _theta_by_time(theta_mtx, mask):
-    theta = np.asarray(theta_mtx)[:, :, 0]
-    counts = mask.sum(axis=0).astype(float)
-    out = np.zeros(theta.shape[1], dtype=float)
-    valid = counts > 0
-    if np.any(valid):
-        out[valid] = (theta * mask).sum(axis=0)[valid] / counts[valid]
-    return out
-
-
-def _additive_blup(raw_res, mask, w_g, w_t, max_iter=1000, tol=1e-10):
-    alpha = np.zeros(raw_res.shape[0], dtype=float)
-    lam = np.zeros(raw_res.shape[1], dtype=float)
-    counts_g = mask.sum(axis=1).astype(float)
-    counts_t = mask.sum(axis=0).astype(float)
+def _additive_blup(res_obs, g_idx, t_idx, w_g, w_t, max_iter=1000, tol=1e-10):
+    """Alternating shrunken group/date means of observation residuals."""
+    n_groups, n_times = len(w_g), len(w_t)
+    alpha = np.zeros(n_groups, dtype=float)
+    lam = np.zeros(n_times, dtype=float)
+    counts_g = np.bincount(g_idx, minlength=n_groups).astype(float)
+    counts_t = np.bincount(t_idx, minlength=n_times).astype(float)
     valid_g = counts_g > 0
     valid_t = counts_t > 0
 
@@ -583,14 +539,12 @@ def _additive_blup(raw_res, mask, w_g, w_t, max_iter=1000, tol=1e-10):
         prev_alpha = alpha.copy()
         prev_lam = lam.copy()
 
-        if np.any(valid_g):
-            numer_g = (mask * (raw_res - lam.reshape((1, -1)))).sum(axis=1)
-            alpha[valid_g] = w_g[valid_g] * (numer_g[valid_g] / counts_g[valid_g])
+        sums_g = np.bincount(g_idx, weights=res_obs - lam[t_idx], minlength=n_groups)
+        alpha[valid_g] = w_g[valid_g] * sums_g[valid_g] / counts_g[valid_g]
         alpha -= float(np.mean(alpha))
 
-        if np.any(valid_t):
-            numer_t = (mask * (raw_res - alpha.reshape((-1, 1)))).sum(axis=0)
-            lam[valid_t] = w_t[valid_t] * (numer_t[valid_t] / counts_t[valid_t])
+        sums_t = np.bincount(t_idx, weights=res_obs - alpha[g_idx], minlength=n_times)
+        lam[valid_t] = w_t[valid_t] * sums_t[valid_t] / counts_t[valid_t]
         lam -= float(np.mean(lam))
 
         if max(float(np.max(np.abs(alpha - prev_alpha))), float(np.max(np.abs(lam - prev_lam)))) < tol:
@@ -641,15 +595,15 @@ def _two_way_iterative_beta(panel, X, y, mask, beta, incl, max_iter=50, tol=1e-1
     return beta, re_i, re_t, residuals
 
 
-def _two_way_variances_and_weights(mask, re_i, re_t):
+def _two_way_variances_and_weights(layout, re_i, re_t):
     sigma_e2_i = float(np.asarray(re_i.e_var).reshape(-1)[0]) if np.size(re_i.e_var) else 0.0
     sigma_e2_t = float(np.asarray(re_t.e_var).reshape(-1)[0]) if np.size(re_t.e_var) else 0.0
     sigma_e2 = float(max(0.0, 0.5 * (sigma_e2_i + sigma_e2_t)))
     sigma_alpha2 = float(max(0.0, getattr(re_i, "v_var", 0.0)))
     sigma_lambda2 = float(max(0.0, getattr(re_t, "v_var", 0.0)))
 
-    counts_g = _group_counts(mask)
-    counts_t = _time_counts(mask)
+    counts_g = _counts(layout, "group")
+    counts_t = _counts(layout, "time")
     valid_g = counts_g > 0
     valid_t = counts_t > 0
 
@@ -683,7 +637,7 @@ def _two_way_center_intercept(panel, beta, alpha, lam, counts_g, counts_t):
 
 
 # Two-way random-effects stationary fit
-def _fit_random_two_way(panel, X, y, mask, beta_names):
+def _fit_random_two_way(panel, X, y, layout, beta_names):
     """Two-way random effects via additive quasi-demeaning and GLS updates.
 
     The transformation mirrors likelihood/main.py where RE adjustments from
@@ -693,11 +647,12 @@ def _fit_random_two_way(panel, X, y, mask, beta_names):
         panel,
         X,
         y,
-        mask,
+        layout,
         beta_names,
         group_fixed=True,
         time_fixed=True,
     )
+    mask = layout.mask
     incl = panel.included[3]
     beta, re_i, re_t, _ = _two_way_iterative_beta(panel, X, y, mask, fe.beta, incl)
 
@@ -705,11 +660,12 @@ def _fit_random_two_way(panel, X, y, mask, beta_names):
     residuals = (y - fitted_common) * incl
     re_i, re_t = _two_way_re_objects(panel, residuals, re_i=re_i, re_t=re_t)
     sigma_e2, sigma_alpha2, sigma_lambda2, counts_g, counts_t, w_g, w_t = (
-        _two_way_variances_and_weights(mask, re_i, re_t)
+        _two_way_variances_and_weights(layout, re_i, re_t)
     )
 
-    raw_res = np.asarray(residuals)[:, :, 0]
-    alpha, lam = _additive_blup(raw_res, mask, w_g, w_t)
+    alpha, lam = _additive_blup(
+        residuals[:, :, 0][mask], layout.obs_index("group"), layout.obs_index("time"), w_g, w_t
+    )
     beta, alpha, lam = _two_way_center_intercept(
         panel,
         beta,
@@ -719,7 +675,7 @@ def _fit_random_two_way(panel, X, y, mask, beta_names):
         counts_t,
     )
 
-    fitted = fitted_common + alpha.reshape((-1, 1, 1)) + lam.reshape((1, -1, 1))
+    fitted = fitted_common + _expand(layout, alpha, "group") + _expand(layout, lam, "time")
     e = (y - fitted) * incl
 
     return _build_result(
@@ -732,8 +688,8 @@ def _fit_random_two_way(panel, X, y, mask, beta_names):
         sigma_e2=sigma_e2,
         sigma_alpha2=sigma_alpha2,
         sigma_lambda2=sigma_lambda2,
-        theta_group=_theta_by_group(re_i.theta, mask),
-        theta_time=_theta_by_time(re_t.theta, mask),
+        theta_group=_level_means(layout, re_i.theta, "group")[:, 0],
+        theta_time=_level_means(layout, re_t.theta, "time")[:, 0],
         nobs=int(mask.sum()),
         group_mode="random",
         time_mode="random",
@@ -748,26 +704,26 @@ def _resolve_effect_modes(panel, mode, time_mode):
     return str(mode).lower(), str(time_mode).lower()
 
 
-# Dispatch and public entry point
-def _dispatch_stationary_fit(panel, X, y, mask, names, mode, time_mode):
+# Internal dispatch and entry point
+def _dispatch_stationary_fit(panel, X, y, layout, names, mode, time_mode):
     if mode == "none" and time_mode == "none":
-        return _fit_none(panel, X, y, mask, names)
+        return _fit_none(panel, X, y, layout, names)
     if mode == "fixed" or time_mode == "fixed":
         return _fit_fixed_effects(
             panel,
             X,
             y,
-            mask,
+            layout,
             names,
             group_fixed=(mode == "fixed"),
             time_fixed=(time_mode == "fixed"),
         )
     if mode == "random" and time_mode == "none":
-        return _fit_random_one_way(panel, X, y, mask, names, axis="group")
+        return _fit_random_one_way(panel, X, y, layout, names, axis="group")
     if mode == "none" and time_mode == "random":
-        return _fit_random_one_way(panel, X, y, mask, names, axis="time")
+        return _fit_random_one_way(panel, X, y, layout, names, axis="time")
     if mode == "random" and time_mode == "random":
-        return _fit_random_two_way(panel, X, y, mask, names)
+        return _fit_random_two_way(panel, X, y, layout, names)
     raise StationaryEffectsError(
         f"Unsupported stationary effect combination: group={mode}, time={time_mode}"
     )
@@ -775,6 +731,9 @@ def _dispatch_stationary_fit(panel, X, y, mask, names, mode, time_mode):
 
 def fit_group_effects_stationary(panel, mode=None, time_mode=None):
     """Estimate stationary FE/RE in closed form from an initialized panel.
+
+    Time effects are returned per calendar date, in the order of
+    ``panel.date_map`` (sorted dates).
 
     Parameters
     ----------
@@ -789,9 +748,9 @@ def fit_group_effects_stationary(panel, mode=None, time_mode=None):
     """
     mode, time_mode = _resolve_effect_modes(panel, mode, time_mode)
 
-    _validate_stationary_requirements(panel, mode, time_mode)
     X = np.asarray(panel.X, dtype=float)
     y = np.asarray(panel.Y, dtype=float)
     mask = np.asarray(panel.included[3][:, :, 0], dtype=bool)
+    layout = _layout(panel, mask)
     names = _beta_names(panel)
-    return _dispatch_stationary_fit(panel, X, y, mask, names, mode, time_mode)
+    return _dispatch_stationary_fit(panel, X, y, layout, names, mode, time_mode)

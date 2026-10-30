@@ -88,8 +88,8 @@ class RELikelihoodBenchmarkTests(unittest.TestCase):
         ).to_engine_options()
         panel = Panel(Input(data, 'y ~ x', 'id', 'time', options, None, None), options)
         panel.init()
-        first_variance = sigma2/(1-rho*rho)
-        panel.args.init_var = first_variance
+        # Conditional likelihood: the first innovation has variance sigma2 too.
+        first_variance = sigma2
         args = panel.args.args_init.args_v.copy()
         args[list(panel.args.positions['beta'])] = 0.
         args[list(panel.args.positions['rho'])] = rho

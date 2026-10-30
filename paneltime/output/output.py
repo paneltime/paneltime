@@ -5,7 +5,6 @@
 
 from . import stat_functions as stat
 from . import stat_dist
-from ..processing import arguments
 from .. import random_effects
 import textwrap
 import warnings
@@ -16,7 +15,6 @@ from datetime import datetime
 
 STANDARD_LENGTH=8
 
-INITVAR = arguments.INITVAR
 
 
 
@@ -86,7 +84,7 @@ class Output:
 			('cBIC:', s.info.cbic), 
 			('Panel groups:', s.info.panel_groups), 
 			('Panel dates:', s.info.panel_dates), 
-			('Initial variance:', s.info.initvar)
+			None
 		)
 
 		tbl = [(c0[i],c1[i]) for i in range(len(c0))]
@@ -221,7 +219,7 @@ class Output:
 	def format_tbl_itm(self, description, value, length):
 		try:
 			value = str(np.round(value, self.statistics_decimals))
-		except:
+		except TypeError:
 			value = str(value)
 		return "{:<{}}{}".format(description, length - len(value), value) 
 
@@ -240,8 +238,8 @@ class RandomEffects:
 			return
 		
 
-		self.residuals_i = ll.re_obj_i.RE(ll.e, panel, False)
-		self.residuals_t = ll.re_obj_t.RE(ll.e, panel, False)
+		self.residuals_i = ll.effect_i.copy()
+		self.residuals_t = ll.effect_t.copy()
 
 		self.residuals_std_i = np.std(self.residuals_i, ddof=1)
 		self.residuals_std_t = np.std(self.residuals_t, ddof=1)
@@ -275,11 +273,7 @@ class RegTableObj(dict):
 		model_desc = output.model_desc
 		self.df_effective = output.stats.info.df_effective
 		dict.__init__(self)
-		try:
-			self.set(panel, comm, model_desc)
-		except Exception as e:
-			if not panel.options.supress_output:
-				print(f'Exception while getting statistics: {e}')
+		self.set(panel, comm, model_desc)
 		
 	def set(self, panel, comm, model_desc):
 		self.model_desc = model_desc
@@ -305,8 +299,9 @@ class RegTableObj(dict):
 		T=len(d['names'])
 		if H is None:
 			return
-		d['se_robust'],d['se_st'], d['cov_robust'], d['cov'] =sandwich(H, G, g, constr, panel, self.lags)
-		d['se_robust_oposite'],d['se_st_oposite'], _, _ = sandwich(H, G, g, constr, panel, self.lags,oposite=True)
+		primary, opposite = sandwich_pair(H, G, g, constr, panel, self.lags)
+		d['se_robust'],d['se_st'], d['cov_robust'], d['cov'] = primary
+		d['se_robust_oposite'],d['se_st_oposite'], _, _ = opposite
 		d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
 		d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
 		self.add_grand_mean_variance(panel, ll)
@@ -442,11 +437,19 @@ class Column:
 				else:
 					return np.round(self.input,digits)
 			return np.round(self.input,self.length)
-		except:
+		except TypeError:
 			if self.length is None:
 				return self.input
 			else:
 				return np.array([str(i).ljust(self.length)[:self.length] for i in self.input])
+
+def sandwich_pair(H, G, g, constr, panel, lags):
+	"""Reuse inference when the primary and opposite parameter sets coincide."""
+	primary = sandwich(H, G, g, constr, panel, lags)
+	if constr is None or not constr.fixed:
+		return primary, tuple(value.copy() for value in primary)
+	return primary, sandwich(H, G, g, constr, panel, lags, oposite=True)
+
 
 def sandwich(H, G, g, constr, panel,lags,oposite=False,resize=True):
 	k, k = H.shape
@@ -503,14 +506,20 @@ def cov_df_factor(panel):
 
 def grand_mean_variance(panel, ll):
 	"""sigma_u^2/N + sigma_l^2/T for the random effects, from the final residuals."""
+	# Preserve the existing raw-residual correction for ARIMA models; only
+	# without ARIMA are these the innovations already used by the RE objects.
 	v = 0.0
 	if panel.options.fixed_random_group_eff == 2:
-		o = random_effects.REObj(panel, True, panel.T_i, panel.T_i, 2)
-		o.RE(ll.u, panel)
+		o = ll.re_obj_i
+		if any(panel.pqdkm[:3]):
+			o = random_effects.REObj(panel, True, panel.T_i, panel.T_i, 2)
+			o.RE(ll.u, panel)
 		v += float(getattr(o, 'v_var', 0))/panel.N
 	if panel.options.fixed_random_time_eff == 2:
-		o = random_effects.REObj(panel, False, panel.date_count_mtrx, panel.date_count, 2)
-		o.RE(ll.u, panel)
+		o = ll.re_obj_t
+		if any(panel.pqdkm[:3]):
+			o = random_effects.REObj(panel, False, panel.date_count_mtrx, panel.date_count, 2)
+			o.RE(ll.u, panel)
 		v += float(getattr(o, 'v_var', 0))/panel.n_dates
 	return v
 
@@ -544,12 +553,7 @@ def expand_x(x,idx,matrix=False):
 		x_full=np.zeros((m,m))
 		x_full[:]=np.nan
 		ref=np.arange(m)[idx]
-		for i in range(len(x)):
-			try:
-				x_full[ref[i],idx]=x[i]
-				x_full[idx,ref[i]]=x[i]
-			except:
-				a=0
+		x_full[np.ix_(ref, ref)] = x
 	else:
 		x_full=np.zeros(m)
 		x_full[:]=np.nan
@@ -643,9 +647,6 @@ class Information:
 		self.cbic           = np.log(panel.NT) * (self.k + re.effective_df) - 2 * comm.ll.LL
 		self.panel_groups  = n
 		self.panel_dates   = T
-		self.initvar 	   = None
-		if INITVAR in panel.args.names_v:
-			self.initvar   = ll.args.args_v[panel.args.names_v.index(INITVAR)]
 
 	def get_model(self, panel):
 		p, q, d, k, m = panel.pqdkm
@@ -688,7 +689,6 @@ class Information:
 
 def format_table(X, tail, d):
 
-	remove_init_var(X, d)
 	
 	p=''
 	X = np.array(X)
@@ -720,11 +720,6 @@ def format_table(X, tail, d):
 
 		
 
-def remove_init_var(X,d):
-	if not INITVAR in d['names_int']:
-		return
-	i = d['names_int'].index(INITVAR)+1
-	X.pop(i)
 
 
 

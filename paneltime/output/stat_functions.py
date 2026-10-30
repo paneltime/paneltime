@@ -326,20 +326,7 @@ def OLS(panel,X,Y,add_const=False,return_rsq=False,return_e=False,c=None,robust_
 	Y=Y*c
 	XX=np.array(fu.dot(X,X),dtype=np.float64)
 	XY=np.array(fu.dot(X,Y),dtype=np.float64)
-	try:
-		beta=fn.solve(XX, XY)
-	except np.linalg.LinAlgError:
-		s=get_singular_list(panel,X)
-		print("The following variables caused singularity runtime and must be removed: "+s)
-		beta = np.zeros(k).reshape( (k,1))
-		if return_rsq:
-			return beta, 0
-		elif return_e:
-			beta,Y
-		elif robust_se_lags:
-			nonarr = np.array([None]*k).reshape((k,1))
-			return beta,nonarr,nonarr
-		return beta
+	beta=fn.solve(XX, XY)
 	if return_rsq or return_e or robust_se_lags:
 		e=(Y-fu.dot(X,beta))*c
 		if return_rsq:
@@ -503,7 +490,7 @@ def Omnibus(g1, g2, n):
 	A = 6 + (8/gamma1)*((2/gamma1)+(1+4/gamma1**2)**0.5)
 	try:
 		Z2 = (9*A/2)**0.5*(1-(2/(9*A)) - ((1-2/A)/(1+ ((g2-mu1)/mu2**0.5)*(2/(A-4)**0.5) ) )**(1/3) )
-	except:
+	except ZeroDivisionError:
 		return None, None
 		
 	

@@ -310,10 +310,7 @@ def add_negative_curvature(dx, g, H, x, rel_tol=NEG_CURV_TOL):
 # =================================================================== helpers
 
 def has_constraints(constr):
-	try:
-		return len(list(constr.keys())) > 0
-	except (AttributeError, TypeError):
-		return False
+	return constr is not None and len(constr) > 0
 
 
 def has_intervals(constr):

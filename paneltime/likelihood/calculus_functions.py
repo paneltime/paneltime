@@ -207,8 +207,8 @@ def dd_func_lags(panel, ll, L, d, dLL, transpose=False):
     dLL : ndarray
         Likelihood derivative, shape compatible with ``(N, T)``.
     transpose : ignored
-        Kept for API compatibility. For gamma^2 the caller multiplies by 2,
-        which equals x + x.T because GAR_1 L^i GAR_1 L^j is symmetric in i, j.
+        Kept for API compatibility. For gamma^2 the caller adds the transpose,
+        since d2var/dgamma_i dgamma_j = GAR_1 L^i dvar_j + GAR_1 L^j dvar_i.
     """
     if panel.pqdkm[4] == 0 or d is None:
         return None

@@ -18,7 +18,6 @@ These options are configured per model fit. The defaults, domains, and descripti
 | fit | `constraints` | `None` | None, a string, or a dictionary. | Restrictions on coefficient estimates. | `` |
 | fit | `add_intercept` | `True` | True or False. | Add an intercept when one is not present in the formula. | `` |
 | fit | `subtract_means` | `False` | True or False. | Subtract variable means before estimation. | `` |
-| fit | `include_initvar` | `False` | True or False. | Include an initial variance term. | `` |
 | fit | `tobit_limits` | `(None, None)` | Two finite real numbers or None, with lower <= upper. | Lower and upper limits for a Tobit model. | `(0, None)` |
 | fit | `suppress_output` | `True` | True or False. | Suppress optimizer progress output. | `` |
 | fit | `likelihood` | `None` | None or a likelihood class. | Custom likelihood model class. | `` |

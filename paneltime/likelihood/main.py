@@ -9,7 +9,6 @@ from .. import random_effects as re
 from .. import functions as fu
 from . import function
 from ..output import stat_dist
-from ..processing import arguments
 from . import arma
 import numpy as np
 import traceback
@@ -70,9 +69,14 @@ class LL:
 
 		
 		G = fu.dot(panel.W_a, self.args.args_d['omega'])
-		G[:,0,0] = panel.args.init_var
-		if arguments.INITVAR in self.args.args_d:
-			G[:,0,0] = self.args.args_d[arguments.INITVAR][0][0]
+		# Lags reaching before the sample take the sample residual variance
+		# (a constant), so they have no effect when the GARCH coefficients are
+		# zero. An endogenous start such as omega/(1 - sum(gamma) - sum(psi))
+		# is avoided: it leaves the variance level without a data anchor,
+		# weakens GARCH identification and is undefined near unit persistence.
+		self.presample_var = panel.args.init_var
+		self.presample_weights = presample_weights(self.args.args_d, T)
+		G = G + self.presample_var * self.presample_weights
 
 		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-fu.dot(X,self.args.args_d['beta'])
@@ -88,7 +92,9 @@ class LL:
 		z = self.args.args_d.get('z')		# args_d is a dict; getattr never found it
 
 		# Effects are removed from the ARMA innovations e, before the GARCH filter.
-		e_RE = (e+self.re_obj_i.RE(e, panel)+self.re_obj_t.RE(e, panel))*incl
+		self.effect_i = self.re_obj_i.RE(e, panel)
+		self.effect_t = self.re_obj_t.RE(e, panel)
+		e_RE = (e+self.effect_i+self.effect_t)*incl
 		if self.re_obj_i.fe_re or self.re_obj_t.fe_re:
 			# The C routine computed h and var from e; recompute them from e_RE
 			# with the GARCH matrices it returned.
@@ -272,6 +278,28 @@ class LL:
 		df = pd.concat((pred_df, fit_df), axis=1)
 		return df.sort_index()
 
+def presample_lag_mask(n_lags, T):
+	"""(T, n_lags) mask; column j-1 marks periods t < j, where lag j is pre-sample."""
+	t = np.arange(T).reshape(T, 1)
+	j = np.arange(1, n_lags + 1).reshape(1, n_lags)
+	return (t < j).astype(float)
+
+
+def presample_weights(args_d, T):
+	"""Weight of the pre-sample variance in each period's variance constant.
+
+	In var_t = omega + sum_j gamma_j var_(t-j) + sum_j psi_j h_(t-j), every
+	lag j > t reaches before the sample, where var and h equal the pre-sample
+	variance. Returns shape (1, T, 1).
+	"""
+	w = np.zeros(T)
+	for name in ('gamma', 'psi'):
+		coef = np.asarray(args_d[name], dtype=float).reshape(-1)
+		if len(coef):
+			w += presample_lag_mask(len(coef), T) @ coef
+	return w.reshape(1, T, 1)
+
+
 def get_last_obs(u, panel):
 	maxlag = max(panel.pqdkm)
 	N,T,k = panel.X.shape
@@ -401,17 +429,10 @@ def test_variance_signal(W, h, omega):
 													 "the size equal to the HF-argument variables +1, and first variable must be 1")
 		return W.reshape((1,len(omega)))
 	else:
-		try:
-			NW,kW = W.shape
-			if NW!=N or kW!=k:
-				raise RuntimeError("Rows and columns in variance signals must correspond with"
-													 "the number of groups and the size equal to the number of "
-													 "HF-argument variables +1, respectively")
-		except:
-			raise RuntimeError("If there are more than one group, the variance signal must be a matrix with"
-												 "Rows and columns in variance signals must correspond with"
-												 "the number of groups and the size equal to the number of "
-													 "HF-argument variables +1, respectively"                       )      
+		if W.ndim != 2 or W.shape != (N, k):
+			raise ValueError(
+				f"Variance signals must have shape {(N, k)}; got {W.shape}."
+			)
 	return W
 	
 

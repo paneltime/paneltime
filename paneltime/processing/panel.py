@@ -59,9 +59,6 @@ class Panel:
 		self.sign_codes_tex = '$' + '$, $'.join(f"^{{{s[0]}}}p<{s[1]}" for s in self.sign_codes) + '$'
 		self.sign_codes_tex = self.sign_codes_tex.replace("$^{'}", "'$")	
 
-		if k == 0:
-			self.options.include_initvar = False
-
 
 
 
@@ -156,12 +153,7 @@ class Panel:
 
 	def is_single(self):
 		idvar,t=self.input.idvar,self.input.timevar
-		try:
-			if (np.all(idvar.iloc[0]==idvar) or np.all(t.iloc[0]==t)):
-				return True
-		except:
-			return True
-		return False
+		return np.all(idvar.iloc[0]==idvar) or np.all(t.iloc[0]==t)
 
 
 	def arrayize(self):
@@ -389,8 +381,16 @@ class Panel:
 		date_map, date_counts = self.build_time_map(rows_by_date, panel_date_codes)
 
 		self.n_dates = len(date_counts)
+		self.date_labels = np.unique(timevar)[np.unique(coordinates[:, 0]).astype(int)]
 		self.date_count = np.array(date_counts).reshape(self.n_dates, 1, 1)
 		self.date_map = date_map
+		counts = np.asarray(date_counts, dtype=np.intp)
+		self.date_starts = np.r_[0, np.cumsum(counts)[:-1]]
+		self.date_flat_index = np.ravel_multi_index(
+			(coordinates[:, 1].astype(np.intp), coordinates[:, 2].astype(np.intp)),
+			(n_groups, n_periods),
+		)
+		self.date_observation_codes = np.repeat(np.arange(self.n_dates), counts)
 		self.dmap_all = (
 			[indices[0] for indices in date_map],
 			[indices[1] for indices in date_map],

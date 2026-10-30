@@ -3,19 +3,13 @@
 from __future__ import annotations
 
 from typing import Optional
-from statistics import NormalDist
 
 import numpy as np
 import pandas as pd
 
 from . import main
 from .options import Effects, FitOptions, OptimizerOptions
-from .random_effects import REObj
-from .random_effects.static import (
-	StationaryEffectsError,
-	fit_group_effects_stationary,
-)
-from .processing.panel import Panel
+from .random_effects.static import _layout
 
 
 class RandomEffectsResult:
@@ -54,9 +48,15 @@ class PanelEffectResults:
 		if panel.pqdkm[2] > 0:
 			return EffectEstimate(group_mode, None), EffectEstimate(time_mode, None)
 
-		residuals = np.asarray(likelihood.u)[..., 0]
+		residuals = np.asarray(likelihood.e)[..., 0]
 		mask = np.asarray(panel.included[3])[..., 0].astype(bool)
-		unit_count, period_count = residuals.shape
+		# Columns are positions within each group, so time effects go by date.
+		layout = _layout(panel, mask)
+		g_idx, t_idx = layout.obs_index('group'), layout.obs_index('time')
+		unit_count, period_count = layout.n_levels['group'], layout.n_levels['time']
+		observed = residuals[mask]
+		group_n = np.bincount(g_idx, minlength=unit_count)
+		time_n = np.bincount(t_idx, minlength=period_count)
 
 		group_values = np.zeros(unit_count)
 		time_values = np.zeros(period_count)
@@ -67,45 +67,33 @@ class PanelEffectResults:
 		time_weights = np.ones(period_count)
 
 		if group_mode == 'random':
-			re_obj_group = REObj(panel, True, panel.T_i, panel.T_i, 2)
-			re_obj_group.RE(likelihood.u, panel)
+			re_obj_group = likelihood.re_obj_i
 			group_variance = float(max(re_obj_group.v_var, 0))
 			group_e_var = float(np.asarray(re_obj_group.e_var).reshape(-1)[0])
 			t_i = np.asarray(panel.T_i).reshape(-1)
 			group_weights = group_variance / (group_variance + group_e_var / t_i)
 
 		if time_mode == 'random':
-			re_obj_time = REObj(panel, False, panel.date_count_mtrx, panel.date_count, 2)
-			re_obj_time.RE(likelihood.u, panel)
+			re_obj_time = likelihood.re_obj_t
 			time_variance = float(max(re_obj_time.v_var, 0))
 			time_e_var = float(np.asarray(re_obj_time.e_var).reshape(-1)[0])
 			date_count = np.asarray(panel.date_count).reshape(-1)
 			time_weights = time_variance / (time_variance + time_e_var / date_count)
+
+		def level_means(idx, values, counts):
+			sums = np.bincount(idx, weights=values, minlength=len(counts))
+			return np.divide(sums, counts, out=np.zeros(len(counts)), where=counts > 0)
 
 		for _ in range(1000):
 			previous_group = group_values.copy()
 			previous_time = time_values.copy()
 
 			if group_mode != 'none':
-				for unit in range(unit_count):
-					valid = mask[unit]
-					if np.any(valid):
-						mean_residual = np.mean(residuals[unit, valid] - time_values[valid])
-						if group_mode == 'random':
-							group_values[unit] = group_weights[unit] * mean_residual
-						else:
-							group_values[unit] = mean_residual
+				group_values = group_weights * level_means(g_idx, observed - time_values[t_idx], group_n)
 				group_values -= np.mean(group_values)
 
 			if time_mode != 'none':
-				for period in range(period_count):
-					valid = mask[:, period]
-					if np.any(valid):
-						mean_residual = np.mean(residuals[valid, period] - group_values[valid])
-						if time_mode == 'random':
-							time_values[period] = time_weights[period] * mean_residual
-						else:
-							time_values[period] = mean_residual
+				time_values = time_weights * level_means(t_idx, observed - group_values[g_idx], time_n)
 				time_values -= np.mean(time_values)
 
 			if max(
@@ -120,9 +108,7 @@ class PanelEffectResults:
 			group_labels = np.asarray(panel.original_names)
 			group_estimates = pd.Series(group_values, index=group_labels, name='group_effect')
 		if time_mode != 'none':
-			time_frame = panel.input.timevar
-			time_labels = pd.unique(time_frame.iloc[:, 0])
-			time_estimates = pd.Series(time_values, index=time_labels, name='time_effect')
+			time_estimates = pd.Series(time_values, index=np.asarray(panel.date_labels), name='time_effect')
 
 		group_result = EffectEstimate(group_mode, group_estimates, group_variance)
 		time_result = EffectEstimate(time_mode, time_estimates, time_variance)
@@ -215,7 +201,7 @@ class Summary:
 
 		from .likelihood.main import LL
 		from .maximization.computation import Computation
-		from .output.output import grand_mean_variance, sandwich
+		from .output.output import grand_mean_variance, sandwich_pair
 
 		panel = self.panel
 		comput = Computation(values, panel, panel.options.tolerance, 4 * np.finfo(float).eps, False)
@@ -229,12 +215,11 @@ class Summary:
 			raise ValueError('Hessian is undefined at the supplied parameter values')
 
 		lags = panel.options.robustcov_lags_statistics[1]
-		se_robust, se_unadjusted, _, _ = sandwich(
+		primary, opposite = sandwich_pair(
 			hessian, scores, gradient, comput.constr, panel, lags
 		)
-		se_robust_opposite, se_unadjusted_opposite, _, _ = sandwich(
-			hessian, scores, gradient, comput.constr, panel, lags, oposite=True
-		)
+		se_robust, se_unadjusted, _, _ = primary
+		se_robust_opposite, se_unadjusted_opposite, _, _ = opposite
 		se_robust = np.asarray(se_robust, dtype=float)
 		se_unadjusted = np.asarray(se_unadjusted, dtype=float)
 		se_robust_opposite = np.asarray(se_robust_opposite, dtype=float)
@@ -307,12 +292,12 @@ class Summary:
 	@property
 	def nobs(self) -> int:
 		"""Number of observations used in estimation."""
-		return int(self._summary.panel.NT)
+		return self.results.nobs
 
 	@property
 	def df_resid(self) -> int:
 		"""Residual degrees of freedom."""
-		return int(self._summary.panel.df)
+		return self.results.df_resid
 
 	@property
 	def llf(self) -> float:
@@ -331,8 +316,8 @@ class Summary:
 
 	@property
 	def converged(self) -> bool:
-		"""Whether the optimizer reported convergence."""
-		return bool(self._summary.general.converged)
+		"""Whether the likelihood optimizer converged."""
+		return self._summary.general.converged in (1, 2)
 
 	@property
 	def resid(self):
@@ -342,7 +327,7 @@ class Summary:
 	@property
 	def fittedvalues(self):
 		"""Fitted values corresponding to the model sample."""
-		return np.asarray(self._summary.panel.Y).reshape(-1) - np.asarray(self.resid).reshape(-1)
+		return self.results.fitted
 
 	def conf_int(self, alpha: float = 0.05) -> pd.DataFrame:
 		"""Return coefficient confidence intervals.
@@ -412,252 +397,6 @@ class Summary:
 		return by_unit.head(steps).to_numpy()
 
 
-def _closed_form_standard_errors(panel, closed_form):
-	"""Compute classical and HC1 robust SE for stationary closed-form beta estimates.
-
-	This treats effect estimates as fixed and computes SE from the observation-level
-	regression design used for reported coefficients.
-	"""
-	mask = np.asarray(panel.included[3][:, :, 0], dtype=bool)
-	X_obs = np.asarray(panel.X, dtype=float)[mask, :]
-	u = np.asarray(closed_form.residuals, dtype=float)[:, :, 0][mask]
-	k = X_obs.shape[1]
-	n = X_obs.shape[0]
-	if n == 0 or k == 0:
-		nan = np.full(k, np.nan, dtype=float)
-		return nan, nan
-
-	# Use pseudo-inverse for numerical stability in near-singular designs.
-	xtx_inv = np.linalg.pinv(X_obs.T @ X_obs)
-
-	df_resid = max(n - k, 1)
-	sigma2 = float(np.sum(u ** 2) / df_resid)
-	var_ols = sigma2 * xtx_inv
-
-	xu = X_obs * u[:, None]
-	meat = xu.T @ xu
-	hc1_scale = float(n / max(n - k, 1))
-	var_robust = hc1_scale * (xtx_inv @ meat @ xtx_inv)
-
-	bse = np.sqrt(np.maximum(np.diag(var_ols), 0.0))
-	robust_bse = np.sqrt(np.maximum(np.diag(var_robust), 0.0))
-
-	bse[~np.isfinite(bse)] = np.nan
-	robust_bse[~np.isfinite(robust_bse)] = np.nan
-	return bse, robust_bse
-
-
-class ClosedFormSummary:
-	"""Summary-like object for stationary closed-form FE/RE fits."""
-
-	def __init__(self, panel, closed_form):
-		self._closed_form = closed_form
-		self.panel = panel
-		self.options = panel.options
-		self.pqdkm = panel.pqdkm
-		self.names_grouped = panel.args.names_d
-		self.names_independents = panel.args.names_d['beta']
-		self.names_dependent = panel.input.Y_names
-		self.sign_codes = panel.sign_codes
-		self.stats = None
-		self.output = None
-		self.table = None
-		self.count = None
-		self.optim_result = None
-		self.results = None
-		self.general = None
-		self.ll = None
-		self.random_effects = RandomEffectsResult(None)
-		self.prediction_names = {
-			'Observed': f'Observed {panel.input.Y_names[0]}',
-			'Predicted': f'Predicted {panel.input.Y_names[0]}',
-			'Fitted': f'Fitted {panel.input.Y_names[0]}',
-		}
-		group_mode = closed_form.group_mode
-		time_mode = closed_form.time_mode
-		group_estimates = None
-		time_estimates = None
-		if group_mode != 'none':
-			labels = np.asarray(panel.original_names)
-			group_estimates = pd.Series(
-				np.asarray(closed_form.group_effects, dtype=float),
-				index=labels,
-				name='group_effect',
-			)
-		if time_mode != 'none':
-			time_labels = pd.unique(panel.input.timevar.iloc[:, 0])
-			time_estimates = pd.Series(
-				np.asarray(closed_form.time_effects, dtype=float),
-				index=time_labels,
-				name='time_effect',
-			)
-		self.effect_results = type('EffectResults', (), {
-			'group': EffectEstimate(group_mode, group_estimates, closed_form.sigma_alpha2),
-			'time': EffectEstimate(time_mode, time_estimates, closed_form.sigma_lambda2),
-		})()
-
-		bse, robust_bse = _closed_form_standard_errors(panel, closed_form)
-		index = closed_form.beta.index
-		self._bse = pd.Series(bse, index=index, dtype=float)
-		self._robust_bse = pd.Series(robust_bse, index=index, dtype=float)
-		with np.errstate(divide='ignore', invalid='ignore'):
-			tvalues = self.params.to_numpy(dtype=float) / self._bse.to_numpy(dtype=float)
-		self._tvalues = pd.Series(tvalues, index=index, dtype=float)
-		valid_t = np.isfinite(tvalues)
-		pvals = np.full_like(tvalues, np.nan, dtype=float)
-		if np.any(valid_t):
-			normal = NormalDist()
-			pvals[valid_t] = [2 * (1 - normal.cdf(abs(v))) for v in tvalues[valid_t]]
-		self._pvalues = pd.Series(pvals, index=index, dtype=float)
-
-	@property
-	def params(self) -> pd.Series:
-		return self._closed_form.beta.copy()
-
-	@property
-	def bse(self) -> pd.Series:
-		return self._bse.copy()
-
-	@property
-	def robust_bse(self) -> pd.Series:
-		return self._robust_bse.copy()
-
-	@property
-	def tvalues(self) -> pd.Series:
-		return self._tvalues.copy()
-
-	@property
-	def pvalues(self) -> pd.Series:
-		return self._pvalues.copy()
-
-	@property
-	def nobs(self) -> int:
-		return int(self._closed_form.nobs)
-
-	@property
-	def df_resid(self) -> int:
-		return int(max(self.nobs - len(self.params), 1))
-
-	@property
-	def llf(self) -> float:
-		return float('nan')
-
-	@property
-	def aic(self) -> float:
-		return float('nan')
-
-	@property
-	def bic(self) -> float:
-		return float('nan')
-
-	@property
-	def converged(self) -> bool:
-		return True
-
-	@property
-	def resid(self):
-		mask = np.asarray(self.panel.included[3][:, :, 0], dtype=bool)
-		return np.asarray(self._closed_form.residuals)[:, :, 0][mask]
-
-	@property
-	def fittedvalues(self):
-		mask = np.asarray(self.panel.included[3][:, :, 0], dtype=bool)
-		return np.asarray(self._closed_form.fitted)[:, :, 0][mask]
-
-	@property
-	def method(self) -> str:
-		return (
-			'Closed-form stationary '
-			f'(group {self._closed_form.group_mode}/time {self._closed_form.time_mode})'
-		)
-
-	def conf_int(self, alpha: float = 0.05) -> pd.DataFrame:
-		if not 0 < alpha < 1:
-			raise ValueError('alpha must be between 0 and 1')
-		z = NormalDist().inv_cdf(1 - alpha / 2)
-		params = self.params
-		se = self.bse
-		return pd.DataFrame({0: params - z * se, 1: params + z * se}, index=params.index, dtype=float)
-
-	def bse_at(self, params: dict | pd.Series, robust: bool = False) -> pd.Series:
-		if not isinstance(robust, (bool, np.bool_)):
-			raise TypeError('robust must be a bool')
-		diagnostics = self.bse_at_diagnostics(params)
-		return diagnostics['robust_bse' if robust else 'bse']
-
-	def bse_at_diagnostics(self, params: dict | pd.Series) -> dict:
-		if not isinstance(params, (dict, pd.Series)):
-			raise TypeError('params must be a dict or pandas Series keyed by parameter name')
-
-		names = list(self.params.index)
-		missing = [name for name in names if name not in params]
-		extra = [name for name in params.keys() if name not in names]
-		if missing or extra:
-			raise ValueError(f'Parameter names must match the fitted model; missing={missing}, extra={extra}')
-
-		values = np.asarray([params[name] for name in names], dtype=float)
-		if not np.all(np.isfinite(values)):
-			raise ValueError('All parameter values must be finite')
-
-		nan_series = pd.Series(np.nan, index=names, dtype=float)
-		return {
-			'log_likelihood': float('nan'),
-			'bse': nan_series.copy(),
-			'robust_bse': nan_series.copy(),
-			'score': nan_series.copy(),
-			'mean_score': nan_series.copy(),
-			'max_observation_score': nan_series.copy(),
-			'hessian_diagonal': nan_series.copy(),
-			'hessian_condition_number': float('nan'),
-			'scaled_condition_index': float('nan'),
-			'scaled_hessian_eigenvalues': [],
-			'weakest_direction': {},
-			'variance_clipped_fraction': float('nan'),
-		}
-
-	def summary(self):
-		return self
-
-	def __str__(self):
-		return (
-			f'{self.method}\n'
-			f'nobs: {self.nobs}, params: {len(self.params)}\n'
-			f'params:\n{self.params.to_string()}'
-		)
-
-	def latex(self):
-		raise NotImplementedError('latex output is not available for closed-form stationary results')
-
-	def html(self):
-		raise NotImplementedError('html output is not available for closed-form stationary results')
-
-	def results_table(self, fmt='CONSOLE'):
-		del fmt
-		return str(self.params)
-
-	def statistics(self):
-		return (
-			f'{self.method}; sigma_e2={self._closed_form.sigma_e2:.6g}, '
-			f'sigma_alpha2={self._closed_form.sigma_alpha2:.6g}, '
-			f'sigma_lambda2={self._closed_form.sigma_lambda2:.6g}'
-		)
-
-	def diagnostics(self):
-		return 'Closed-form stationary path does not compute optimizer diagnostics.'
-
-	def accounting(self):
-		return f'nobs={self.nobs}, df_resid={self.df_resid}'
-
-	def predict(self, signals=None):
-		del signals
-		raise NotImplementedError('predict is not available for closed-form stationary results')
-
-	def forecast(self, steps: int = 1):
-		del steps
-		raise NotImplementedError('forecast is not available for closed-form stationary results')
-
-
-    
 class Model:
 	"""Panel ARIMA/GARCH model using a constructor followed by ``fit``."""
 
@@ -673,7 +412,7 @@ class Model:
 	def fit(self, order=(1, 1, 0), garch_order=(1, 1), vol='GARCH',
 			effects=None, cov_type='robust', optimizer=None, constraints=None,
 			likelihood=None, h_function=None, add_intercept=True,
-			subtract_means=False, include_initvar=False,
+			subtract_means=False,
 			tobit_limits=(None, None), suppress_output=True) -> Summary:
 		"""Fit the model and return a :class:`Summary` instance."""
 		effects = effects or Effects()
@@ -682,7 +421,6 @@ class Model:
 			effects=effects, optimizer=optimizer, constraints=constraints,
 			likelihood=likelihood, h_function=h_function,
 			add_intercept=add_intercept, subtract_means=subtract_means,
-			include_initvar=include_initvar,
 			tobit_limits=tobit_limits,
 			suppress_output=suppress_output)
 		engine_options = config.to_engine_options()
@@ -692,38 +430,6 @@ class Model:
 		else:
 			entity, time = self.entity, self.time
 
-		if tuple(order) == (0, 0, 0) and tuple(garch_order) == (0, 0) and False:
-			stationary = self._fit_stationary_closed_form(
-				engine_options=engine_options,
-				entity=entity,
-				time=time,
-			)
-			if stationary is not None:
-				return stationary
-
 		summary = main.execute(self.formula, self.data, time, entity, None,
 			engine_options)
 		return Summary(summary)
-
-	def _fit_stationary_closed_form(self, engine_options, entity, time):
-		"""Attempt a closed-form stationary one-way FE/RE fit.
-
-		Returns a closed-form summary when supported; otherwise returns None so
-		the optimizer path is used.
-		"""
-		try:
-			datainput = main.Input(
-				self.data,
-				self.formula,
-				entity,
-				time,
-				engine_options,
-				None,
-				None,
-			)
-			pnl = Panel(datainput, engine_options)
-			pnl.init()
-			stationary = fit_group_effects_stationary(pnl)
-			return ClosedFormSummary(pnl, stationary)
-		except (StationaryEffectsError, RuntimeError, ValueError, np.linalg.LinAlgError):
-			return None

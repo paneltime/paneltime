@@ -284,10 +284,12 @@ class ARMAStartTests(unittest.TestCase):
         def numerical_error(*args, **kwargs):
             warnings.warn('Unexpected numerical failure', RuntimeWarning)
 
-        with patch.object(arma_start, 'fit_arma', side_effect=numerical_error):
-            with self.assertRaisesRegex(RuntimeWarning, 'Unexpected numerical failure'):
-                pt.Model('y ~ x', data, entity='id', time='time').fit(
-                    order=(1, 1, 0), garch_order=(0, 0))
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', RuntimeWarning)
+            with patch.object(arma_start, 'fit_arma', side_effect=numerical_error):
+                with self.assertRaisesRegex(RuntimeWarning, 'Unexpected numerical failure'):
+                    pt.Model('y ~ x', data, entity='id', time='time').fit(
+                        order=(1, 1, 0), garch_order=(0, 0))
 
 
 if __name__ == '__main__':

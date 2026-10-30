@@ -74,10 +74,7 @@ def test_c_armas_unhandled(u, var, e, panel, ll, G):
 	print(f"Testsums e: c:{np.sum(e**2)}, py:{np.sum(e2**2)}")
 
 def test_c_armas(u, var, e, panel, ll, G):
-	try:
-		test_c_armas_unhandled(u, var, e, panel, ll, G)
-	except Exception as ex:		
-		print("Error in test_c_armas:", ex)
+	test_c_armas_unhandled(u, var, e, panel, ll, G)
 
 def hess_debug_detail(f0,panel,d,llname,varname1,varname2,pos1=0,pos2=0):
 	args1=lgl.copy_array_dict(f0.args.args_d)
