@@ -51,7 +51,8 @@ class Computation:
 		self.pqdkm = panel.pqdkm
 		self.init_arma_its = 0
 		self.grestricted = grestricted
-		self.arma_reduced = []		# AR/MA lags fixed at zero after a cancellation
+		self.arma_reduced = []
+		self.gamma_reduced = []
 		self.set_constr(args, panel.options.ARMA_constraint)
 		
 
@@ -65,7 +66,6 @@ class Computation:
 		self.constr_old = self.constr
 		self.constr = constraints.Constraints(self.panel, x, its, armaconstr)
 		self.constr.add_static_constraints(self, its, ll)
-		self.add_arma_reduction()
 		self.constr.multicoll_report(H, self.panel.options.multicoll_threshold_report)
 		self.ci = self.constr.ci
 		self.mc_report = self.constr.mc_report
@@ -75,31 +75,6 @@ class Computation:
 		self.constr_old = None
 		self.constr = constraints.Constraints(self.panel, args, 0, armaconstr)
 		self.constr.add_static_constraints(self, 0)
-		self.add_arma_reduction()
-
-	def add_arma_reduction(self):
-		for i in self.arma_reduced:
-			self.constr.add_item(i, None, constraints.ARMA_CANCELLATION, None, True, 0.0)
-
-	def reduce_arma(self, x, H):
-		"""Fix the highest AR and MA lags at zero if the Wald statistic of
-		rho + lambda shows a common AR/MA factor (see
-		Constraints.arma_cancellation). Returns the likelihood at the reduced
-		arguments, or None if nothing was reduced."""
-		idx = self.constr.arma_cancellation(x, H)
-		if not idx:
-			return None
-		x = np.array(x, dtype=float)
-		x[idx] = 0.0
-		self.arma_reduced.extend(idx)
-		self.add_arma_reduction()
-		ll = logl.LL(x, self.panel, constraints=self.constr)
-		if ll.LL is None:
-			for i in idx:
-				self.arma_reduced.remove(i)
-				self.constr.delete(i)
-			return None
-		return ll
 
 	def fixed_constr_change(self):
 		return set(self.constr.fixed.keys()) != set(self.constr_old.fixed.keys())
@@ -118,12 +93,12 @@ class Computation:
 		# masking with the previous line search's constraints is needed.
 		dx, dx_norm, _ = direction.get(g, x, H, self.constr, f, hessin, simple=False)
 
-		# Convergence measures, all relative to |LL|:
+		# Gradient measure relative to |LL|; expected gain in absolute LL units,
+		# since inference depends on LL differences, not on their share of |LL|.
 		scale = max(abs(f), 1.0)
 		pg = direction.projected_gradient(g, x, self.constr)		# KKT gradient
 		g_norm = min(np.max(np.abs(pg)*np.maximum(np.abs(x), 1.0))/scale, 1e+50)
 		pgain, totpgain = potential_gain(dx, g, H)					# model gain of the step
-		gain_rel = totpgain/scale
 		concave = self.is_concave(H)
 		
 		step_rel = np.max(np.abs(dx_realized)/np.maximum(np.abs(x), 1.0))
@@ -141,7 +116,7 @@ class Computation:
 			conv = 5
 		elif its < min_its:
 			conv = 0
-		elif concave and gain_rel < self.gtol:
+		elif concave and totpgain < self.gtol:
 			conv = 1
 		elif g_norm < self.gtol:
 			conv = 2

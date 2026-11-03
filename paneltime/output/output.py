@@ -302,8 +302,14 @@ class RegTableObj(dict):
 		primary, opposite = sandwich_pair(H, G, g, constr, panel, self.lags)
 		d['se_robust'],d['se_st'], d['cov_robust'], d['cov'] = primary
 		d['se_robust_oposite'],d['se_st_oposite'], _, _ = opposite
-		d['se_robust'][np.isnan(d['se_robust'])]=d['se_robust_oposite'][np.isnan(d['se_robust'])]
-		d['se_st'][np.isnan(d['se_st'])]=d['se_st_oposite'][np.isnan(d['se_st'])]
+		# Only parameters tied to an associate get the opposite SE; value-fixed ones stay NaN.
+		tied = np.zeros(T, dtype=bool)
+		if constr is not None:
+			for i, c in constr.fixed.items():
+				tied[i] = c.assco_ix is not None
+		for k in ('se_robust', 'se_st'):
+			fill = np.isnan(d[k]) & tied
+			d[k][fill] = d[k+'_oposite'][fill]
 		self.add_grand_mean_variance(panel, ll)
 
 		no_nan=np.isnan(d['se_robust'])==False
@@ -511,13 +517,13 @@ def grand_mean_variance(panel, ll):
 	v = 0.0
 	if panel.options.fixed_random_group_eff == 2:
 		o = ll.re_obj_i
-		if any(panel.pqdkm[:3]):
+		if any(panel.pqdkm[:3]) or panel.options.fractional_d is not None:
 			o = random_effects.REObj(panel, True, panel.T_i, panel.T_i, 2)
 			o.RE(ll.u, panel)
 		v += float(getattr(o, 'v_var', 0))/panel.N
 	if panel.options.fixed_random_time_eff == 2:
 		o = ll.re_obj_t
-		if any(panel.pqdkm[:3]):
+		if any(panel.pqdkm[:3]) or panel.options.fractional_d is not None:
 			o = random_effects.REObj(panel, False, panel.date_count_mtrx, panel.date_count, 2)
 			o.RE(ll.u, panel)
 		v += float(getattr(o, 'v_var', 0))/panel.n_dates
@@ -651,7 +657,10 @@ class Information:
 	def get_model(self, panel):
 		p, q, d, k, m = panel.pqdkm
 		s = ""
-		if d>0:
+		if panel.options.fractional_d is not None:
+			value = "d" if panel.options.fractional_d == 'estimate' else panel.options.fractional_d
+			s += f"ARFIMA({p}, {value}, {q})"
+		elif d>0:
 			s+=f"ARIMA{(p, d, q)}"
 		elif (p*q):
 			s+=f"ARMA{(p,q)}"

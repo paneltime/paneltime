@@ -69,21 +69,21 @@ class LL:
 
 		
 		G = fu.dot(panel.W_a, self.args.args_d['omega'])
-		# Lags reaching before the sample take the sample residual variance
-		# (a constant), so they have no effect when the GARCH coefficients are
-		# zero. An endogenous start such as omega/(1 - sum(gamma) - sum(psi))
-		# is avoided: it leaves the variance level without a data anchor,
-		# weakens GARCH identification and is undefined near unit persistence.
-		self.presample_var = panel.args.init_var
-		self.presample_weights = presample_weights(self.args.args_d, T)
-		G = G + self.presample_var * self.presample_weights
+		if any(panel.pqdkm[3:]):
+			# Condition the variance recursion on a fixed first observation.
+			G[:, 0, 0] = panel.args.init_var
 
 		#Idea for IV: calculate Z*u throughout. Mazimize total sum of LL. 
 		u = panel.Y-fu.dot(X,self.args.args_d['beta'])
-		
+		self.fractional = None
+		self.u_fractional = u
+		if panel.options.fractional_d is not None:
+			d = (self.args.args_d['d'].item() if panel.options.fractional_d == 'estimate'
+				else panel.options.fractional_d)
+			self.fractional = panel.fractional_factory(d, T + 1)
+			self.u_fractional = self.fractional.apply(u) * incl
 
-
-		matrices=self.arma_calc(panel, u, G)
+		matrices=self.arma_calc(panel, self.u_fractional, G)
 
 		if matrices is None:
 			return None		
@@ -209,6 +209,8 @@ class LL:
 		return X,X_long		
 
 	def corr_arima(self,X):
+		if self.fractional is not None:
+			X = self.fractional.apply(X)
 		X=fu.arma_dot(self.AMA_1AR,X,self)
 		return X
 
@@ -245,7 +247,9 @@ class LL:
 		d = self.args.args_d
 
 		N, T, k = panel.X.shape
-		self.u_pred = pred_u(self.u, self.e, d['rho'], d['lambda'], panel)
+		self.u_pred = pred_u(self.u_fractional, self.e, d['rho'], d['lambda'], panel)
+		if self.fractional is not None:
+			self.u_pred = self.fractional.forecast(self.u_pred, self.u, panel.T_arr)
 		#u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], panel)#test
 		self.y_pred = pred_y(panel.X, panel.X_pred[:,0], d['beta'], self.u_pred, d['rho'], d['lambda'], panel)
 		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], 
@@ -277,28 +281,6 @@ class LL:
 
 		df = pd.concat((pred_df, fit_df), axis=1)
 		return df.sort_index()
-
-def presample_lag_mask(n_lags, T):
-	"""(T, n_lags) mask; column j-1 marks periods t < j, where lag j is pre-sample."""
-	t = np.arange(T).reshape(T, 1)
-	j = np.arange(1, n_lags + 1).reshape(1, n_lags)
-	return (t < j).astype(float)
-
-
-def presample_weights(args_d, T):
-	"""Weight of the pre-sample variance in each period's variance constant.
-
-	In var_t = omega + sum_j gamma_j var_(t-j) + sum_j psi_j h_(t-j), every
-	lag j > t reaches before the sample, where var and h equal the pre-sample
-	variance. Returns shape (1, T, 1).
-	"""
-	w = np.zeros(T)
-	for name in ('gamma', 'psi'):
-		coef = np.asarray(args_d[name], dtype=float).reshape(-1)
-		if len(coef):
-			w += presample_lag_mask(len(coef), T) @ coef
-	return w.reshape(1, T, 1)
-
 
 def get_last_obs(u, panel):
 	maxlag = max(panel.pqdkm)

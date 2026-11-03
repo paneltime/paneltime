@@ -3,16 +3,17 @@
 
 from pathlib import Path
 import argparse
-import platform
 import re
 import shutil
 import subprocess as sp
 import zipfile
 import os
+import sys
 
 from paneltime.options import option_schema
 
 CUR_DIR = Path(__file__).resolve().parent
+DOC_PDF = "paneltime_documentation.pdf"
 
 
 def write_option_docs(path):
@@ -67,6 +68,8 @@ def main():
         version = add_version(CUR_DIR, add=not args.keep_version)
         print(f"Version is now {version}")
 
+    compile_latex_doc()
+
     if not args.skip_quarto:
         run(["quarto", "render", "qmd"])
         
@@ -78,9 +81,33 @@ def main():
         print('Not pushed to GitHub. Use "-g" to push.')
 
     if args.pypi:
-        os.system("twine upload dist/*")
+        run([sys.executable, "-m", "twine", "upload", *map(str, (CUR_DIR / "dist").glob("*"))])
     else:
         print('Not uploaded to PyPI. Use "-p" to upload.')
+
+
+def compile_latex_doc():
+    doc_dir = CUR_DIR.parent / "paneltime_doc"
+    # MacTeX installs here, but it is often missing from PATH in non-login shells
+    search_path = os.pathsep.join([os.environ.get("PATH", ""), "/Library/TeX/texbin"])
+    latexmk = shutil.which("latexmk", path=search_path)
+    pdflatex = shutil.which("pdflatex", path=search_path)
+    bibtex = shutil.which("bibtex", path=search_path)
+
+    if latexmk:
+        run([latexmk, "-pdf", "-interaction=nonstopmode", "main.tex"], cwd=doc_dir)
+    elif pdflatex and bibtex:
+        run([pdflatex, "-interaction=nonstopmode", "main.tex"], cwd=doc_dir)
+        run([bibtex, "main"], cwd=doc_dir)
+        run([pdflatex, "-interaction=nonstopmode", "main.tex"], cwd=doc_dir)
+        run([pdflatex, "-interaction=nonstopmode", "main.tex"], cwd=doc_dir)
+    else:
+        print("WARNING: No LaTeX installation found (latexmk/pdflatex). "
+              "Install MacTeX/TeX Live to compile paneltime_doc/main.tex. "
+              f"Using existing qmd/{DOC_PDF} if present.")
+        return
+
+    shutil.copy2(doc_dir / "main.pdf", CUR_DIR / "qmd" / DOC_PDF)
 
 
 def clean():
@@ -91,8 +118,7 @@ def clean():
 
 
 def build_package():
-    python_cmd = "python3" if platform.system() == "Darwin" else "python"
-    run([python_cmd, "-m", "build"])
+    run([sys.executable, "-m", "build"])
 
 
 def push_repo(path: Path, message: str):

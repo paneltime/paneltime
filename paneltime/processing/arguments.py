@@ -25,6 +25,8 @@ class arguments:
 
 		if panel.z_active:
 			self.categories+=['z']
+		if panel.options.fractional_d == 'estimate':
+			self.categories+=['d']
 
 		self.make_namevector(panel,p, q, k, m)
 		initargs=self.initargs(p, d, q, m, k, panel)
@@ -85,6 +87,8 @@ class arguments:
 		args['gamma']=np.zeros((k,1))
 		args['omega'][0][0]=0
 		args['z']=np.array([[]])			
+		if panel.options.fractional_d == 'estimate':
+			args['d']=np.zeros((1,1))
 
 		if m>0 and panel.z_active:
 			args['z']=np.array([[1e-09]])	
@@ -209,6 +213,12 @@ class arguments:
 				names_d['z']=['z']
 				names.extend(d['z'])					
 				c.append(d['z'])
+		if panel.options.fractional_d == 'estimate':
+			d['d'] = ['d']
+			names_d['d'] = ['d']
+			captions.extend(d['d'])
+			names.extend(names_d['d'])
+			c.append(d['d'])
 
 		self.caption_v=captions
 		self.caption_d=d
@@ -365,5 +375,4 @@ class ArgumentsSet:
 					self.args_names[k] = self.args_names[k][0]
 				except IndexError as e:
 					pass
-
 

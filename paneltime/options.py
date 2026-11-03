@@ -52,6 +52,15 @@ def is_finite_real_or_none(value):
 	)
 
 
+def is_finite_nonnegative(value):
+	return value is not None and is_finite_real_or_none(value) and value >= 0
+
+
+def is_fractional_d(value):
+	return (value is None or (isinstance(value, str) and value == 'estimate')
+		or (value is not None and is_finite_real_or_none(value) and -0.5 < value < 0.5))
+
+
 def is_tobit_limits(value):
 	return (
 		isinstance(value, (tuple, list))
@@ -84,8 +93,9 @@ class OptionSpec:
 
 
 OPTION_SPECS = {
-	'fit.order': OptionSpec((1, 1, 0), 'ARIMA order `(p, d, q)`.', 'Three non-negative integers.', 'ARIMA-GARCH', 'pqdkm', '(2, 1, 2)', validator=tuple_of_ints(3)),
+	'fit.order': OptionSpec((1, 1, 0), 'ARIMA order `(p, q, d)` (AR, MA, integer differencing).', 'Three non-negative integers.', 'ARIMA-GARCH', 'pqdkm', '(2, 1, 2)', validator=tuple_of_ints(3)),
 	'fit.garch_order': OptionSpec((1, 1), 'GARCH order `(k, m)`.', 'Two non-negative integers.', 'ARIMA-GARCH', 'pqdkm', '(2, 2)', validator=tuple_of_ints(2)),
+	'fit.fractional_d': OptionSpec(None, 'Conditional fractional differencing of regression residuals; estimate one common d or supply a fixed value. Requires regular observations and zero integer differencing.', 'None, "estimate", or a finite real number strictly between -0.5 and 0.5.', 'ARIMA-GARCH', 'fractional_d', 'estimate', validator=is_fractional_d),
 	'fit.vol': OptionSpec('GARCH', 'Volatility model.', ['GARCH', 'EGARCH'], 'ARIMA-GARCH', 'EGARCH', 'EGARCH', validator=one_of(['GARCH', 'EGARCH'])),
 	'fit.effects': OptionSpec(None, 'Fixed or random effects in the mean and variance models.', 'An Effects instance.', 'Effects', default_display='Effects()'),
 	'fit.optimizer': OptionSpec(None, 'Numerical optimizer settings.', 'An OptimizerOptions instance.', 'Optimizer', default_display='OptimizerOptions()'),
@@ -107,7 +117,8 @@ OPTION_SPECS = {
 	'optimizer.arma_round': OptionSpec(14, 'Number of significant digits used in ARMA matrices.', 'Positive integer.', 'ARIMA-GARCH', 'ARMA_round', validator=is_positive_int),
 	'optimizer.garch_min': OptionSpec(1e-12, 'Minimum absolute value of GARCH coefficients.', 'Positive number.', 'ARIMA-GARCH', 'GARCH_min', validator=is_positive),
 	'optimizer.garch_assist': OptionSpec(0, 'Weight assigned to the assisting GARCH variance.', 'Non-negative number.', 'ARIMA-GARCH', 'GARCH_assist', validator=is_nonnegative),
-	'optimizer.multicoll_threshold_report': OptionSpec(30, 'Threshold for reporting multicollinearity.', 'Positive number.', 'Optimizer', 'multicoll_threshold_report', validator=is_positive),
+	'optimizer.garch_ridge_wald': OptionSpec(0.2, 'Absolute squared-Wald-ratio threshold (strict) for attempting to fix the highest free gamma lag at zero. Negative variance uses a heuristic; zero variance is skipped. Accepted reductions get one release retry within the iteration budget; 0 disables ridge reduction.', 'Finite non-negative real number (excluding booleans).', 'ARIMA-GARCH', 'GARCH_ridge_wald', '1.0', validator=is_finite_nonnegative),
+	'optimizer.multicoll_threshold_report': OptionSpec(30, 'Condition-index threshold for reporting multicollinearity and gating automatic ARMA/GARCH reductions together with their Wald criteria.', 'Positive number.', 'Optimizer', 'multicoll_threshold_report', validator=is_positive),
 	'optimizer.min_group_df': OptionSpec(1, 'Minimum observations allowed in each group.', 'Positive integer.', 'Optimizer', 'min_group_df', validator=is_positive_int),
 	'optimizer.robust_cov_lags': OptionSpec((100, 30), 'Lags used for robust covariance calculations.', 'Two integers greater than one.', 'Output', 'robustcov_lags_statistics', '(100, 30)', validator=tuple_of_ints(2, minimum=2)),
 	'optimizer.variance_re_norm': OptionSpec(0.000005, 'Normalization point for variance random-effects calculations.', 'Positive number.', 'ARIMA-GARCH', 'variance_RE_norm', validator=is_positive),
@@ -203,6 +214,10 @@ class EngineOptions:
 		if any(value < 0 for value in (
 				self.initial_arima_garch_params, self.kurtosis_adj, self.GARCH_assist)):
 			raise ValueError('engine parameter magnitudes must be non-negative')
+		_validate_spec('optimizer.garch_ridge_wald', self.GARCH_ridge_wald)
+		_validate_spec('fit.fractional_d', self.fractional_d)
+		if self.fractional_d is not None and self.pqdkm[2] != 0:
+			raise ValueError('fractional_d cannot be combined with integer differencing')
 		if len(self.robustcov_lags_statistics) != 2 or any(
 				not isinstance(value, int) or value <= 1 for value in self.robustcov_lags_statistics):
 			raise ValueError('robustcov_lags_statistics must contain two integers greater than one')
@@ -249,6 +264,7 @@ class OptimizerOptions:
 	arma_round: int = _option('optimizer.arma_round')
 	garch_min: float = _option('optimizer.garch_min')
 	garch_assist: float = _option('optimizer.garch_assist')
+	garch_ridge_wald: float = _option('optimizer.garch_ridge_wald')
 	multicoll_threshold_report: float = _option('optimizer.multicoll_threshold_report')
 	min_group_df: int = _option('optimizer.min_group_df')
 	robust_cov_lags: tuple[int, int] = _option('optimizer.robust_cov_lags')
@@ -276,10 +292,11 @@ class FitOptions:
 	suppress_output: bool = _option('fit.suppress_output')
 	likelihood: Any = _option('fit.likelihood')
 	h_function: Any = _option('fit.h_function')
+	fractional_d: Optional[float | str] = _option('fit.fractional_d')
 
 	def validate(self):
 		for name in ('order', 'garch_order', 'vol', 'constraints', 'add_intercept',
-				'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood'):
+				'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood', 'fractional_d'):
 			_validate_spec(f'fit.{name}', getattr(self, name))
 		self.effects.validate()
 		self.optimizer.validate()
@@ -293,7 +310,7 @@ class FitOptions:
 		for name in ('group', 'time', 'variance'):
 			spec = _spec(f'effects.{name}')
 			setattr(engine_options, spec.engine_name, effect_values[getattr(self.effects, name)])
-		for name in ('constraints', 'add_intercept', 'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood', 'h_function'):
+		for name in ('constraints', 'add_intercept', 'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood', 'h_function', 'fractional_d'):
 			spec = _spec(f'fit.{name}')
 			value = getattr(self, name)
 			if name == 'tobit_limits':

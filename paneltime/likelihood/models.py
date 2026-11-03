@@ -1,5 +1,6 @@
 import numpy as np
 from abc import ABC, abstractmethod
+from .fractional import FractionalModel
 
 
 def _h_identity(e, e2, v):
@@ -12,7 +13,7 @@ def _h_log(e, e2, v):
 	return np.log(e2)
 
 
-class LikelihoodModel(ABC):
+class LikelihoodModel(FractionalModel, ABC):
 	"""Base class for user-defined likelihood models.
 
 	Subclasses may implement only :meth:`loglike`; numerical score and Hessian
@@ -74,14 +75,22 @@ class LikelihoodModel(ABC):
 
 def _finite_difference(model, method, first):
 	"""Numerically differentiate a pointwise likelihood with respect to e and var."""
+	from .symbolic import SymbolicHFunction, apply_h_function
+
 	original_e = np.array(model.e, dtype=float, copy=True)
 	original_var = np.array(model.var, dtype=float, copy=True)
+	expression = model.h.expression if isinstance(model.h, SymbolicHFunction) else None
+
+	def restore_h_function():
+		model.set_h_function()
+		if expression is not None:
+			apply_h_function(model, expression)
 
 	def evaluate(e, var):
 		model.e = e
 		model.var = var
 		model.variance_definitions()
-		model.set_h_function()
+		restore_h_function()
 		return np.asarray(getattr(model, method)(), dtype=float)
 
 	try:
@@ -118,14 +127,14 @@ def _finite_difference(model, method, first):
 		model.e = original_e
 		model.var = original_var
 		model.variance_definitions()
-		model.set_h_function()
+		restore_h_function()
 
 
 
 
 LL_CONST =-0.5*np.log(2*np.pi)
 	
-class Exponential:
+class Exponential(FractionalModel):
 	def __init__(self, e, init_var, a, k, z):
 
 		# Do not change any variable names here, as they are used elsewhere
@@ -222,7 +231,7 @@ class Exponential:
 EGARCH = Exponential
 
 
-class Hyperbolic:
+class Hyperbolic(FractionalModel):
 	def __init__(self, e, v, a, k, z):
 
 		# Do not change any variable names here, as they are used elsewhere
@@ -339,7 +348,7 @@ class Hyperbolic:
 
 
 
-class Normal:
+class Normal(FractionalModel):
 	def __init__(self, e, v, a, k, z):
 
 		# Do not change any variable names here, as they are used elsewhere
@@ -429,5 +438,3 @@ class Normal:
 
 		return d2ll_de2, d2ll_dv_de, d2ll_dv2
 	
-
-

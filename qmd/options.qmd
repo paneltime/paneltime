@@ -10,8 +10,9 @@ These options are configured per model fit. The defaults, domains, and descripti
 
 | Group | Option | Default | Domain | Description | Example |
 |---|---|---:|---|---|---|
-| fit | `order` | `(1, 1, 0)` | Three non-negative integers. | ARIMA order `(p, d, q)`. | `(2, 1, 2)` |
+| fit | `order` | `(1, 1, 0)` | Three non-negative integers. | ARIMA order `(p, q, d)` (AR, MA, integer differencing). | `(2, 1, 2)` |
 | fit | `garch_order` | `(1, 1)` | Two non-negative integers. | GARCH order `(k, m)`. | `(2, 2)` |
+| fit | `fractional_d` | `None` | None, "estimate", or a finite real number strictly between -0.5 and 0.5. | Conditional fractional differencing of regression residuals; estimate one common d or supply a fixed value. Requires regular observations and zero integer differencing. | `estimate` |
 | fit | `vol` | `'GARCH'` | GARCH, EGARCH | Volatility model. | `EGARCH` |
 | fit | `effects` | `Effects()` | An Effects instance. | Fixed or random effects in the mean and variance models. | `` |
 | fit | `optimizer` | `OptimizerOptions()` | An OptimizerOptions instance. | Numerical optimizer settings. | `` |
@@ -19,7 +20,7 @@ These options are configured per model fit. The defaults, domains, and descripti
 | fit | `add_intercept` | `True` | True or False. | Add an intercept when one is not present in the formula. | `` |
 | fit | `subtract_means` | `False` | True or False. | Subtract variable means before estimation. | `` |
 | fit | `tobit_limits` | `(None, None)` | Two finite real numbers or None, with lower <= upper. | Lower and upper limits for a Tobit model. | `(0, None)` |
-| fit | `suppress_output` | `True` | True or False. | Suppress optimizer progress output. | `` |
+| fit | `suppress_output` | `True` | True or False. | Suppress fit status output. | `` |
 | fit | `likelihood` | `None` | None or a likelihood class. | Custom likelihood model class. | `` |
 | fit | `h_function` | `None` | None or a supported h-function. | Custom heteroskedasticity function. | `` |
 | effects | `group` | `'none'` | none, fixed, random | Group effect specification. | `` |
@@ -33,7 +34,8 @@ These options are configured per model fit. The defaults, domains, and descripti
 | optimizer | `arma_round` | `14` | Positive integer. | Number of significant digits used in ARMA matrices. | `` |
 | optimizer | `garch_min` | `1e-12` | Positive number. | Minimum absolute value of GARCH coefficients. | `` |
 | optimizer | `garch_assist` | `0` | Non-negative number. | Weight assigned to the assisting GARCH variance. | `` |
-| optimizer | `multicoll_threshold_report` | `30` | Positive number. | Threshold for reporting multicollinearity. | `` |
+| optimizer | `garch_ridge_wald` | `0.2` | Finite non-negative real number (excluding booleans). | Absolute squared-Wald-ratio threshold (strict) for attempting to fix the highest free gamma lag at zero. Negative variance uses a heuristic; zero variance is skipped. Accepted reductions get one release retry within the iteration budget; 0 disables ridge reduction. | `1.0` |
+| optimizer | `multicoll_threshold_report` | `30` | Positive number. | Condition-index threshold for reporting multicollinearity and gating automatic ARMA/GARCH reductions together with their Wald criteria. | `` |
 | optimizer | `min_group_df` | `1` | Positive integer. | Minimum observations allowed in each group. | `` |
 | optimizer | `robust_cov_lags` | `(100, 30)` | Two integers greater than one. | Lags used for robust covariance calculations. | `(100, 30)` |
 | optimizer | `variance_re_norm` | `5e-06` | Positive number. | Normalization point for variance random-effects calculations. | `` |

@@ -21,7 +21,14 @@ def get_model_string(model, e, e2, z):
 	else:
 		s = syntax_adapt(model.h_val_cpp).encode('utf-8')
 	if not s == b'':
-		test_expr(s, e, e2, z)
+		shape = z if model.z is None else float(np.asarray(model.z).item())
+		for residual, squared in ((e, e2), (0.5, 0.25 + 1e-8), (2.0, 4.0 + 1e-8)):
+			actual = test_expr(s, residual, squared, shape)
+			expected = model.h(residual, squared, model.v)
+			if not np.all(np.isfinite(expected)) or not np.allclose(actual, expected, rtol=1e-6, atol=1e-8):
+				raise ValueError(
+					f'h function Python/C++ mismatch: Python={expected}, C++={actual}'
+				)
 	return s
 
 
@@ -60,8 +67,6 @@ def syntax_adapt(expr):
 def test_expr(h_expr, e, e2, z):
 	cfunct.expression_test.argtypes = [ct.c_double, ct.c_double, ct.c_double, ct.c_char_p]
 	cfunct.expression_test.restype = ct.c_char_p
-	e = -100
-	z = -100
 	x = cfunct.expression_test(e, e2, z, h_expr).decode('utf-8')
 	if "Error:" in x:
 		raise ValueError(f"Error in h function: {x}")
@@ -70,8 +75,5 @@ def test_expr(h_expr, e, e2, z):
 	elif x == 'inf' or x == '-inf':	
 		raise ValueError(f"{h_expr} function returns inf for e={e} and z={z}.")
 
-	x = float(x)
-
-
-
+	return float(x)
 

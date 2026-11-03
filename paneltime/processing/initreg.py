@@ -1,6 +1,7 @@
 """Panel working regression and ARMA/GARCH starting values."""
 
 import numpy as np
+import copy
 
 from ..output import stat_functions as stat
 from ..random_effects import REObj, fit_group_effects_stationary
@@ -9,6 +10,14 @@ from . import arma_start
 
 
 def start_values(panel):
+    if panel.options.fractional_d is not None:
+        d = 0.0 if panel.options.fractional_d == 'estimate' else panel.options.fractional_d
+        fractional = panel.fractional_factory(d, panel.max_T)
+        panel = copy.copy(panel)
+        for name in ('Y', 'X', 'Z'):
+            value = getattr(panel, name)
+            if value is not None:
+                setattr(panel, name, fractional.apply(value) * panel.included[3])
     if _use_static_start(panel):
         return static_start(panel)
     p, q, _, k, m = panel.pqdkm
@@ -38,6 +47,7 @@ def _use_static_start(panel):
     options = panel.options
     return (
         not any(panel.pqdkm)
+        and panel.options.fractional_d is None
         and {options.fixed_random_group_eff, options.fixed_random_time_eff} != {1, 2}
         and options.fixed_random_variance_eff == 0
         and options.user_constraints is None

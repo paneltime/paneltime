@@ -10,7 +10,6 @@ import numpy as np
 
 from .. import functions as fu
 from . import calculus_functions as cf
-from .main import presample_lag_mask
 
 EXTREME_VALUE = 1e100
 
@@ -90,12 +89,18 @@ class gradient:
 		panel = self.panel
 		p, q, _, _, _ = panel.pqdkm
 
-		self.de_rho = self.arima_grad(p, ll.u, ll, -1, ll.AMA_1)
+		self.de_rho = self.arima_grad(p, ll.u_fractional, ll, -1, ll.AMA_1)
 		self.de_lambda = self.arima_grad(q, ll.e, ll, -1, ll.AMA_1)
 		self.du_beta = -panel.XIV * incl
+		if ll.fractional is not None:
+			self.du_beta = ll.fractional.apply(self.du_beta) * incl
 		self.de_beta = fu.arma_dot(ll.AMA_1AR, self.du_beta, ll) * incl
+		self.de_d = None
+		if panel.options.fractional_d == 'estimate':
+			self.du_d = ll.fractional.apply(ll.u, 1) * incl
+			self.de_d = fu.arma_dot(ll.AMA_1AR, self.du_d, ll) * incl
 
-		for name in ("rho", "lambda", "beta"):
+		for name in ("rho", "lambda", "beta", "d"):
 			setattr(self, f"de_{name}_RE", self._effect_transform(ll, getattr(self, f"de_{name}"), incl))
 
 	def _effect_transform(self, ll, dx, incl):
@@ -106,7 +111,7 @@ class gradient:
 
 	def _store_sigma_derivatives(self, ll):
 		"""Create GARCH/random-effect derivatives linked to beta/rho/lambda."""
-		for name in ("rho", "lambda", "beta"):
+		for name in ("rho", "lambda", "beta", "d"):
 			dvar_sigma, dvRE, d_input = self.garch_arima_grad(
 				ll, getattr(self, f"de_{name}_RE"), name
 			)
@@ -115,18 +120,15 @@ class gradient:
 			setattr(self, f"d_{name}_input", d_input)
 
 	def _store_garch_derivatives(self, ll, N, T):
-		"""Create direct derivatives of the variance equation.
-
-		The variance constant is G_t = W_t omega + s w_t, where s is the
-		constant pre-sample variance (the sample residual variance) and
-		w_t = sum_{j>t} c_j over the gamma and psi coefficients c. Hence
-		dG/domega = W and dG/dc_j = s mask_j; all second derivatives of G
-		are zero."""
+		"""Create variance derivatives, holding the recursion's first variance fixed."""
 		panel = self.panel
 		_, _, _, k, m = panel.pqdkm
 		incl = panel.included[3]
 
-		self.dvar_omega = fu.arma_dot(ll.GAR_1, np.array(panel.W_a), ll)
+		dG = np.array(panel.W_a)
+		if k or m:
+			dG[:, 0, :] = 0
+		self.dvar_omega = fu.arma_dot(ll.GAR_1, dG, ll)
 
 		self.dvar_mu = cf.prod((ll.dvarRE_mu, incl)) if panel.N > 1 else None
 		self.dvar_gamma = None
@@ -134,20 +136,10 @@ class gradient:
 		self.dvar_z = None
 
 		if m > 0:
-			s = ll.presample_var
-			self.dvar_gamma = cf.add((self.arima_grad(k, ll.llfunc.var, ll, 1, ll.GAR_1),
-									  self.presample_grad(k, ll, N, T, s)))
-			self.dvar_psi = cf.add((self.arima_grad(m, ll.h_val, ll, 1, ll.GAR_1),
-									self.presample_grad(m, ll, N, T, s)))
+			self.dvar_gamma = self.arima_grad(k, ll.llfunc.var, ll, 1, ll.GAR_1)
+			self.dvar_psi = self.arima_grad(m, ll.h_val, ll, 1, ll.GAR_1)
 			if ll.h_z_val is not None:
 				self.dvar_z = fu.arma_dot(ll.GAR_1MA, ll.h_z_val, ll)
-
-	def presample_grad(self, n_lags, ll, N, T, s):
-		"""GAR_1 applied to s times the pre-sample lag mask, shape (N, T, n_lags)."""
-		if n_lags == 0:
-			return None
-		mask = np.broadcast_to(presample_lag_mask(n_lags, T), (N, T, n_lags))
-		return s * fu.arma_dot(ll.GAR_1, np.ascontiguousarray(mask), ll) * self.panel.included[3]
 
 	def _score_block(self, de_RE, dvar_sigma, dLL_e, dLL_var):
 		"""Score contribution from one residual/variance parameter block."""
@@ -176,10 +168,11 @@ class gradient:
 		dLL_omega = cf.prod((self.dvar_omega, dLL_var))
 		dLL_mu = cf.prod((self.dvar_mu, dLL_var))
 		dLL_z = cf.prod((self.dvar_z, dLL_var))
+		dLL_d = self._score_block(self.de_d_RE, self.dvar_sigma_d, dLL_e, dLL_var)
 
 		G = cf.concat_marray((
 			dLL_beta, dLL_rho, dLL_lambda, dLL_gamma, dLL_psi,
-			dLL_omega, dLL_mu, dLL_z,
+			dLL_omega, dLL_mu, dLL_z, dLL_d,
 		))
 		g = _sum_over_panel(G)
 		
@@ -338,6 +331,9 @@ class hessian:
 			[T(D2LL_beta_z),		T(D2LL_rho_z),			T(D2LL_lambda_z),		T(D2LL_gamma_z),		T(D2LL_psi_z),		T(D2LL_omega_z),		D2LL_z2			]]
 
 		H=cf.concat_matrix(H)
+		if panel.options.fractional_d == 'estimate':
+			row = self._fractional_row(ll, d2LL_de2, d2LL_dln_de, d2LL_dln2)
+			H = np.block([[H, row[:, :-1].T], [row[:, :-1], row[:, -1:]]])
 		self.debug(ll, g, H, False)
 			
 		self.its+=1
@@ -345,6 +341,45 @@ class hessian:
 			return None
 		
 		return H
+
+	def _fractional_row(self, ll, d2_e, d2_var_e, d2_var):
+		"""Only the new d row; all existing Hessian blocks remain unchanged."""
+		panel, g = self.panel, self.g
+		p, q, _, k, m = panel.pqdkm
+		incl = panel.included[4]
+		raw = {
+			'beta': fu.arma_dot(ll.AMA_1AR, ll.fractional.apply(-panel.XIV, 1), ll)[:, :, None, :],
+			'd': fu.arma_dot(ll.AMA_1AR, ll.fractional.apply(ll.u, 2), ll)[:, :, None, :],
+		}
+		if p:
+			raw['rho'] = g.arima_grad(p, g.du_d, ll, -1, ll.AMA_1)[:, :, None, :]
+		if q:
+			raw['lambda'] = np.swapaxes(fu.arma_dot((ll.AMA_1, q, -1), g.de_d, ll), 2, 3)
+		blocks = []
+		for name in panel.args.categories:
+			if not len(panel.args.positions[name]):
+				continue
+			de = None
+			dvar = (getattr(g, f'dvar_sigma_{name}') if name in ('beta', 'rho', 'lambda', 'd')
+				else getattr(g, f'dvar_{name}'))
+			second_e, second_var = None, None
+			if name in ('beta', 'rho', 'lambda', 'd'):
+				de = getattr(g, f'de_{name}_RE')
+				second = cf.effect_second(panel, ll, g.de_d, getattr(g, f'de_{name}'), raw[name] * incl)
+				re_var = cf.dd_func_re_variance(panel, ll, g, 'd', name, second, False)
+				second_var, second_e = cf.dd_func_garch(
+					panel, ll, g, 'd', name, second, second, re_var, False)
+			elif name == 'gamma':
+				second_var = T(cf.dd_func_lags(panel, ll, (ll.GAR_1, k, 1), g.dvar_sigma_d, g.dLL_var))
+			elif name == 'psi':
+				second_var = T(cf.dd_func_lags(panel, ll, (ll.GAR_1, m, 1),
+					cf.prod((ll.h_e_val, g.de_d_RE)), g.dLL_var))
+			elif name == 'z':
+				second_var = T(cf.dd_func_z(ll, g.de_d_RE, g.dLL_var))
+			block = cf.dd_func(d2_e, d2_var_e, d2_var, g.de_d_RE, de,
+				g.dvar_sigma_d, dvar, second_e, second_var)
+			blocks.append(block)
+		return np.concatenate(blocks, axis=1)
 
 	def debug(self, ll, g, H, debug=False):
 		

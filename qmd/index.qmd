@@ -22,7 +22,7 @@ single time-series data with ARIMA/GARCH problems.
 
 **Author:** Espen Sirnes
 
-**Current version:** 1.3.5
+**Current version:** 1.3.7
 
 ## Installation
 
@@ -39,3 +39,27 @@ Model formulas use the form `Y ~ X1 + X2`. Expressions supported by NumPy can
 be used with `np` as the alias, for example `np.abs(x)`.
 
 See the [Quickstart](quickstart.qmd) for a complete model example.
+
+## Model documentation
+
+The full model documentation is available as a
+[PDF](https://paneltime.github.io/paneltime_documentation.pdf).
+
+## ARFIMA
+
+Pass `fractional_d="estimate"` to estimate a common stationary fractional
+parameter, or a fixed value such as `fractional_d=0.25`.
+Use `order=(p, q, 0)` (AR, MA, zero integer differencing).
+The conditional filter uses zero pre-sample residuals and requires regular
+observations without internal gaps. It works with the existing innovation
+likelihoods and GARCH models.
+See [fit options](api/fit-options.qmd#fractional-differencing-arfima) for details.
+
+## GARCH ridge reduction
+
+`pt.OptimizerOptions(garch_ridge_wald=0.2)` controls automatic reduction of
+weakly identified GARCH lag splits. The default `0.2` is a squared Wald
+threshold, not a continuous ridge penalty. Use `0` to disable reduction.
+Larger thresholds make reduction attempts more likely, but the refit must
+converge and pass a likelihood-ratio test before it is retained.
+See [fit options](api/fit-options.qmd#garch-ridge-reduction) for details.

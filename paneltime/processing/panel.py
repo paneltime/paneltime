@@ -15,6 +15,8 @@ import time
 from .. likelihood import hfunc
 from .. likelihood import function as llfunc
 import copy
+import pandas as pd
+from ..likelihood.fractional import FractionalModel
 
 
 
@@ -32,6 +34,7 @@ class Panel:
 	def init(self):
 		self.initial_defs()
 		self.arrayize()
+		self.validate_fractional_data()
 		self.diff_transform()
 		self.final_defs()
 
@@ -54,6 +57,8 @@ class Panel:
 			k=0
 			print("Warning: GARCH term removed since ARCH terms was set to 0")
 		self.pqdkm=p,q,d,k,m
+		self.fractional_factory = getattr(
+			llfunc.select_model(self), 'fractional_filter', FractionalModel.fractional_filter)
 		self.sign_codes = [["'", 0.1], ["*", 0.05], ["**", 0.01], ["***", 0.001]]
 		self.sign_codes_plain = ', '.join(f"{s[0]}p<{s[1]}" for s in self.sign_codes)
 		self.sign_codes_tex = '$' + '$, $'.join(f"^{{{s[0]}}}p<{s[1]}" for s in self.sign_codes) + '$'
@@ -61,6 +66,27 @@ class Panel:
 
 
 
+
+	def validate_fractional_data(self):
+		if self.options.fractional_d is None:
+			return
+		if self.pqdkm[2] != 0:
+			raise ValueError("fractional_d cannot be combined with integer differencing")
+		dates = self.input.timevar_orig.iloc[:, 0]
+		for group, length in enumerate(self.T_arr[:, 0]):
+			observed = dates.iloc[self.map[group, :length]]
+			if len(observed) < 3:
+				raise ValueError("fractional_d requires at least three regular observations per entity")
+			if pd.api.types.is_datetime64_any_dtype(observed.dtype):
+				regular = observed.is_unique and pd.infer_freq(pd.DatetimeIndex(observed)) is not None
+			else:
+				try:
+					steps = np.diff(observed.to_numpy(dtype=float))
+				except (TypeError, ValueError) as error:
+					raise ValueError("fractional_d requires numeric or datetime time values") from error
+				regular = np.all(steps > 0) and np.allclose(steps, steps[0], rtol=1e-10, atol=0)
+			if not regular:
+				raise ValueError("fractional_d requires regular observations without internal time gaps")
 
 	def final_defs(self):
 		
@@ -83,6 +109,8 @@ class Panel:
 		# Extracting model information by running a test run.
 		llf = llfunc.LLFunction(self, -10, 10, 10)
 		self.z_active = llf.z_active()
+		if self.z_active and self.pqdkm[4] == 0:
+			raise ValueError("A shape-dependent h_function requires at least one ARCH lag.")
 		self.h_func_cpp = hfunc.get_model_string(llf.model, -10, 1e+5,  100)
 		self.h_func = llf.model.h
 																
