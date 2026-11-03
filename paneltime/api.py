@@ -134,6 +134,7 @@ class Summary:
 		self.results = summary.results
 		self.general = summary.general
 		self.ll = summary.ll
+		self.fractional_d = (None if self.ll.fractional is None else self.ll.fractional.d)
 		data = summary.results
 		self._params = self._series(data.params)
 		self._bse = self._series(data.se)
@@ -413,13 +414,19 @@ class Model:
 			effects=None, cov_type='robust', optimizer=None, constraints=None,
 			likelihood=None, h_function=None, add_intercept=True,
 			subtract_means=False,
-			tobit_limits=(None, None), suppress_output=True) -> Summary:
-		"""Fit the model and return a :class:`Summary` instance."""
+			tobit_limits=(None, None), suppress_output=True,
+			fractional_d=None) -> Summary:
+		"""Fit using order=(AR, MA, integer difference).
+
+		fractional_d=None preserves the existing model; a number fixes d and
+		"estimate" estimates a common stationary d using zero pre-sample history.
+		"""
 		effects = effects or Effects()
 		optimizer = optimizer or OptimizerOptions()
 		config = FitOptions(order=order, garch_order=garch_order, vol=vol,
 			effects=effects, optimizer=optimizer, constraints=constraints,
 			likelihood=likelihood, h_function=h_function,
+			fractional_d=fractional_d,
 			add_intercept=add_intercept, subtract_means=subtract_means,
 			tobit_limits=tobit_limits,
 			suppress_output=suppress_output)

@@ -102,15 +102,21 @@ def dd_func_lags_mult_arima(
             de2 = de2 + np.swapaxes(de2, 2, 3)
         de2 = de2 * panel.included[4]
 
+    de2_RE = effect_second(panel, ll, de_xi, de_zeta, de2)
+    return de2_RE, de2_RE
+
+
+def effect_second(panel, ll, de_xi, de_zeta, de2):
+    """Apply the existing effect curvature to an arbitrary innovation block."""
     re_objs = [o for o in (ll.re_obj_i, ll.re_obj_t)
                if o.fe_re == 2 or (o.fe_re == 1 and de2 is not None)]
     if not re_objs:
-        return de2, de2
+        return de2
 
     de2_RE = 0 if de2 is None else de2
     for o in re_objs:
         de2_RE = de2_RE + o.ddRE_general(de_xi, de_zeta, de2, panel)
-    return de2_RE, de2_RE
+    return de2_RE
 
 
 def dd_func_re_variance(panel, ll, g, vname1, vname2, de2_zeta_xi_RE, u_gradient):

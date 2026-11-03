@@ -9,13 +9,57 @@ mutable global state.
 
 ## ARIMA/GARCH order
 
-`order=(p, d, q)` controls the ARIMA mean process. `garch_order=(k, m)`
+`order=(p, q, d)` controls the ARIMA mean process (AR, MA, integer differencing).
+`garch_order=(k, m)`
 controls the GARCH variance process. Set `vol="GARCH"` or `vol="EGARCH"`.
 
 ```{python}
 #| eval: false
 results = model.fit(order=(1, 0, 1), garch_order=(1, 1), vol="GARCH")
 ```
+
+## Fractional differencing (ARFIMA)
+
+Use `fractional_d="estimate"` to estimate one common fractional parameter across
+entities, or pass a number strictly between `-0.5` and `0.5` to fix it.
+The default `None` leaves existing behavior unchanged; fixed `0.0` is equivalent
+to no fractional filtering.
+
+```{python}
+#| eval: false
+# ARFIMA(1, d, 1)-GARCH(1, 1): the integer-difference entry stays zero.
+results = model.fit(order=(1, 1, 0), garch_order=(1, 1),
+                    fractional_d="estimate")
+print(results.fractional_d)
+# A fixed fractional parameter is not counted as an estimated coefficient.
+fixed = model.fit(order=(1, 1, 0), fractional_d=0.25)
+```
+
+Estimated `d` appears in the parameter and standard-error tables. Its numerical
+bounds are `-0.5 + 1e-8` and `0.5 - 1e-8`; constraints such as
+`constraints={"d": (-0.3, 0.4)}` can narrow these bounds or fix the parameter.
+`results.fractional_d` gives either the estimated or fixed value.
+
+The conditional model filters regression residuals, including the intercept:
+`(1-L)^d (Y-X beta)` is passed through the existing ARMA filter, effects
+adjustment, and GARCH recursion. Fractional filtering is independent of the
+innovation distribution, variance link, and custom h-function. Effects retain
+their existing innovation-scale interpretation.
+
+All available within-entity history is used, with residuals before each entity's
+first observation set to zero. This is a conditional, finite-history likelihood,
+not the exact stationary ARFIMA likelihood. Histories never cross entity
+boundaries; unbalanced panels may have different history lengths. Each retained
+entity needs at least three regularly spaced numeric or datetime observations.
+Irregular observations/internal gaps and simultaneous integer differencing are
+rejected explicitly. The declared sampling frequency cannot be inferred when an
+entire regularly spaced series is subsampled.
+
+One-step forecasts invert fractional differencing using the entity's full
+observed residual history; the existing forecast-horizon limits still apply.
+The fractional filter and its analytic derivatives currently cost quadratic time
+in the longest history length, so benchmark long series before large simulations.
+Standard errors at active bounds require the usual boundary-inference caution.
 
 ## Effects
 
@@ -50,6 +94,58 @@ optimizer = pt.OptimizerOptions(tolerance=1e-5, max_iterations=150)
 optimizer.robust_cov_lags = (100, 30)
 results = model.fit(optimizer=optimizer)
 ```
+
+### GARCH ridge reduction
+
+Automatic ARMA common-factor and GARCH ridge reductions require **both**
+their Wald criterion and matching condition-index evidence from the current
+Hessian on free parameters. A dimension must have CI >=
+`OptimizerOptions.multicoll_threshold_report` (default 30), with
+variance-decomposition proportions > 0.5 for at least one free AR and one
+free MA coefficient (ARMA), or at least two free gamma lags (GARCH), in that
+same dimension. CI from unrelated parameters is insufficient. Raising this
+option therefore affects reduction eligibility as well as reporting.
+CI uses absolute eigenvalues and does not by itself establish concavity.
+
+`OptimizerOptions.garch_ridge_wald` defaults to `0.2` and accepts finite
+non-negative real numbers (not booleans). Set it to `0` to disable automatic
+GARCH ridge reduction:
+
+```{python}
+#| eval: false
+optimizer = pt.OptimizerOptions(garch_ridge_wald=0)
+results = model.fit(optimizer=optimizer)
+```
+
+For converged or stalled fits with at least two free gamma lags, the detector
+uses the squared Wald statistic `W = far**2 / variance`. Here `far` is the
+distance from the highest free gamma coefficient to the farther endpoint
+(zero or total free gamma persistence), and `variance` is that coefficient's
+diagonal entry in the pseudoinverse of the negative Hessian.
+If the variance is nonzero and `abs(W) < garch_ridge_wald`, the highest free
+gamma lag is fixed at zero and the model is
+refitted. The reduction is retained only if the refit converges and
+`2 * (original_loglik - reduced_loglik) <= 3.841`, the 5% chi-square(1)
+critical value. Otherwise the previous fit and constraints are restored.
+Accepted reductions are listed in the optimizer message.
+With negative variance, the absolute ratio is used only as a ridge heuristic,
+not a valid Wald test or proof of a flat ridge. Zero variance is skipped.
+
+After accepting a reduction, the optimizer releases the newly fixed gamma
+lag and retries from the reduced solution once. This uses the remaining
+`max_iterations` budget; earlier automatic reductions and user constraints
+remain in force. The released fit is retained only if it converges, has a
+negative-definite Hessian on free parameters, has no detected gamma ridge,
+and has likelihood no lower than either the original or reduced fit.
+Otherwise the reduced fit and constraints are restored. An accepted release
+ends the reduction loop, and the optimizer message records the release.
+No restrictions are toggled during individual optimizer iterations.
+
+The threshold is not a number of standard errors or a continuous ridge
+penalty. Larger values make reduction attempts more likely, subject to the
+same likelihood-ratio check. Fixed coefficients change the fitted model;
+their standard errors should not be compared as if all requested lags were
+still freely estimated.
 
 ### Automatic starting values
 

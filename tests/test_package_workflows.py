@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import pandas as pd
@@ -16,6 +18,8 @@ from paneltime.processing.model_parser import get_names, pool_func
 from paneltime.random_effects import REObj
 from paneltime.output.output import sandwich
 from paneltime.maximization.direction import get as get_direction
+from paneltime.maximization.dfpmax import LR_LIMIT
+from paneltime.maximization.constraints import arma_resultant
 from paneltime.main import Input
 from paneltime.main import execute
 from paneltime.processing.panel import Panel
@@ -116,7 +120,7 @@ class PackageWorkflowTests(unittest.TestCase):
         panel.init()
         return panel
 
-    def test_presample_variance_is_sample_variance(self):
+    def test_first_garch_variance_is_fixed_sample_variance(self):
         panel = self._presample_panel((1, 0, 1), (1, 1))
         positions = panel.args.positions
         args = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
@@ -124,15 +128,18 @@ class PackageWorkflowTests(unittest.TestCase):
         args[list(positions['gamma'])] = 0.3
         args[list(positions['psi'])] = 0.1
         ll = LL(args, panel)
-        np.testing.assert_allclose(ll.presample_var, panel.args.init_var)
+        np.testing.assert_allclose(ll.var[:, 0, 0], panel.args.init_var)
         self.assertNotIn('initvar', panel.args.names_v)
 
         args[list(positions['omega'])] = 0.2
-        np.testing.assert_allclose(LL(args, panel).presample_var, panel.args.init_var)
+        np.testing.assert_allclose(LL(args, panel).var[:, 0, 0], panel.args.init_var)
         args[list(positions['gamma'])] = 0.95
-        self.assertIsNotNone(LL(args, panel).LL)
+        args[list(positions['psi'])] = 0.2
+        ll = LL(args, panel)
+        self.assertIsNotNone(ll.LL)
+        np.testing.assert_allclose(ll.var[:, 0, 0], panel.args.init_var)
 
-    def test_likelihood_has_no_presample_effect_when_garch_is_zero(self):
+    def test_zero_garch_coefficients_keep_only_the_first_variance_fixed(self):
         for order, garch in (((0, 0, 0), (0, 0)), ((1, 0, 1), (0, 0)), ((0, 0, 0), (1, 1))):
             panel = self._presample_panel(order, garch, seed=5, n=4, t=10)
             args = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
@@ -140,10 +147,12 @@ class PackageWorkflowTests(unittest.TestCase):
                 args[list(panel.args.positions.get(name, []))] = 0.0
             args[list(panel.args.positions['omega'])] = 0.7
             ll = LL(args, panel)
-            incl = panel.included[3] > 0
-            np.testing.assert_allclose(ll.llfunc.var[incl], 0.7)
+            expected = np.full_like(ll.var, 0.7)
+            if any(garch):
+                expected[:, 0, 0] = panel.args.init_var
+            np.testing.assert_allclose(ll.var, expected)
 
-    def test_presample_lags_follow_variance_recursion(self):
+    def test_garch_recursion_uses_fixed_first_variance_and_zero_missing_lags(self):
         panel = self._presample_panel((0, 0, 0), (2, 2), n=4, t=10)
         positions = panel.args.positions
         args = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
@@ -153,10 +162,11 @@ class PackageWorkflowTests(unittest.TestCase):
         args[list(positions['omega'])] = 0.5
         ll = LL(args, panel)
         expected = np.full_like(ll.var, 0.5)
-        for t in range(ll.var.shape[1]):
+        expected[:, 0, 0] = panel.args.init_var
+        for t in range(1, ll.var.shape[1]):
             for j in range(1, 3):
-                prior_var = expected[:, t-j, 0] if t >= j else panel.args.init_var
-                prior_h = ll.h_val[:, t-j, 0] if t >= j else panel.args.init_var
+                prior_var = expected[:, t-j, 0] if t >= j else 0
+                prior_h = ll.h_val[:, t-j, 0] if t >= j else 0
                 expected[:, t, 0] += gamma[j-1]*prior_var + psi[j-1]*prior_h
         np.testing.assert_allclose(ll.var, expected)
         self.assertAlmostEqual(ll.LL, np.sum(ll.ll_value * panel.included[3]))
@@ -181,6 +191,9 @@ class PackageWorkflowTests(unittest.TestCase):
             return ll, g, score
 
         ll, g, score = derivatives(args)
+        np.testing.assert_allclose(g.dvar_omega[:, 0], 0)
+        np.testing.assert_allclose(g.dvar_gamma[:, 0], 0)
+        np.testing.assert_allclose(g.dvar_psi[:, 0], 0)
         H = hessian(panel, g).get(ll, *ll.llfunc.hessian())
         h = 1e-6
         for i in range(len(args)):
@@ -229,7 +242,7 @@ class PackageWorkflowTests(unittest.TestCase):
         data['y'] = 1 + 0.5*data.x + u.ravel()
         return data
 
-    def test_arma_common_factor_is_removed_on_white_noise(self):
+    def test_white_noise_arma_common_factor_is_removed(self):
         for seed, garch in [(1, (0, 0)), (2, (0, 0)), (2, (1, 1))]:
             with self.subTest(seed=seed, garch=garch):
                 data = self._arma_panel(0.0, 0.0, seed)
@@ -239,13 +252,250 @@ class PackageWorkflowTests(unittest.TestCase):
                     order=(1, 1, 0), garch_order=garch, constraints={'rho': 0.0, 'lambda': 0.0},
                     suppress_output=True,
                 )
-                self.assertEqual(result.params.iloc[2], 0.0)
-                self.assertEqual(result.params.iloc[3], 0.0)
-                self.assertIn('common factor', result.optim_result.msg)
-                # GARCH is not identified on iid variance, so the two fits may stop
-                # at slightly different points of a flat likelihood.
-                self.assertAlmostEqual(result.optim_result.ll.LL, restricted.optim_result.ll.LL, delta=0.1)
                 self.assertTrue(np.all(np.isfinite(result.pvalues.iloc[:2])))
+                if 'common factor' in result.optim_result.msg:
+                    np.testing.assert_array_equal(result.params.iloc[2:4], 0.0)
+                    self.assertAlmostEqual(result.llf, restricted.llf, delta=1e-3)
+                else:
+                    from paneltime.maximization.constraints import Constraints
+                    with patch.object(Constraints, '_ci_supports', return_value=True):
+                        wald_only = model.fit(
+                            order=(1, 1, 0), garch_order=garch, suppress_output=True,
+                        )
+                    self.assertTrue(
+                        'common factor' in wald_only.optim_result.msg
+                        or 2*(wald_only.llf - restricted.llf) > LR_LIMIT,
+                    )
+        data = self._arma_panel(0.0, 0.0, 1)
+        result = pt.Model('y ~ x', data, entity='id', time='time').fit(
+            order=(1, 1, 0), suppress_output=True)
+        self.assertNotIn('common factor', result.optim_result.msg)
+
+    def test_combined_detectors_require_matching_ci_and_wald(self):
+        from paneltime.maximization.constraints import Constraints
+
+        panel = self._presample_panel((1, 1, 0), (2, 2), seed=11, n=6, t=14)
+        x = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+        rho = panel.args.positions['rho'][0]
+        lam = panel.args.positions['lambda'][0]
+        g0, g1 = panel.args.positions['gamma']
+        beta0, beta1 = panel.args.positions['beta'][:2]
+        x[rho], x[lam], x[g0], x[g1] = 0.5, -0.5, 0.5, 0.0
+        constraints = Constraints(panel, x, 0, panel.options.ARMA_constraint)
+
+        def correlated(H, indices, scale=1):
+            H[np.ix_(indices, indices)] = -scale*np.array(
+                [[1, 1 - 1e-8], [1 - 1e-8, 1]],
+            )
+
+        H = -np.eye(len(x))
+        correlated(H, [beta0, beta1])
+        self.assertIsNone(constraints.arma_cancellation(x, H))
+        self.assertIsNone(constraints.gamma_ridge(x, H))
+        H = -np.eye(len(x))
+        H[g1, g1] = -1e-8
+        self.assertIsNone(constraints.gamma_ridge(x, H))
+        self.assertIsNone(constraints.arma_cancellation(x, H))
+        correlated(H, [rho, lam])
+        correlated(H, [g0, g1])
+        self.assertEqual(constraints.arma_cancellation(x, H), [rho, lam])
+        self.assertEqual(constraints.gamma_ridge(x, H), [g1])
+        correlated(H, [g0, g1], scale=1e12)
+        self.assertIsNone(constraints.gamma_ridge(x, H))
+        x[lam] = 10.0
+        self.assertIsNone(constraints.arma_cancellation(x, H))
+        constraints.multicoll_threshold_report = 1e10
+        self.assertIsNone(constraints.arma_cancellation(x, H))
+        self.assertIsNone(constraints.gamma_ridge(x, H))
+        constraints.multicoll_threshold_report = 30
+        constraints.add(g1, None, 'user constraints', value=0.0)
+        self.assertIsNone(constraints.gamma_ridge(x, H))
+
+    def test_arma_resultant_detects_shared_roots(self):
+        # (1 - .5L)(1 - .3L) and (1 - .5L)(1 + .2L) share the factor (1 - .5L).
+        self.assertAlmostEqual(arma_resultant([.8, -.15], [-.3, -.1]), 0.0, places=12)
+        self.assertAlmostEqual(arma_resultant([.5], [.3]), .8, places=12)
+
+    def test_gamma_ridge_detector_flags_weak_split(self):
+        panel = self._presample_panel((0, 0, 0), (2, 2), seed=11, n=6, t=14)
+        x = np.asarray(panel.args.args_init.args_v, dtype=float)
+        g0, g1 = panel.args.positions['gamma']
+        x[g0], x[g1] = 0.92, 0.00
+        H = -np.eye(len(x))
+        H[np.ix_([g0, g1], [g0, g1])] = [[-1, -1 + 1e-8], [-1 + 1e-8, -1]]
+        ll = LL(x, panel)
+        from paneltime.maximization.computation import Computation
+        c = Computation(x, panel, panel.options.tolerance, 4*np.finfo(float).eps, True)
+        c.calc_gradient(ll)
+        c.set(0, 0.0, 1.0, False, H, ll, x, panel.options.ARMA_constraint)
+        self.assertEqual(c.constr.gamma_ridge(x, H), [g1])
+
+        H[g1, g1] = -100.0
+        self.assertIsNone(c.constr.gamma_ridge(x, H))
+
+    def test_garch_ridge_wald_option(self):
+        from paneltime.options import create_engine_options
+
+        self.assertEqual(pt.OptimizerOptions().garch_ridge_wald, 0.2)
+        self.assertEqual(create_engine_options().GARCH_ridge_wald, 0.2)
+        for value in (0, 0.2, 1.0):
+            with self.subTest(value=value):
+                engine = pt.FitOptions(
+                    optimizer=pt.OptimizerOptions(garch_ridge_wald=value),
+                ).to_engine_options()
+                self.assertEqual(engine.GARCH_ridge_wald, value)
+        for value in (-1, float('nan'), float('inf'), -float('inf'), True, None, '0.2'):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, 'optimizer.garch_ridge_wald'):
+                    pt.OptimizerOptions(garch_ridge_wald=value).validate()
+                engine = create_engine_options()
+                engine.GARCH_ridge_wald = value
+                with self.assertRaisesRegex(ValueError, 'optimizer.garch_ridge_wald'):
+                    engine.validate()
+
+    def test_gamma_ridge_uses_configured_squared_wald_threshold(self):
+        from paneltime.maximization.constraints import Constraints
+
+        panel = self._presample_panel((0, 0, 0), (2, 2), seed=11, n=6, t=14)
+        x = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+        g0, g1 = panel.args.positions['gamma']
+        x[g0], x[g1] = 0.5, 0.0
+        H = -np.eye(len(x))
+        # W = 0.5**2 / 2 = 0.125, between the old and current defaults.
+        correlation = np.sqrt(1 - 1 / 2000)
+        H[np.ix_([g0, g1], [g0, g1])] = -1000 * np.array(
+            [[1, correlation], [correlation, 1]],
+        )
+        wald = x[g0]**2 / np.linalg.pinv(-H)[g1, g1]
+        for threshold, expected in ((0, None), (0.1, None), (wald, None),
+                                    (0.2, [g1]), (1.0, [g1])):
+            with self.subTest(threshold=threshold):
+                panel.options.GARCH_ridge_wald = threshold
+                constraints = Constraints(panel, x, 0, panel.options.ARMA_constraint)
+                self.assertEqual(constraints.gamma_ridge(x, H), expected)
+        self.assertIsNone(constraints.gamma_ridge(x, H, 0))
+        for scale, expected in ((0.0, None), (-1.0, [g1]), (-100.0, None)):
+            with self.subTest(scale=scale):
+                trial = H.copy()
+                trial[np.ix_([g0, g1], [g0, g1])] *= scale
+                self.assertEqual(constraints.gamma_ridge(x, trial), expected)
+                self.assertIsNone(constraints.gamma_ridge(x, trial, 0))
+
+    def test_option_documentation_matches_schema(self):
+        from setup_script import write_option_docs
+
+        with TemporaryDirectory() as directory:
+            generated = Path(directory) / 'options.qmd'
+            write_option_docs(generated)
+            checked_in = Path(__file__).resolve().parents[1] / 'qmd' / 'options.qmd'
+            self.assertEqual(
+                generated.read_text(encoding='utf-8'),
+                checked_in.read_text(encoding='utf-8'),
+            )
+
+    def test_fit_routes_garch_ridge_threshold_and_zero_disables_it(self):
+        from paneltime.maximization.constraints import Constraints
+
+        model = pt.Model('y ~ x', self._arma_panel(0.5, -0.3, 3), entity='id', time='time')
+        for threshold in (0, 0.2, 1.0):
+            with self.subTest(threshold=threshold):
+                with patch.object(Constraints, 'gamma_ridge', return_value=None) as detector:
+                    result = model.fit(
+                        order=(1, 1, 0), garch_order=(2, 2),
+                        optimizer=pt.OptimizerOptions(garch_ridge_wald=threshold),
+                        suppress_output=True,
+                    )
+                self.assertTrue(result.converged)
+                if threshold == 0:
+                    detector.assert_not_called()
+                else:
+                    detector.assert_called_once()
+                    self.assertEqual(detector.call_args.args[2], threshold)
+
+    def test_gamma_release_accepts_only_identified_likelihood_preserving_retry(self):
+        from paneltime.maximization.computation import Computation
+        from paneltime.maximization.dfpmax import _release_gamma
+
+        panel = self._presample_panel((0, 0, 0), (2, 2), seed=11, n=6, t=14)
+        x = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+        g0, g1 = panel.args.positions['gamma']
+        beta0 = panel.args.positions['beta'][0]
+        x[beta0] = 0.0
+        panel.args.user_constraints['beta'] = [0.0]
+        x[g0], x[g1] = 0.5, 0.0
+        comput = Computation(x, panel, panel.options.tolerance, 4*np.finfo(float).eps, True)
+        comput.gamma_reduced = [g1]
+        comput.set_constr(x, panel.options.ARMA_constraint)
+        reduced = dict(x=x, f=-100.0, its=5, dx_norm=0.0, msg='Reduced fit', conv=1)
+        original = dict(f=-99.0)
+        for case in ('identified', 'ridge', 'indefinite', 'singular', 'stalled',
+                     'worse_original', 'worse_reduced', 'nonfinite'):
+            with self.subTest(case=case):
+                def iteration(retry, actual_panel, state):
+                    self.assertIs(actual_panel, panel)
+                    self.assertNotIn(g1, retry.constr.fixed)
+                    self.assertIn(beta0, retry.constr.fixed)
+                    self.assertEqual(retry.gamma_reduced, [])
+                    self.assertEqual(state['its'], 5)
+                    self.assertEqual(state['step'], 1.0)
+                    hessian = -np.eye(len(x))
+                    if case == 'ridge':
+                        hessian[np.ix_([g0, g1], [g0, g1])] = [
+                            [-1, -1 + 1e-8], [-1 + 1e-8, -1],
+                        ]
+                    elif case == 'indefinite':
+                        hessian[g1, g1] = 0.5
+                    elif case == 'singular':
+                        hessian[g1, g1] = 0
+                    value = {'worse_original': -99.5, 'worse_reduced': -101.0,
+                             'nonfinite': np.nan}.get(case, -98.0)
+                    return dict(
+                        state, H=hessian, g=np.zeros(len(x)), f=value, its=8,
+                        conv=4 if case == 'stalled' else 1,
+                    )
+
+                with patch('paneltime.maximization.dfpmax._iterate', side_effect=iteration) as run:
+                    state, final_comput, released = _release_gamma(comput, panel, reduced, original)
+                run.assert_called_once()
+                self.assertEqual(released, case == 'identified')
+                self.assertEqual(state['its'], 8)
+                self.assertIn(g1, comput.constr.fixed)
+                self.assertEqual(comput.gamma_reduced, [g1])
+                if released:
+                    self.assertNotIn(g1, final_comput.constr.fixed)
+                else:
+                    self.assertIs(final_comput, comput)
+                    self.assertEqual(state['f'], reduced['f'])
+                    self.assertEqual(state['msg'], reduced['msg'])
+
+    def test_gamma_release_respects_budget_and_invalid_initial_likelihood(self):
+        from paneltime.maximization.computation import Computation
+        from paneltime.maximization.dfpmax import _release_gamma
+
+        panel = self._presample_panel((0, 0, 0), (2, 2), seed=11, n=6, t=14)
+        x = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+        g1 = panel.args.positions['gamma'][-1]
+        x[g1] = 0
+        comput = Computation(x, panel, panel.options.tolerance, 4*np.finfo(float).eps, True)
+        comput.gamma_reduced = [g1]
+        comput.set_constr(x, panel.options.ARMA_constraint)
+        reduced = dict(x=x, f=-100, its=panel.options.max_iterations, dx_norm=0.0)
+        with patch('paneltime.maximization.dfpmax._iterate') as run:
+            state, final_comput, released = _release_gamma(comput, panel, reduced, reduced)
+        run.assert_not_called()
+        self.assertIs(state, reduced)
+        self.assertIs(final_comput, comput)
+        self.assertFalse(released)
+        reduced['its'] = 1
+        for likelihood in (None, SimpleNamespace(LL=None), SimpleNamespace(LL=np.nan)):
+            with self.subTest(likelihood=likelihood):
+                with patch('paneltime.maximization.dfpmax.logl.LL', return_value=likelihood), \
+                        patch('paneltime.maximization.dfpmax._iterate') as run:
+                    state, final_comput, released = _release_gamma(comput, panel, reduced, reduced)
+                run.assert_not_called()
+                self.assertIs(state, reduced)
+                self.assertIs(final_comput, comput)
+                self.assertFalse(released)
 
     def test_genuine_arma_is_not_reduced(self):
         for garch in [(0, 0), (1, 1)]:
@@ -434,6 +684,105 @@ class PackageWorkflowTests(unittest.TestCase):
         self.assertAlmostEqual(float(functions['h_e_val'](1.0, 0.0)), 2.0, places=6)
         with self.assertRaisesRegex(ValueError, 'unsupported symbols: w'):
             build_h_function(sp.Symbol('e') + sp.Symbol('w'))
+
+    @unittest.skipIf(sp is None, 'SymPy is optional')
+    def test_symbolic_h_functions_match_native_recursion_and_finite_differences(self):
+        from paneltime.likelihood.function import h_values
+
+        e, z = sp.symbols('e z')
+        data = self._arma_panel(0.2, 0.1, 3).query('id < 3 and time < 12')
+        expressions = (e**2, sp.Integer(1), e**2 + z, sp.exp(z)*e**2,
+                       sp.sqrt(e**2 + z**2 + 1))
+        for expression in expressions:
+            with self.subTest(expression=expression):
+                options = FitOptions(
+                    order=(1, 1, 0), garch_order=(1, 1), h_function=expression,
+                ).to_engine_options()
+                panel = Panel(Input(data, 'y ~ x', 'id', 'time', options, None, None), options)
+                panel.init()
+                self.assertEqual(panel.z_active, z in expression.free_symbols)
+                x = np.asarray(panel.args.args_init.args_v, dtype=float).copy()
+                for group in ('rho', 'lambda', 'gamma', 'psi'):
+                    x[list(panel.args.positions[group])] = 0.1
+                x[list(panel.args.positions['omega'])] = 1.0
+                if panel.z_active:
+                    x[list(panel.args.positions['z'])] = 0.2
+                ll = LL(x, panel)
+                self.assertIsNotNone(ll.LL)
+                np.testing.assert_allclose(ll.h, ll.h_val, atol=1e-12)
+                shape = ll.args.args_d.get('z')
+                np.testing.assert_allclose(h_values(panel, ll.e_RE, shape), ll.h_val)
+                g = gradient(panel)
+                score, _ = g.get(ll)
+                H = hessian(panel, g).get(ll, *ll.llfunc.hessian())
+                for i in range(len(x)):
+                    up, down = x.copy(), x.copy()
+                    up[i] += 1e-5
+                    down[i] -= 1e-5
+                    lu, ld = LL(up, panel), LL(down, panel)
+                    self.assertAlmostEqual(score[i], (lu.LL - ld.LL)/2e-5, delta=1e-4)
+                    numeric = (gradient(panel).get(lu)[0] - gradient(panel).get(ld)[0])/2e-5
+                    np.testing.assert_allclose(H[:, i], numeric, rtol=1e-4, atol=1e-4)
+
+    @unittest.skipIf(sp is None, 'SymPy is optional')
+    def test_symbolic_h_function_pickle_and_error_messages(self):
+        import pickle
+        from paneltime.likelihood.symbolic import SymbolicHFunction
+
+        e, z = sp.symbols('e z')
+        function = pickle.loads(pickle.dumps(SymbolicHFunction(e**2 + z, 0.2)))
+        self.assertTrue(function.has_z)
+        np.testing.assert_allclose(function(np.array([1., 2.]), None, None), [1.2, 4.2])
+        for expression in (sp.Abs(e), sp.Abs(sp.Symbol('e', real=True))):
+            with self.subTest(expression=expression):
+                with self.assertRaisesRegex(ValueError, 'unsupported derivative.*smooth expression'):
+                    build_h_function(expression)
+        data = self._arma_panel(0.0, 0.0, 1)
+        with self.assertRaisesRegex(ValueError, 'requires at least one ARCH lag'):
+            pt.Model('y ~ x', data, entity='id', time='time').fit(
+                order=(0, 0, 0), garch_order=(0, 0), h_function=e**2 + z,
+            )
+
+    def test_h_function_native_validation_respects_inputs_and_checks_python(self):
+        from paneltime.likelihood.hfunc import get_model_string, test_expr
+
+        self.assertAlmostEqual(test_expr(b'e + z', 2, 4, 3), 5)
+        with self.assertRaisesRegex(ValueError, 'Python/C\\+\\+ mismatch'):
+            get_model_string(
+                SimpleNamespace(h_val_cpp='e^2', z=None, v=1, h=lambda e, e2, v: e**2 + 1),
+                2, 4, 3,
+            )
+
+    @unittest.skipIf(sp is None, 'SymPy is optional')
+    def test_numeric_custom_likelihood_preserves_symbolic_h_function(self):
+        from tests.test_likelihood_models import NumericNormal
+        from paneltime.likelihood.symbolic import apply_h_function
+
+        model = NumericNormal(np.array([[[0.5]], [[1.0]]]), np.ones((2, 1, 1)))
+        expression = sp.sqrt(sp.Symbol('e')**2 + 1)
+        apply_h_function(model, expression)
+        expected = model.h_val.copy()
+        for method in (model.score, model.hessian):
+            method()
+            np.testing.assert_allclose(model.h_val, expected)
+
+    @unittest.skipIf(sp is None, 'SymPy is optional')
+    def test_shape_h_function_fits_builtin_and_numeric_likelihoods(self):
+        from tests.test_likelihood_models import NumericNormal
+
+        e, z = sp.symbols('e z')
+        data = self._arma_panel(0.2, 0.1, 3).query('id < 4 and time < 25')
+        for vol, likelihood in (('GARCH', None), ('EGARCH', None), ('GARCH', NumericNormal)):
+            with self.subTest(vol=vol, likelihood=likelihood):
+                result = pt.Model('y ~ x', data, entity='id', time='time').fit(
+                    order=(1, 1, 0), garch_order=(1, 1), vol=vol, likelihood=likelihood,
+                    h_function=sp.sqrt(e**2 + z**2 + 1),
+                    constraints={'z': 0.2, 'gamma': 0.1, 'psi': 0.1},
+                    suppress_output=True,
+                )
+                self.assertTrue(result.converged)
+                self.assertTrue(np.isfinite(result.llf))
+                self.assertEqual(result.params['z in h(e,z)'], 0.2)
 
     def test_model_rejects_removed_multiprocess_interface(self):
         data = pd.DataFrame({'id': [1, 1, 2, 2], 't': [1, 2, 1, 2], 'y': [1.0, 2.0, 3.0, 4.0]})

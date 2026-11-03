@@ -25,7 +25,7 @@ def set_garch_arch(panel,args,u, G):
 
 	z = 0
 	if panel.z_active:
-		z = args['z']
+		z = float(args['z'].item())
 
 	parameters = np.array(( N , T , 
 									len(lmbda), len(rho), len(gmma), len(psi), 

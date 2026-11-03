@@ -7,36 +7,42 @@ Two kinds of constraints are supported:
   intervals : the parameter must stay within [min, max]; either bound may be
               None (one-sided), stored as -inf/+inf
 
-Only static constraints are used: the ARMA/GARCH extreme bounds and user
-constraints. The dynamic (multicollinearity based) constraining has been
+Only static constraints are used: the ARMA/GARCH extreme bounds, user
+constraints, AR/MA lags removed as a common factor (arma_cancellation), and
+optional gamma-lag fixing from the GARCH ridge detector (gamma_ridge).
+The dynamic (multicollinearity based) constraining has been
 removed; weakly identified directions are handled by the direction module
 (concavity fix and active-set solve) instead of by fixing parameters.
-Multicollinearity is still diagnosed and reported (multicoll_report), but
-nothing is constrained because of it. The exception is a common AR/MA factor
-(arma_cancellation), where the highest AR and MA lags are fixed at zero.
+Multicollinearity is diagnosed and reported (multicoll_report). Automatic
+ARMA/GARCH reductions require matching high-CI variance proportions as well
+as their Wald criteria; CI alone never fixes a coefficient.
 """
 
 import numbers
 import numpy as np
 
-ARMA_CANCELLATION = 'AR/MA cancellation'
-# Wald statistic of rho + lambda below which the AR and MA factors are treated
-# as cancelling.
-ARMA_MIN_WALD = 3.0
+ARMA_CANCELLATION = 'AR/MA common factor'
+ARMA_MIN_WALD = 3.0		# rho is unidentified under the null, so a stricter limit than 1.96
+GAMMA_RIDGE = 'GARCH ridge regularization'
+
+
+def polynomial_resultant(a, b):
+	"""Sylvester resultant of two polynomials (coefficients, highest power
+	first). Zero if and only if they share a root."""
+	a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+	m, n = len(a) - 1, len(b) - 1
+	S = np.zeros((m + n, m + n))
+	for i in range(n):
+		S[i, i:i + m + 1] = a
+	for i in range(m):
+		S[n + i, i:i + n + 1] = b
+	return np.linalg.det(S)
 
 
 def arma_resultant(rho, lmbda):
-	"""Resultant of z^p - sum(rho_j z^(p-j)) and z^q + sum(lambda_j z^(q-j)),
-	the Sylvester determinant; zero iff the AR and MA polynomials share a root."""
-	a = np.concatenate(([1.0], -np.asarray(rho, dtype=float)))
-	b = np.concatenate(([1.0], np.asarray(lmbda, dtype=float)))
-	p, q = len(a) - 1, len(b) - 1
-	S = np.zeros((p + q, p + q))
-	for i in range(q):
-		S[i, i:i + p + 1] = a
-	for i in range(p):
-		S[q + i, i:i + q + 1] = b
-	return np.linalg.det(S)
+	"""Resultant of z^p - sum rho_j z^(p-j) and z^q + sum lambda_j z^(q-j),
+	the inverse-root forms of the AR and MA polynomials."""
+	return polynomial_resultant(np.r_[1.0, -np.asarray(rho)], np.r_[1.0, np.asarray(lmbda)])
 
 
 class Constraint:
@@ -80,8 +86,10 @@ class Constraints(dict):
 		self.m_zero = panel.m_zero
 		self.ARMA_constraint = armaconstr
 		self.GARCH_min = panel.options.GARCH_min
+		self.GARCH_ridge_wald = panel.options.GARCH_ridge_wald
+		self.multicoll_threshold_report = panel.options.multicoll_threshold_report
 
-		# Multicollinearity diagnostics, set by multicoll_report (report only)
+		# Diagnostics also gate automatic reductions together with their Wald tests.
 		self.ci = None
 		self.ci_n = 0
 		self.mc_report = {}
@@ -192,7 +200,8 @@ class Constraints(dict):
 
 	def multicoll_report(self, H, limit):
 		"""Belsley collinearity diagnostics on the information matrix -H of the
-		non-fixed parameters. Reports only; nothing is constrained.
+		non-fixed parameters. This method reports only; reduction detectors
+		require matching proportions in addition to their Wald criteria.
 
 		-H is scaled to unit diagonal and eigendecomposed, -H_s = V L V'.
 		Condition index of dimension k: sqrt(l_max/l_k). Variance-decomposition
@@ -246,62 +255,92 @@ class Constraints(dict):
 			self.mc_details.append((float(cond[k]),
 				[(int(idx[j]), names[idx[j]], float(p[j])) for j in top if p[j] > 0.5]))
 
-	# ------------------------------------------------- AR/MA cancellation
+	# ------------------------------------------------- AR/MA common factors
+
+	def _ci_supports(self, H, groups):
+		"""Require distinct coefficients from each group in one high-CI dimension."""
+		self.multicoll_report(H, self.multicoll_threshold_report)
+		for _, parameters in self.mc_details:
+			indices = {i for i, _, _ in parameters}
+			matches = [indices.intersection(group) for group in groups]
+			if all(matches) and len(set.union(*matches)) >= len(groups):
+				return True
+		return False
 
 	def arma_cancellation(self, x, H, min_wald=ARMA_MIN_WALD):
-		"""Positions of the highest AR and MA lags if a common AR/MA factor is
-		detected, otherwise [].
+		"""Returns the highest free rho and lambda positions if the AR and MA
+		polynomials plausibly share a root, otherwise None.
 
-		The AR and MA polynomials share a factor, which then cancels and leaves
-		the likelihood flat along a ridge, exactly when their resultant is zero.
-		The resultant of the inverse-root polynomials
-		  z^p - rho_1 z^(p-1) - ... - rho_p  and  z^q + lambda_1 z^(q-1) + ... + lambda_q
-		is used (for ARMA(1,1) it is rho + lambda). The factor is treated as
-		cancelling if the Wald statistic of the resultant (delta method, with
-		the inverse of -H over the free mean-equation parameters) is below min_wald. Under the
-		null the factor's root is not identified, so the statistic is not
-		standard normal and min_wald is set above the usual 1.96.
-		Removing a common factor turns ARMA(p,q) into ARMA(p-1,q-1), so the
-		highest AR and MA lags are returned, to be fixed at zero. Lags already
-		fixed at zero are trimmed first; if the highest remaining lag of either
-		polynomial is fixed, nothing is reduced."""
-		positions = self.panel_args.positions
-		rho = self._trim_zero_lags(list(positions.get('rho', [])), x)
-		lam = self._trim_zero_lags(list(positions.get('lambda', [])), x)
-		if not rho or not lam or rho[-1] in self.fixed or lam[-1] in self.fixed:
-			return []
-		# Mean-equation block only: the information matrix is asymptotically
-		# block diagonal between mean and variance parameters, and a weakly
-		# identified GARCH block would otherwise inflate the variance.
-		mean = [k for g in ('beta', 'rho', 'lambda') for k in positions.get(g, [])]
-		free = [k for k in mean if k not in self.fixed]
-		try:
-			cov = np.linalg.inv(-np.asarray(H)[np.ix_(free, free)])
-		except np.linalg.LinAlgError:
-			return []
-		idx = rho + lam
-		c = np.asarray(x, dtype=float)[idx]
-		p = len(rho)
-		res = lambda c: arma_resultant(c[:p], c[p:])
-		r = res(c)
-		grad = np.zeros(len(free))
-		h = 1e-6
-		for n, k in enumerate(idx):
-			if k not in self.fixed:
-				e = np.zeros(len(c))
-				e[n] = h
-				grad[free.index(k)] = (res(c + e) - res(c - e))/(2*h)
-		var = grad @ cov @ grad
-		if not np.isfinite(var) or var <= 0:
-			return []
-		if abs(r)/np.sqrt(var) < min_wald:
-			return [rho[-1], lam[-1]]
-		return []
+		The Wald statistic is |resultant|/se, with the delta-method variance
+		from the free mean-equation block (beta, rho, lambda, fractional d) of -H^-1.
+		A high-CI dimension must also involve free AR and MA coefficients."""
+		pos = self.panel_args.positions
+		rho = [i for i in pos['rho'] if i not in self.fixed]
+		lam = [i for i in pos['lambda'] if i not in self.fixed]
+		if not rho or not lam:
+			return None
+		if not self._ci_supports(H, (rho, lam)):
+			return None
+		# Trailing lags fixed by an earlier reduction are dropped from the polynomials.
+		rho = list(pos['rho'][:pos['rho'].index(rho[-1]) + 1])
+		lam = list(pos['lambda'][:pos['lambda'].index(lam[-1]) + 1])
 
-	def _trim_zero_lags(self, lags, x):
-		while lags and lags[-1] in self.fixed and x[lags[-1]] == 0:
-			lags.pop()
-		return lags
+		def resultant(v):
+			return arma_resultant(v[rho], v[lam])
+
+		block = [i for i in list(pos['beta']) + rho + lam + list(pos.get('d', []))
+				 if i not in self.fixed]
+		x = np.asarray(x, dtype=float)
+		grad = np.zeros(len(block))
+		for j, i in enumerate(block):
+			h = 1e-6*max(abs(x[i]), 1.0)
+			xp, xm = x.copy(), x.copy()
+			xp[i] += h
+			xm[i] -= h
+			grad[j] = (resultant(xp) - resultant(xm))/(2*h)
+		V = np.linalg.pinv(-np.asarray(H)[np.ix_(block, block)])
+		var = grad @ V @ grad
+		if not var > 0:
+			return None
+		if abs(resultant(x))/np.sqrt(var) >= min_wald:
+			return None
+		return [rho[-1], lam[-1]]
+
+	def gamma_ridge(self, x, H, min_wald=None):
+		"""Returns the highest free gamma position if the split among GARCH
+		lags is weakly identified, otherwise None.
+
+		The squared Wald statistic is far**2 / (-H)^+[-1, -1], where far is
+		the distance to the farther endpoint (0 or total free gamma persistence)
+		and the variance entry corresponds to the highest free gamma lag.
+		Use the configured threshold unless explicitly overridden; zero disables
+		the detector. Negative variance uses the absolute ratio as a ridge
+		heuristic, not a valid Wald statistic; zero variance is skipped.
+		A high-CI dimension must also involve at least two free gamma lags."""
+		if min_wald is None:
+			min_wald = self.GARCH_ridge_wald
+		if min_wald == 0:
+			return None
+		pos = self.panel_args.positions
+		gamma = [i for i in pos['gamma'] if i not in self.fixed]
+		if len(gamma) < 2:
+			return None
+		if not self._ci_supports(H, (gamma, gamma)):
+			return None
+		H = np.asarray(H, dtype=float)
+		if not np.all(np.isfinite(H)):
+			return None
+		V = np.linalg.pinv(-H)
+		last = gamma[-1]
+		var = float(V[last, last])
+		x = np.asarray(x, dtype=float)
+		total = float(np.sum(x[gamma]))
+		far = max(float(x[last]), total - float(x[last]))
+		if var == 0 or not np.isfinite(var):
+			return None
+		if abs(far*far/var) >= min_wald:
+			return None
+		return [last]
 
 	# ---------------------------------------------------- static constraints
 
@@ -317,7 +356,27 @@ class Constraints(dict):
 
 		for name, lo, hi in bounds:
 			self.add(name, None, 'ARMA/GARCH extreme bounds', [lo, hi])
+		for i in comput.arma_reduced:
+			self.add(i, None, ARMA_CANCELLATION, value=0.0)
+		for i in comput.gamma_reduced:
+			self.add(i, None, GAMMA_RIDGE, value=0.0)
 		self.add_custom_constraints(panel, self.panel_args.user_constraints, True, 'user constraints')
+		if panel.options.fractional_d == 'estimate':
+			from ..likelihood.fractional import FractionalFilter
+			lo, hi = FractionalFilter.lower_bound, FractionalFilter.upper_bound
+			index = self.panel_args.positions['d'][0]
+			existing = self.get(index)
+			if existing is not None:
+				if existing.value is not None:
+					if not lo <= existing.value <= hi:
+						raise ValueError("A fixed d constraint must lie strictly inside (-0.5, 0.5)")
+				else:
+					if np.isnan(existing.min) or np.isnan(existing.max):
+						raise ValueError("d constraint bounds cannot be NaN")
+					lo, hi = max(lo, existing.min), min(hi, existing.max)
+					self.add('d', None, 'fractional d bounds', (lo, hi))
+			else:
+				self.add('d', None, 'fractional d bounds', (lo, hi))
 		self.set_init_constr(its, panel)
 
 	def add_custom_constraints(self, panel, constraints, replace, cause):

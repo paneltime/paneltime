@@ -22,6 +22,24 @@ values and checked for agreement. Unsupported SymPy constructs produce a
 clear conversion error; use the manual dual implementation below as the
 escape hatch.
 
+SymPy is an optional dependency and must be installed to use symbolic
+expressions. Use smooth, real-valued expressions whose first and second
+derivatives exist on the residual domain. For example, use
+`sp.sqrt(e**2 + 1e-8)` rather than `sp.Abs(e)`: the latter has a distributional
+second derivative and is rejected with a conversion error.
+
+If the expression contains `z`, paneltime adds an estimated shape parameter
+named `z in h(e,z)`. This requires at least one ARCH lag; otherwise the shape
+parameter cannot enter the variance recursion. It can be fixed using
+`constraints={"z": 0.2}`. Avoid redundant specifications: for example,
+`sp.exp(z)*e**2` confounds the shape parameter with the ARCH coefficients.
+Successful compilation does not guarantee identification or convergence.
+
+The expression defines the lagged variance innovation, not the likelihood
+distribution or the variance link. Select `vol="EGARCH"` separately if a
+log-variance model is intended. A custom expression must remain valid over
+the residual and shape values encountered during estimation.
+
 ## Advanced: hand-writing the C++ expression directly
 
 Custom likelihoods may still provide `h_val_cpp` and its Python counterpart.

@@ -131,9 +131,8 @@ class LLFunction:
 
 
 	def z_active(self):
-		"""Check if the z-derivative keys are present in the h_func dictionary."""
-		if not np.all((getattr(self.model,k, None) == None) 
-					or (getattr(self.model,k, '') == '') 
-						for k in HFUNC_ITEMS[4:]  ):
-			return True
-		return False
+		"""Detect shape dependence without evaluating array truth values."""
+		return any(
+			value is not None and not (isinstance(value, str) and value == '')
+			for value in (getattr(self.model, key, None) for key in HFUNC_ITEMS[3:])
+		)
