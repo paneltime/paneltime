@@ -53,8 +53,15 @@ def main():
     parser.add_argument("-p", "--pypi", action="store_true", help="Upload package to PyPI")
     parser.add_argument("-k", "--keep-version", action="store_true", help="Do not increment patch version")
     parser.add_argument("-s", "--skip-quarto", action="store_true", help="Skip Quarto rendering ")
+    parser.add_argument("--docs-only", action="store_true", help="Compile and copy the documentation PDF only")
 
     args = parser.parse_args()
+
+    if args.docs_only:
+        if args.git or args.pypi:
+            parser.error("--docs-only cannot be combined with --git or --pypi")
+        compile_latex_doc()
+        return
 
     clean()
     create_readme()
@@ -95,19 +102,24 @@ def compile_latex_doc():
     bibtex = shutil.which("bibtex", path=search_path)
 
     if latexmk:
-        run([latexmk, "-pdf", "-interaction=nonstopmode", "main.tex"], cwd=doc_dir)
+        run([latexmk, "-pdf", "-interaction=nonstopmode", "-halt-on-error", "main.tex"], cwd=doc_dir)
     elif pdflatex and bibtex:
-        run([pdflatex, "-interaction=nonstopmode", "main.tex"], cwd=doc_dir)
+        latex_cmd = [pdflatex, "-interaction=nonstopmode", "-halt-on-error", "main.tex"]
+        run(latex_cmd, cwd=doc_dir)
         run([bibtex, "main"], cwd=doc_dir)
-        run([pdflatex, "-interaction=nonstopmode", "main.tex"], cwd=doc_dir)
-        run([pdflatex, "-interaction=nonstopmode", "main.tex"], cwd=doc_dir)
+        run(latex_cmd, cwd=doc_dir)
+        run(latex_cmd, cwd=doc_dir)
     else:
         print("WARNING: No LaTeX installation found (latexmk/pdflatex). "
               "Install MacTeX/TeX Live to compile paneltime_doc/main.tex. "
-              f"Using existing qmd/{DOC_PDF} if present.")
-        return
+              "Copying existing main.pdf without recompiling.")
 
-    shutil.copy2(doc_dir / "main.pdf", CUR_DIR / "qmd" / DOC_PDF)
+    pdf = doc_dir / "main.pdf"
+    if not pdf.exists():
+        print(f"WARNING: {pdf} not found; documentation PDF not copied.")
+        return
+    shutil.copy2(pdf, CUR_DIR / "qmd" / DOC_PDF)
+    print(f"Copied {pdf} to qmd/{DOC_PDF}")
 
 
 def clean():

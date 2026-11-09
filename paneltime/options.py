@@ -96,6 +96,7 @@ OPTION_SPECS = {
 	'fit.order': OptionSpec((1, 1, 0), 'ARIMA order `(p, q, d)` (AR, MA, integer differencing).', 'Three non-negative integers.', 'ARIMA-GARCH', 'pqdkm', '(2, 1, 2)', validator=tuple_of_ints(3)),
 	'fit.garch_order': OptionSpec((1, 1), 'GARCH order `(k, m)`.', 'Two non-negative integers.', 'ARIMA-GARCH', 'pqdkm', '(2, 2)', validator=tuple_of_ints(2)),
 	'fit.fractional_d': OptionSpec(None, 'Conditional fractional differencing of regression residuals; estimate one common d or supply a fixed value. Requires regular observations and zero integer differencing.', 'None, "estimate", or a finite real number strictly between -0.5 and 0.5.', 'ARIMA-GARCH', 'fractional_d', 'estimate', validator=is_fractional_d),
+	'fit.arima_initialization': OptionSpec('conditional', 'Presample ARMA state: zero (conditional) or integrated stationary Gaussian state. With GARCH/effects, only the ARMA initial state is integrated; the existing variance recursion/effects remain conditional.', ['conditional', 'stationary'], 'ARIMA-GARCH', 'arima_initialization', 'stationary', validator=one_of(['conditional', 'stationary'])),
 	'fit.vol': OptionSpec('GARCH', 'Volatility model.', ['GARCH', 'EGARCH'], 'ARIMA-GARCH', 'EGARCH', 'EGARCH', validator=one_of(['GARCH', 'EGARCH'])),
 	'fit.effects': OptionSpec(None, 'Fixed or random effects in the mean and variance models.', 'An Effects instance.', 'Effects', default_display='Effects()'),
 	'fit.optimizer': OptionSpec(None, 'Numerical optimizer settings.', 'An OptimizerOptions instance.', 'Optimizer', default_display='OptimizerOptions()'),
@@ -216,6 +217,13 @@ class EngineOptions:
 			raise ValueError('engine parameter magnitudes must be non-negative')
 		_validate_spec('optimizer.garch_ridge_wald', self.GARCH_ridge_wald)
 		_validate_spec('fit.fractional_d', self.fractional_d)
+		_validate_spec('fit.arima_initialization', self.arima_initialization)
+		if self.arima_initialization == 'stationary':
+			if self.fractional_d is not None:
+				raise ValueError('stationary ARIMA initialization does not support fractional_d')
+			if (self.EGARCH or self.custom_model is not None or self.GARCH_assist
+					or self.kurtosis_adj or any(value is not None for value in self.tobit_limits)):
+				raise ValueError('stationary ARIMA initialization requires the Gaussian GARCH likelihood without censoring')
 		if self.fractional_d is not None and self.pqdkm[2] != 0:
 			raise ValueError('fractional_d cannot be combined with integer differencing')
 		if len(self.robustcov_lags_statistics) != 2 or any(
@@ -293,10 +301,12 @@ class FitOptions:
 	likelihood: Any = _option('fit.likelihood')
 	h_function: Any = _option('fit.h_function')
 	fractional_d: Optional[float | str] = _option('fit.fractional_d')
+	arima_initialization: str = _option('fit.arima_initialization')
 
 	def validate(self):
 		for name in ('order', 'garch_order', 'vol', 'constraints', 'add_intercept',
-				'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood', 'fractional_d'):
+				'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood', 'fractional_d',
+				'arima_initialization'):
 			_validate_spec(f'fit.{name}', getattr(self, name))
 		self.effects.validate()
 		self.optimizer.validate()
@@ -310,7 +320,7 @@ class FitOptions:
 		for name in ('group', 'time', 'variance'):
 			spec = _spec(f'effects.{name}')
 			setattr(engine_options, spec.engine_name, effect_values[getattr(self.effects, name)])
-		for name in ('constraints', 'add_intercept', 'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood', 'h_function', 'fractional_d'):
+		for name in ('constraints', 'add_intercept', 'subtract_means', 'tobit_limits', 'suppress_output', 'likelihood', 'h_function', 'fractional_d', 'arima_initialization'):
 			spec = _spec(f'fit.{name}')
 			value = getattr(self, name)
 			if name == 'tobit_limits':

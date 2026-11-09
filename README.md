@@ -14,7 +14,7 @@ single time-series data with ARIMA/GARCH problems.
 
 **Author:** Espen Sirnes
 
-**Current version:** 1.3.7
+**Current version:** 1.3.8
 
 ## Installation
 
@@ -46,6 +46,26 @@ The conditional filter uses zero pre-sample residuals and requires regular
 observations without internal gaps. It works with the existing innovation
 likelihoods and GARCH models.
 See [fit options](api/fit-options.qmd#fractional-differencing-arfima) for details.
+
+## ARIMA initial-state likelihood
+
+The default `arima_initialization="conditional"` retains zero presample ARMA
+states and existing behavior. Set `arima_initialization="stationary"` in `fit()`
+to integrate a stationary Gaussian presample ARMA state independently per entity.
+With constant innovation variance and no effects, this gives exact Gaussian
+ARMA likelihood after integer differencing, conditional on the initial levels.
+The score, Hessian, per-observation scores, standard errors, standardized
+residuals and one-step forecasts use the same integrated likelihood.
+
+With GARCH or panel effects, their existing recursion/transformation is retained.
+Only the ARMA initial state is integrated, with its unit-noise stationary
+covariance scaled by each entity's first conditional innovation variance.
+This is **not** exact joint GARCH or marginal random-effects likelihood.
+It requires regular observations, stationary AR roots, a built-in Gaussian
+likelihood and no fractional differencing or censoring. Dense covariance
+factorization costs cubic time and quadratic storage in each history length;
+benchmark long series before large simulations.
+See [fit options](api/fit-options.qmd#arima-initial-state-likelihood) for the formula.
 
 ## GARCH ridge reduction
 

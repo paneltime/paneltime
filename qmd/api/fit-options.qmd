@@ -18,6 +18,72 @@ controls the GARCH variance process. Set `vol="GARCH"` or `vol="EGARCH"`.
 results = model.fit(order=(1, 0, 1), garch_order=(1, 1), vol="GARCH")
 ```
 
+## ARIMA initial-state likelihood
+
+The default `arima_initialization="conditional"` preserves the existing
+zero-presample ARMA filtering and conditional likelihood. Alternatively:
+
+```{python}
+#| eval: false
+results = model.fit(order=(1, 1, 0), garch_order=(0, 0),
+                    arima_initialization="stationary")
+print(results.arima_initialization)
+```
+
+In stationary mode, each entity has an independent Gaussian presample state.
+The AR companion transition $A$, innovation loading $R$, and observation
+loading $Z$ represent the specified ARMA polynomial. Its unit-noise stationary
+covariance satisfies
+$$P = A P A^\top + R R^\top.$$
+Let $O$ have rows $ZA^t$, and let $B$ be the existing zero-history
+$\operatorname{MA}^{-1}\operatorname{AR}$ filter. For effects-adjusted
+zero-history innovations $e$, conditional innovation variances
+$D=\operatorname{diag}(v_1,\ldots,v_T)$, and $H=BO$, the integrated objective is
+$$
+C=D+v_1 HPH^\top,\qquad
+\ell=-\tfrac12\left(T\log(2\pi)+\log|C|+e^\top C^{-1}e\right).
+$$
+With constant innovation variance, no effects and no variance regressors,
+this is **exact Gaussian ARMA likelihood**, not conditional sum of squares.
+For integer-integrated models the first `d` rows are excluded from the
+likelihood and scores: the likelihood is for the stationary differenced series,
+conditional on the original initial levels, not an exact diffuse likelihood
+for those levels. Regression coefficients describe `Y - X beta`; a rebuilt
+intercept after integer differencing retains the existing drift interpretation.
+Coefficient constraints retain their existing meaning.
+
+**GARCH and effects are unchanged.** Their zero-history conditional
+variance path and innovation-scale effects transformation are computed first,
+as before. Stationary mode then integrates only an additional Gaussian ARMA
+initial-state contribution, scaled by the first conditional variance.
+It does not recompute the GARCH variance path for each possible presample
+state, integrate a GARCH variance distribution, integrate random effects,
+or add a marginal-effects determinant. Thus with GARCH or effects this is an
+**initial-state approximation**, not exact joint ARIMA--GARCH or marginal
+panel likelihood. The same qualification applies to forecasts.
+
+Analytic derivatives include the Lyapunov covariance, ARMA state loadings,
+variance scale, and all existing effects/GARCH dependence, through second order.
+The optimizer and conventional covariance use this Hessian; robust covariance
+uses the corresponding per-observation conditional-Cholesky scores.
+Standardized variables/residuals and one-step prediction use the same
+covariance factorization and posterior initial-state uncertainty.
+Reported model descriptions identify stationary ARMA state initialization.
+
+Stationary mode requires regular numeric or datetime observations, stationary
+AR roots, and the built-in Gaussian GARCH likelihood. Fractional integration,
+EGARCH/non-Gaussian or custom likelihoods, censoring and instrumental-variable
+fits are rejected rather than silently reverting to conditional mode. Invalid
+AR roots or nonpositive variances invalidate a trial likelihood under the
+existing optimizer error-handling policy. Each entity is integrated separately;
+ragged panels may have different history lengths.
+
+The implementation uses dense Cholesky covariance factorization: cubic time
+and quadratic storage in each history length, with additional parameter-pair
+storage for the analytic Hessian. It is intended for moderate series lengths;
+benchmark long series before large simulations. Only the current ARMA
+coefficient vector's state matrices are cached within a fit.
+
 ## Fractional differencing (ARFIMA)
 
 Use `fractional_d="estimate"` to estimate one common fractional parameter across

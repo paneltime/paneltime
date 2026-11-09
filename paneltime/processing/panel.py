@@ -35,6 +35,7 @@ class Panel:
 		self.initial_defs()
 		self.arrayize()
 		self.validate_fractional_data()
+		self.validate_stationary_data()
 		self.diff_transform()
 		self.final_defs()
 
@@ -72,27 +73,39 @@ class Panel:
 			return
 		if self.pqdkm[2] != 0:
 			raise ValueError("fractional_d cannot be combined with integer differencing")
+		self.validate_regular_data("fractional_d")
+
+	def validate_regular_data(self, option):
 		dates = self.input.timevar_orig.iloc[:, 0]
 		for group, length in enumerate(self.T_arr[:, 0]):
 			observed = dates.iloc[self.map[group, :length]]
 			if len(observed) < 3:
-				raise ValueError("fractional_d requires at least three regular observations per entity")
+				raise ValueError(f"{option} requires at least three regular observations per entity")
 			if pd.api.types.is_datetime64_any_dtype(observed.dtype):
 				regular = observed.is_unique and pd.infer_freq(pd.DatetimeIndex(observed)) is not None
 			else:
 				try:
 					steps = np.diff(observed.to_numpy(dtype=float))
 				except (TypeError, ValueError) as error:
-					raise ValueError("fractional_d requires numeric or datetime time values") from error
+					raise ValueError(f"{option} requires numeric or datetime time values") from error
 				regular = np.all(steps > 0) and np.allclose(steps, steps[0], rtol=1e-10, atol=0)
 			if not regular:
-				raise ValueError("fractional_d requires regular observations without internal time gaps")
+				raise ValueError(f"{option} requires regular observations without internal time gaps")
+
+	def validate_stationary_data(self):
+		if self.options.arima_initialization != 'stationary':
+			return
+		self.validate_regular_data("stationary ARIMA initialization")
+		if self.input.Z.shape[1] > 1:
+			raise ValueError("stationary ARIMA initialization does not support instrumental variables")
 
 	def final_defs(self):
 		
 		self.W_a=self.W*self.included[3]
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT=np.sum(self.included[3])
+		if self.options.arima_initialization == 'stationary':
+			self.NT -= self.N * self.pqdkm[2]
 		self.NT_before_loss=self.NT
 		if not hasattr(self,'n_dates'):
 			self.number_of_RE_coef=0

@@ -149,6 +149,9 @@ class gradient:
 		"""Return the score vector and per-observation gradient array."""
 		if dLL_var is None or dLL_e is None:
 			dLL_var, dLL_e = ll.llfunc.gradient()
+		if ll.initial_state is not None:
+			dLL_e = ll.initial_state.partial_e
+			dLL_var = ll.initial_state.partial_v
 
 		self.dLL_e = dLL_e
 		self.dLL_var = dLL_var
@@ -159,6 +162,8 @@ class gradient:
 		self._store_arima_derivatives(ll, incl)
 		self._store_sigma_derivatives(ll)
 		self._store_garch_derivatives(ll, N, T)
+		if ll.initial_state is not None:
+			return ll.initial_state.scores(self)
 
 		dLL_beta = self._score_block(self.de_beta_RE, self.dvar_sigma_beta, dLL_e, dLL_var)
 		dLL_rho = self._score_block(self.de_rho_RE, self.dvar_sigma_rho, dLL_e, dLL_var)
@@ -216,6 +221,9 @@ class hessian:
 
 	def get(self,ll,d2LL_de2,d2LL_dln_de,d2LL_dln2):	
 		H = self.hessian(ll,d2LL_de2,d2LL_dln_de,d2LL_dln2)
+		if H is not None and ll.initial_state is not None:
+			H = H + ll.initial_state.hessian_correction(
+				self.g, (d2LL_de2, d2LL_dln_de, d2LL_dln2))
 		return H
 
 

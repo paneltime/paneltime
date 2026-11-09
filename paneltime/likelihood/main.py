@@ -10,6 +10,7 @@ from .. import functions as fu
 from . import function
 from ..output import stat_dist
 from . import arma
+from .initial_state import InitialStateLikelihood
 import numpy as np
 import traceback
 import pandas as pd
@@ -103,6 +104,11 @@ class LL:
 			self.h, self.var = h, var
 
 		self.llfunc = function.LLFunction(panel,  e_RE, var, z)
+		self.initial_state = None
+		if panel.options.arima_initialization == 'stationary':
+			self.llfunc.incl = incl.copy()
+			self.llfunc.incl[:, :panel.pqdkm[2]] = 0
+			self.llfunc.model.incl = self.llfunc.incl
 		
 		if False:#debug
 			from .. import debug
@@ -117,6 +123,11 @@ class LL:
 			setattr(self, item, getattr(self.llfunc, item))
 
 		ll_value = self.llfunc.ll()
+		if panel.options.arima_initialization == 'stationary':
+			self.e_RE = e_RE
+			self.initial_state = InitialStateLikelihood(panel, self)
+			ll_value = self.initial_state.ll_value
+			self.llfunc.ll_value = ll_value
 
 		self.e_norm = e_RE*self.llfunc.v_inv05		# needed by tobit, set before it
 		self.tobit(panel,ll_value)
@@ -125,6 +136,9 @@ class LL:
 		self.LL_all=np.sum(ll_value)
 
 		self.add_variables(panel, u, G,e_RE,self.llfunc.e2, var)
+		if self.initial_state is not None:
+			self.e_norm = self.initial_state.whiten(e_RE)
+			self.e_RE_norm_centered = (self.e_norm - panel.mean(self.e_norm)) * incl
 		
 
 		if abs(LL)>1e+100: 
@@ -219,6 +233,8 @@ class LL:
 		return X	
 	
 	def corr_garch(self,X):
+		if self.initial_state is not None:
+			return self.initial_state.whiten(X)
 		X=X*self.llfunc.v_inv05
 		return X	
 
@@ -248,12 +264,17 @@ class LL:
 
 		N, T, k = panel.X.shape
 		self.u_pred = pred_u(self.u_fractional, self.e, d['rho'], d['lambda'], panel)
+		initial_variance = 0
+		if self.initial_state is not None:
+			initial_mean, initial_variance = self.initial_state.forecast_adjustment()
+			self.u_pred = self.u_pred + initial_mean
 		if self.fractional is not None:
 			self.u_pred = self.fractional.forecast(self.u_pred, self.u, panel.T_arr)
 		#u_pred = pred_u(self.u[:,:-1], self.e[:,:-1], d['rho'], d['lambda'], panel)#test
 		self.y_pred = pred_y(panel.X, panel.X_pred[:,0], d['beta'], self.u_pred, d['rho'], d['lambda'], panel)
 		self.var_pred = pred_var(self.h, self.var, d['psi'], d['gamma'], d['omega'], 
 						   self.llfunc.model.minvar, self.llfunc.model.maxvar, panel)
+		self.var_pred = self.var_pred + initial_variance
 		#var_pred = pred_var(self.h[:,:-1], self.var[:,:-1], d['psi'], d['gamma'], d['omega'], W, self.minvar, self.maxvar, panel)#test
 		index = pd.MultiIndex.from_arrays(
 				[panel.X_pred_idvar[:,0,0].flatten(), panel.X_pred_timevar[:,0,0].flatten()],  # Flatten if necessary

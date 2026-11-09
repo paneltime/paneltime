@@ -690,6 +690,8 @@ class Information:
 			method = 'Least Squares'
 		else:
 			method = 'Maximum Likelihood'
+		if panel.options.arima_initialization == 'stationary':
+			s += ' [stationary ARMA state]'
 		
 		return s, method
 

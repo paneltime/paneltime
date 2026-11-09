@@ -135,6 +135,7 @@ class Summary:
 		self.general = summary.general
 		self.ll = summary.ll
 		self.fractional_d = (None if self.ll.fractional is None else self.ll.fractional.d)
+		self.arima_initialization = summary.panel.options.arima_initialization
 		data = summary.results
 		self._params = self._series(data.params)
 		self._bse = self._series(data.se)
@@ -415,11 +416,13 @@ class Model:
 			likelihood=None, h_function=None, add_intercept=True,
 			subtract_means=False,
 			tobit_limits=(None, None), suppress_output=True,
-			fractional_d=None) -> Summary:
+			fractional_d=None, arima_initialization='conditional') -> Summary:
 		"""Fit using order=(AR, MA, integer difference).
 
 		fractional_d=None preserves the existing model; a number fixes d and
 		"estimate" estimates a common stationary d using zero pre-sample history.
+		arima_initialization="stationary" integrates a stationary Gaussian ARMA
+		initial state. GARCH recursion and effect transformations stay conditional.
 		"""
 		effects = effects or Effects()
 		optimizer = optimizer or OptimizerOptions()
@@ -427,6 +430,7 @@ class Model:
 			effects=effects, optimizer=optimizer, constraints=constraints,
 			likelihood=likelihood, h_function=h_function,
 			fractional_d=fractional_d,
+			arima_initialization=arima_initialization,
 			add_intercept=add_intercept, subtract_means=subtract_means,
 			tobit_limits=tobit_limits,
 			suppress_output=suppress_output)

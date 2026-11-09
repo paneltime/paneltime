@@ -45,6 +45,13 @@ See the [Quickstart](quickstart.qmd) for a complete model example.
 The full model documentation is available as a
 [PDF](https://paneltime.github.io/paneltime_documentation.pdf).
 
+## Simulations and testing
+
+The simulation code, parameter settings, benchmark runners, and analysis scripts
+are available in the [testing repository](https://github.com/paneltime/paneltime_test).
+The "Simulation procedure" section of the model documentation describes the
+data-generating design and assumed parameters.
+
 ## ARFIMA
 
 Pass `fractional_d="estimate"` to estimate a common stationary fractional

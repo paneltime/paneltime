@@ -13,6 +13,7 @@ These options are configured per model fit. The defaults, domains, and descripti
 | fit | `order` | `(1, 1, 0)` | Three non-negative integers. | ARIMA order `(p, q, d)` (AR, MA, integer differencing). | `(2, 1, 2)` |
 | fit | `garch_order` | `(1, 1)` | Two non-negative integers. | GARCH order `(k, m)`. | `(2, 2)` |
 | fit | `fractional_d` | `None` | None, "estimate", or a finite real number strictly between -0.5 and 0.5. | Conditional fractional differencing of regression residuals; estimate one common d or supply a fixed value. Requires regular observations and zero integer differencing. | `estimate` |
+| fit | `arima_initialization` | `'conditional'` | conditional, stationary | Presample ARMA state: zero (conditional) or integrated stationary Gaussian state. With GARCH/effects, only the ARMA initial state is integrated; the existing variance recursion/effects remain conditional. | `stationary` |
 | fit | `vol` | `'GARCH'` | GARCH, EGARCH | Volatility model. | `EGARCH` |
 | fit | `effects` | `Effects()` | An Effects instance. | Fixed or random effects in the mean and variance models. | `` |
 | fit | `optimizer` | `OptimizerOptions()` | An OptimizerOptions instance. | Numerical optimizer settings. | `` |
