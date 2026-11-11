@@ -5,9 +5,37 @@ from tempfile import TemporaryDirectory
 from unittest.mock import call, patch
 
 import setup_script
+from paneltime.options import option_schema
 
 
 class DocumentationBuildTests(unittest.TestCase):
+    def test_group_option_tables_match_schema_and_checked_in_files(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "options.qmd"
+            setup_script.write_option_docs(path)
+            for group in ("effects", "optimizer"):
+                with self.subTest(group=group):
+                    generated = path.parent / "_includes" / f"{group}-options.qmd"
+                    text = generated.read_text(encoding="utf-8")
+                    expected = [option for option in option_schema()
+                                if option["group"] == group]
+                    self.assertEqual(text.count("\n| `"), len(expected))
+                    for option in expected:
+                        self.assertIn(f"| {setup_script._option_cells(option)} |", text)
+                    checked_in = setup_script.CUR_DIR / "qmd" / "_includes" / generated.name
+                    self.assertEqual(text, checked_in.read_text(encoding="utf-8"))
+
+    def test_group_option_tables_refresh_changed_metadata(self):
+        option = dict(group="optimizer", name="example", default=42,
+                      domain="Only 42.", description="Updated description.", example=42)
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "options.qmd"
+            with patch.object(setup_script, "option_schema", return_value=iter([option])):
+                setup_script.write_option_docs(path)
+            text = (path.parent / "_includes" / "optimizer-options.qmd").read_text(
+                encoding="utf-8")
+            self.assertIn("| `example` | `42` | Only 42. | Updated description. |", text)
+
     def test_latexmk_builds_and_copies_pdf(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)

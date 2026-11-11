@@ -18,71 +18,92 @@ controls the GARCH variance process. Set `vol="GARCH"` or `vol="EGARCH"`.
 results = model.fit(order=(1, 0, 1), garch_order=(1, 1), vol="GARCH")
 ```
 
-## ARIMA initial-state likelihood
+## ARMA exact log likelihood and RE/FE correction {#arima-likelihood-initialization}
 
-The default `arima_initialization="conditional"` preserves the existing
-zero-presample ARMA filtering and conditional likelihood. Alternatively:
+`exact_ll` defaults to `None` (automatic):
+
+| Value | Likelihood selection |
+|---|---|
+| `None` | Enable the Gaussian covariance correction for supported ARIMA models with `garch_order=(0, 0)`, including time series and panels with FE/RE. Otherwise use conditional likelihood. |
+| `True` | Force the correction on, including with GARCH; unsupported specifications still raise an error. |
+| `False` | Force conditional likelihood with zero presample innovations. |
+
+`results.exact_ll` records the resolved boolean, not `None`. Automatic selection
+leaves fractional, EGARCH, custom/non-Gaussian and censored models conditional.
+Static models (`order=(0, 0, 0)`) also remain conditional in automatic mode.
+
+For constant-variance ARMA without effects, this gives exact stationary Gaussian
+likelihood, including the infinite AR history and all supplied regressors.
+It reuses the native inverse-MA column and a stationary Lyapunov prior.
+Factorizations are only `r`-by-`r`, where `r = max(p, q)`; no time-by-time
+covariance is built. Work and storage grow linearly with history length for
+fixed orders and parameter count. The Hessian batches its derivative solves.
+
+The corrected density replaces the conditional density once per entity.
+Analytic scores/Hessians, robust scores, whitening and forecasts use the same
+covariance. Ragged groups exclude padding and integer-differencing boundaries.
+After differencing this is not a diffuse likelihood for the original levels.
+
+GARCH/effects/variance-regressor models retain the dense finite-history
+approximation `C = diag(v) + v[0] * H @ H.T`. Their variance paths and effects
+transforms are unchanged; this is not exact joint GARCH or marginal-effects
+likelihood, and long histories can be expensive.
+
+Fixed or random effects do not remove the need to account for each series'
+unobserved history. The correction remains applicable and is enabled
+automatically without GARCH. A small RE-only pilot suggested improved ARMA
+parameter RMSE, although this is preliminary evidence; the retained effects
+transformation does not provide exact joint integration over random effects.
+
+Exact stationary GARCH likelihood would require integrating over unobserved
+past shocks and initial volatility, whose stationary distribution generally
+has no closed form. This requires specialized numerical methods and is not
+implemented here. The ARMA correction alone does not provide that integration
+or a reliable improvement in estimates: a small paired pilot found no
+consistent RMSE gain with GARCH, with or without random effects. This is
+preliminary evidence, not a general result; automatic mode keeps GARCH
+models conditional.
+
+When enabled, the option requires regular observations and the built-in Gaussian model.
+Non-Gaussian/custom likelihoods, EGARCH, fractional differencing, censoring and
+IV are rejected. Invalid AR roots or nonpositive/clipped variances invalidate
+a trial. See the ARMA exact log likelihood and RE/FE correction section in
+`paneltime_doc/main.tex` for the implemented equations.
+
+## Evaluate without fitting
+
+`model.prepare_likelihood(FitOptions(...))` prepares the data once and returns a
+reusable evaluator. It does not optimize, build result tables, or impose a
+seasonal model. All regressors in the model formula remain in the coefficient
+vector, with the same analytic regression/ARMA/variance cross derivatives.
 
 ```{python}
 #| eval: false
-results = model.fit(order=(1, 1, 0), garch_order=(0, 0),
-                    arima_initialization="stationary")
-print(results.arima_initialization)
+evaluator = model.prepare_likelihood(
+    pt.FitOptions(order=(2, 1, 0), garch_order=(0, 0), exact_ll=True))
+parameters = evaluator.initial_parameters.copy()
+evaluation = evaluator.evaluate(parameters)
+evaluation.loglike, evaluation.score, evaluation.hessian
 ```
 
-In stationary mode, each entity has an independent Gaussian presample state.
-The AR companion transition $A$, innovation loading $R$, and observation
-loading $Z$ represent the specified ARMA polynomial. Its unit-noise stationary
-covariance satisfies
-$$P = A P A^\top + R R^\top.$$
-Let $O$ have rows $ZA^t$, and let $B$ be the existing zero-history
-$\operatorname{MA}^{-1}\operatorname{AR}$ filter. For effects-adjusted
-zero-history innovations $e$, conditional innovation variances
-$D=\operatorname{diag}(v_1,\ldots,v_T)$, and $H=BO$, the integrated objective is
-$$
-C=D+v_1 HPH^\top,\qquad
-\ell=-\tfrac12\left(T\log(2\pi)+\log|C|+e^\top C^{-1}e\right).
-$$
-With constant innovation variance, no effects and no variance regressors,
-this is **exact Gaussian ARMA likelihood**, not conditional sum of squares.
-For integer-integrated models the first `d` rows are excluded from the
-likelihood and scores: the likelihood is for the stationary differenced series,
-conditional on the original initial levels, not an exact diffuse likelihood
-for those levels. Regression coefficients describe `Y - X beta`; a rebuilt
-intercept after integer differencing retains the existing drift interpretation.
-Coefficient constraints retain their existing meaning.
+`parameter_names` and `parameter_groups` describe the full vector, in engine
+coefficient coordinates. Supply all coefficients, including fixed ones:
+`evaluate` does not apply fit constraints. `derivative_order=0`, `1`, or `2`
+requests density only, density and score, or all three. Invalid parameter trials
+raise `ValueError`. Only the last parameter vector and its computed derivatives
+are reused; returned derivative arrays are copies. Preparation uses the existing
+initializer, so its warnings can still appear.
 
-**GARCH and effects are unchanged.** Their zero-history conditional
-variance path and innovation-scale effects transformation are computed first,
-as before. Stationary mode then integrates only an additional Gaussian ARMA
-initial-state contribution, scaled by the first conditional variance.
-It does not recompute the GARCH variance path for each possible presample
-state, integrate a GARCH variance distribution, integrate random effects,
-or add a marginal-effects determinant. Thus with GARCH or effects this is an
-**initial-state approximation**, not exact joint ARIMA--GARCH or marginal
-panel likelihood. The same qualification applies to forecasts.
-
-Analytic derivatives include the Lyapunov covariance, ARMA state loadings,
-variance scale, and all existing effects/GARCH dependence, through second order.
-The optimizer and conventional covariance use this Hessian; robust covariance
-uses the corresponding per-observation conditional-Cholesky scores.
-Standardized variables/residuals and one-step prediction use the same
-covariance factorization and posterior initial-state uncertainty.
-Reported model descriptions identify stationary ARMA state initialization.
-
-Stationary mode requires regular numeric or datetime observations, stationary
-AR roots, and the built-in Gaussian GARCH likelihood. Fractional integration,
-EGARCH/non-Gaussian or custom likelihoods, censoring and instrumental-variable
-fits are rejected rather than silently reverting to conditional mode. Invalid
-AR roots or nonpositive variances invalidate a trial likelihood under the
-existing optimizer error-handling policy. Each entity is integrated separately;
-ragged panels may have different history lengths.
-
-The implementation uses dense Cholesky covariance factorization: cubic time
-and quadratic storage in each history length, with additional parameter-pair
-storage for the analytic Hessian. It is intended for moderate series lengths;
-benchmark long series before large simulations. Only the current ARMA
-coefficient vector's state matrices are cached within a fit.
+For nonlinear coefficient relationships, an external optimizer can use this
+evaluator directly, without invoking `fit` at each trial. If `a = f(b)` maps
+optimizer coordinates to the full vector, transform derivatives as
+`g_b = J.T @ g_a` and
+`H_b = J.T @ H_a @ J + sum(g_a[k] * Hessian(f[k]))`.
+The second term is required for products, log variances and other nonlinear maps.
+Explicitly fixing every coefficient in a final `fit` is supported: the full
+vector is retained and results are constructed with zero optimization iterations.
+Standard errors conditional on all coefficients being fixed are unavailable;
+inference for the external coordinates must use their transformed curvature.
 
 ## Fractional differencing (ARFIMA)
 
@@ -129,13 +150,27 @@ Standard errors at active bounds require the usual boundary-inference caution.
 
 ## Effects
 
-Pass an `Effects` instance with `group`, `time`, and `variance` set to
-`"none"`, `"fixed"`, or `"random"`.
+Create `pt.Effects(...)` and pass it as the `effects` argument to
+`Model.fit()`, not to the `Model` constructor. `group` controls entity effects,
+`time` controls calendar-date effects, and `variance` controls effects in the
+variance transformation. Omitted fields keep their defaults.
+
+The complete option table below is generated by `setup_script.py` from the
+same definitions used to validate fits.
+
+{{< include ../_includes/effects-options.qmd >}}
 
 ```{python}
 #| eval: false
 effects = pt.Effects(group="random", time="fixed", variance="none")
-results = model.fit(effects=effects)
+model = pt.Model("Y ~ X0 + X1", data, entity="IDs", time="dates")
+results = model.fit(order=(2, 2, 0), garch_order=(2, 2), effects=effects)
+
+# Inline configuration: entity fixed effects, no time or variance effects.
+fixed = model.fit(effects=pt.Effects(group="fixed"))
+
+# Disable all effects (also the default).
+pooled = model.fit(effects=pt.Effects())
 ```
 
 Group and time effects are removed from the ARMA innovations, after the ARMA
@@ -146,9 +181,21 @@ ordinary finite-sample error.
 
 ## Optimizer and covariance
 
-Use `OptimizerOptions` for `tolerance`, `max_iterations`, `accuracy`,
-and other optimizer controls. Robust covariance lags are configured with
-`OptimizerOptions.robust_cov_lags`. Both conventional and robust standard
+Create `pt.OptimizerOptions(...)` and pass it as the `optimizer` argument to
+`Model.fit()`. These are configuration fields, not separate arguments to the
+`Model` constructor or `fit()`: for example, use
+`model.fit(optimizer=pt.OptimizerOptions(max_iterations=300))`, not
+`model.fit(max_iterations=300)`. Omitted fields retain their defaults;
+`pt.OptimizerOptions()` supplies all defaults. Settings are per fit, not global.
+
+All available controls, including constraints, initialization, numerical
+precision, reduction thresholds and covariance settings, are listed below.
+Defaults, permitted values and descriptions are generated from the central
+option schema whenever `setup_script.py` runs its normal build workflow.
+
+{{< include ../_includes/optimizer-options.qmd >}}
+
+Both conventional and robust standard
 errors are available on the returned results object as `bse` and
 `robust_bse`; `bse_at(params)` evaluates robust standard errors at supplied
 parameter values. The `cov_type` keyword is accepted by `Model.fit()` but does
@@ -156,10 +203,29 @@ not currently select between these covariance results.
 
 ```{python}
 #| eval: false
-optimizer = pt.OptimizerOptions(tolerance=1e-5, max_iterations=150)
-optimizer.robust_cov_lags = (100, 30)
-results = model.fit(optimizer=optimizer)
+optimizer = pt.OptimizerOptions(
+    tolerance=1e-5,
+    max_iterations=300,
+    robust_cov_lags=(100, 30),
+    garch_ridge_wald=0,  # Disable automatic GARCH ridge reduction.
+)
+results = model.fit(
+    order=(2, 2, 0),
+    garch_order=(2, 2),
+    effects=pt.Effects(group="random", time="random"),
+    optimizer=optimizer,
+)
+
+# You can also update a configuration object before passing it to fit().
+optimizer.max_iterations = 500
+refit = model.fit(optimizer=optimizer)
 ```
+
+For most fits, start with the defaults and adjust `max_iterations` or
+`tolerance` if needed. Other fields are advanced controls; changing
+`garch_assist` or `kurtosis_adj` also changes the likelihood, not merely the
+optimization algorithm. Invalid settings raise an error when the fit is
+prepared. See the sections below for reduction and initialization details.
 
 ### GARCH ridge reduction
 

@@ -33,7 +33,7 @@ class FractionalTests(unittest.TestCase):
         options = FitOptions(
             order=order, garch_order=garch, fractional_d=d,
             effects=effects or pt.Effects(), vol=vol, h_function=h_function,
-            likelihood=likelihood,
+            likelihood=likelihood, exact_ll=False,
         ).to_engine_options()
         panel = Panel(Input(data, 'y ~ x', 'id', 'time', options, None, None), options)
         panel.init()

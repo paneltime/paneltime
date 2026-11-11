@@ -690,9 +690,9 @@ class Information:
 			method = 'Least Squares'
 		else:
 			method = 'Maximum Likelihood'
-		if panel.options.arima_initialization == 'stationary':
-			s += ' [stationary ARMA state]'
 		
+		if panel.options.exact_ll:
+			s += ' [Gaussian covariance correction]'
 		return s, method
 
 

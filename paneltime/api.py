@@ -9,6 +9,7 @@ import pandas as pd
 
 from . import main
 from .options import Effects, FitOptions, OptimizerOptions
+from .likelihood.evaluation import LikelihoodEvaluator
 from .random_effects.static import _layout
 
 
@@ -135,7 +136,7 @@ class Summary:
 		self.general = summary.general
 		self.ll = summary.ll
 		self.fractional_d = (None if self.ll.fractional is None else self.ll.fractional.d)
-		self.arima_initialization = summary.panel.options.arima_initialization
+		self.exact_ll = summary.panel.options.exact_ll
 		data = summary.results
 		self._params = self._series(data.params)
 		self._bse = self._series(data.se)
@@ -411,18 +412,41 @@ class Model:
 		self.entity = entity
 		self.time = time
 
+	def prepare_likelihood(self, options: Optional[FitOptions] = None) -> LikelihoodEvaluator:
+		"""Prepare data once for likelihood/derivative evaluations, without fitting.
+
+		Accepts the same FitOptions used by fit, including exact_ll. Regression
+		coefficients remain part of the full evaluated vector; no seasonal
+		specification or parameter restrictions are imposed by the evaluator.
+		"""
+		engine_options = (options or FitOptions()).to_engine_options()
+		if isinstance(self.data.index, pd.MultiIndex):
+			entity = self.entity or self.data.index.names[0]
+			time = self.time or self.data.index.names[1]
+			data = self.data.reset_index()
+		else:
+			entity, time = self.entity, self.time
+			data = self.data.copy()
+		panel = main.Panel(main.Input(
+			data, self.formula, entity, time, engine_options, None, None),
+			engine_options)
+		panel.init()
+		return LikelihoodEvaluator(panel)
+
 	def fit(self, order=(1, 1, 0), garch_order=(1, 1), vol='GARCH',
 			effects=None, cov_type='robust', optimizer=None, constraints=None,
 			likelihood=None, h_function=None, add_intercept=True,
 			subtract_means=False,
 			tobit_limits=(None, None), suppress_output=True,
-			fractional_d=None, arima_initialization='conditional') -> Summary:
+			fractional_d=None, exact_ll: Optional[bool] = None) -> Summary:
 		"""Fit using order=(AR, MA, integer difference).
 
 		fractional_d=None preserves the existing model; a number fixes d and
 		"estimate" estimates a common stationary d using zero pre-sample history.
-		arima_initialization="stationary" integrates a stationary Gaussian ARMA
-		initial state. GARCH recursion and effect transformations stay conditional.
+		exact_ll=None enables the Gaussian covariance correction for supported
+		ARIMA models without GARCH, including panels with effects. True or False
+		forces it on or off. Without effects or variance regressors it is exact
+		stationary likelihood; otherwise it is a finite-history approximation.
 		"""
 		effects = effects or Effects()
 		optimizer = optimizer or OptimizerOptions()
@@ -430,7 +454,7 @@ class Model:
 			effects=effects, optimizer=optimizer, constraints=constraints,
 			likelihood=likelihood, h_function=h_function,
 			fractional_d=fractional_d,
-			arima_initialization=arima_initialization,
+			exact_ll=exact_ll,
 			add_intercept=add_intercept, subtract_means=subtract_means,
 			tobit_limits=tobit_limits,
 			suppress_output=suppress_output)

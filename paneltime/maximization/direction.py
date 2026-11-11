@@ -140,6 +140,8 @@ def solve(constr, H, g, x, f=None, concave=True):
 	m = len(g)
 	free = np.ones(m, dtype=bool)
 	free[list(getattr(constr, 'fixed', {}).keys())] = False
+	if not np.any(free):
+		return np.zeros(m), H_orig, []
 	pos = np.cumsum(free) - 1				# index of each free variable in the reduced system
 
 	Hr = H[free][:, free]

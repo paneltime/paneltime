@@ -35,7 +35,10 @@ class Panel:
 		self.initial_defs()
 		self.arrayize()
 		self.validate_fractional_data()
-		self.validate_stationary_data()
+		if self.options.exact_ll:
+			self.validate_regular_data("exact_ll")
+			if self.input.Z.shape[1] > 1:
+				raise ValueError("exact_ll does not support instrumental variables")
 		self.diff_transform()
 		self.final_defs()
 
@@ -92,20 +95,13 @@ class Panel:
 			if not regular:
 				raise ValueError(f"{option} requires regular observations without internal time gaps")
 
-	def validate_stationary_data(self):
-		if self.options.arima_initialization != 'stationary':
-			return
-		self.validate_regular_data("stationary ARIMA initialization")
-		if self.input.Z.shape[1] > 1:
-			raise ValueError("stationary ARIMA initialization does not support instrumental variables")
-
 	def final_defs(self):
 		
 		self.W_a=self.W*self.included[3]
 		self.tot_lost_obs=self.lost_obs*self.N
 		self.NT=np.sum(self.included[3])
-		if self.options.arima_initialization == 'stationary':
-			self.NT -= self.N * self.pqdkm[2]
+		if self.options.exact_ll:
+			self.NT -= self.N*self.pqdkm[2]
 		self.NT_before_loss=self.NT
 		if not hasattr(self,'n_dates'):
 			self.number_of_RE_coef=0

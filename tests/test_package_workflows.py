@@ -31,6 +31,20 @@ except ImportError:
 
 
 class PackageWorkflowTests(unittest.TestCase):
+    def test_removed_stationary_likelihood_is_not_exposed(self):
+        from paneltime import cfunctions
+        from paneltime.options import option_schema
+        self.assertNotIn('arima_initialization', [option['name'] for option in option_schema()])
+        with self.assertRaises(TypeError):
+            FitOptions(arima_initialization='stationary')
+        for name in ('stationary_kalman', 'stationary_whiten'):
+            self.assertFalse(hasattr(cfunctions, name))
+            self.assertFalse(hasattr(cfunctions.cfunct, name))
+        panel = self._presample_panel((1, 1, 0), (0, 0))
+        ll = LL(panel.args.args_init.args_v, panel)
+        self.assertIsNotNone(ll.LL, ll.err_msg)
+        self.assertFalse(hasattr(ll, 'initial_state'))
+
     def test_cached_date_means_match_reference_for_ragged_and_balanced_panels(self):
         from paneltime.random_effects.dynamic import mean_time, mean_time_slow
         rng = np.random.default_rng(107)

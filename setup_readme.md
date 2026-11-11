@@ -76,6 +76,13 @@ python setup_script.py -p
 ```
 
 ## Web generation - under the hood
+The normal setup workflow generates `qmd/options.qmd` and the Effects and
+OptimizerOptions tables included in `qmd/api/fit-options.qmd` from the central
+schema in `paneltime/options.py`. Change option defaults, permitted-value
+descriptions, and explanations in that schema, not in generated tables.
+Usage examples are maintained in the API page. The `--docs-only` command
+only rebuilds the PDF; it does not regenerate or render web option tables.
+
 The web page is generated in the qmd directory in this folder, with 
 ```
 quarto render

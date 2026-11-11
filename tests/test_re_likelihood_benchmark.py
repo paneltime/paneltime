@@ -85,6 +85,7 @@ class RELikelihoodBenchmarkTests(unittest.TestCase):
         options = FitOptions(
             order=(1, 0, 0), garch_order=(0, 0),
             effects=Effects(group='random', time='random'),
+            exact_ll=False,
         ).to_engine_options()
         panel = Panel(Input(data, 'y ~ x', 'id', 'time', options, None, None), options)
         panel.init()

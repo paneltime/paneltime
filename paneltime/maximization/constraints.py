@@ -113,8 +113,9 @@ class Constraints(dict):
 		interval (lo,hi) -> interval constraint; lo or hi may be None
 		replace=False    -> an existing constraint at `index` is kept
 
-		A fixed value outside an existing interval is rejected, and not all
-		parameters can be fixed. Returns True if the constraint was added."""
+		A fixed value outside an existing interval is rejected. Automatic
+		constraints retain a free parameter; explicit user constraints may fix
+		the full vector. Returns True if the constraint was added."""
 		existing = self.get(index)
 		if existing is not None and not replace:
 			return False
@@ -126,8 +127,9 @@ class Constraints(dict):
 				if not (existing.min <= value <= existing.max):
 					return False
 			n_fixed_other = len(self.fixed) - (index in self.fixed)
-			if n_fixed_other >= len(self.panel_args.caption_v) - 1:
-				return False							# can't fix all variables
+			if (n_fixed_other >= len(self.panel_args.caption_v) - 1
+					and cause != 'user constraints'):
+				return False
 
 		if existing is not None:
 			self.delete(index)
