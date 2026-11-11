@@ -14,7 +14,7 @@ single time-series data with ARIMA/GARCH problems.
 
 **Author:** Espen Sirnes
 
-**Current version:** 1.3.8
+**Current version:** 1.3.9
 
 ## Installation
 
